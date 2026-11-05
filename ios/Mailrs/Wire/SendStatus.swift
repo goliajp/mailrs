@@ -13,6 +13,7 @@ enum SendStatus {
         case "sending": "Sending"
         case "scheduled": "Scheduled"
         case "delivered": "Delivered"
+        case "cancelled": "Cancelled"
         default: nil
         }
     }

@@ -12,6 +12,11 @@ struct SendStatusTests {
         #expect(SendStatus.labelKey("failed") == "Failed")
     }
 
+    /// Cancelled is the sender's own choice, and the row says so.
+    @Test func aCancelledSendSaysSo() {
+        #expect(SendStatus.labelKey("cancelled") == "Cancelled")
+    }
+
     /// No record is not a state: old mail shows nothing rather than a guess.
     @Test func noRecordSaysNothing() {
         #expect(SendStatus.labelKey(nil) == nil)
@@ -25,7 +30,7 @@ struct SendStatusTests {
         let path = try #require(app.path(forResource: "zh-Hans", ofType: "lproj"),
                                 "the app shipped no Chinese localization")
         let zh = try #require(Bundle(path: path))
-        for status in ["failed", "partial", "sending", "scheduled", "delivered"] {
+        for status in ["failed", "partial", "sending", "scheduled", "delivered", "cancelled"] {
             let key = try #require(SendStatus.labelKey(status))
             #expect(zh.localizedString(forKey: key, value: key, table: nil) != key,
                     "untranslated: \(key)")
