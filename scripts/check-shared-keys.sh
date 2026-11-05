@@ -12,6 +12,11 @@
 # with the family's prefix anywhere else in crates/ fails the check; import
 # the definition instead. Comment lines are ignored. EXCEPTIONS lists the
 # few spellings that cannot import, each with its reason.
+#
+# The account purge registry (REGISTRY) lists every family an account owns,
+# by name, so it spells prefixes too; it is exempt here, and
+# `check-user-keys.py` (run last) holds it to the opposite rule: every family
+# below, and every key built from an address, must have an entry there.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -70,7 +75,10 @@ reset:code:;crates/core-sidestate/src/keys/reset.rs
 reset:failures:;crates/core-sidestate/src/keys/reset.rs
 bayes:(v2:)?(tokens|meta|corpus|trained);crates/triage/src/spam.rs
 bayes:triage:;crates/triage/src/lib.rs
+mailrs:purge:;crates/core-sidestate/src/families/account_purge/pending.rs
 '
+
+REGISTRY=crates/core-sidestate/src/families/account_purge/registry.rs
 
 # file ; literal prefix ; why it cannot import
 EXCEPTIONS='
@@ -88,7 +96,7 @@ while IFS=';' read -r prefix owner; do
   fi
   hits=$(grep -rnE --include='*.rs' "b?\"($prefix)[^ ]" crates \
     | grep -vE '^[^:]+:[0-9]+:[[:space:]]*//' \
-    | grep -v "^$owner:" || true)
+    | grep -v "^$owner:" | grep -v "^$REGISTRY:" || true)
   while IFS=';' read -r file lit _why; do
     [ -z "$file" ] && continue
     hits=$(printf '%s\n' "$hits" | awk -v f="$file:" -v l="\"$lit" \
@@ -100,6 +108,8 @@ while IFS=';' read -r prefix owner; do
     fail=1
   fi
 done <<< "$FAMILIES"
+
+printf '%s\n' "$FAMILIES" | grep ';' | cut -d';' -f1 | python3 scripts/check-user-keys.py || fail=1
 
 [ "$fail" = 1 ] && exit 1
 

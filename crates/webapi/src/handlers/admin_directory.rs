@@ -15,10 +15,12 @@ use crate::handlers::admin::*;
 use crate::handlers::conversations::AuthedUser;
 use crate::handlers::kevy_util::with_kevy;
 
+mod account_restore;
 mod accounts;
 mod forwards;
 mod password_reset;
 mod send_as;
+pub use account_restore::*;
 pub use accounts::*;
 pub use forwards::*;
 pub use password_reset::{KeyRow, LAST_USE_RECORDED_SINCE};

@@ -187,10 +187,22 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
             adm_paths::PATH_UPDATE_ACCOUNT,
             put(handlers::admin::update_account).delete(handlers::admin::remove_account),
         )
+        .route(
+            adm_paths::PATH_RESTORE_ACCOUNT,
+            post(handlers::admin::restore_account),
+        )
         .route(adm_paths::PATH_SET_QUOTA, post(handlers::admin::set_quota))
         .route(
             adm_paths::PATH_QUOTA_LIMITS,
             post(handlers::admin::quota_limits_route),
+        )
+        .route(
+            adm_paths::PATH_ACCOUNT_PURGE,
+            post(handlers::admin::account_purge::account_purge_route),
+        )
+        .route(
+            adm_paths::PATH_GROUP_PURGE,
+            post(handlers::admin::account_purge::group_purge_route),
         )
         .route(
             adm_paths::PATH_USAGE_DRIFT,
@@ -224,14 +236,6 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         .route(
             adm_paths::PATH_DELETE_OWNERLESS_THREAD,
             post(handlers::admin::delete_ownerless_thread),
-        )
-        .route(
-            adm_paths::PATH_REJUDGE_BATCHES,
-            get(handlers::admin::rejudge_batches),
-        )
-        .route(
-            adm_paths::PATH_RELEASE_REJUDGE_BATCH,
-            post(handlers::admin::release_rejudge_batch),
         )
         .route(
             mailrs_core_api::method::report::PATH_REPORT_MESSAGE,

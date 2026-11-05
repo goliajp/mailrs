@@ -140,51 +140,8 @@ pub fn maybe_notify(
     spawn_apns(apns, addr, title, body, tap, now);
 }
 
-/// Tell `addr`'s devices that a conversation they had was taken back into
-/// Review, under the reader's push settings: nothing when pushes are off
-/// or it is their quiet time, only "moved to Review" when they hide what
-/// mail says.
-pub fn notify_recalled(
-    net: Option<&mut kevy_client::Connection>,
-    addr: &str,
-    thread_id: &str,
-    sender: &str,
-    subject: &str,
-) {
-    let apns = client();
-    let web = crate::web_push::vapid();
-    if apns.is_none() && web.is_none() {
-        return;
-    }
-    let now = chrono::Utc::now().timestamp();
-    let Some(conn) = net else {
-        tracing::warn!(%addr, "push: no network kevy, the push settings cannot be read; no push");
-        return;
-    };
-    let prefs = mailrs_core_sidestate::families::notify::prefs(conn, addr).unwrap_or_default();
-    if prefs.mode == mailrs_core_sidestate::families::notify::Mode::Off || prefs.quiet_at(now) {
-        tracing::debug!(%addr, "push: a recall held back by the reader's settings");
-        return;
-    }
-    if let Some(vapid) = web {
-        let payload = crate::web_push::payload(thread_id, sender, subject, prefs.hide_content);
-        crate::web_push::spawn(vapid, addr, payload, now);
-    }
-    let Some(apns) = apns else {
-        return;
-    };
-    let (title, body) = match prefs.hide_content {
-        true => ("Moved to Review".to_string(), String::new()),
-        false => ("Moved to Review".to_string(), truncated(subject, 300)),
-    };
-    // a held conversation still opens on tap, but archive and mark-read
-    // are not what a lock screen should offer for mail that was taken back
-    let tap = Tap {
-        thread_id: thread_id.to_string(),
-        category: None,
-    };
-    spawn_apns(apns, addr, title, body, tap, now);
-}
+mod recalled;
+pub use recalled::{RecalledConversation, notify_recalled};
 
 /// What tapping an alert opens, and which actions it offers.
 struct Tap {

@@ -95,6 +95,7 @@ mod ownerless;
 mod rethread;
 mod sections;
 mod shared;
+pub use shared::REPLY_FAMILY as SHARED_REPLY_FAMILY;
 mod table_query;
 mod table_query_tests;
 mod table_spec;

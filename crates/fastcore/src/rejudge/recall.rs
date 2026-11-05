@@ -6,22 +6,29 @@
 //! a person put back is taken again only for mail that arrived after they
 //! did, and then only for a rule it was not put back despite.
 //!
+//! A round gathers what it would hold and decides once all of the
+//! observation's mail is judged (`settle`): up to `MAILRS_REJUDGE_HOLD_CAP`
+//! conversations are held at once; more wait, held by nobody, as a
+//! pending batch a super administrator confirms or discards.
+//!
 //! Off unless `MAILRS_REJUDGE_ACT=on`: until then a round records verdicts
 //! and logs what it would do.
 
 use std::sync::Arc;
 
-use mailrs_core_sidestate::families::recall_notices::{self, Recalled};
-
 use crate::FastcoreState;
 
 mod batches;
-pub(crate) use batches::{batches, release_batch};
+mod settle;
+mod tell;
+pub(crate) use batches::{Refused, batches, confirm_batch, discard_batch, release_batch};
+pub(crate) use settle::{offer, settle};
 
 /// The switch: `on` acts, anything else only logs.
 pub(crate) const ACT_ENV: &str = "MAILRS_REJUDGE_ACT";
 
-/// Every batch: observation id → JSON `{at, released_at}`.
+/// Every batch: observation id → JSON `{at, released_at, pending,
+/// would_hold, rules, discarded_at}`.
 const BATCHES: &[u8] = b"rejudge:batches";
 
 pub(crate) fn acting() -> bool {
@@ -47,44 +54,57 @@ fn now() -> i64 {
     chrono::Utc::now().timestamp()
 }
 
-/// One conversation the rules now hold.
-pub(crate) struct Recall<'a> {
-    pub(crate) user: &'a str,
-    pub(crate) tid: &'a str,
-    pub(crate) mid: &'a str,
-    pub(crate) from: &'a str,
-    pub(crate) subject: &'a str,
+/// One conversation the rules now hold, as a round keeps it until it
+/// decides, and as a pending batch keeps it until someone does.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) struct Candidate {
+    pub(crate) user: String,
+    pub(crate) tid: String,
+    pub(crate) mid: String,
+    pub(crate) from: String,
+    pub(crate) subject: String,
     pub(crate) rules: Vec<String>,
-    pub(crate) observation: &'a str,
-    pub(crate) verdict: &'a mailrs_inbound::FraudVerdict,
+    pub(crate) verdict: mailrs_inbound::FraudVerdict,
     /// When the message arrived, from our receiver's trace.
     pub(crate) arrived: Option<i64>,
 }
 
-/// Take `r` back into Review. Returns whether it was taken (false when it
-/// was already held, or put back before for the same rules).
-pub(crate) fn recall(state: &Arc<FastcoreState>, r: &Recall<'_>) -> Result<bool, String> {
+/// Whether `c` may be taken now: not held already, not put back before
+/// for the same rules, not released by a person after its message came.
+fn may_take(state: &FastcoreState, c: &Candidate) -> Result<bool, String> {
     let store = state.mailbox.store_ref();
-    let released = rules_of(store.hget(released_key(r.user, r.tid).as_bytes(), b"rules"));
-    if !released.is_empty() && r.rules.iter().all(|rule| released.contains(rule)) {
-        tracing::info!(user = %r.user, tid = %r.tid, rules = ?r.rules,
+    let released = rules_of(store.hget(released_key(&c.user, &c.tid).as_bytes(), b"rules"));
+    if !released.is_empty() && c.rules.iter().all(|rule| released.contains(rule)) {
+        tracing::info!(user = %c.user, tid = %c.tid, rules = ?c.rules,
             "rejudge: put back before for these rules; left where it is");
         return Ok(false);
     }
     // a person released it after this message came: it stays released
-    if !crate::hold_facts::may_hold_again(state, r.user, r.tid, r.arrived)? {
-        tracing::info!(user = %r.user, tid = %r.tid,
+    if !crate::hold_facts::may_hold_again(state, &c.user, &c.tid, c.arrived)? {
+        tracing::info!(user = %c.user, tid = %c.tid,
             "rejudge: a person released it after this message came; left where it is");
         return Ok(false);
     }
+    Ok(state
+        .mailbox
+        .get_thread_for_user(&c.user, &c.tid)
+        .map_err(|e| e.to_string())?
+        .is_some_and(|row| !row.quarantined))
+}
+
+/// Take `c` back into Review, in `observation`'s batch. Returns whether it
+/// was taken; the caller tells the reader, once for the round.
+fn recall(state: &Arc<FastcoreState>, c: &Candidate, observation: &str) -> Result<bool, String> {
+    if !may_take(state, c)? {
+        return Ok(false);
+    }
     let held_now = crate::maintenance::fraud_rescan::holding::apply(
-        state, r.user, r.tid, r.mid, r.verdict, "recall",
+        state, &c.user, &c.tid, &c.mid, &c.verdict, "recall",
     )?;
     if !held_now {
         return Ok(false);
     }
-    let at = remember(state, r.user, r.tid, r.observation, &r.rules)?;
-    tell(state, r, at);
+    remember(state, &c.user, &c.tid, observation, &c.rules)?;
     Ok(true)
 }
 
@@ -132,7 +152,7 @@ fn remember(
     tid: &str,
     observation: &str,
     rules: &[String],
-) -> Result<i64, String> {
+) -> Result<(), String> {
     let store = state.mailbox.store_ref();
     let at = now();
     let rules = serde_json::to_string(rules).map_err(|e| e.to_string())?;
@@ -140,16 +160,8 @@ fn remember(
     store
         .sadd(batch_key(observation).as_bytes(), &[member.as_bytes()])
         .map_err(|e| e.to_string())?;
-    if store
-        .hget(BATCHES, observation.as_bytes())
-        .ok()
-        .flatten()
-        .is_none()
-    {
-        let entry = serde_json::json!({ "at": at, "released_at": 0 }).to_string();
-        store
-            .hset(BATCHES, &[(observation.as_bytes(), entry.as_bytes())])
-            .map_err(|e| e.to_string())?;
+    if batches::entry(state, observation).is_none() {
+        batches::put_entry(state, observation, &batches::Entry::new(at, false, 0, &[]))?;
     }
     let at_s = at.to_string();
     store
@@ -162,58 +174,7 @@ fn remember(
             ],
         )
         .map_err(|e| e.to_string())?;
-    Ok(at)
-}
-
-/// The audit line, the reader's notice, the webhook and the push, each
-/// logged on failure: the conversation is held whether or not they land.
-fn tell(state: &Arc<FastcoreState>, r: &Recall<'_>, at: i64) {
-    let Some(mut conn) = state.net_conn() else {
-        tracing::warn!(user = %r.user, tid = %r.tid, "rejudge: no shared store; the reader was not told");
-        return;
-    };
-    let detail = format!(
-        "user={} observation={} rules={}",
-        r.user,
-        r.observation,
-        r.rules.join(",")
-    );
-    if let Err(e) = mailrs_core_sidestate::families::audit::append(
-        &mut conn,
-        "rejudge",
-        "rejudge.recall",
-        r.tid,
-        &detail,
-        at,
-    ) {
-        tracing::warn!(error = %e, tid = %r.tid, "rejudge: the recall was not audited");
-    }
-    let notice = Recalled {
-        thread_id: r.tid.to_string(),
-        subject: r.subject.to_string(),
-        rules: r.rules.clone(),
-        observation: r.observation.to_string(),
-        at,
-    };
-    if let Err(e) = recall_notices::push(&mut conn, r.user, &notice) {
-        tracing::warn!(error = %e, tid = %r.tid, "rejudge: the reader's notice was not written");
-    }
-    let event = mailrs_core_sidestate::families::webhook_events::Event {
-        kind: mailrs_core_sidestate::families::webhook_events::kinds::MAIL_HELD,
-        user: r.user,
-        sender: Some(r.from),
-        thread_id: Some(r.tid),
-        data: serde_json::json!({
-            "message_id": r.mid,
-            "subject": r.subject,
-            "snippet": "",
-            "reason": "rejudged",
-            "rules": r.rules,
-            "observation": r.observation,
-        }),
-    };
-    mailrs_core_sidestate::families::webhook_events::enqueue_logged(&mut conn, &event, at);
-    mailrs_intake::push::notify_recalled(Some(&mut conn), r.user, r.tid, r.from, r.subject);
+    Ok(())
 }
 
 /// A rejudge-held conversation the rules no longer hold goes back where

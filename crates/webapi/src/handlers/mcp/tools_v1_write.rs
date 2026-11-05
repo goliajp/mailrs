@@ -57,17 +57,16 @@ impl MailrsMcpService {
             McpError::invalid_params("that address is or was a masked address", None)
         })?;
         let req = mailrs_core_api::method::admin::AddAccountRequest {
-            address: params.address.clone(),
+            address: params.address,
             display_name: params.display_name,
             password: params.password,
             password_hash: None,
         };
         self.state
             .core
-            .add_account(&req)
+            .add_account_by(&req, &user)
             .await
             .map_err(|e| McpError::internal_error(format!("create_account: {e}"), None))?;
-        crate::handlers::audit::record(&user, "account.create", &params.address, "via mcp");
         Ok(ok_result())
     }
 
@@ -91,13 +90,35 @@ impl MailrsMcpService {
             })?;
         self.state
             .core
-            .remove_account(&params.address)
+            .remove_account_by(&params.address, &user)
             .await
             .map_err(|e| McpError::internal_error(format!("remove_account: {e}"), None))?;
         crate::handlers::auth::revoke_all_access(&params.address).map_err(|code| {
             McpError::internal_error(format!("remove_account: revoking access: {code}"), None)
         })?;
-        crate::handlers::audit::record(&user, "account.delete", &params.address, "via mcp");
+        Ok(ok_result())
+    }
+
+    #[tool(
+        description = "Restore a deleted account before its purge (super administrator, recent password confirmation): its mail, settings and group memberships come back as they were. Refused when the address is an account, is not waiting for a purge, or was deleted more than once and `parked` does not name which deletion to restore (the refusal lists them)."
+    )]
+    async fn restore_account(
+        &self,
+        Parameters(params): Parameters<RestoreAccountParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        self.require_confirmed()?;
+        self.require_route(&user, "/api/admin/accounts/{address}/restore")
+            .await?;
+        let req = mailrs_core_api::method::admin::RestoreAccountRequest {
+            by: user,
+            parked: params.parked,
+        };
+        self.state
+            .core
+            .restore_account(&params.address, &req)
+            .await
+            .map_err(|e| McpError::invalid_request(format!("restore_account: {e}"), None))?;
         Ok(ok_result())
     }
 

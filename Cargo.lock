@@ -4007,6 +4007,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "kevy-client",
+ "mailrs-alias-store",
  "mailrs-attachment-scan",
  "mailrs-auth-guard",
  "mailrs-core-api",
@@ -4130,6 +4131,7 @@ name = "mailrs-fastcore"
 version = "0.0.0"
 dependencies = [
  "argon2",
+ "aws-lc-rs",
  "axum",
  "base64 0.22.1",
  "chrono",

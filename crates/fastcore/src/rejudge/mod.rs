@@ -11,7 +11,10 @@
 //! Junk — is logged and counted. With `MAILRS_REJUDGE_ACT=on` a hold takes
 //! the conversation back into Review and tells its reader, and a
 //! conversation this module held that the rules no longer hold goes back
-//! (`recall`); Junk stays a logged suggestion.
+//! (`recall`); Junk stays a logged suggestion. One observation holds at
+//! most `MAILRS_REJUDGE_HOLD_CAP` conversations (50) on its own; a round
+//! that would hold more holds nothing and waits as a pending batch for a
+//! super administrator to confirm or discard.
 //!
 //! **Paged.** An observation that names more mail than one page is judged
 //! over several, the place kept in fastcore's store, so a restart goes on
@@ -253,6 +256,10 @@ pub(crate) fn tick(state: &Arc<FastcoreState>, judge: &mut judge::Judge) -> std:
             }
             if from > 0 || targets.len() > page {
                 state.mailbox.store_ref().del(&[PENDING_KEY])?;
+            }
+            // what the pages found to hold is held, or waits, only now
+            if let Err(e) = recall::settle(state, &o.id) {
+                tracing::warn!(error = %e, id = %o.id, "rejudge: the round's holds were not settled");
             }
         }
         write_done(state, n)?;

@@ -25,7 +25,7 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-126 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority):
+127 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority):
 
 ### Email Operations
 
@@ -69,7 +69,8 @@ Config for Claude Code or any MCP client:
 |------|-----------|-------------|
 | list_accounts | admin.accounts | List all email accounts (address, domain, display_name, active) |
 | create_account | admin.accounts | Create account (onboarding). Auto-joins domain's default user group |
-| remove_account | admin.accounts | Remove account (offboarding). It can no longer sign in, its sessions and agent keys stop working, stored mail is moved aside on disk (kept, not visible), and new mail to the address is refused unless an alias or catch-all takes it. Aliases and group memberships are kept |
+| remove_account | admin.accounts | Remove account (offboarding). It can no longer sign in, its sessions and agent keys stop working, and new mail to the address is refused unless an alias or catch-all takes it. Everything else it owned (mail, settings, aliases to it, group memberships) is kept for the retention period, 30 days unless the server sets another, and then purged |
+| restore_account | super administrator | Undo `remove_account` before the purge: the account comes back with its mail, settings and memberships. `parked` names which deletion to restore when the address was deleted more than once |
 | set_account_password | admin.accounts | Reset an account's password (argon2 hashed) and sign its sessions out; with `compromised_revoke_key_ids` (all of the account's key ids) every agent key is revoked too |
 | list_account_agent_keys | admin.accounts | An account's agent keys with created and last-used times (to the hour; null when not recorded) |
 | list_outbound_paused | super administrator | Accounts whose outbound mail is paused (past the hourly limit or too many failures), with the held count |
@@ -648,8 +649,9 @@ If account is in the `super` group, all permissions on all domains are granted.
 
 ### Offboarding Workflow
 
-1. `remove_account` -- the account can no longer sign in; its open sessions and agent keys stop working; stored mail is moved aside on disk (kept, not visible); new mail to the address is refused unless an alias or catch-all takes it
-2. Aliases pointing at the address and its group memberships are kept: remove them with `remove_alias` / `remove_account_from_group` if they should go too
+1. `remove_account` -- the account can no longer sign in; its open sessions and agent keys stop working; new mail to the address is refused unless an alias or catch-all takes it; the address cannot be given to a new account until the purge
+2. Its mail, settings, the aliases pointing at it and its group memberships are kept for the retention period (30 days unless the server sets another), then purged
+3. Until then `restore_account` (super administrator) brings it all back
 
 ---
 
@@ -1102,6 +1104,10 @@ curl -X POST https://mail.golia.ai/api/admin/reconcile-maildir \
 # remove account
 curl -X DELETE https://mail.golia.ai/api/admin/accounts/old@golia.jp \
   -H "Authorization: Bearer mlrs_..."
+
+# restore it before its purge (super administrator, recent confirmation)
+curl -X POST https://mail.golia.ai/api/admin/accounts/old@golia.jp/restore \
+  -H "Authorization: Bearer mlrs_..."
 ```
 
 ### Domain Management (requires admin.domains)
@@ -1311,6 +1317,19 @@ is deleted; a take-back is one batch in `/api/admin/rejudge/batches` that
 can be put back whole, and each reader whose copy was taken sees a line
 where it was, gets the `mail.held` webhook with `reason: "reported"`, and a
 push. Not available as an MCP tool.
+
+When new information about a sender makes the rules hold mail that was
+already delivered, the server takes those conversations back into Review
+the same way, one batch per piece of information. One batch holds at most
+50 conversations on its own (the operator sets `MAILRS_REJUDGE_HOLD_CAP`).
+A batch that would hold more holds nothing and is listed in
+`/api/admin/rejudge/batches` with `pending: true`, `would_hold` and
+`rules`, until a super administrator, after a recent password
+confirmation, confirms it (`POST
+/api/admin/rejudge/batches/{observation}/confirm`, which holds the
+conversations it recorded that may still be held) or discards it (`POST
+…/discard`, which holds nothing). Each reader gets one notice and one push
+per batch, however many of their conversations it took.
 
 Known limit: a body of fewer than eight words has no fingerprint, so a
 report of it holds only that message and looks for nothing else. The

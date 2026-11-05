@@ -254,6 +254,15 @@ pub trait EventOps {
     fn pop_oldest(&mut self, key: &str) -> io::Result<Option<Vec<u8>>>;
 }
 
+/// Globs matching the once-a-day markers kept for `account`'s sign-ins on
+/// every channel. They expire in two days; a purge removes them sooner.
+pub fn seen_globs(account: &str) -> Vec<String> {
+    vec![format!(
+        "auth:events:seen:*:{}:*",
+        crate::glob_escape(account)
+    )]
+}
+
 /// `YYYYMMDD` (UTC) of the day `unix` falls in.
 pub fn day(unix: u64) -> u32 {
     // days since 1970-01-01 to a civil date, after Howard Hinnant's

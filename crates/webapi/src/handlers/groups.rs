@@ -1,12 +1,20 @@
 //! Permission groups, their members, and email groups.
 
-use axum::{Json, extract::Path, http::StatusCode};
+use axum::{
+    Json,
+    extract::{Extension, Path},
+    http::StatusCode,
+};
+
+use crate::handlers::audit::record;
+use crate::handlers::conversations::AuthedUser;
 
 use crate::handlers::complete::*;
 use crate::handlers::kevy_util::with_kevy;
 use mailrs_core_sidestate::families::email_groups::{
     COUNTER_KEY as EG_CTR, GROUPS_KEY as EG_KEY, members_key as email_group_members_key,
 };
+use mailrs_core_sidestate::families::group_purge;
 use mailrs_core_sidestate::families::permission_groups::{
     self as groups, GROUPS_KEY, members_key, permissions_key,
 };
@@ -30,19 +38,26 @@ pub struct CreateGroupRequest {
 
 pub async fn create_group(
     _: crate::session::confirm::Confirmed,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Json(req): Json<CreateGroupRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    let name = req.name.clone();
     let row = with_kevy(move |c| Ok(groups::create(c, &req.name, &req.description, now_secs())?))?;
+    record(&actor, "group.create", &row["id"].to_string(), &name);
     Ok(Json(row))
 }
 
 /// DELETE /api/admin/groups/{id} — 409 for a builtin group.
 pub async fn delete_group(
     _: crate::session::confirm::Confirmed,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, StatusCode> {
     match with_kevy(move |c| Ok(groups::delete(c, id)?))? {
-        true => Ok(StatusCode::NO_CONTENT),
+        true => {
+            record(&actor, "group.delete", &id.to_string(), "");
+            Ok(StatusCode::NO_CONTENT)
+        }
         false => Err(StatusCode::CONFLICT),
     }
 }
@@ -75,7 +90,9 @@ pub async fn set_group_permissions(
 ) -> Result<StatusCode, StatusCode> {
     // the group's members get these: only what the writer could grant
     crate::handlers::grants::require_may_grant(&state, &actor, &req.permissions).await?;
+    let detail = req.permissions.join(",");
     with_kevy(move |c| Ok(groups::set_permissions(c, id, &req.permissions)?))?;
+    record(&actor, "group.permissions_set", &id.to_string(), &detail);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -108,15 +125,21 @@ pub async fn add_group_member(
     // a new member gets what the group carries: a grant
     let carries = crate::handlers::grants::group_permissions(id)?;
     crate::handlers::grants::require_may_grant(&state, &actor, &carries).await?;
-    with_kevy(move |c| Ok(groups::add_member(c, id, &req.address)?))?;
+    let address = req.address;
+    let member = address.clone();
+    with_kevy(move |c| Ok(groups::add_member(c, id, &member)?))?;
+    record(&actor, "group.member_add", &id.to_string(), &address);
     Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn remove_group_member(
     _: crate::session::confirm::Confirmed,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path((id, address)): Path<(i64, String)>,
 ) -> Result<StatusCode, StatusCode> {
-    with_kevy(move |c| Ok(groups::remove_member(c, id, &address)?))?;
+    let member = address.clone();
+    with_kevy(move |c| Ok(groups::remove_member(c, id, &member)?))?;
+    record(&actor, "group.member_remove", &id.to_string(), &address);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -163,8 +186,10 @@ pub struct CreateEmailGroupRequest {
     pub members: Vec<String>,
 }
 
+/// The one writer of `email_group.create`: the MCP tool comes through here.
 pub async fn create_email_group(
     _: crate::session::confirm::Confirmed,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Json(req): Json<CreateEmailGroupRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     crate::handlers::masked_email::refuse_if_masked(&req.address)?;
@@ -191,17 +216,27 @@ pub async fn create_email_group(
         }
         Ok(())
     })?;
+    record(&actor, "email_group.create", &id.to_string(), &req.address);
     Ok(Json(g))
 }
 
+/// DELETE /api/admin/email-groups/{id} — the group is out of use at once
+/// (no longer listed, routed or anyone's team); its team working state is
+/// kept until the purge, which the core runs once the retention period of
+/// deleted accounts has passed. Asked here, the core purges at once under 0
+/// days and finds nothing due otherwise. The one writer of the delete's
+/// audit line (`email_group.soft_deleted`): the MCP tool comes through here.
 pub async fn delete_email_group(
     _: crate::session::confirm::Confirmed,
+    axum::extract::State(state): axum::extract::State<std::sync::Arc<crate::WebState>>,
+    axum::extract::Extension(crate::handlers::conversations::AuthedUser(actor)): axum::extract::Extension<
+        crate::handlers::conversations::AuthedUser,
+    >,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, StatusCode> {
-    with_kevy(move |c| {
-        c.hdel(EG_KEY.as_bytes(), &[id.to_string().as_bytes()])?;
-        c.del(&[email_group_members_key(id).as_bytes()])?;
-        Ok(())
-    })?;
+    let deleted = with_kevy(move |c| group_purge::soft_delete(c, id, &actor, now_secs()))?;
+    if deleted && let Err(e) = state.core.group_purge(false, Some(id)).await {
+        tracing::error!(error = %e, gid = id, "purging the deleted group failed; the core's retention task retries");
+    }
     Ok(StatusCode::NO_CONTENT)
 }

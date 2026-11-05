@@ -10,6 +10,8 @@ use crate::*;
 
 #[path = "directory.rs"]
 mod directory;
+#[path = "rejudge.rs"]
+mod rejudge;
 
 /// Session-scoped auth: the routes that need a session to already exist.
 pub(super) fn auth_routes() -> axum::Router<Arc<WebState>> {
@@ -91,6 +93,7 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
 
     axum::Router::new()
         .merge(directory::directory_routes())
+        .merge(rejudge::rejudge_routes())
         .route(
             "/api/admin/screening/observations",
             get(handlers::screening_admin::list).post(handlers::screening_admin::add),
@@ -177,14 +180,6 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
         .route(
             "/api/admin/ownerless-threads/{thread_id}",
             axum::routing::delete(handlers::admin_ownerless::delete),
-        )
-        .route(
-            "/api/admin/rejudge/batches",
-            get(handlers::rejudge::batches),
-        )
-        .route(
-            "/api/admin/rejudge/batches/{observation}/release",
-            post(handlers::rejudge::release),
         )
         .route(
             "/api/admin/reports/pending",

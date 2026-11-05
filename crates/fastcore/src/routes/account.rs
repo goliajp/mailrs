@@ -51,6 +51,7 @@ pub(crate) async fn list_accounts(
 
 pub(crate) async fn add_account_route(
     State(state): State<Arc<FastcoreState>>,
+    axum::extract::Query(by): axum::extract::Query<adm::ActorQuery>,
     Json(req): Json<adm::AddAccountRequest>,
 ) -> axum::response::Response {
     use argon2::{
@@ -69,6 +70,28 @@ pub(crate) async fn add_account_route(
             tracing::error!(err = %e, addr = %req.address, "get_account_blob failed");
             return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
+    }
+    // a deleted account's data waits for its purge; an account created on
+    // the address now would be handed it, or lose what it gets meanwhile
+    match crate::account_purge::mark_conn(&state) {
+        Ok(Some(mut c)) => {
+            match mailrs_core_sidestate::families::account_purge::pending::deleted_at(
+                &mut c,
+                &req.address,
+            ) {
+                Ok(None) => {}
+                Ok(Some(_)) => {
+                    tracing::warn!(addr = %req.address, "address pending purge; refused");
+                    return axum::http::StatusCode::CONFLICT.into_response();
+                }
+                Err(e) => {
+                    tracing::error!(err = %e, addr = %req.address, "reading the purge marks failed");
+                    return axum::http::StatusCode::SERVICE_UNAVAILABLE.into_response();
+                }
+            }
+        }
+        Ok(None) => {}
+        Err(code) => return code.into_response(),
     }
     let hash = match initial {
         adm::InitialPassword::Hash(h) => h.to_string(),
@@ -125,6 +148,14 @@ pub(crate) async fn add_account_route(
     if let Err(e) = state.mailbox.upsert_permissions(&req.address, &perms) {
         tracing::warn!(err = %e, addr = %req.address, "upsert_permissions failed");
     }
+    mailrs_core_sidestate::families::audit::record_by_core(
+        &*state,
+        by.actor(),
+        mailrs_core_sidestate::families::audit::ACCOUNT_CREATE,
+        &req.address,
+        "",
+        now_secs(),
+    );
     axum::http::StatusCode::NO_CONTENT.into_response()
 }
 

@@ -26,10 +26,12 @@ export function RecalledNote() {
     queryFn: ({ signal }) => fetchRecalled(signal),
   })
   const items = data ?? EMPTY
-  if (activeList !== 'inbox' || items.length === 0) return null
+  // one entry per round, each naming the conversations it took
+  const count = items.reduce((n, round) => n + round.thread_ids.length, 0)
+  if (activeList !== 'inbox' || count === 0) return null
   return (
     <p className="border-border bg-bg-secondary text-fg-secondary border-b px-3 py-2 text-xs">
-      {t('list.recalled', { count: items.length })}{' '}
+      {t('list.recalled', { count })}{' '}
       <button
         className="text-accent hover:underline"
         onClick={() => openList('quarantine')}
