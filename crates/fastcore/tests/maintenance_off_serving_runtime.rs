@@ -16,18 +16,16 @@ use mailrs_fastcore::FastcoreState;
 use mailrs_mailbox_kevy::KevyMailboxStore;
 use tower::ServiceExt;
 
-fn call(
+async fn call(
     router: axum::Router,
     request: axum::http::Request<axum::body::Body>,
-) -> impl Future<Output = (axum::http::StatusCode, axum::body::Bytes)> {
-    async move {
-        let response = router.oneshot(request).await.unwrap();
-        let status = response.status();
-        (
-            status,
-            response.into_body().collect().await.unwrap().to_bytes(),
-        )
-    }
+) -> (axum::http::StatusCode, axum::body::Bytes) {
+    let response = router.oneshot(request).await.unwrap();
+    let status = response.status();
+    (
+        status,
+        response.into_body().collect().await.unwrap().to_bytes(),
+    )
 }
 
 #[test]
