@@ -108,7 +108,7 @@ final class ReplyFlowTests: MailrsUITestCase {
             .waitForExistence(timeout: 15), "inbox never listed")
 
         app.buttons["Lists"].tap()
-        app.buttons["Send"].tap()
+        app.buttons["Sent"].tap()
 
         // The failed, unfiled send is the row the list exists for — a
         // naive /api/mail/sent listing would not contain it at all.
