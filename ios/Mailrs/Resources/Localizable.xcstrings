@@ -17,6 +17,22 @@
         }
       }
     },
+    "%@ is on your Always allowed list. Blocking takes it off.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ は「常に許可」に入っています。ブロックするとそこから外れます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 在你的「始终允许」名单里，拦截后会从那里移除。"
+          }
+        }
+      }
+    },
     "%@ is writing a reply": {
       "localizations": {
         "ja": {
@@ -833,18 +849,18 @@
         }
       }
     },
-    "Always block": {
+    "Always allowing %@": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "常にブロック"
+            "value": "%@ を常に許可します"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "永久拦截"
+            "value": "已始终允许 %@"
           }
         }
       }
@@ -1197,6 +1213,70 @@
           "stringUnit": {
             "state": "translated",
             "value": "密送"
+          }
+        }
+      }
+    },
+    "Block": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ブロック"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拦截"
+          }
+        }
+      }
+    },
+    "Block %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ をブロック"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拦截 %@"
+          }
+        }
+      }
+    },
+    "Block %@?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ をブロックしますか？"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拦截 %@？"
+          }
+        }
+      }
+    },
+    "Blocked %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ をブロックしました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已拦截 %@"
           }
         }
       }
@@ -3246,6 +3326,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "来自这些地址的邮件在收信时会被当作垃圾邮件。"
+          }
+        }
+      }
+    },
+    "Mail from this address will go to Junk, and this conversation moves there now. You can undo this in Settings → Senders.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今後このアドレスからのメールは迷惑メールに入り、この会話も今すぐ移動します。「設定 → 送信者」で元に戻せます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以后来自这个地址的邮件会进垃圾邮件，这个会话现在也会移过去。可以在「设置 → 发件人」里撤销。"
           }
         }
       }
@@ -7122,6 +7218,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "取消归档"
+          }
+        }
+      }
+    },
+    "Unblock %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ のブロックを解除"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消拦截 %@"
+          }
+        }
+      }
+    },
+    "Unblocked %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ のブロックを解除しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已取消拦截 %@"
           }
         }
       }

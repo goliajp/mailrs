@@ -268,7 +268,6 @@ pub async fn mark_not_junk(
         let user_lc = user.to_lowercase();
         let senders = senders_csv;
         let _ = crate::handlers::kevy_util::with_kevy(move |c| {
-            let wl_key = mailrs_core_sidestate::families::sender_lists::whitelist_key(&user_lc);
             // Bare addresses only: delivery compares the envelope
             // sender, so a stored `Name <addr>` never matches and the
             // whitelist silently does nothing.
@@ -278,8 +277,10 @@ pub async fn mark_not_junk(
                     continue;
                 }
                 // this user's list only: the admin's sender lists apply to
-                // every recipient, and one person's "not junk" is not theirs
-                let _ = c.sadd(wl_key.as_bytes(), &[addr.as_bytes()]);
+                // every recipient, and one person's "not junk" is not
+                // theirs. Off the blacklist too: delivery reads the
+                // whitelist first, so a sender on both is not blocked.
+                let _ = mailrs_core_sidestate::families::sender_lists::allow(c, &user_lc, &addr);
             }
             Ok(())
         });

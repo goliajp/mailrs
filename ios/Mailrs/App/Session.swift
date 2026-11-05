@@ -173,6 +173,8 @@ final class Session {
     /// The reader's labels, and the one shown while `activeList` is `.label`.
     var labels: [Wire.LabelItem] = []
     var activeLabel: Wire.LabelItem?
+    /// Both sender lists, for the message menu's Block / Unblock; nil until read.
+    var senderLists: SenderLists?
     var pendingUndo: PendingUndo?
     var pendingSend: PendingSend?
     var undoDismissTask: Task<Void, Never>?
