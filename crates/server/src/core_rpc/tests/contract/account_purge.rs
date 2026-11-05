@@ -213,6 +213,12 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         let left = keys_naming(&mut store(url), DAVE);
         assert!(left.is_empty(), "{url}: dave's keys remain: {left:?}");
         assert_eq!(parked(root), 0, "{url}: the parked maildir remains");
+        let domain = std::path::Path::new(root).join(".deleted/example.test");
+        let others = std::fs::read_dir(&domain).map_or(0, |d| d.count());
+        assert!(
+            others > 0 || !domain.exists(),
+            "{url}: the emptied .deleted/example.test remains"
+        );
         assert!(
             pending::deleted_at(&mut store(url), DAVE)
                 .expect("pending")

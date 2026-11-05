@@ -122,7 +122,7 @@ fn purge_one(
     }
     purge::remove_store(&mut mail, Store::Mail, address)?;
     purge::remove_store(net, Store::Network, address)?;
-    maildir::remove(&dirs)?;
+    maildir::remove(Path::new(&state.maildir_root), &dirs)?;
     let mut u = purge::unregistered(net, address)?;
     u.extend(mail_unregistered(&mut mail, address)?);
     row.unregistered = u;

@@ -187,7 +187,8 @@ async fn purge_one(
         purge::unregistered(c, &a)
     })
     .await?;
-    maildir::remove(&dirs).map_err(failed("removing the parked maildir"))?;
+    maildir::remove(Path::new(&state.maildir_root), &dirs)
+        .map_err(failed("removing the parked maildir"))?;
     row.unregistered = unregistered;
     let done = row.clone();
     net(state, move |c| purge::finish(c, &done, now)).await?;
