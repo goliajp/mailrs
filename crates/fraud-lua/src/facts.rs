@@ -115,6 +115,7 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
             "has_encrypted_document_archive",
             f.has_encrypted_document_archive,
         ),
+        ("parser_failed_on_message", f.parser_failed_on_message),
         ("reply_marker_without_thread", f.reply_marker_without_thread),
         ("unauthenticated", f.unauthenticated),
         ("peer_is_private", f.peer_is_private),

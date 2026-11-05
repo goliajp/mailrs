@@ -129,3 +129,19 @@ rule('attachment-is-a-login-page', 'content', 6, true, function(m)
         return "an attached page asks for a password and sends it to another site than the sender's"
     end
 end)
+-- The parse worker died, was killed or ran out of time while reading
+-- this message's parts (HTML, attachments, the Bayes tokens), so what
+-- those readings would have shown is missing.  A message built to take
+-- a parser down is one an attacker made; a mailer's honest oddity can
+-- do it too, and the message is delivered either way.
+--
+-- **Scored, not held**, and asked of every sender: a crash says nothing
+-- about who wrote the letter, and a sender cannot step around it by
+-- leaving out its `From:`.  3 is below the Junk threshold (5), so alone
+-- it leaves the inbox alone; with another signal it adds up.  A worker
+-- that was down for its own reasons sets nothing.
+rule('parser-failed-on-message', 'content', 3, false, function(m)
+    if m.parser_failed_on_message then
+        return 'a parser failed while reading this message, so part of it could not be checked'
+    end
+end)

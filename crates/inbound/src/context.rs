@@ -51,6 +51,11 @@ pub struct ReceiveContext {
     pub ptr_score: f64,
     /// Score from an AI / ML scoring stage.
     pub ai_score: f64,
+    /// The message's Bayes tokens, read before the pipeline runs by the
+    /// caller, which reads them out of process with the rest of what it
+    /// parses. Empty when they were not read; a scoring stage then adds
+    /// nothing.
+    pub bayes_tokens: Vec<String>,
     /// What the From display name and Subject were found to contain
     /// (`mailrs_textguard`).
     ///
@@ -146,6 +151,7 @@ impl ReceiveContext {
             matched_rules: Vec::new(),
             ptr_score: 0.0,
             ai_score: 0.0,
+            bayes_tokens: Vec::new(),
             deception,
             // Nothing yet. The rules run over `Facts` the caller
             // assembles — this constructor has the message but not

@@ -27,7 +27,7 @@ pub struct Reading {
     has_bidi_override: bool,
     has_zero_width_inside_a_word: bool,
     has_zero_width_in_name: bool,
-    inside: mailrs_fraud::attachment_inside::Inside,
+    inside: mailrs_parse_worker::AttachmentsRead,
     reply_marker_without_thread: bool,
     offers_the_reader_a_sum: bool,
     asks_for_the_readers_line: bool,
@@ -71,7 +71,9 @@ impl Reading {
             has_zero_width_inside_a_word: deception.zero_width_inside_a_word,
             has_zero_width_in_name: mailrs_inbound::deception_in_display_name(raw)
                 .unjustified_zero_width,
-            inside: mailrs_inbound::body::attachments_inside(&parsed),
+            // nobody waits on a re-judging; a large message may take
+            // the longer limit
+            inside: mailrs_parse_worker::attachments_inside(raw, mailrs_parse_worker::Limit::Batch),
             reply_marker_without_thread: mailrs_inbound::thread_claim::reply_marker_without_thread(
                 raw,
             ),
@@ -131,8 +133,9 @@ impl Reading {
             has_zero_width: self.has_zero_width,
             has_bidi_override: self.has_bidi_override,
             has_zero_width_in_name: self.has_zero_width_in_name,
-            has_executable_attachment: self.inside.carries_code,
-            has_encrypted_document_archive: self.inside.encrypted_document_archive,
+            has_executable_attachment: self.inside.inside.carries_code,
+            has_encrypted_document_archive: self.inside.inside.encrypted_document_archive,
+            parser_failed_on_message: self.inside.parser_failed,
             reply_marker_without_thread: self.reply_marker_without_thread,
             has_zero_width_inside_a_word: self.has_zero_width_inside_a_word,
             offers_the_reader_a_sum: self.offers_the_reader_a_sum,

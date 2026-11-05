@@ -28,5 +28,9 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = "0.1"
 
+[features]
+# lets the callers' tests fail parsing on chosen inputs, in process
+testing = []
+
 [dev-dependencies]
 tempfile = "3"
