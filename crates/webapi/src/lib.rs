@@ -18,6 +18,7 @@ mod router;
 pub use router::build_router;
 pub mod kevy_pool;
 pub mod login_guard;
+pub mod ops_watch;
 pub mod security_mail;
 pub mod session;
 
@@ -185,6 +186,7 @@ pub async fn run() {
     }
 
     login_guard::spawn_alert_mailer();
+    ops_watch::spawn();
     handlers::owner_notice::spawn_queue_mailer(state.clone());
     handlers::jmap::read_config();
     handlers::upload_sweep::spawn();
