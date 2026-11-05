@@ -157,6 +157,24 @@ impl Client {
         self.post_authed_no_body(path, "quota_limits").await
     }
 
+    /// POST /v1/admin/maintenance:account-purge — the deleted accounts whose
+    /// retention period has passed, counted per store; with `dry_run` false
+    /// each is removed for good and one audit row written for it. `address`
+    /// narrows the pass to that one pending address.
+    pub async fn account_purge(
+        &self,
+        dry_run: bool,
+        address: Option<&str>,
+    ) -> ApiResult<method::admin::AccountPurgeResponse> {
+        let mut path = format!("/v1/admin/maintenance:account-purge?dry_run={dry_run}");
+        if let Some(a) = address {
+            // `&` and `=` are legal in a local part and end a query value
+            let a = Self::enc(a).replace('&', "%26").replace('=', "%3D");
+            path.push_str(&format!("&address={a}"));
+        }
+        self.post_authed_no_body(path, "account_purge").await
+    }
+
     /// GET /v1/admin/maintenance:usage-drift — each account's usage
     /// counter against its maildir, and the counters of addresses that are
     /// not accounts

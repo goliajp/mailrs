@@ -223,7 +223,7 @@ pub struct HeldClaim {
     pub claim_id: String,
 }
 
-fn claims_key(member: &str) -> String {
+pub fn claims_key(member: &str) -> String {
     format!("shared:claims:{}", member.trim().to_ascii_lowercase())
 }
 

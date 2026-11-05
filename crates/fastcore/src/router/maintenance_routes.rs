@@ -18,6 +18,12 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
         // Usage against the default quota limit; `?dry_run=false` gives the
         // default to accounts created without one.
         .route(adm::PATH_QUOTA_LIMITS, post(quota_limits_route))
+        // Deleted accounts whose retention has passed, counted per store;
+        // `?dry_run=false` removes them for good, one audit row each.
+        .route(
+            adm::PATH_ACCOUNT_PURGE,
+            post(crate::account_purge::account_purge_route),
+        )
         // Read-only. Answers "is a query running with no declared path" and
         // "is a declared path carrying no queries" — neither of which this
         // store could answer before kevy 5.1.

@@ -176,6 +176,7 @@ impl DomainStore {
             .await?;
         self.account_cache.remove(address);
         self.kevy_del(&format!("acct:{address}"));
+        self.kevy_del(&format!("perms:{address}"));
         Ok(res.rows_affected() > 0)
     }
 

@@ -17,6 +17,8 @@ path = "src/lib.rs"
 mailrs-fraud = { path = "../fraud", version = "0" }
 mailrs-auth-guard = { path = "../auth-guard", version = "3", features = ["kevy"] }
 mailrs-mock = { path = "../mock" }
+# the alias layout, for removing the aliases that point at a purged account
+mailrs-alias-store = { path = "../alias-store" }
 mailrs-core-api = { path = "../core-api", features = ["server"] }
 kevy-client = { workspace = true }
 axum = { version = "0.8" }
