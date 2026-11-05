@@ -179,7 +179,6 @@ pub(super) async fn maintenance(
 }
 
 pub(super) async fn test_channels(State(app): State<Arc<App>>) -> Answer {
-    let now = app.clock.now();
-    let results = app.dispatcher.lock().await.test(now).await;
+    let results = app.test_channels(app.clock.now()).await;
     Ok(Json(serde_json::json!({ "results": results })))
 }

@@ -181,7 +181,12 @@ async fn a_stopped_core_is_one_grouped_alert_by_webhook_and_relay_and_never_the_
     );
 }
 
-/// The mailpit subjects, read from a blocking context inside `until`.
+/// The subjects of the alert mails mailpit holds (the channel test the
+/// daemon sends on its first cycle left out), read from a blocking context
+/// inside `until`.
 fn subjects_now(m: &common::Mailpit) -> Vec<String> {
     tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(m.subjects()))
+        .into_iter()
+        .filter(|s| !s.contains("test message"))
+        .collect()
 }

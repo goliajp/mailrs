@@ -258,6 +258,27 @@ impl Dispatcher {
         self.send(&msg, now).await;
     }
 
+    /// What the channels are configured to reach, as a hash: a test goes out
+    /// whenever it changes. `None` with no channel at all.
+    pub fn config_fingerprint(&self) -> Option<String> {
+        use sha2::Digest;
+        if self.slots.is_empty() {
+            return None;
+        }
+        let described: Vec<String> = self
+            .slots
+            .iter()
+            .map(|s| match &s.channel {
+                Channel::Webhook { url, .. } => format!("webhook {url}"),
+                Channel::Push { url, .. } => format!("push {url}"),
+                Channel::Relay(r) => format!("relay {}:{} {}", r.host, r.port, r.to.join(",")),
+            })
+            .collect();
+        Some(hex::encode(sha2::Sha256::digest(
+            described.join("\n").as_bytes(),
+        )))
+    }
+
     /// A test message to every enabled channel; `(channel, result)`.
     pub async fn test(&mut self, now: i64) -> Vec<(String, String)> {
         let msg = self.message(MessageKind::Test, Vec::new(), now);

@@ -148,3 +148,55 @@ async fn the_socket_serves_the_cli_and_maintenance_ends_on_its_own() {
     let (status, _) = call("GET", "/v1/state", None).await;
     assert_eq!(status, 200);
 }
+
+#[tokio::test]
+async fn channels_are_tested_on_the_first_cycle_then_weekly_and_after_a_change() {
+    use std::sync::{Arc as A, Mutex};
+    let got: A<Mutex<Vec<String>>> = A::default();
+    let keep = got.clone();
+    let hook = axum::Router::new().route(
+        "/",
+        axum::routing::post(move |body: String| {
+            let keep = keep.clone();
+            async move {
+                keep.lock().unwrap().push(body);
+                "ok"
+            }
+        }),
+    );
+    let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/", l.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(l, hook).await });
+    let tests = || {
+        got.lock()
+            .unwrap()
+            .iter()
+            .filter(|b| b.contains("\"kind\":\"test\""))
+            .count()
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let store_path = dir.path().join("ops.sqlite");
+    let clock = Clock::manual(NOW);
+    let mut cfg = Config::for_tests(dir.path().to_path_buf());
+    cfg.webhook_url = Some(url.clone());
+    let app = App::open(
+        cfg.clone(),
+        clock.clone(),
+        Store::open(&store_path).unwrap(),
+    )
+    .unwrap();
+    app.cycle().await;
+    assert_eq!(tests(), 1);
+    clock.advance(86_400);
+    app.cycle().await;
+    assert_eq!(tests(), 1, "not again within the week");
+    clock.advance(6 * 86_400);
+    app.cycle().await;
+    assert_eq!(tests(), 2, "weekly");
+    drop(app);
+    // restarted with another channel configured: tested at once
+    cfg.webhook_url = Some(format!("{url}?changed"));
+    let app = App::open(cfg, clock.clone(), Store::open(&store_path).unwrap()).unwrap();
+    app.cycle().await;
+    assert_eq!(tests(), 3);
+}

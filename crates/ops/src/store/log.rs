@@ -83,6 +83,31 @@ impl Store {
         Ok(rows.collect::<std::result::Result<_, _>>()?)
     }
 
+    /// A test message went to every channel of configuration `config`.
+    pub fn record_channel_test(
+        &self,
+        config: &str,
+        results: &serde_json::Value,
+        now: i64,
+    ) -> Result<()> {
+        self.conn().execute(
+            "INSERT INTO channel_tests_events (config, results, at) VALUES (?1, ?2, ?3)",
+            params![config, results.to_string(), now],
+        )?;
+        Ok(())
+    }
+
+    /// The configuration and time of the last channel test.
+    pub fn last_channel_test(&self) -> Result<Option<(String, i64)>> {
+        let c = self.conn();
+        Ok(c.query_row(
+            "SELECT config, at FROM channel_tests_events ORDER BY id DESC LIMIT 1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?)
+    }
+
     pub fn record_rejection(&self, process: &str, reason: &str, now: i64) -> Result<()> {
         self.conn().execute(
             "INSERT INTO report_rejections_log (process, reason, at) VALUES (?1, ?2, ?3)",

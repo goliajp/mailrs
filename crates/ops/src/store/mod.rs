@@ -109,6 +109,12 @@ CREATE TABLE IF NOT EXISTS report_rejections_log (
     reason TEXT NOT NULL,
     at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS channel_tests_events (
+    id INTEGER PRIMARY KEY,
+    config TEXT NOT NULL,
+    results TEXT NOT NULL,
+    at INTEGER NOT NULL
+);
 ";
 
 pub struct Store(Mutex<rusqlite::Connection>);
