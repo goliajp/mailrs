@@ -4599,6 +4599,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-parse-worker"
+version = "0.0.0"
+dependencies = [
+ "mailrs-attachment-extract",
+ "mailrs-bayes",
+ "mailrs-clean",
+ "mailrs-dmarc",
+ "mailrs-fraud",
+ "mailrs-mime",
+ "metrics",
+ "rustix",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tracing",
+]
+
+[[package]]
 name = "mailrs-perf-recipes"
 version = "0.0.0"
 dependencies = [
