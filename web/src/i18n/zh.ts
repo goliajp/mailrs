@@ -196,8 +196,6 @@ export const zh: Record<Key, string> = {
   'deleteThread.body': '邮件会被删除，无法恢复。',
   'error.reload': '重新加载',
   'error.title': '出错了',
-  'feedback.block': '屏蔽发件人',
-  'feedback.confirmBlock': '屏蔽这个发件人？',
   'feedback.confirmSpam': '举报为垃圾邮件？',
   'feedback.important': '标为重要',
   'feedback.recorded': '已记录反馈',

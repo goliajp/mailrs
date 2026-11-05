@@ -10,9 +10,11 @@
 //!    thread sender to `whitelist`) — `handlers/conversations.rs`.
 //!  - This module (explicit user management from the Settings UI).
 //!
-//! Blacklist entries are also written by the block-sender action
-//! (deferred to Phase 3.7 alongside the sweep job) — the surface
-//! here already handles the read + delete side for that flow.
+//!  - The block-sender conversation action — `handlers/block_sender.rs`.
+//!
+//! An address is on one list at most: adding to one takes it off the
+//! other (`sender_lists::block` / `allow`), because delivery reads the
+//! whitelist first and an address on both would never be blocked.
 
 use std::sync::Arc;
 
@@ -20,7 +22,7 @@ use axum::Extension;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::Json;
-use mailrs_core_sidestate::families::sender_lists::{blacklist_key, whitelist_key};
+use mailrs_core_sidestate::families::sender_lists::{self, blacklist_key, whitelist_key};
 
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
@@ -47,20 +49,34 @@ fn list_set(user: &str, key: &str) -> Result<Vec<String>, StatusCode> {
     Ok(out)
 }
 
-fn add_to_set(key: &str, address: &str) -> Result<(), StatusCode> {
+/// The address as both lists store it, or 400 when it is not one.
+fn listed_address(address: &str) -> Result<String, StatusCode> {
     let addr = address.trim().to_lowercase();
     if addr.is_empty() || !addr.contains('@') {
         return Err(StatusCode::BAD_REQUEST);
     }
-    let key_owned = key.to_string();
-    with_kevy(move |c| {
-        c.sadd(key_owned.as_bytes(), &[addr.as_bytes()])?;
-        Ok(())
+    Ok(addr)
+}
+
+/// Onto the blacklist (`blocked`) or the whitelist, and off the other.
+/// Answers whether it was on the other list.
+///
+/// The account's own address is never blocked (422): the reader's own
+/// replies and notes would go to Junk with it.
+pub(crate) fn put_on_list(user: &str, address: &str, blocked: bool) -> Result<bool, StatusCode> {
+    let addr = listed_address(address)?;
+    if blocked && addr == user.to_lowercase() {
+        return Err(StatusCode::UNPROCESSABLE_ENTITY);
+    }
+    let user = user.to_string();
+    with_kevy(move |c| match blocked {
+        true => sender_lists::block(c, &user, &addr),
+        false => sender_lists::allow(c, &user, &addr),
     })
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
-fn remove_from_set(key: &str, address: &str) -> Result<(), StatusCode> {
+pub(crate) fn remove_from_set(key: &str, address: &str) -> Result<(), StatusCode> {
     let addr = address.to_lowercase();
     let key_owned = key.to_string();
     with_kevy(move |c| {
@@ -85,7 +101,7 @@ pub async fn add_whitelist(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Json(req): Json<AddRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    add_to_set(&whitelist_key(&user), &req.address)?;
+    put_on_list(&user, &req.address, false)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -114,7 +130,7 @@ pub async fn add_blacklist(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Json(req): Json<AddRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    add_to_set(&blacklist_key(&user), &req.address)?;
+    put_on_list(&user, &req.address, true)?;
     Ok(StatusCode::NO_CONTENT)
 }
 

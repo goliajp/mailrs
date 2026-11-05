@@ -187,6 +187,7 @@ targets:
       - path: Mailrs/Features/ThreadHeader.swift
       - path: Mailrs/Features/TeamViews.swift
       - path: Mailrs/Features/SenderSettingsActions.swift
+      - path: Mailrs/Features/BlockSenderActions.swift
       - path: Mailrs/Features/MessageCard.swift
       - path: Mailrs/Features/RecipientLine.swift
       - path: Mailrs/Features/TrackersNote.swift

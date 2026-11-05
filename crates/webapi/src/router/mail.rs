@@ -67,6 +67,14 @@ pub(super) fn conversation_routes() -> axum::Router<Arc<WebState>> {
             post(c::mark_not_junk),
         )
         .route(
+            "/api/conversations/{thread_id}/block-sender",
+            post(crate::handlers::block_sender::block_sender),
+        )
+        .route(
+            "/api/conversations/{thread_id}/unblock-sender",
+            post(crate::handlers::block_sender::unblock_sender),
+        )
+        .route(
             "/api/conversations/{thread_id}/mark-notification",
             post(c::mark_notification),
         )
