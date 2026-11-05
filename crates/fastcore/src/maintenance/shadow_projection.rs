@@ -133,9 +133,8 @@ pub(crate) async fn threadrow_shadow_route(
             if mine.requires_action != shared.requires_action {
                 fields.push("requires_action");
             }
-            if mine.importance_level != shared.importance_level {
-                fields.push("importance_level");
-            }
+            // Nor the importance verdict: it is one reader's and the shared
+            // hash no longer carries it.
             if fields.is_empty() {
                 agree += 1;
                 continue;

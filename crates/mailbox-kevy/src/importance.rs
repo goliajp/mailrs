@@ -12,25 +12,32 @@
 //! The caller decides *when* to write: only for inbound messages. A
 //! user's own reply must not restate the thread's importance, mirroring
 //! the display-field rule in `record_message_arrival` (2026-07-18).
+//!
+//! **One reader's verdict, on that reader's membership row only.** The
+//! score reads the relationship between this user and the sender, so two
+//! people on one conversation get different answers. It used to be
+//! written to the shared thread hash as well, and every write that
+//! derives a membership row from that hash (an arrival, a sent copy, a
+//! rethread, the row refresh) copied it onto whichever member came next:
+//! a second member's row showed the first member's score. The shared
+//! hash no longer carries it and `thread_user_pairs` no longer emits it,
+//! so the two functions here are the only writers.
 
 use std::io;
 
 use super::KevyMailboxStore;
 use super::keys;
 
+const FIELDS: [&[u8]; 2] = [b"importance_level", b"importance_score"];
+
 impl KevyMailboxStore {
-    /// Store the importance verdict on a thread row.
+    /// Store one user's importance verdict on their membership row.
     ///
     /// `level` is the stable lowercase token (`critical` / `important` /
     /// `normal` / `low` / `noise`) and `score` the raw numeric verdict.
     /// An empty `level` is a no-op: callers that could not compute a
     /// verdict must leave whatever the row already holds rather than
     /// blanking it.
-    /// The membership row carries the verdict too, and this writes both.
-    /// Writing only the shared hash left 19,463 of 30,716 rows on
-    /// production disagreeing about `importance_level` — a difference
-    /// invisible while the list read the shared hash, and the whole list
-    /// the moment it stops.
     pub fn set_thread_importance(
         &self,
         user: &str,
@@ -41,23 +48,36 @@ impl KevyMailboxStore {
         if level.is_empty() {
             return Ok(());
         }
-        let key = keys::thread(thread_id);
         let tu_key = keys::thread_user(user, thread_id);
         let score_s = score.to_string();
         self.store().atomic(|ctx| {
-            let pairs: [(&[u8], &[u8]); 2] = [
-                (b"importance_level", level.as_bytes()),
-                (b"importance_score", score_s.as_bytes()),
-            ];
-            ctx.hset(key.as_bytes(), &pairs)?;
             // Only when the user already has a row: this must not
             // conjure membership out of a verdict.
             if ctx.hexists(tu_key.as_bytes(), b"tid")? {
-                ctx.hset(tu_key.as_bytes(), &pairs)?;
+                ctx.hset(
+                    tu_key.as_bytes(),
+                    &[
+                        (FIELDS[0], level.as_bytes()),
+                        (FIELDS[1], score_s.as_bytes()),
+                    ],
+                )?;
             }
             Ok(())
         })?;
         Ok(())
+    }
+
+    /// Remove a user's verdict, so the row reads as unscored. Returns
+    /// whether the row held one.
+    ///
+    /// For a row whose verdict was never this user's: there is nothing of
+    /// theirs to put back, and "unscored" is the honest answer.
+    pub fn clear_thread_importance(&self, user: &str, thread_id: &str) -> io::Result<bool> {
+        let tu_key = keys::thread_user(user, thread_id);
+        let removed = self
+            .store()
+            .atomic(|ctx| ctx.hdel(tu_key.as_bytes(), &FIELDS))?;
+        Ok(removed > 0)
     }
 }
 
@@ -123,36 +143,136 @@ mod tests {
         );
     }
 
+    fn arrive(s: &KevyMailboxStore, user: &str, senders: &str, at: i64, is_own: bool) {
+        s.record_message_arrival(&crate::MessageArrival {
+            thread_id: "t1",
+            user,
+            subject: "Subj",
+            senders_csv: senders,
+            latest_date: at,
+            latest_preview: "p",
+            category: "inbox",
+            unread: !is_own,
+            is_own,
+        })
+        .unwrap();
+    }
+
+    fn verdict(s: &KevyMailboxStore, user: &str) -> (String, f64) {
+        let row = s
+            .get_thread_for_user(user, "t1")
+            .unwrap()
+            .expect("membership row");
+        (row.importance_level, row.importance_score)
+    }
+
+    /// One reader's verdict is theirs. A second member whose row is created
+    /// after the first member was scored, by mail that carries no verdict of
+    /// its own (their own reply), must not show the first member's score.
     #[test]
-    fn writes_and_reads_back() {
+    fn a_later_members_row_never_shows_an_earlier_members_score() {
         let s = store();
-        s.set_thread_importance("u@x.com", "t1", "important", 0.65)
+        arrive(&s, "alice@x.com", "carol@y.com", 100, false);
+        s.set_thread_importance("alice@x.com", "t1", "critical", 0.9)
             .unwrap();
-        let row = s.get_thread("t1").unwrap().expect("row exists");
-        assert_eq!(row.importance_level, "important");
-        assert!((row.importance_score - 0.65).abs() < 1e-9);
+        arrive(&s, "bob@x.com", "bob@x.com", 200, true);
+
+        assert_eq!(verdict(&s, "bob@x.com"), (String::new(), 0.0));
+        assert_eq!(verdict(&s, "alice@x.com"), ("critical".into(), 0.9));
+    }
+
+    /// Nor the other way round: the second member's verdict does not reach
+    /// the first member's row on the first member's next unscored arrival.
+    #[test]
+    fn an_unscored_arrival_keeps_the_readers_own_verdict() {
+        let s = store();
+        arrive(&s, "alice@x.com", "carol@y.com", 100, false);
+        s.set_thread_importance("alice@x.com", "t1", "critical", 0.9)
+            .unwrap();
+        arrive(&s, "bob@x.com", "carol@y.com", 100, false);
+        s.set_thread_importance("bob@x.com", "t1", "low", 0.1)
+            .unwrap();
+        arrive(&s, "alice@x.com", "alice@x.com", 300, true);
+
+        assert_eq!(verdict(&s, "alice@x.com"), ("critical".into(), 0.9));
+        assert_eq!(verdict(&s, "bob@x.com"), ("low".into(), 0.1));
+    }
+
+    /// The shared conversation hash carries no verdict: it has no user
+    /// segment, so whatever it held would be somebody's.
+    #[test]
+    fn the_shared_hash_carries_no_verdict() {
+        let s = store();
+        arrive(&s, "alice@x.com", "carol@y.com", 100, false);
+        s.set_thread_importance("alice@x.com", "t1", "critical", 0.9)
+            .unwrap();
+        let fields: Vec<Vec<u8>> = s
+            .store()
+            .hgetall(keys::thread("t1").as_bytes())
+            .unwrap()
+            .into_iter()
+            .map(|(f, _)| f)
+            .collect();
+        assert!(!fields.is_empty(), "the shared hash was never written");
+        for f in [b"importance_level".as_slice(), b"importance_score"] {
+            assert!(
+                !fields.iter().any(|x| x == f),
+                "{} on the shared hash",
+                String::from_utf8_lossy(f)
+            );
+        }
+    }
+
+    /// Refreshing a member's row from the shared hash leaves their verdict.
+    #[test]
+    fn the_row_refresh_keeps_the_readers_verdict() {
+        let s = store();
+        arrive(&s, "alice@x.com", "carol@y.com", 100, false);
+        s.set_thread_importance("alice@x.com", "t1", "important", 0.65)
+            .unwrap();
+        arrive(&s, "bob@x.com", "carol@y.com", 100, false);
+        s.set_thread_importance("bob@x.com", "t1", "low", 0.1)
+            .unwrap();
+        s.backfill_thread_user("alice@x.com", 0, 100).unwrap();
+        assert_eq!(verdict(&s, "alice@x.com"), ("important".into(), 0.65));
     }
 
     #[test]
     fn empty_level_leaves_existing_verdict_alone() {
         let s = store();
+        arrive(&s, "u@x.com", "alice@x.com", 100, false);
         s.set_thread_importance("u@x.com", "t1", "critical", 0.9)
             .unwrap();
         // A caller with nothing to say must not blank the row.
         s.set_thread_importance("u@x.com", "t1", "", 0.0).unwrap();
-        let row = s.get_thread("t1").unwrap().expect("row exists");
-        assert_eq!(row.importance_level, "critical");
-        assert!((row.importance_score - 0.9).abs() < 1e-9);
+        assert_eq!(verdict(&s, "u@x.com"), ("critical".into(), 0.9));
     }
 
     #[test]
     fn later_verdict_overwrites() {
         let s = store();
+        arrive(&s, "u@x.com", "alice@x.com", 100, false);
         s.set_thread_importance("u@x.com", "t1", "low", 0.1)
             .unwrap();
         s.set_thread_importance("u@x.com", "t1", "important", 0.7)
             .unwrap();
-        let row = s.get_thread("t1").unwrap().expect("row exists");
-        assert_eq!(row.importance_level, "important");
+        assert_eq!(verdict(&s, "u@x.com").0, "important");
+    }
+
+    /// Clearing removes the verdict, so the row reads as unscored, and
+    /// says whether there was one.
+    #[test]
+    fn clearing_leaves_the_row_unscored() {
+        let s = store();
+        arrive(&s, "u@x.com", "alice@x.com", 100, false);
+        s.set_thread_importance("u@x.com", "t1", "low", 0.1)
+            .unwrap();
+        assert!(s.clear_thread_importance("u@x.com", "t1").unwrap());
+        assert_eq!(verdict(&s, "u@x.com"), (String::new(), 0.0));
+        assert!(!s.clear_thread_importance("u@x.com", "t1").unwrap());
+        assert!(
+            s.get_thread_for_user("u@x.com", "t1").unwrap().is_some(),
+            "clearing a verdict removed the row"
+        );
     }
 }

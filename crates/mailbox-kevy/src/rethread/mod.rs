@@ -114,6 +114,9 @@ impl KevyMailboxStore {
         // maildir files should exist for it anymore. Discard the
         // returned blob_refs deliberately.
         self.move_thread_labels(user, from, into)?;
+        // This user's verdict, read off their own two rows before `from`'s
+        // goes: the shared hashes carry none.
+        let verdict = self.higher_verdict(user, from, into)?;
         let (_existed, _blob_refs) = self.delete_thread(user, from)?;
         if let Some(mut row) = merged {
             if let Some((count, unread, sent)) = self.recount_from_messages(user, into)? {
@@ -123,8 +126,30 @@ impl KevyMailboxStore {
             }
             self.upsert_thread(user, &row)?;
             self.set_unread_axis(user, into, row.unread_count)?;
+            if let Some((level, score)) = verdict {
+                self.set_thread_importance(user, into, &level, score)?;
+            }
         }
         Ok(moved)
+    }
+
+    /// The higher-scored of this user's verdicts on two conversations,
+    /// which is what the merged one carries: the SQL core reports a
+    /// thread's importance as its highest-scored message's.
+    fn higher_verdict(&self, user: &str, a: &str, b: &str) -> io::Result<Option<(String, f64)>> {
+        let mut best: Option<(String, f64)> = None;
+        for tid in [a, b] {
+            let Some(row) = self.get_thread_for_user(user, tid)? else {
+                continue;
+            };
+            if row.importance_level.is_empty() {
+                continue;
+            }
+            if best.as_ref().is_none_or(|(_, s)| row.importance_score > *s) {
+                best = Some((row.importance_level, row.importance_score));
+            }
+        }
+        Ok(best)
     }
 
     /// Move a single message out of its current thread into a fresh

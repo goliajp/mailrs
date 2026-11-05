@@ -211,7 +211,17 @@ fn main() {
         match rec {
             Record::Thread { user, row } => {
                 let row: ThreadRow = row.into();
-                if let Err(e) = mailbox.upsert_thread(&user, &row) {
+                // the record is this user's, so its verdict is theirs, and
+                // `upsert_thread` writes none
+                let written = mailbox.upsert_thread(&user, &row).and_then(|()| {
+                    mailbox.set_thread_importance(
+                        &user,
+                        &row.thread_id,
+                        &row.importance_level,
+                        row.importance_score,
+                    )
+                });
+                if let Err(e) = written {
                     eprintln!("line {idx}: upsert_thread({}): {e}", row.thread_id);
                     errors += 1;
                 } else {

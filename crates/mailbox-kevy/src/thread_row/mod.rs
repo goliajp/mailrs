@@ -168,8 +168,9 @@ impl ThreadRow {
             kv!("latest_date", self.latest_date.to_string()),
             kv!("latest_preview", self.latest_preview.clone()),
             kv!("category", self.category.clone()),
-            kv!("importance_level", self.importance_level.clone()),
-            kv!("importance_score", self.importance_score.to_string()),
+            // No importance: it is one reader's verdict and lives on their
+            // membership row. Still in `field_names()` so a delete clears
+            // the values written before.
             kv!("requires_action", (self.requires_action as u8).to_string()),
             // Which connected mailbox this arrived at. On the shared
             // hash rather than the membership row because it is a
@@ -202,8 +203,6 @@ impl ThreadRow {
         let mut latest_date = 0;
         let mut latest_preview = String::new();
         let mut category = String::new();
-        let mut importance_level = String::new();
-        let mut importance_score = 0.0;
         let mut requires_action = false;
         let mut pinned = false;
         let mut archived = false;
@@ -221,8 +220,6 @@ impl ThreadRow {
                 "latest_date" => latest_date = vv.parse().unwrap_or(0),
                 "latest_preview" => latest_preview = vv.into(),
                 "category" => category = vv.into(),
-                "importance_level" => importance_level = vv.into(),
-                "importance_score" => importance_score = vv.parse().unwrap_or(0.0),
                 "requires_action" => requires_action = vv == "1",
                 "pinned" => pinned = vv == "1",
                 "archived" => archived = vv == "1",
@@ -243,8 +240,10 @@ impl ThreadRow {
             latest_date,
             latest_preview,
             category,
-            importance_level,
-            importance_score,
+            // Not read even where an older write left it: whatever the
+            // shared hash holds is whichever member was scored last.
+            importance_level: String::new(),
+            importance_score: 0.0,
             requires_action,
             pinned,
             archived,
@@ -491,6 +490,8 @@ mod tests {
                 "archived".to_string(),
                 "count".to_string(),
                 "has_action".to_string(),
+                "importance_level".to_string(),
+                "importance_score".to_string(),
                 "pinned".to_string(),
                 "sent_count".to_string(),
                 "starred".to_string(),
@@ -539,7 +540,7 @@ mod tests {
         // which a hash with no user segment cannot. And the three
         // counters answer "how many, for whom?" — they are derived per
         // user by the declared aggregate index and are not written here
-        // at all since C5b-2.
+        // at all since C5b-2. The importance verdict is one reader's too.
         assert_eq!(
             back,
             ThreadRow {
@@ -550,6 +551,8 @@ mod tests {
                 count: 0,
                 unread_count: 0,
                 sent_count: 0,
+                importance_level: String::new(),
+                importance_score: 0.0,
                 ..row
             }
         );

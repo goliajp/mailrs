@@ -21,6 +21,7 @@ mod group_purge;
 mod harness;
 mod held_read_state;
 mod import;
+mod importance;
 mod intake;
 mod intake_rules;
 mod labels;
