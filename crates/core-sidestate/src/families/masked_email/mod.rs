@@ -353,5 +353,10 @@ pub fn touch(conn: &mut Connection, address: &str, now: i64) -> io::Result<()> {
     save(conn, &m)
 }
 
+/// A glob over `owner`'s daily creation counters; `owner` already escaped.
+pub fn day_glob(owner: &str) -> String {
+    format!("mailrs:masked:day:{}:*", owner.to_ascii_lowercase())
+}
+
 #[cfg(test)]
 mod tests;
