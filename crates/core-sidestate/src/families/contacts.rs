@@ -1,11 +1,15 @@
 //! Per-sender relationship records on the network kevy, which both cores
 //! write and importance scoring reads:
 //!   `mailrs:contact:{user}:{email}`   hash of scoring fields
+//!
+//! Whoever writes `sent_count` also keeps [`super::contact_sent`] in step.
 
 use mailrs_core_api::method::contact::ContactScoring;
 
+pub(crate) const CONTACT_PREFIX: &str = "mailrs:contact:";
+
 pub fn contact_key(user: &str, email: &str) -> String {
-    format!("mailrs:contact:{user}:{email}")
+    format!("{CONTACT_PREFIX}{user}:{email}")
 }
 
 fn hget_str(conn: &mut kevy_client::Connection, key: &str, field: &str) -> Option<String> {
@@ -84,8 +88,10 @@ pub fn record_sent_to(
         return Ok(());
     }
     let key = contact_key(user, email);
+    let sent = super::contact_sent::sent_to_key(user);
     conn.pipeline(|p| {
         p.cmd(&[b"HINCRBY", key.as_bytes(), b"sent_count", b"1"]);
+        p.cmd(&[b"SADD", sent.as_bytes(), email.as_bytes()]);
     })?;
     Ok(())
 }

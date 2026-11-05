@@ -17,9 +17,10 @@
 use super::shape::{Shape, glob_escape};
 use super::{custom, last_reader, rejudge};
 use crate::families::{
-    calendar_events, calendar_feeds, contact_cards, contacts, devices, email_groups, forwarding,
-    local_forward, masked_email, notify, outbound::pause, permission_groups, prefs, recall_notices,
-    rules, saved_searches, send, sender_lists, sender_rules, shared_inbox, submitted, vacation,
+    calendar_events, calendar_feeds, contact_cards, contact_sent, contacts, devices, email_groups,
+    forwarding, local_forward, masked_email, notify, outbound::pause, permission_groups, prefs,
+    recall_notices, rules, saved_searches, send, sender_lists, sender_rules, shared_inbox,
+    submitted, vacation,
 };
 use crate::keys::{credentials, push, quota, reset, session};
 
@@ -122,6 +123,7 @@ pub const OWNED: &[Owned] = &[
     // people, calendar
     net("mailrs:contact:{user}:*", Shape::Globs(|a| vec![contacts::contact_key(&glob_escape(a), "*")])),
     net("mailrs:contact_vips:{user}", Shape::Key(contacts::vips_key)),
+    net("mailrs:contact_sent:{user}", Shape::Key(contact_sent::sent_to_key)),
     net("mailrs:user:{user}:contacts", Shape::Key(contact_cards::autocomplete_key)),
     net("mailrs:user:{user}:contacts:ts", Shape::Key(contact_cards::autocomplete_ts_key)),
     net("contact_cards:{user}", Shape::Key(contact_cards::cards_key)),
