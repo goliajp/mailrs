@@ -51,6 +51,9 @@ impl KevyMailboxStore {
             if !have.contains_key(b"senders_csv".as_slice()) {
                 self.seed_participants(user, &row.thread_id)?;
             }
+            if !have.contains_key(b"subject".as_slice()) {
+                self.seed_display(user, &row.thread_id)?;
+            }
             return Ok(false);
         }
         let refs: Vec<(&[u8], &[u8])> = want
@@ -66,6 +69,7 @@ impl KevyMailboxStore {
             Ok(())
         })?;
         self.seed_participants(user, &row.thread_id)?;
+        self.seed_display(user, &row.thread_id)?;
         Ok(true)
     }
 
@@ -119,7 +123,8 @@ impl KevyMailboxStore {
                 Ok(())
             })
             .map_err(std::io::Error::from)?;
-        self.seed_participants(user, &row.thread_id)
+        self.seed_participants(user, &row.thread_id)?;
+        self.display_after_upsert(user, &row.thread_id, &row.subject, &row.latest_preview)
     }
 
     /// Read a single thread row back. Returns `None` if the hash is

@@ -90,6 +90,15 @@ pub(crate) async fn backfill_user_messages_route(
                     }
                     continue;
                 };
+                // Their read state, not the shared blob's, which is no
+                // reader's: writing it back made one holder's read
+                // another's. A copy without a row yet has none to keep.
+                let flags = state
+                    .mailbox
+                    .user_message_facts(user, &w.message_id)
+                    .ok()
+                    .flatten()
+                    .map_or(w.flags, |f| f.flags);
                 // Their uid, not the shared blob's — which belongs to
                 // whichever owner wrote it last.
                 let uid = state
@@ -105,7 +114,7 @@ pub(crate) async fn backfill_user_messages_route(
                     &mailrs_mailbox_kevy::UserMessageFacts {
                         blob_ref: &blob_ref,
                         uid,
-                        flags: w.flags,
+                        flags,
                         modseq: w.modseq,
                     },
                 ) {

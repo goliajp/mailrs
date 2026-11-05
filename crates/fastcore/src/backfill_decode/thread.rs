@@ -22,22 +22,8 @@ pub(super) fn repair_thread(state: &FastcoreState, user: &str, tid: &str, c: &mu
     // dashes; the line only gets shorter, never wrong.
     let preview =
         mailrs_clean::preview_line(&mailrs_rfc2047::decode(row.latest_preview.as_bytes()), 120);
-    // Rows written before the text index existed carry no
-    // `search_blob`, so they are invisible to search until
-    // something rewrites them. upsert_thread synthesises the
-    // field, so re-writing such a row is all it takes.
-    let needs_blob = !state
-        .mailbox
-        .store_ref()
-        .hexists(
-            mailrs_mailbox_kevy::keys::thread(tid).as_bytes(),
-            mailrs_mailbox_kevy::keys::THREAD_SEARCH_FIELD,
-        )
-        .unwrap_or(false);
-    let dirty = needs_blob
-        || senders != row.senders_csv
-        || subject != row.subject
-        || preview != row.latest_preview;
+    let dirty =
+        senders != row.senders_csv || subject != row.subject || preview != row.latest_preview;
     if dirty {
         row.senders_csv = senders;
         row.subject = subject;
@@ -45,9 +31,6 @@ pub(super) fn repair_thread(state: &FastcoreState, user: &str, tid: &str, c: &mu
         if let Err(e) = state.mailbox.upsert_thread(user, &row) {
             tracing::warn!(err = %e, %user, %tid, "decode backfill: upsert failed");
             return;
-        }
-        if needs_blob {
-            c.blobs_added += 1;
         }
         c.rows_decoded += 1;
         crate::live_sync::upsert_contacts(user, &row.senders_csv);
@@ -150,6 +133,12 @@ fn stamp_sender_trust(
     if trust.is_empty() {
         return;
     }
+    // The row is rewritten whole, so its per-reader fields come from the
+    // reader's own row: the wire is the shared blob, whose `flags` is no
+    // reader's, and writing it back made one holder's read state another's.
+    let Ok(Some(own)) = state.mailbox.user_message_facts(user, &w.message_id) else {
+        return;
+    };
     w.sender_trust = trust;
     if let Ok(payload) = serde_json::to_vec(&w) {
         let _ = state.mailbox.upsert_user_message(
@@ -159,10 +148,10 @@ fn stamp_sender_trust(
             w.internal_date,
             &payload,
             &mailrs_mailbox_kevy::UserMessageFacts {
-                blob_ref: &w.blob_ref,
-                uid: w.uid,
-                flags: w.flags,
-                modseq: w.modseq,
+                blob_ref: &own.blob_ref,
+                uid: own.uid,
+                flags: own.flags,
+                modseq: own.modseq,
             },
         );
         c.trust_stamped += 1;

@@ -5,47 +5,43 @@ use std::io;
 use crate::KevyMailboxStore;
 
 impl KevyMailboxStore {
-    /// Full-text search the caller's threads.
+    /// Full-text search the caller's threads: their own rows' subject,
+    /// senders and preview, which is what their list shows.
     ///
-    /// The text index spans every thread key regardless of owner (kevy
-    /// indexes are declared over a key prefix and thread rows carry no
-    /// owner field), so hits are filtered against the caller's membership
-    /// zset afterwards. Over-fetches by `OVERFETCH` to leave room for
-    /// hits belonging to other accounts.
+    /// The index's documents are membership rows and the query is filtered
+    /// to `user` inside the index, so every hit is the caller's own row and
+    /// nothing is fetched for anybody else.
     pub fn search_threads(
         &self,
         user: &str,
         query: &str,
         limit: usize,
     ) -> io::Result<Vec<(String, f64)>> {
-        const OVERFETCH: usize = 8;
         if query.trim().is_empty() {
             return Ok(Vec::new());
         }
-        let hits = self.store().idx_match(
-            crate::keys::IDX_THREAD_SEARCH,
+        let filters = [kevy_embedded::ValueFilter::Eq {
+            field: b"user",
+            value: user.as_bytes(),
+        }];
+        let page = self.store().idx_match_faceted(
+            crate::keys::IDX_THREAD_USER_SEARCH,
             query.as_bytes(),
-            limit.saturating_mul(OVERFETCH),
+            limit,
+            kevy_embedded::MatchOpts {
+                filters: &filters,
+                ..Default::default()
+            },
         )?;
-        let mut out = Vec::with_capacity(limit);
-        for (key, score) in hits {
-            let Ok(key) = String::from_utf8(key) else {
-                continue;
-            };
-            let Some(tid) = key.strip_prefix("mailrs:thread:") else {
-                continue;
-            };
-            // ownership check — the index is global, the answer is not
-            let owned = crate::keys::thread_user(user, tid);
-            if self.store().exists(&[owned.as_bytes()])? == 0 {
-                continue;
-            }
-            out.push((tid.to_string(), score));
-            if out.len() >= limit {
-                break;
-            }
-        }
-        Ok(out)
+        let prefix = crate::keys::thread_user(user, "");
+        Ok(page
+            .hits
+            .into_iter()
+            .filter_map(|(key, score, _)| {
+                let key = String::from_utf8(key).ok()?;
+                Some((key.strip_prefix(&prefix)?.to_string(), score))
+            })
+            .collect())
     }
 }
 

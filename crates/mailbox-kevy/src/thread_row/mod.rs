@@ -159,10 +159,6 @@ impl ThreadRow {
             };
         }
         vec![
-            kv!(
-                "search_blob",
-                keys::search_blob(&self.subject, &self.senders_csv, &self.latest_preview)
-            ),
             kv!("subject", self.subject.clone()),
             kv!("senders_csv", self.senders_csv.clone()),
             kv!("latest_date", self.latest_date.to_string()),
@@ -493,6 +489,7 @@ mod tests {
                 "importance_level".to_string(),
                 "importance_score".to_string(),
                 "pinned".to_string(),
+                "search_blob".to_string(),
                 "sent_count".to_string(),
                 "starred".to_string(),
                 "unread_count".to_string()

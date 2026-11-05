@@ -11,9 +11,9 @@
 //! the AOF next to the live store and OOMs the container, see the
 //! 2026-07 junk-backfill incident), decodes the stored fields, writes
 //! the row back when it changed, re-derives contacts, and scrubs
-//! encoded runes still sitting in the contact hashes. Rewriting a row
-//! also (re)builds its `search_blob`, so the kevy text index picks it
-//! up for free. Idempotent: decoded input decodes to itself.
+//! encoded runes still sitting in the contact hashes. Each reader's row
+//! takes its subject and preview from their own messages, decoded.
+//! Idempotent: decoded input decodes to itself.
 //!
 //! **Bounded, and it pauses.** Run unbounded on 2026-08-26 it walked
 //! thirty thousand threads for half an hour, reading a maildir file and
@@ -70,7 +70,6 @@ fn default_pause_ms() -> u64 {
 #[derive(Default)]
 struct Counts {
     rows_decoded: u64,
-    blobs_added: u64,
     bodies_indexed: u64,
     trust_stamped: u64,
     previews_filled: u64,
@@ -139,7 +138,6 @@ pub(crate) async fn backfill_decode_headers_route(
         threads_walked = c.threads_walked,
         previews_present = c.previews_present,
         rows_decoded = c.rows_decoded,
-        blobs_added = c.blobs_added,
         bodies_indexed = c.bodies_indexed,
         previews_filled = c.previews_filled,
         trust_stamped = c.trust_stamped,
@@ -152,7 +150,6 @@ pub(crate) async fn backfill_decode_headers_route(
         "threads_walked": c.threads_walked,
         "previews_present": c.previews_present,
         "rows_decoded": c.rows_decoded,
-        "search_blobs_added": c.blobs_added,
         "bodies_indexed": c.bodies_indexed,
         "previews_filled": c.previews_filled,
         "trust_stamped": c.trust_stamped,

@@ -367,4 +367,17 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:recompute-thread-participants",
             post(crate::maintenance::recompute_thread_participants_route),
         )
+        // Each reader's `unread` column back to what their own message rows
+        // say. Same query shape as the participants recompute.
+        .route(
+            "/v1/admin/maintenance:recompute-unread-column",
+            post(crate::maintenance::recompute_unread_column_route),
+        )
+        // Each reader's subject and preview back to their own messages,
+        // with counts of what rows and the retired search index showed of
+        // other people's mail. Same query shape as the two above.
+        .route(
+            "/v1/admin/maintenance:recompute-thread-display",
+            post(crate::maintenance::recompute_thread_display_route),
+        )
 }

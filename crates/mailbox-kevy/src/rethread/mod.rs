@@ -175,7 +175,11 @@ impl KevyMailboxStore {
         let date = wire["internal_date"].as_i64().unwrap_or(0);
         let subject = wire["subject"].as_str().unwrap_or("").to_string();
         let sender = wire["sender"].as_str().unwrap_or("").to_string();
-        let seen = wire["flags"].as_u64().unwrap_or(0) & 1 != 0;
+        // Read or not is this reader's, off their own row: the shared blob
+        // is every holder's and its `flags` is not anyone's.
+        let seen = self
+            .user_message_facts(user, mid)?
+            .is_some_and(|f| f.flags & 1 != 0);
         wire["thread_id"] = serde_json::Value::String(new_tid.clone());
         if let Ok(payload) = serde_json::to_vec(&wire) {
             store.set(blob_key.as_bytes(), &payload)?;
