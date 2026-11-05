@@ -34,36 +34,46 @@ pub fn spawn(state: Arc<FastcoreState>, kevy_dir: String) {
         // the size the last rewrite left; unknown until one has run
         let mut compacted: Option<u64> = None;
         loop {
-            let size = aof_bytes(&kevy_dir);
-            if due(size, compacted) {
-                let started = std::time::Instant::now();
-                match state.mailbox.store_ref().rewrite_aof() {
-                    Ok(stats) => {
-                        let after = aof_bytes(&kevy_dir);
-                        compacted = Some(after);
-                        tracing::info!(
-                            before_bytes = size,
-                            after_bytes = after,
-                            elapsed_ms = started.elapsed().as_millis() as u64,
-                            stats = ?stats,
-                            "aof-compact: rewrote oversized AOF"
-                        );
-                    }
-                    Err(e) => {
-                        tracing::warn!(err = %e, before_bytes = size, "aof-compact: rewrite failed");
-                    }
-                }
-            } else {
-                // one line an hour: without it a skip and a stopped task look alike
-                tracing::info!(
-                    bytes = size,
-                    compacted_bytes = compacted,
-                    "aof-compact: not due"
-                );
-            }
+            compacted = compact_once(&state, &kevy_dir, compacted);
             sleep(TICK_INTERVAL).await;
         }
     });
+}
+
+/// One check: rewrite when [`due`]. Returns the size the last rewrite left.
+pub(crate) fn compact_once(
+    state: &FastcoreState,
+    kevy_dir: &str,
+    compacted: Option<u64>,
+) -> Option<u64> {
+    let size = aof_bytes(kevy_dir);
+    if !due(size, compacted) {
+        // one line an hour: without it a skip and a stopped task look alike
+        tracing::info!(
+            bytes = size,
+            compacted_bytes = compacted,
+            "aof-compact: not due"
+        );
+        return compacted;
+    }
+    let started = std::time::Instant::now();
+    match state.mailbox.store_ref().rewrite_aof() {
+        Ok(stats) => {
+            let after = aof_bytes(kevy_dir);
+            tracing::info!(
+                before_bytes = size,
+                after_bytes = after,
+                elapsed_ms = started.elapsed().as_millis() as u64,
+                stats = ?stats,
+                "aof-compact: rewrote oversized AOF"
+            );
+            Some(after)
+        }
+        Err(e) => {
+            tracing::warn!(err = %e, before_bytes = size, "aof-compact: rewrite failed");
+            compacted
+        }
+    }
 }
 
 /// Whether an AOF of `size` bytes is worth rewriting: over the threshold,
