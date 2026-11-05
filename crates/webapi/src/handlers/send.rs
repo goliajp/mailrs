@@ -74,7 +74,6 @@ pub(crate) async fn send_message(
         &mut parts,
     )
     .await?;
-    draft_send::ensure_within_limit(&parts)?;
     // Before `build_rfc5322`, which is what writes In-Reply-To/References.
     infer_in_reply_to(&state, &user, &mut parts).await;
     if breaks_a_header_line(&parts) {
@@ -84,6 +83,7 @@ pub(crate) async fn send_message(
     recipients.extend(parts.cc.clone());
     recipients.extend(parts.bcc.clone());
     let (message_id, envelope) = build_rfc5322(&parts, &from);
+    draft_send::ensure_message_fits(req.draft_id, &parts, envelope.len())?;
     let key = key.map(|Extension(k)| k);
     record_key_send(key.as_ref(), &user, &headers, &message_id)?;
     let claimed = team::claim_if(&state, &user, req.shared.as_ref()).await?;
@@ -311,7 +311,6 @@ pub(crate) async fn send_message_multipart(
         &mut parts,
     )
     .await?;
-    draft_send::ensure_within_limit(&parts)?;
     infer_in_reply_to(&state, &user, &mut parts).await;
     if breaks_a_header_line(&parts) {
         return Err(SendError::header_line_break());
@@ -321,6 +320,7 @@ pub(crate) async fn send_message_multipart(
     recipients.extend(parts.bcc.clone());
     let from = parts.from.clone();
     let (message_id, envelope) = build_rfc5322(&parts, &from);
+    draft_send::ensure_message_fits(draft_id, &parts, envelope.len())?;
     let key = key.map(|Extension(k)| k);
     record_key_send(key.as_ref(), &user, &headers, &message_id)?;
     let claimed = team::claim_if(&state, &user, shared.as_ref()).await?;

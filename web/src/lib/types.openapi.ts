@@ -8962,7 +8962,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The form is larger than the 25 MiB limit, or the attachments together (the draft's, the form's, a forward's or redraft's) come to more; `drop` names which to remove. Nothing was sent. */
+            /** @description The form is larger than the 25 MiB limit, or a send naming draft_id builds a message, the draft's files counted in it, larger than the 50 MiB message limit; then `drop` names which attachments to remove. Nothing was sent. */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -8971,12 +8971,12 @@ export interface operations {
                     "application/json": {
                         error: string;
                         limit_bytes: number;
-                        total_bytes?: number;
                         attachments?: {
                             name?: string;
                             size?: number;
                         }[];
                         drop?: string[];
+                        message_bytes?: number;
                     };
                 };
             };

@@ -191,10 +191,10 @@ async fn a_draft_sends_with_its_files_and_old_clients_never_see_it() {
             .is_empty()
     );
 
-    // the draft's files and the form's together over the limit: refused,
-    // naming what to drop, and the draft kept
+    // the message, the draft's files counted in it, over the whole-message
+    // cap: refused, naming what to drop, and the draft kept
     const MIB: usize = 1024 * 1024;
-    let big = upload(&live, &alice, "video.mov", &vec![b'v'; 20 * MIB]).await;
+    let big = upload(&live, &alice, "video.mov", &vec![b'v'; 24 * MIB]).await;
     let (status, saved) = live
         .call(
             Method::POST,
@@ -214,7 +214,7 @@ async fn a_draft_sends_with_its_files_and_old_clients_never_see_it() {
             part("draft_id", None, &big_id.to_string()),
             part(
                 "attachments",
-                Some(("slides.pdf", &vec![b's'; 10 * MIB])),
+                Some(("slides.pdf", &vec![b's'; 20 * MIB])),
                 "",
             ),
         ],
