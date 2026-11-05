@@ -84,7 +84,7 @@ async fn check(resp: Result<reqwest::Response, reqwest::Error>) -> Result<(), St
     match resp {
         Ok(r) if r.status().is_success() => Ok(()),
         Ok(r) => Err(format!("answered {}", r.status())),
-        Err(e) => Err(format!("not delivered: {e}")),
+        Err(e) => Err(format!("not sent: {e}")),
     }
 }
 

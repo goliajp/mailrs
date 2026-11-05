@@ -129,7 +129,7 @@ async fn an_alert_about_the_sending_path_goes_straight_outside() {
 }
 
 #[tokio::test]
-async fn a_queued_answer_is_not_delivery_and_the_fallback_comes_after_five_minutes() {
+async fn a_queued_answer_is_not_acceptance_and_the_fallback_comes_after_five_minutes() {
     let mut r = rig(true).await;
     fire(&mut r, notice("spool_quarantined", "spool", T), T).await;
     assert_eq!(r.core.lock().unwrap().len(), 1, "the core answered 200");
@@ -140,7 +140,7 @@ async fn a_queued_answer_is_not_delivery_and_the_fallback_comes_after_five_minut
     assert_eq!(
         hook.len(),
         1,
-        "no delivered marker: the external channel gets it"
+        "not accepted (250) in time: the external channel gets it"
     );
     assert_eq!(hook[0].1["alerts"][0]["rule"], "spool_quarantined");
 }
@@ -153,13 +153,13 @@ async fn the_senders_marker_ends_the_wait() {
         .as_str()
         .unwrap()
         .to_string();
-    r.d.mark_delivered(&["unrelated".into()], T + 60);
+    r.d.mark_accepted(&["unrelated".into()], T + 60);
     assert_eq!(
         r.d.pending_ids(),
         std::slice::from_ref(&id),
         "another id does not count"
     );
-    r.d.mark_delivered(&[id], T + 120);
+    r.d.mark_accepted(&[id], T + 120);
     r.d.tick(T + 3600).await;
     assert!(r.hook.lock().unwrap().is_empty());
     assert!(r.d.pending_ids().is_empty());
