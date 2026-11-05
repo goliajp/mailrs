@@ -18,6 +18,26 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### A message that crashes a parser no longer takes the server with it
+
+- The receiver, fastcore and the SQL core read untrusted message bytes
+  in `mailrs-parse-worker` child processes: HTML to text, what
+  attachments hold, Bayes tokens, DMARC and TLS-RPT decompression, and
+  Office and PDF text. A worker that crashes, runs past its time limit
+  (2 s on delivery, 10 s for re-judging and backfills, 30 s for one
+  attachment) or runs out of its own memory limit is restarted; the
+  message is delivered without those readings and is never refused or
+  held for it.
+- On the receive path, and when stored mail is judged again, a parser
+  failing on the message is the `parser_failed_on_message` fact, and the
+  new rule `parser-failed-on-message` scores it 3 (below the Junk
+  threshold of 5, never a hold). A worker that is merely unavailable sets
+  nothing.
+- `/api/health` reports `parsing: {receiver, core}` with failures in the
+  last day, the last one, worker restarts and failures by parser and kind.
+- Both images carry `/usr/local/bin/mailrs-parse-worker`; the servers
+  refuse to start without it.
+
 ### Reporting a scam
 
 - **Report scam** on a conversation holds your copy in Review at once,

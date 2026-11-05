@@ -39,6 +39,14 @@ different entrypoint (`deploy/docker-compose.prod.yml`).
 
 fastcore starts `mailrs-fastcore-ocr` as a short-lived child process per
 attachment that needs OCR, with its own memory and CPU limits.
+The receiver keeps one `mailrs-parse-worker` child, fastcore and the SQL
+core two each (`crates/parse-worker`), and they read untrusted message bytes
+in them:
+HTML to text, what attachments hold, Bayes tokens, report decompression,
+Office and PDF text (the last two in a worker started per attachment). A
+worker that dies, loops past its time limit or answers nonsense costs the
+message those readings, never the message: it is delivered, and on the
+receive path the failure is a scored fact for the fraud rules.
 `mailrs-fraud-check` (from `crates/fraud-lua`) is a command-line tool in
 the same image for validating and comparing fraud rule files before they
 are swapped in.
@@ -154,6 +162,7 @@ libraries are published on [crates.io](https://crates.io/users/golia-jp).
 | `mailrs-intelligence` | LLM-assisted extraction and scoring behind a provider trait (off unless configured) |
 | `mailrs-clean` | HTML sanitising, tracking-pixel detection, quoted-reply splitting |
 | `mailrs-attachment-extract`, `mailrs-ocr` | Text from PDF attachments; OCR of images and scanned pages (Chinese, Japanese, English) in pure Rust |
+| `mailrs-parse-worker` | The child process untrusted message bytes are parsed in, its frame protocol, and the resident pool with time limits, restarts and failure counts |
 | `mailrs-mock` | Disposable test mailboxes: address grammar and the parsed view of a captured message |
 
 ### Protocols and formats

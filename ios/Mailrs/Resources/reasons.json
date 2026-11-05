@@ -274,6 +274,11 @@
     "ja": "本文が数百万単位の金額の分け前を持ちかけています。",
     "zh": "正文要分给你一笔数以百万计的钱。"
   },
+  "parser-failed-on-message": {
+    "en": "Part of this message could not be read, so it could not be fully checked.",
+    "ja": "このメールの一部を読み取れなかったため、すべてを確認できませんでした。",
+    "zh": "这封信有一部分读不出来，没能全部检查。"
+  },
   "reply-domain-rotation": {
     "en": "Replies go to a domain that many different sending domains use.",
     "ja": "返信先のドメインが、多くの異なる送信ドメインで使い回されています。",

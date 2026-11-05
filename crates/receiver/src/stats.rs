@@ -77,6 +77,7 @@ impl ReceiverCounters {
             probe_guard_tripped: Some(self.probe_guard_tripped.load(Ordering::Relaxed)),
             mask_submit_log_failed: Some(self.mask_submit_log_failed.load(Ordering::Relaxed)),
             dane: self.dane.get(),
+            parsing: Some(mailrs_core_sidestate::parsing::health()),
         }
     }
 }

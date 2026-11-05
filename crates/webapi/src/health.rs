@@ -46,6 +46,10 @@ pub(crate) async fn health_handler(
     let core_health = core_health(&state).await;
     let core_memory = core_memory(core_health.as_ref());
     let (spool, set_aside) = loop_health(core_health.as_ref());
+    let parsing = parsing(
+        state.receiver_stats.get().and_then(|s| s.parsing),
+        core_health.as_ref().and_then(|h| h.parsing.clone()),
+    );
     let kevy_server_memory = kevy_server_memory();
     // the daily check of this server's sending addresses against blocklists
     let egress =
@@ -79,7 +83,19 @@ pub(crate) async fn health_handler(
         "jmap_uploads": handlers::upload_sweep::health(),
         "spool": spool,
         "set_aside": set_aside,
+        "parsing": parsing,
     }))
+}
+
+/// The parse workers of the receiver (from its stats frames) and of the
+/// core (from its health answer): `{receiver, core}`, each
+/// `{worker, failures_24h, last_failure_at, worker_restarts, failures}`
+/// or null when that process has not said.
+fn parsing(
+    receiver: Option<mailrs_core_api::types::ParsingHealthWire>,
+    core: Option<mailrs_core_api::types::ParsingHealthWire>,
+) -> serde_json::Value {
+    serde_json::json!({ "receiver": receiver, "core": core })
 }
 
 /// How many domains have a first-seen time (`mailrs:domfirst:`), and how
@@ -409,6 +425,24 @@ pub(crate) async fn status_handler(
 
 #[cfg(test)]
 mod tests {
+    /// The receiver's half arrives in its stats frame, the core's in its
+    /// health answer; a process that has not said reads null, not zero.
+    #[test]
+    fn parsing_carries_each_process_and_null_for_one_not_heard_from() {
+        let frame = br#"{"active_connections":0,"total_connections":0,"total_messages":0,
+            "uptime_secs":1,"parsing":{"worker":true,"failures_24h":2,
+            "last_failure_at":1700000000,"worker_restarts":1,
+            "failures":[{"parser":"html2text","kind":"timeout","count":2}]}}"#;
+        let stats: mailrs_core_sidestate::smtp_monitor::ReceiverStats =
+            serde_json::from_slice(frame).unwrap();
+        let v = super::parsing(stats.parsing, None);
+        assert_eq!(v["receiver"]["failures_24h"], 2);
+        assert_eq!(v["receiver"]["worker_restarts"], 1);
+        assert_eq!(v["receiver"]["last_failure_at"], 1_700_000_000);
+        assert_eq!(v["receiver"]["failures"][0]["kind"], "timeout");
+        assert!(v["core"].is_null(), "{v}");
+    }
+
     #[test]
     fn every_enforced_rule_is_listed_and_one_that_never_fired_reads_zero() {
         let mut c = mailrs_core_sidestate::families::fraud_hits::Counts::default();

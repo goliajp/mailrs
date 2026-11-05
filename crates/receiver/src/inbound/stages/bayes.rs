@@ -1,6 +1,7 @@
 //! Bayesian spam-scoring stage (v2.8.1).
 //!
-//! Tokenizes the message via the `mailrs-bayes` stone, reads the
+//! Takes the message's tokens (read in the parse worker by
+//! `run_antispam`, into `ctx.bayes_tokens`), reads the
 //! per-token spam/ham counts from the shared network kevy (trained by
 //! fastcore's mark-junk / mark-not-junk hooks), and maps the resulting
 //! spam probability onto `ctx.ai_score` — reusing the same score slot
@@ -41,7 +42,8 @@ impl Stage for BayesStage {
         let Some(kevy) = self.kevy.clone() else {
             return StageOutcome::Continue;
         };
-        let tokens = mailrs_triage::spam::READ.tokenize(&ctx.message);
+        // empty when the worker could not read them: nothing to add
+        let tokens = std::mem::take(&mut ctx.bayes_tokens);
         if tokens.is_empty() {
             return StageOutcome::Continue;
         }

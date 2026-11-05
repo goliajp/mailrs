@@ -9,6 +9,11 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+# the release smoke of the spool quarantine aborts on a marked message;
+# no shipped binary is built with it
+abort-hook = []
+
 [dependencies]
 mailrs-core = { path = "../core" }
 mailrs-core-sidestate = { path = "../core-sidestate" }
@@ -33,6 +38,7 @@ mailrs-intelligence = { path = "../intelligence" }
 mailrs-mailbox = { path = "../mailbox", default-features = false }
 mailrs-maildir = { path = "../storage-maildir", version = "2" }
 mailrs-mime = { path = "../mime", version = "2" }
+mailrs-parse-worker = { path = "../parse-worker" }
 mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 mailrs-triage = { path = "../triage" }
