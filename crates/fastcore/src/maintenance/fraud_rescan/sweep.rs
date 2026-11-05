@@ -47,14 +47,41 @@ struct Tally {
     scored_samples: Vec<serde_json::Value>,
 }
 
-/// The background worker supplies an immutable batch and pins its rule version.
+/// The walk off the async runtime. Every item is synchronous work (store
+/// reads and writes, a maildir file, MIME, Lua, network kevy round trips),
+/// tens of milliseconds each; run on a runtime worker, the 25 items between
+/// pauses held that worker for about 2 s, and requests queued behind it
+/// waited that long.
 pub(crate) async fn rescan(
     state: Arc<FastcoreState>,
     q: RescanQuery,
     targets: Option<Vec<(String, String)>>,
-    expected_version: Option<&str>,
 ) -> axum::response::Response {
-    let policy = policy_from_env(&state);
+    let walked =
+        crate::maintenance::hangup::run_blocking(move |h| walk(&state, &q, targets, None, h)).await;
+    match walked {
+        Ok(Ok(answer)) => Json(answer).into_response(),
+        Ok(Err(e)) => {
+            tracing::error!(err = %e, "fraud snapshot failed");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+        Err(e) => {
+            tracing::error!(err = %e, "fraud rescan task failed");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+/// Judge `targets` (or every conversation), blocking. The background
+/// worker supplies an immutable batch and pins its rule version.
+pub(crate) fn walk(
+    state: &Arc<FastcoreState>,
+    q: &RescanQuery,
+    targets: Option<Vec<(String, String)>>,
+    expected_version: Option<&str>,
+    hangup: &crate::maintenance::hangup::Hangup,
+) -> std::io::Result<serde_json::Value> {
+    let policy = policy_from_env(state);
     // This deployment's own `authserv-id`, for telling its stamp from
     // a forwarder's — `None` when the process was not told, which the
     // reader logs.
@@ -70,16 +97,13 @@ pub(crate) async fn rescan(
              familiar domain from a fresh one, so it will not fire"
         );
     }
-    let targets = match targets.map(Ok).unwrap_or_else(|| snapshot(&state)) {
-        Ok(targets) => targets,
-        Err(e) => {
-            tracing::error!(err = %e, "fraud snapshot failed");
-            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
+    let targets = match targets {
+        Some(targets) => targets,
+        None => snapshot(state)?,
     };
     let mut sweep = Sweep {
-        state: &state,
-        q: &q,
+        state,
+        q,
         policy: &policy,
         our_stamp: our_stamp.as_deref(),
         expected_version,
@@ -95,18 +119,18 @@ pub(crate) async fn rescan(
         if seen <= q.skip {
             continue;
         }
-        if walked >= q.limit {
+        if walked >= q.limit || hangup.hung_up() {
             stopped_early = true;
             break;
         }
         walked += 1;
         if walked.is_multiple_of(PAUSE_EVERY) {
-            tokio::time::sleep(std::time::Duration::from_millis(q.pause_ms)).await;
+            std::thread::sleep(std::time::Duration::from_millis(q.pause_ms));
         }
         sweep.thread(user, tid);
     }
 
-    sweep.t.into_response(&q, walked, stopped_early)
+    Ok(sweep.t.into_json(q, walked, stopped_early))
 }
 
 impl Sweep<'_> {

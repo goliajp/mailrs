@@ -1,7 +1,9 @@
 // CARVE-OUT: pure route registration; the builder chain is the table
 //! The maintenance sweeps, kept out of the main route table.
 //!
-//! Twenty-six routes that rebuild, audit or reclaim derived state.
+//! The routes that rebuild, audit or reclaim derived state. They run on
+//! the maintenance runtime (`maintenance::offload`): most walk the corpus
+//! synchronously, and on the serving runtime that stalls every request.
 //! They are not part of what a client calls — each is run by hand, once,
 //! when something needs repairing or measuring — so they are the
 //! natural half to lift out when the router crosses the file-size
@@ -14,7 +16,13 @@
 use super::*;
 
 pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<FastcoreState>> {
-    r.route("/v1/admin/maintenance:rewrite-aof", post(rewrite_aof_route))
+    let walks = Router::new()
+        .route("/v1/admin/maintenance:rewrite-aof", post(rewrite_aof_route))
+        .route(th::PATH_BACKFILL_THREADING, post(backfill_threading_route))
+        .route(
+            "/v1/admin/backfill-decode-headers",
+            post(backfill_decode::backfill_decode_headers_route),
+        )
         // Usage against the default quota limit; `?dry_run=false` gives the
         // default to accounts created without one.
         .route(adm::PATH_QUOTA_LIMITS, post(quota_limits_route))
@@ -379,5 +387,8 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
         .route(
             "/v1/admin/maintenance:recompute-thread-display",
             post(crate::maintenance::recompute_thread_display_route),
-        )
+        );
+    r.merge(walks.route_layer(axum::middleware::from_fn(
+        crate::maintenance::offload::off_serving_runtime,
+    )))
 }

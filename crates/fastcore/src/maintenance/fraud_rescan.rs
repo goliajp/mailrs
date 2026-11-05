@@ -42,7 +42,7 @@ pub(crate) mod config;
 mod decision;
 pub(crate) mod holding;
 mod sweep;
-pub(crate) use sweep::rescan;
+pub(crate) use sweep::{rescan, walk};
 
 pub(crate) fn snapshot(state: &FastcoreState) -> std::io::Result<Vec<(String, String)>> {
     let mut targets = Vec::new();
@@ -140,7 +140,7 @@ pub(crate) async fn fraud_rescan_route(
     State(state): State<Arc<FastcoreState>>,
     Query(q): Query<RescanQuery>,
 ) -> axum::response::Response {
-    rescan(state, q, None, None).await
+    rescan(state, q, None).await
 }
 
 #[cfg(test)]
