@@ -1,9 +1,7 @@
 //! Mail arriving in a conversation held for review rings no phone, and the
-//! badge does not move. Once the conversation is released, the next
-//! message is news again. (The new-mail event the web turns into a sound
-//! and a desktop notice is gated with the push, but an in-process store
-//! cannot show it: the event is written by a pipeline, which only a
-//! network kevy runs.)
+//! badge does not move; its new-mail event still reaches the clients, so
+//! Review refreshes, marked held, so they raise no notice. Once the
+//! conversation is released, the next message is news again.
 //!
 //! The follow-up carries no verdict of its own, so "this message was held"
 //! alone let it ring the phone with the scam's sender and subject.
@@ -16,7 +14,6 @@ use std::sync::Arc;
 use mailrs_core::spool::{SPOOL_SCHEMA_VERSION, SpoolEnvelope, encode_spool_blob};
 use mailrs_core_sidestate::families::notify;
 
-const KEVY: &str = "mem://fastcore-held-rings-no-phone";
 const USER: &str = "bob@x.com";
 const TID: &str = "p1@outside.example";
 
@@ -85,6 +82,32 @@ async fn pushes_settled(kv: &mut kevy_client::Connection, want: i64) -> i64 {
     pushes(kv)
 }
 
+/// The `held` flag of every new-mail event about [`TID`] so far, oldest
+/// first; `None` for an event that does not say.
+fn held_flags(kv: &mut kevy_client::Connection) -> Vec<Option<bool>> {
+    let prefix = mailrs_core_sidestate::keys::events::NOTIFY_PREFIX;
+    let mut pattern = prefix.to_vec();
+    pattern.push(b'*');
+    let mut keys = Vec::new();
+    let mut cursor = 0u64;
+    loop {
+        let (next, batch) = kv.scan(cursor, Some(pattern.as_slice()), None).unwrap();
+        keys.extend(batch);
+        if next == 0 {
+            break;
+        }
+        cursor = next;
+    }
+    let nanos = |k: &[u8]| -> u128 { String::from_utf8_lossy(&k[prefix.len()..]).parse().unwrap() };
+    keys.sort_by_key(|k| nanos(k));
+    keys.iter()
+        .filter_map(|k| kv.get(k).unwrap())
+        .map(|v| serde_json::from_slice::<serde_json::Value>(&v).unwrap())
+        .filter(|e| e["type"] == "NewMessage" && e["thread_id"] == TID)
+        .map(|e| e["held"].as_bool())
+        .collect()
+}
+
 fn vapid_key(dir: &std::path::Path) -> std::path::PathBuf {
     use aws_lc_rs::rand::SystemRandom;
     use aws_lc_rs::signature::{ECDSA_P256_SHA256_FIXED_SIGNING, EcdsaKeyPair};
@@ -111,15 +134,18 @@ async fn mail_into_a_held_conversation_rings_no_phone_until_it_is_released() {
         std::fs::create_dir_all(maildir.join("x.com/bob").join(leaf)).unwrap();
     }
     let key = vapid_key(tmp.path());
+    // a kevy-server: the new-mail event is written by a pipeline, which the
+    // in-process store does not run
+    let (_kevy, url) = mailrs_test_docker::kevy::kevy_server().await;
     // SAFETY: the only test in this binary, before anything reads them
     unsafe {
-        std::env::set_var("MAILRS_KEVY_URL", KEVY);
+        std::env::set_var("MAILRS_KEVY_URL", &url);
         std::env::set_var("MAILRS_MAILDIR", &maildir);
         std::env::set_var("MAILRS_LOCAL_DOMAINS", "x.com");
         std::env::set_var("MAILRS_VAPID_PRIVATE_KEY_PATH", &key);
         std::env::set_var("MAILRS_VAPID_SUBJECT", "mailto:ops@x.com");
     }
-    let mut kv = kevy_client::Connection::connect(KEVY).unwrap();
+    let mut kv = kevy_client::Connection::connect(&url).unwrap();
     notify::add_web_subscription(
         &mut kv,
         USER,
@@ -141,7 +167,7 @@ async fn mail_into_a_held_conversation_rings_no_phone_until_it_is_released() {
         .upsert_account(USER, r#"{"address":"bob@x.com","active":true}"#)
         .unwrap();
     let mut state = mailrs_fastcore::FastcoreState::new(mailbox);
-    state.net_url = Some(KEVY.to_string());
+    state.net_url = Some(url.clone());
     let state = Arc::new(state);
     let arrive = |name: &str, env: SpoolEnvelope, body: Vec<u8>| {
         std::fs::write(incoming.join(name), encode_spool_blob(&env, &body)).unwrap();
@@ -170,6 +196,7 @@ async fn mail_into_a_held_conversation_rings_no_phone_until_it_is_released() {
         "the verdict did not hold it"
     );
     assert_eq!(pushes_settled(&mut kv, 0).await, 0);
+    assert_eq!(held_flags(&mut kv), [Some(true)], "the hold's event");
     let badge_held = badge(&state);
 
     // a follow-up with no verdict of its own, into the held conversation
@@ -186,6 +213,12 @@ async fn mail_into_a_held_conversation_rings_no_phone_until_it_is_released() {
         "held mail rang the phone"
     );
     assert_eq!(badge(&state), badge_held, "held mail moved the badge");
+    // the clients still hear of it, to refresh Review, told it is held
+    assert_eq!(
+        held_flags(&mut kv),
+        [Some(true), Some(true)],
+        "the follow-up's event"
+    );
 
     // released, the next message is news again
     assert!(state.mailbox.set_quarantined(USER, TID, false).unwrap());
@@ -200,5 +233,10 @@ async fn mail_into_a_held_conversation_rings_no_phone_until_it_is_released() {
         badge(&state),
         badge_held + 1,
         "released, and not in the badge"
+    );
+    assert_eq!(
+        held_flags(&mut kv),
+        [Some(true), Some(true), Some(false)],
+        "after the release, an ordinary event"
     );
 }
