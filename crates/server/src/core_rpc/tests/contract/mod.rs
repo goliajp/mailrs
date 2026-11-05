@@ -47,6 +47,7 @@ mod shared;
 mod shared_read_state;
 mod side;
 mod side_drafts;
+mod standing;
 mod submission;
 mod threads;
 mod trash;

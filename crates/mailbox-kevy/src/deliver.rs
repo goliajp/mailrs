@@ -60,6 +60,7 @@ impl KevyMailboxStore {
             payload,
             per_user,
         )?;
+        self.set_message_category(arrival.user, message_id, arrival.category)?;
         self.record_message_arrival(arrival)?;
         Ok(())
     }

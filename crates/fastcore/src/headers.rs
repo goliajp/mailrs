@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 pub(crate) use mailrs_intake::headers::{
     body_text_for_search, extract_headers, extract_sender_trust, maildir_filename_epoch, sort_date,
+    stored_date,
 };
 
 use crate::FastcoreState;
