@@ -109,8 +109,8 @@ fn reclassifying_leaves_the_old_category() {
 
     st.upsert_thread("alice@x.com", &row("t", 100, "inbox"))
         .unwrap();
-    st.upsert_thread("alice@x.com", &row("t", 100, "spam"))
-        .unwrap();
+    // the reader's own move; a ThreadRow no longer recategorises a row
+    st.move_category("alice@x.com", "t", "spam").unwrap();
 
     let count = |cat: &str| {
         let f = ListThreadsFilter {

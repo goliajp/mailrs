@@ -80,7 +80,8 @@ pub(crate) async fn thread_date_audit_route(
                 report.unreadable += 1;
                 continue;
             };
-            let Ok(wires) = state.mailbox.thread_messages_unscoped(&tid) else {
+            // the reader's own messages: the date is theirs
+            let Ok(wires) = state.mailbox.list_thread_messages(user, &tid) else {
                 report.unreadable += 1;
                 continue;
             };
@@ -103,15 +104,19 @@ pub(crate) async fn thread_date_audit_route(
                 report.hash_and_row_disagree += 1;
             }
             let want = display["internal_date"].as_i64().unwrap_or(0);
-            if want <= 0 || row.latest_date <= want {
+            let Ok(Some(mine)) = state.mailbox.get_thread_for_user(user, &tid) else {
+                report.unreadable += 1;
+                continue;
+            };
+            if want <= 0 || mine.latest_date <= want {
                 continue;
             }
             report.ahead_of_inbound += 1;
             if report.samples.len() < 8 {
                 report.samples.push(format!(
                     "{user} {tid} row={} inbound={want} ahead_by={}s",
-                    row.latest_date,
-                    row.latest_date - want
+                    mine.latest_date,
+                    mine.latest_date - want
                 ));
             }
             if req.repair

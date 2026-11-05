@@ -58,6 +58,8 @@ pub(crate) use recompute_importance::recompute_thread_importance_route;
 mod recompute_participants;
 pub(crate) use recompute_participants::recompute_thread_participants_route;
 mod recompute_display;
+mod recompute_standing;
+pub(crate) use recompute_standing::recompute_thread_standing_route;
 mod recompute_unread;
 pub(crate) use recompute_display::recompute_thread_display_route;
 pub(crate) use recompute_unread::recompute_unread_column_route;

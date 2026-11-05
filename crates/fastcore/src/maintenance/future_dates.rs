@@ -185,10 +185,12 @@ fn repair_message(
 // the row follows the newest inbound message; a thread whose newest
 // message is the user's own keeps its date, as `thread-date-audit` does
 fn lower_row(state: &FastcoreState, user: &str, tid: &str) -> bool {
-    let Ok(Some(row)) = state.mailbox.get_thread(tid) else {
+    // this reader's row and messages: another member's newer mail is not
+    // a reason to keep or move this reader's date
+    let Ok(Some(row)) = state.mailbox.get_thread_for_user(user, tid) else {
         return false;
     };
-    let Ok(wires) = state.mailbox.thread_messages_unscoped(tid) else {
+    let Ok(wires) = state.mailbox.list_thread_messages(user, tid) else {
         return false;
     };
     let Some(display) = mailrs_mailbox_kevy::display_message(&wires, user) else {

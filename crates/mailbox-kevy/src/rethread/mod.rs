@@ -117,6 +117,13 @@ impl KevyMailboxStore {
         // This user's verdict, read off their own two rows before `from`'s
         // goes: the shared hashes carry none.
         let verdict = self.higher_verdict(user, from, into)?;
+        // and whether either asked this reader for action
+        let mut needs_action = false;
+        for tid in [from, into] {
+            needs_action |= self
+                .get_thread_for_user(user, tid)?
+                .is_some_and(|r| r.requires_action);
+        }
         let (_existed, _blob_refs) = self.delete_thread(user, from)?;
         if let Some(mut row) = merged {
             if let Some((count, unread, sent)) = self.recount_from_messages(user, into)? {
@@ -130,6 +137,7 @@ impl KevyMailboxStore {
             if let Some((level, score)) = verdict {
                 self.set_thread_importance(user, into, &level, score)?;
             }
+            self.set_requires_action(user, into, needs_action)?;
         }
         Ok(moved)
     }
