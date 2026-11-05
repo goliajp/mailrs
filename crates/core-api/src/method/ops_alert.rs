@@ -25,7 +25,8 @@ pub const OPS_PROCESS: &str = "ops";
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct OpsAlertWire {
-    /// The daemon's message id; the sender reports it back when delivered.
+    /// The daemon's message id; the sender reports it back once the
+    /// receiving server accepted the mail (250).
     pub id: String,
     pub subject: String,
     pub text: String,

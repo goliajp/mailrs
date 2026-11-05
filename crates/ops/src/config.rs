@@ -44,8 +44,9 @@ pub struct Config {
     /// Alerts go first through mailrs's own path (the core's
     /// `/v1/ops/alerts`, as the daemon's derived key).
     pub own_path: bool,
-    /// How long an own-path alert may go without the sender's delivered
-    /// marker before the external channels get it.
+    /// How long an own-path alert may go without the sender reporting it
+    /// accepted by the receiving server (250) before the external channels
+    /// get it.
     pub own_path_fallback_secs: i64,
 }
 

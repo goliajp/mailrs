@@ -113,7 +113,8 @@ pub fn write_security_alert_pending(
 pub const OPS_ALERT_ID: &str = "ops_alert_id";
 
 /// An ops daemon alert: a system alert like the security ones (no pause,
-/// no outbound scan), carrying the daemon's id for the delivered marker.
+/// no outbound scan), carrying the daemon's id for the sender's
+/// "accepted by the receiving server (250)" marker.
 pub fn write_ops_alert_pending(
     conn: &mut kevy_client::Connection,
     job: &FreshPending<'_>,

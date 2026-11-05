@@ -38,8 +38,8 @@ pub(super) fn popped(job: bool) {
     mailrs_ops_report::kevy_contact();
 }
 
-/// One delivery attempt ended this way; a delivered ops alert is
-/// remembered for the heartbeat.
+/// One delivery attempt ended this way; an ops alert the receiving server
+/// accepted (250, the "delivered" outcome) is remembered for the heartbeat.
 pub(super) fn outcome(kind: &str, envelope: &serde_json::Value) {
     if let Ok(mut o) = OUTCOMES.lock() {
         *o.entry(kind.to_string()).or_default() += 1;
@@ -93,7 +93,7 @@ pub(super) fn spawn_heartbeat(cfg: std::sync::Arc<Cfg>, reporter: &Reporter) {
             pending,
             oldest_pending_age_secs: oldest,
             outcomes,
-            ops_alerts_delivered: OPS_ALERTS
+            ops_alerts_accepted: OPS_ALERTS
                 .lock()
                 .map(|k| k.iter().cloned().collect())
                 .unwrap_or_default(),
