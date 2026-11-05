@@ -28,7 +28,6 @@ const SENDING_PATH: &[&str] = &[
     "source_unreadable.fastcore",
     "source_unreadable.sender",
     "source_unreadable.receiver",
-    "source_unreadable.webapi",
 ];
 
 /// Processes the own path runs through, for the crash-loop rule.
