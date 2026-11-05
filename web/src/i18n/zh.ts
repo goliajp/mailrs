@@ -5,6 +5,7 @@ import { adminZh } from './admin/zh'
 import { appZh } from './app/zh'
 import { calendarZh } from './calendar/zh'
 import { composerZh } from './composer/zh'
+import { draftsZh } from './drafts/zh'
 import { mockZh } from './mock/zh'
 import { reasonsZh } from './reasons/zh'
 import { sectionsZh } from './sections/zh'
@@ -13,6 +14,7 @@ import { settingsZh } from './settings/zh'
 export const zh: Record<Key, string> = {
   ...appZh,
   ...composerZh,
+  ...draftsZh,
   ...calendarZh,
   ...sectionsZh,
   ...reasonsZh,
@@ -192,15 +194,6 @@ export const zh: Record<Key, string> = {
   'date.today': '今天',
   'date.yesterday': '昨天',
   'deleteThread.body': '邮件会被删除，无法恢复。',
-  'drafts.delete': '删除草稿',
-  'drafts.deleteFailed': '草稿删除失败',
-  'drafts.loading': '正在加载草稿…',
-  'drafts.noMatch': '没有匹配的草稿',
-  'drafts.open': '打开',
-  'drafts.search': '搜索草稿',
-  'drafts.searchPlaceholder': '搜索草稿…',
-  'drafts.to': '收件人：{to}',
-  'drafts.withheldSendAt': '未发送：原定 {time} 发出',
   'error.reload': '重新加载',
   'error.title': '出错了',
   'feedback.block': '屏蔽发件人',

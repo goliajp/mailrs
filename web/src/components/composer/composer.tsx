@@ -3,6 +3,7 @@ import type { ComposerAi } from './use-composer-ai'
 
 import { lazy, type ReactNode, Suspense, useState } from 'react'
 
+import { AttachmentsNotIncluded } from '@/components/attachments-not-included'
 import { AutosaveWarning } from '@/components/autosave-warning'
 import { ComposerSkeleton } from '@/components/composer-skeleton'
 import { type Key, useT } from '@/i18n'
@@ -11,7 +12,7 @@ import { ComposerActions } from './composer-actions'
 import { ComposerFields } from './composer-fields'
 import { PreviewDialog } from './preview-dialog'
 import { quoteOf } from './quote'
-import { isReplyLike } from './start'
+import { attachmentsNotIncluded, isReplyLike } from './start'
 import { SuggestionsRow } from './suggestions-row'
 
 const StructuredCompose = lazy(() =>
@@ -48,6 +49,7 @@ export function ComposerView({
   const t = useT()
   const [previewHtml, setPreviewHtml] = useState<null | string>(null)
   const quote = quoteOf(c.start, t)
+  const leftOut = attachmentsNotIncluded(c.start)
   return (
     <>
       {c.error && (
@@ -56,6 +58,11 @@ export function ComposerView({
           role="alert"
         >
           {c.error}
+        </div>
+      )}
+      {leftOut.length > 0 && (
+        <div className="mx-4 mt-2 shrink-0 text-xs">
+          <AttachmentsNotIncluded names={leftOut} />
         </div>
       )}
       {fieldsOpen && <ComposerFields ai={ai} c={c} focusTo={focusTo} />}

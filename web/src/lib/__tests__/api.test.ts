@@ -213,6 +213,7 @@ describe('listDrafts', () => {
         cc: '',
         created_at: 1720392000,
         // a draft saved before it carried these reads as the account's own address, sent at once
+        attachments_not_included: [],
         from: '',
         id: '1',
         reply_to_thread_id: null,

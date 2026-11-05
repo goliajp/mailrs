@@ -87,6 +87,8 @@ pub enum Lapsed {
 pub struct Released {
     pub rescheduled: u64,
     pub drafts: u64,
+    /// Attachments those drafts could not carry, all together.
+    pub attachments_not_included: u64,
 }
 
 /// Put `address`'s withheld mail back: a message whose send time is still
@@ -135,7 +137,8 @@ pub fn release(
     let mut done = Released::default();
     for (send, (at, jobs)) in sends {
         if at <= now && lapsed == Lapsed::Draft {
-            super::withheld_draft::return_as_draft(conn, address, &send, at, &jobs, now)?;
+            done.attachments_not_included +=
+                super::withheld_draft::return_as_draft(conn, address, &send, at, &jobs, now)?;
             done.drafts += 1;
             continue;
         }
@@ -313,7 +316,8 @@ mod tests {
             done,
             Released {
                 rescheduled: 0,
-                drafts: 1
+                drafts: 1,
+                attachments_not_included: 0,
             }
         );
         for id in ids {
@@ -340,5 +344,62 @@ mod tests {
         );
         assert_eq!(d.body.trim(), "body");
         assert_eq!((d.withheld_send_at, d.scheduled_at), (Some(5_000), None));
+        // nothing was left behind, so the draft says nothing about it
+        assert!(d.attachments_not_included.is_empty());
+        let raw_json = String::from_utf8_lossy(&drafts[1]).into_owned();
+        assert!(!raw_json.contains("attachments_not_included"), "{raw_json}");
+    }
+
+    #[test]
+    fn a_draft_names_the_attachments_it_did_not_carry() {
+        use base64::Engine as _;
+        let mut c = kevy_client::Connection::connect("mem://outbound-withheld-files").unwrap();
+        let raw = b"From: dave@x.test\r\nTo: erin@y.test\r\nSubject: files\r\n\
+            MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"b\"\r\n\r\n\
+            --b\r\nContent-Type: text/plain\r\n\r\nsee attached\r\n\
+            --b\r\nContent-Type: application/pdf\r\n\
+            Content-Disposition: attachment; filename=\"agenda.pdf\"\r\n\r\n%PDF\r\n\
+            --b\r\nContent-Type: image/png; name=\"map.png\"\r\n\r\npng\r\n--b--\r\n";
+        let id = job_as(&mut c, DAVE, None, Some(5_000));
+        let blob = serde_json::json!({ "sender": DAVE, "recipient": "erin@y.test",
+            "send_id": "f@x.test",
+            "message_data_b64": base64::engine::general_purpose::STANDARD.encode(raw) })
+        .to_string();
+        c.hset(
+            job_key(id).as_bytes(),
+            &[(b"blob" as &[u8], blob.as_bytes())],
+        )
+        .unwrap();
+        withhold(&mut c, DAVE).unwrap();
+        let done = release(&mut c, DAVE, 10_000, Lapsed::Draft).unwrap();
+        assert_eq!((done.drafts, done.attachments_not_included), (1, 2));
+        let drafts = c
+            .hgetall(crate::families::prefs::drafts_key(DAVE).as_bytes())
+            .unwrap();
+        let d: mailrs_core_api::method::admin::DraftWire =
+            serde_json::from_slice(&drafts[1]).unwrap();
+        assert_eq!(d.attachments_not_included, ["agenda.pdf", "map.png"]);
+        assert_eq!(d.body.trim(), "see attached");
+    }
+
+    #[test]
+    fn a_save_keeps_what_the_restore_wrote_on_the_draft() {
+        let mut c = kevy_client::Connection::connect("mem://outbound-withheld-kept").unwrap();
+        let draft = serde_json::json!({ "id": 3, "to": "", "cc": "", "bcc": "", "subject": "",
+            "body": "", "withheld_send_at": 5_000, "attachments_not_included": ["a.pdf"],
+            "created_at": 1, "updated_at": 1 })
+        .to_string();
+        c.hset(
+            crate::families::prefs::drafts_key(DAVE).as_bytes(),
+            &[(b"3".as_slice(), draft.as_bytes())],
+        )
+        .unwrap();
+        let kept = crate::families::prefs::kept_restore_notes(&mut c, DAVE, 3);
+        assert_eq!(kept.withheld_send_at, Some(5_000));
+        assert_eq!(kept.attachments_not_included, ["a.pdf"]);
+        assert_eq!(
+            crate::families::prefs::kept_restore_notes(&mut c, DAVE, 4),
+            crate::families::prefs::RestoreNotes::default()
+        );
     }
 }

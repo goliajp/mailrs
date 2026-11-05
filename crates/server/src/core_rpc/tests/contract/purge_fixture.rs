@@ -38,11 +38,20 @@ pub(super) async fn fingerprints(c: &Cores, mid: &str) -> (bool, bool) {
     (fc, n == 1)
 }
 
-/// The message dave scheduled and whose time passes while he is deleted.
+/// The message dave scheduled and whose time passes while he is deleted,
+/// with two attachments a draft cannot carry.
 pub(super) const LAPSING: &[u8] = b"From: Dave <dave@example.test>\r\n\
 To: Erin <erin@outside.example>\r\nCc: fay@outside.example\r\n\
 Subject: =?UTF-8?B?44GK55+l44KJ44Gb?=\r\nMessage-ID: <lapsing@example.test>\r\n\
-Content-Type: text/plain; charset=utf-8\r\n\r\nsee you on monday\r\n";
+MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"b1\"\r\n\r\n\
+--b1\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nsee you on monday\r\n\
+--b1\r\nContent-Type: application/pdf; name=\"agenda.pdf\"\r\n\
+Content-Disposition: attachment; filename=\"agenda.pdf\"\r\n\
+Content-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjQK\r\n\
+--b1\r\nContent-Type: image/png; name=\"map.png\"\r\n\
+Content-Disposition: attachment; filename=\"map.png\"\r\n\
+Content-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n\
+--b1--\r\n";
 
 /// Dave's mail in one core's queue: two sends scheduled for later (the
 /// second, to erin, fay and a blind gus, lapses while he is deleted), one

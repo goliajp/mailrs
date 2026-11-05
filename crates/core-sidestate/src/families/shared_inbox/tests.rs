@@ -124,6 +124,7 @@ fn save_draft(c: &mut Connection, user: &str, id: i64, body: &str) {
         from: "team@x".into(),
         scheduled_at: None,
         withheld_send_at: None,
+        attachments_not_included: Vec::new(),
         created_at: 1,
         updated_at: 1,
     };

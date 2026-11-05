@@ -67,6 +67,11 @@ pub struct DraftWire {
     /// on; kept across the draft's saves.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub withheld_send_at: Option<i64>,
+    /// The names of the attachments that message had, which a draft cannot
+    /// carry: the original, with them, is in Sent. Shown beside
+    /// `withheld_send_at`, never acted on; kept across the draft's saves.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments_not_included: Vec<String>,
     /// Epoch seconds.
     pub created_at: i64,
     /// Epoch seconds.
