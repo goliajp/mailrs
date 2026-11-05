@@ -4474,6 +4474,7 @@ dependencies = [
  "kevy-embedded",
  "kevy-index",
  "mailrs-alias-store",
+ "mailrs-clean",
  "mailrs-mailbox",
  "mailrs-report",
  "mailrs-rfc2047",
