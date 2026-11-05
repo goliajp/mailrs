@@ -55,6 +55,8 @@ mod screening_replay;
 pub(crate) use screening_replay::screening_replay_route;
 mod recompute_importance;
 pub(crate) use recompute_importance::recompute_thread_importance_route;
+mod recompute_participants;
+pub(crate) use recompute_participants::recompute_thread_participants_route;
 mod reindex;
 mod repair_blob_refs;
 mod shadow_axes;

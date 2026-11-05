@@ -360,4 +360,11 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:recompute-thread-importance",
             post(crate::maintenance::recompute_thread_importance_route),
         )
+        // Each reader's participant list back to the senders of their own
+        // messages. `dry_run` unless `dry_run=false`; `skip` / `limit`
+        // batch it; multi-reader conversations unless `all=true`.
+        .route(
+            "/v1/admin/maintenance:recompute-thread-participants",
+            post(crate::maintenance::recompute_thread_participants_route),
+        )
 }
