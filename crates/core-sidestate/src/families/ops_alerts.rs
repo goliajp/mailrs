@@ -11,6 +11,9 @@ use mailrs_core_api::method::ops_alert::{OpsAlertWire, OpsOperators};
 use super::outbound::{FreshPending, write_ops_alert_pending};
 
 /// The message, plain text, base64 so any language needs no 8BITMIME.
+///
+/// The sending address has no mailbox, so a reply goes to the operators
+/// (`Reply-To`) instead of nowhere.
 pub fn message(ops: &OpsOperators, alert: &OpsAlertWire, now: i64) -> Vec<u8> {
     let b64 = base64::engine::general_purpose::STANDARD;
     let body = b64.encode(alert.text.as_bytes());
@@ -30,8 +33,9 @@ pub fn message(ops: &OpsOperators, alert: &OpsAlertWire, now: i64) -> Vec<u8> {
         .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
         .collect();
     format!(
-        "From: {}\r\nTo: {}\r\nSubject: =?utf-8?B?{}?=\r\nDate: {date}\r\nMessage-ID: <ops-alert.{id}@{domain}>\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n{}\r\n",
+        "From: {}\r\nTo: {}\r\nReply-To: {}\r\nSubject: =?utf-8?B?{}?=\r\nDate: {date}\r\nMessage-ID: <ops-alert.{id}@{domain}>\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n{}\r\n",
         ops.from,
+        ops.to.join(", "),
         ops.to.join(", "),
         b64.encode(subject.as_bytes()),
         lines.join("\r\n"),
@@ -116,6 +120,10 @@ mod tests {
                 .decode(v["message_data_b64"].as_str().unwrap())
                 .unwrap();
             let head = String::from_utf8_lossy(&raw);
+            assert!(
+                head.contains("\r\nReply-To: oncall@example.test, second@example.test\r\n"),
+                "a reply goes to the operators, not the mailbox-less sender: {head}"
+            );
             assert!(
                 !head.contains("Bcc:"),
                 "the subject stays one header: {head}"
