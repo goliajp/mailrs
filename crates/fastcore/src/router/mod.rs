@@ -58,11 +58,6 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         .route(conv::PATH_UNSEEN_COUNT, get(get_unseen_count))
         .route(th::PATH_LIST_THREAD_MESSAGES, get(thread_messages))
         .route(th::PATH_LIST_SENT_MESSAGES, get(list_sent_messages))
-        .route(th::PATH_BACKFILL_THREADING, post(backfill_threading_route))
-        .route(
-            "/v1/admin/backfill-decode-headers",
-            post(backfill_decode::backfill_decode_headers_route),
-        )
         .route("/v1/admin/threads:split-message", post(split_message_route))
         .route(th::PATH_DELIVER_MESSAGE, post(deliver_message))
         .route(

@@ -39,6 +39,8 @@ pub mod live_sync;
 mod mailbox_watch;
 mod maildir_scan;
 mod maintenance;
+#[cfg(feature = "measure-hooks")]
+mod measure_hooks;
 mod mock_sweep;
 pub mod outbound_fraud;
 mod protocols;
