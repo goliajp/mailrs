@@ -1,13 +1,14 @@
-//! Which parts carry readable text, and reading it: embedded PDF text in
-//! process, everything that needs OCR in a child process.
+//! Which parts carry readable text, and reading it: Office files and
+//! embedded PDF text in a parse worker of their own, everything that
+//! needs OCR in the OCR child.
 
 use mailrs_mailbox_kevy::AttachmentTextState;
 use mailrs_mailbox_kevy::keys::{ATTACHMENT_TEXT_CAP, cap_text};
 
 use super::ocr::{Job, OcrSetup};
 
-/// A PDF over this many bytes is not read in process. The extractor keeps
-/// the whole document in memory, more than once over.
+/// A PDF over this many bytes is not read for its embedded text. The
+/// extractor keeps the whole document in memory, more than once over.
 pub const MAX_PDF_BYTES: usize = 10 * 1024 * 1024;
 /// Largest PDF handed to OCR, which renders in its own process.
 pub const MAX_OCR_PDF_BYTES: usize = 40 * 1024 * 1024;
@@ -170,21 +171,21 @@ pub(crate) fn extract_all(
     (texts, state, qr)
 }
 
-/// An Office file's text, in process: the archive's size is capped by the
-/// extractor, and it parses XML, nothing that renders.
+/// An Office file's text, in a parse worker of its own.
 fn read_office(kind: mailrs_attachment_extract::office::OfficeKind, body: &[u8]) -> Got {
-    match mailrs_attachment_extract::office::office_text(kind, body) {
-        Ok(sections) => {
-            let text: Vec<String> = sections.into_iter().flat_map(|s| s.lines).collect();
-            match text.is_empty() {
-                true => Got::Nothing,
-                false => Got::Text {
-                    text: text.join("\n"),
-                    by_ocr: false,
-                },
-            }
+    match mailrs_parse_worker::office_text(kind.into(), body) {
+        mailrs_parse_worker::Outcome::Read(Ok(lines)) => match lines.is_empty() {
+            true => Got::Nothing,
+            false => Got::Text {
+                text: lines.join("\n"),
+                by_ocr: false,
+            },
+        },
+        mailrs_parse_worker::Outcome::Read(Err(_)) => Got::Failed,
+        other => {
+            tracing::warn!(outcome = ?other, "attachment text: the office reader did not answer");
+            Got::Failed
         }
-        Err(_) => Got::Failed,
     }
 }
 
@@ -224,29 +225,26 @@ fn read_pdf(body: &[u8], ocr: Option<&OcrSetup>, n: usize, qr: &mut Vec<String>)
 }
 
 /// Embedded text of each page, or `None` when the file is too large to
-/// read in process or the extractor cannot read it.
+/// read this way or the extractor cannot read it. Read in a parse worker
+/// of its own.
 fn embedded_pages(body: &[u8], n: usize) -> Option<Vec<String>> {
     if body.len() > MAX_PDF_BYTES {
         return None;
     }
-    // a panic on a hostile file must cost this attachment only
-    match std::panic::catch_unwind(|| mailrs_attachment_extract::extract_pdf_pages(body)) {
-        Ok(Ok(pages)) => Some(pages),
-        Ok(Err(error)) => {
+    match mailrs_parse_worker::pdf_pages(body) {
+        mailrs_parse_worker::Outcome::Read(Ok(pages)) => Some(pages),
+        mailrs_parse_worker::Outcome::Read(Err(error)) => {
             tracing::info!(%error, attachment = n, "attachment text: unreadable pdf");
             None
         }
-        Err(_) => {
-            tracing::warn!(
-                attachment = n,
-                "attachment text: the pdf extractor panicked"
-            );
+        other => {
+            tracing::warn!(outcome = ?other, attachment = n, "attachment text: the pdf reader did not answer");
             None
         }
     }
 }
 
-/// A PDF the in-process extractor could not open: rendering it may still
+/// A PDF the embedded-text extractor could not open: rendering it may still
 /// get at the pages.
 fn unreadable_pdf(body: &[u8], ocr: Option<&OcrSetup>, n: usize, qr: &mut Vec<String>) -> Got {
     let Some(setup) = ocr else {

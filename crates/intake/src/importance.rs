@@ -8,7 +8,8 @@ use mailrs_core_sidestate::families::contacts as ct;
 use mailrs_core_sidestate::families::correspondent::first_address;
 use mailrs_intelligence::importance::{self, ContactFacts, ImportanceLevel, MessageFacts};
 
-/// Message-shape signals, all from `mailrs-clean` pure helpers.
+/// Message-shape signals, from `mailrs-clean` helpers; the HTML ones are
+/// read in the parse worker.
 ///
 /// `head` is the header region, `raw` the whole message: the HTML
 /// signals need the body, and a message with no HTML part contributes
@@ -26,16 +27,19 @@ pub fn message_facts(sender: &str, head: &[u8], raw: &[u8]) -> MessageFacts {
         ..MessageFacts::default()
     };
 
-    let root = mailrs_mime::parse(raw);
-    let html = root
-        .walk()
-        .find(|p| p.content_type.mime_type().as_str() == "text/html")
-        .and_then(|p| p.body_text());
+    // read in the parse worker; a message it fails on scores without
+    // its markup, like one with no HTML part
+    let want = mailrs_parse_worker::Want {
+        html_facts: true,
+        ..Default::default()
+    };
+    let html = mailrs_parse_worker::read_message(raw, want, mailrs_parse_worker::Limit::Inbound)
+        .read()
+        .and_then(|r| r.html_facts);
     if let Some(html) = html {
-        let cleaned = mailrs_clean::clean_email_html(&html);
-        facts.has_tracking_pixel = cleaned.has_tracking_pixel;
-        facts.is_template_heavy = cleaned.is_template_heavy;
-        facts.link_count = cleaned.link_count;
+        facts.has_tracking_pixel = html.has_tracking_pixel;
+        facts.is_template_heavy = html.is_template_heavy;
+        facts.link_count = html.link_count;
     }
     facts
 }

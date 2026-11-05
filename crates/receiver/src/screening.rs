@@ -102,8 +102,8 @@ pub(crate) fn evaluate(
     })
 }
 
-/// Run the rules on `rc` and log what they would have done. A failure or
-/// a panic is counted and logged; the mail is never held up.
+/// Run the rules on `rc` and log what they would have done. A failure is
+/// counted and logged; the mail is never held up.
 pub fn shadow(rc: &ReceiveContext) {
     let Some(live) = LIVE.get() else {
         return;
@@ -111,15 +111,10 @@ pub fn shadow(rc: &ReceiveContext) {
     if let Some(reason) = poses_as_ours(rc) {
         record_abuse(rc.client_ip, reason);
     }
-    let run = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| evaluate(live, rc)));
-    let verdict = match run {
-        Ok(Ok(v)) => v,
-        Ok(Err(e)) => {
+    let verdict = match evaluate(live, rc) {
+        Ok(v) => v,
+        Err(e) => {
             live.failed("rules", &e);
-            return;
-        }
-        Err(_) => {
-            live.failed("facts", "an extractor panicked");
             return;
         }
     };

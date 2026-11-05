@@ -70,7 +70,7 @@ pub(super) struct Evidence {
     domain_seen: u64,
     x_mailer: Option<String>,
     has_zero_width_in_name: bool,
-    inside: mailrs_fraud::attachment_inside::Inside,
+    attachments: mailrs_parse_worker::AttachmentsRead,
     reply_marker_without_thread: bool,
     offers_the_reader_a_sum: bool,
     asks_for_the_readers_line: bool,
@@ -107,7 +107,11 @@ impl Evidence {
     // own extraction — and the two that read the `From` read it
     // differently for a while. One `Facts`, one `scan`, and a new
     // rule needs neither a field nor a line here.
-    pub(super) async fn gather(receive_ctx: &ReceiveContext, ctx: &ConnectionContext) -> Self {
+    pub(super) async fn gather(
+        receive_ctx: &ReceiveContext,
+        attachments: mailrs_parse_worker::AttachmentsRead,
+        ctx: &ConnectionContext,
+    ) -> Self {
         let decoded_from = mailrs_inbound::identity::from_header(&receive_ctx.message);
         let sender_host = decoded_from
             .rfind('@')
@@ -124,7 +128,6 @@ impl Evidence {
         let x_mailer = mailrs_inbound::identity::x_mailer_header(&receive_ctx.message);
         let name_deception = mailrs_inbound::deception_in_display_name(&receive_ctx.message);
         let parsed = mailrs_mime::parse(&receive_ctx.message);
-        let inside = mailrs_inbound::body::attachments_inside(&parsed);
         let reply_marker_without_thread =
             mailrs_inbound::thread_claim::reply_marker_without_thread(&receive_ctx.message);
         let offers_the_reader_a_sum = mailrs_inbound::body::offers_the_reader_a_sum(&parsed);
@@ -176,7 +179,7 @@ impl Evidence {
             domain_seen,
             x_mailer,
             has_zero_width_in_name: name_deception.unjustified_zero_width,
-            inside,
+            attachments,
             reply_marker_without_thread,
             offers_the_reader_a_sum,
             asks_for_the_readers_line,
@@ -213,8 +216,9 @@ impl Evidence {
             // occasionally legitimate. In a display name it never was —
             // forty in the corpus, forty phishing.
             has_zero_width_in_name: self.has_zero_width_in_name,
-            has_executable_attachment: self.inside.carries_code,
-            has_encrypted_document_archive: self.inside.encrypted_document_archive,
+            has_executable_attachment: self.attachments.inside.carries_code,
+            has_encrypted_document_archive: self.attachments.inside.encrypted_document_archive,
+            parser_failed_on_message: self.attachments.parser_failed,
             reply_marker_without_thread: self.reply_marker_without_thread,
             has_zero_width_inside_a_word: receive_ctx.deception.zero_width_inside_a_word,
             offers_the_reader_a_sum: self.offers_the_reader_a_sum,

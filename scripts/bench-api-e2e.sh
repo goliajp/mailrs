@@ -262,6 +262,7 @@ case "$ARM" in
     # shellcheck disable=SC2086 — FEATURES is intentionally word-split
     cargo build --release -p mailrs-server -p mailrs-webapi \
       --bin mailrs-pg-core --bin mailrs-webapi $FEATURES 2>&1 | tail -1
+    cargo build --release -p mailrs-parse-worker --bin mailrs-parse-worker 2>&1 | tail -1
     TARGET="$(cargo metadata --format-version 1 --no-deps \
       | python3 -c "import json,sys; print(json.load(sys.stdin)['target_directory'])")"
 
@@ -320,6 +321,7 @@ case "$ARM" in
     echo "== build: fastcore + webapi --release =="
     cargo build --release -p mailrs-fastcore -p mailrs-webapi \
       --bin mailrs-fastcore --bin mailrs-fastcore-migrate --bin mailrs-webapi 2>&1 | tail -1
+    cargo build --release -p mailrs-parse-worker --bin mailrs-parse-worker 2>&1 | tail -1
     TARGET="$(cargo metadata --format-version 1 --no-deps \
       | python3 -c "import json,sys; print(json.load(sys.stdin)['target_directory'])")"
 

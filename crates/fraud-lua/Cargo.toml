@@ -20,6 +20,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 mailrs-inbound = { path = "../inbound", version = "2" }
 mailrs-mime = { path = "../mime", version = "2" }
+mailrs-parse-worker = { path = "../parse-worker" }
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 kevy-client = { workspace = true }
 mailrs-core-sidestate = { path = "../core-sidestate", version = "0" }
