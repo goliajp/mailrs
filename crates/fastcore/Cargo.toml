@@ -37,6 +37,11 @@ path = "src/bin/sender/main.rs"
 name = "mailrs-fastcore-ocr"
 path = "src/bin/ocr.rs"
 
+[features]
+# the release smoke of the spool quarantine aborts on a marked message;
+# no shipped binary is built with it
+abort-hook = ["mailrs-intake/abort-hook"]
+
 [dependencies]
 mailrs-apns = { path = "../apns", version = "1" }
 mailrs-core-api = { path = "../core-api", features = ["server", "client"] }

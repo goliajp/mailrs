@@ -9,6 +9,11 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+# the release smoke of the spool quarantine aborts on a marked message;
+# no shipped binary is built with it
+abort-hook = []
+
 [dependencies]
 mailrs-core = { path = "../core" }
 mailrs-core-sidestate = { path = "../core-sidestate" }
