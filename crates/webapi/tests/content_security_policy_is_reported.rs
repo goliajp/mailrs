@@ -21,6 +21,7 @@ fn router() -> axum::Router {
         receiver_stats: Arc::new(mailrs_webapi::handlers::smtp_monitor::StatsCache::default()),
         started_at: std::time::Instant::now(),
         llm_config: None,
+        metrics_token: None,
     });
     mailrs_webapi::build_router(state)
 }

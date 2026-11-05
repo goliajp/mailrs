@@ -4378,10 +4378,15 @@
       "get": {
         "operationId": "prometheusMetrics",
         "summary": "Prometheus-format metrics",
+        "description": "Requires `Authorization: Bearer <token>` with the server's `MAILRS_METRICS_TOKEN`; session tokens and API keys are not accepted. When `MAILRS_METRICS_TOKEN` is unset or empty the route is off and answers 404.",
         "tags": [
           "Metrics"
         ],
-        "security": [],
+        "security": [
+          {
+            "metricsToken": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Prometheus metrics",
@@ -4392,6 +4397,12 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Bearer token missing or wrong"
+          },
+          "404": {
+            "description": "MAILRS_METRICS_TOKEN is not set"
           }
         }
       }
@@ -15605,6 +15616,11 @@
         "type": "http",
         "scheme": "bearer",
         "description": "Session token from /api/auth/login or API key (mlrs_...)"
+      },
+      "metricsToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "The server's MAILRS_METRICS_TOKEN; used only by /metrics"
       }
     },
     "schemas": {
