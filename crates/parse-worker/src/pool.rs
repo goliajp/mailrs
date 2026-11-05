@@ -84,6 +84,8 @@ struct Slot {
     started_once: bool,
     deaths_in_a_row: u32,
     retry_at: Option<Instant>,
+    /// Counted in the health probe's `paused_since` while true.
+    paused: bool,
 }
 
 pub struct Pool {
@@ -199,6 +201,9 @@ fn call_in(
         Ok(answer) => {
             slot.deaths_in_a_row = 0;
             slot.retry_at = None;
+            if std::mem::take(&mut slot.paused) {
+                health::pause_ended();
+            }
             if resident_bytes(live.child.id()).is_some_and(|b| b > RETIRE_RSS) {
                 retire(slot);
                 pid.store(0, Ordering::Relaxed);
@@ -319,6 +324,10 @@ fn died(slot: &mut Slot) {
         0 | 1 => None,
         n => Some(Instant::now() + backoff(n)),
     };
+    if slot.retry_at.is_some() && !slot.paused {
+        slot.paused = true;
+        health::pause_started();
+    }
 }
 
 fn backoff(deaths_in_a_row: u32) -> Duration {
