@@ -37,3 +37,11 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 [dev-dependencies]
 tempfile = "3"
 mailrs-ops-report = { path = "../ops-report", features = ["push"] }
+# the smoke tests run a real core and a real relay
+mailrs-fastcore = { path = "../fastcore" }
+mailrs-mailbox-kevy = { path = "../mailbox-kevy" }
+mailrs-core-sidestate = { path = "../core-sidestate" }
+kevy-embedded = { workspace = true }
+kevy-client = { workspace = true }
+mailrs-test-docker = { path = "../test-docker" }
+testcontainers = "0.27"
