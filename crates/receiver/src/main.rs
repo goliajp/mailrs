@@ -1,8 +1,10 @@
 //! The standalone `mailrs-receiver` process (P6 receiver/core split).
 
-/// Resident parse workers: two, so one slow message does not hold up
-/// every other session's scan.
-const PARSE_WORKERS: usize = 2;
+/// Resident parse workers: one. The receiver's scan is a few milliseconds
+/// for almost every message, and the container's memory goes to one
+/// worker's limit rather than two; a slow message makes the sessions
+/// behind it wait for at most the inbound limit.
+const PARSE_WORKERS: usize = 1;
 
 #[tokio::main]
 async fn main() {
