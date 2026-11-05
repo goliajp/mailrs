@@ -168,10 +168,17 @@ pub fn unexamined() -> PipelineInput {
 /// Pure: it reads the same inputs the delivery decision read, so the
 /// two cannot disagree about what was seen — only about what to do
 /// with it.
+///
+/// Every finding lands in the layer it was filed under, as its own
+/// line carrying what it added, so each layer's score is the sum of its
+/// lines and the verdict's is the sum of the layers. Content-layer rule
+/// findings used to be counted toward Junk and left off the panel: a
+/// reader who found a letter held by `asks-for-the-readers-line` was told
+/// the content layer had found nothing.
 #[must_use]
 pub fn assess(input: &PipelineInput) -> FraudVerdict {
     let layers = vec![
-        transport(&input.auth),
+        transport(input),
         from_findings(input, mailrs_fraud::Layer::Identity),
         from_findings(input, mailrs_fraud::Layer::Provenance),
         content(input),
@@ -190,12 +197,16 @@ pub fn assess(input: &PipelineInput) -> FraudVerdict {
 
 /// Layer 1 — did it come from where it says it did?
 ///
-/// Contributes nothing to the score. Authentication is what the fraud
-/// in question already passes, and a layer that scored it would be
-/// scoring the wrong thing; it is here because the reader needs to see
-/// that it was checked and came out clean.
-fn transport(auth: &AuthResults) -> Layer {
-    let detail = format!(
+/// The authentication checks contribute nothing to the score.
+/// Authentication is what the fraud in question already passes, and a
+/// layer that scored it would be scoring the wrong thing; they are here
+/// because the reader needs to see that they were checked and came out
+/// clean. A rule filed under transport does score, and is listed after
+/// them.
+fn transport(input: &PipelineInput) -> Layer {
+    let auth = &input.auth;
+    let rules = rule_lines(input, mailrs_fraud::Layer::Transport);
+    let mut detail = format!(
         "SPF {}, DKIM {}, DMARC {} (policy {})",
         auth.spf,
         auth.dkim,
@@ -208,17 +219,56 @@ fn transport(auth: &AuthResults) -> Layer {
         }
     );
     let outcome = match auth.dmarc.as_str() {
+        _ if rules.score > 0.0 => Outcome::Fail,
         "pass" => Outcome::Pass,
         "fail" => Outcome::Fail,
         _ => Outcome::NotApplicable,
     };
+    if !rules.found.is_empty() {
+        detail.push_str("; ");
+        detail.push_str(&rules.found.join("; "));
+    }
+    let mut reasons = auth_checks(&auth.spf, &auth.dkim, &auth.dmarc);
+    reasons.extend(rules.reasons);
     Layer {
         name: "transport".to_string(),
         outcome,
-        score: 0.0,
+        score: rules.score,
         detail,
-        reasons: auth_checks(&auth.spf, &auth.dkim, &auth.dmarc),
+        reasons,
     }
+}
+
+/// What the rules filed under one review found: one scored line each.
+struct RuleLines {
+    score: f64,
+    found: Vec<String>,
+    reasons: Vec<Reason>,
+}
+
+impl RuleLines {
+    fn add(&mut self, score: f64, detail: impl Into<String>, reason: Reason) {
+        self.score += score;
+        self.found.push(detail.into());
+        self.reasons.push(reason.adding(score));
+    }
+}
+
+fn rule_lines(input: &PipelineInput, layer: mailrs_fraud::Layer) -> RuleLines {
+    let mut lines = RuleLines {
+        score: 0.0,
+        found: Vec::new(),
+        reasons: Vec::new(),
+    };
+    for f in input.fraud.in_layer(layer) {
+        let reason = Reason {
+            code: f.rule.clone(),
+            params: f.params.clone(),
+            score: None,
+        };
+        lines.add(f.score, f.detail.clone(), reason);
+    }
+    lines
 }
 
 /// What SPF, DKIM and DMARC each said, in that order. Every one is
@@ -249,17 +299,7 @@ pub fn auth_checks(spf: &str, dkim: &str, dmarc: &str) -> Vec<Reason> {
 /// they come from elsewhere (`mailrs_textguard`, the auth fold) and
 /// pretending otherwise would put two owners on one fact.
 fn from_findings(input: &PipelineInput, layer: mailrs_fraud::Layer) -> Layer {
-    let mut score = 0.0;
-    let mut found: Vec<String> = Vec::new();
-    let mut reasons: Vec<Reason> = Vec::new();
-    for f in input.fraud.in_layer(layer) {
-        score += f.score;
-        found.push(f.detail.clone());
-        reasons.push(Reason {
-            code: f.rule.clone(),
-            params: f.params.clone(),
-        });
-    }
+    let mut lines = rule_lines(input, layer);
     if layer == mailrs_fraud::Layer::Identity {
         // The host's own signals, and they are scored rather than
         // held: `mailrs_textguard` measured one legitimate message in
@@ -271,16 +311,20 @@ fn from_findings(input: &PipelineInput, layer: mailrs_fraud::Layer) -> Layer {
         // here" wants them. Whether they *held* it is the finding's
         // own `holds`, which is why the two can no longer disagree.
         if input.deception.unjustified_zero_width {
-            score += UNJUSTIFIED_ZERO_WIDTH_SCORE;
-            found.push("zero-width padding in the identifying text (scored, not held)".into());
-            reasons.push(Reason::new(reason::ZERO_WIDTH_PADDING));
+            lines.add(
+                UNJUSTIFIED_ZERO_WIDTH_SCORE,
+                "zero-width padding in the identifying text (scored, not held)",
+                Reason::new(reason::ZERO_WIDTH_PADDING),
+            );
         }
         if input.auth.sender_trust_with(input.deception)
             == crate::auth_header::SenderTrust::Suspicious
         {
-            score += SUSPICIOUS_SENDER_SCORE;
-            found.push("sender trust: suspicious (scored, not held)".into());
-            reasons.push(Reason::new(reason::SENDER_SUSPICIOUS));
+            lines.add(
+                SUSPICIOUS_SENDER_SCORE,
+                "sender trust: suspicious (scored, not held)",
+                Reason::new(reason::SENDER_SUSPICIOUS),
+            );
         }
     }
     let clean = match layer {
@@ -288,13 +332,27 @@ fn from_findings(input: &PipelineInput, layer: mailrs_fraud::Layer) -> Layer {
         mailrs_fraud::Layer::Provenance => "nothing unusual in the headers",
         _ => "nothing found",
     };
-    layer_from(layer.as_str(), score, found, clean, reasons)
+    let detail = if lines.found.is_empty() {
+        clean.to_string()
+    } else {
+        lines.found.join("; ")
+    };
+    Layer {
+        name: layer.as_str().to_string(),
+        outcome: outcome_for(lines.score),
+        score: lines.score,
+        detail,
+        reasons: lines.reasons,
+    }
 }
 
 /// Layer 4 — does it read like the fraud it is?
+///
+/// Two sources: the content scan and classifier, as one line, and each
+/// rule filed under content, as a line of its own.
 fn content(input: &PipelineInput) -> Layer {
-    let score = input.content_score + input.ai_score;
-    let detail = if input.matched_rules.is_empty() {
+    let scanned = input.content_score + input.ai_score;
+    let mut detail = if input.matched_rules.is_empty() {
         format!(
             "content {:.1}, classifier {:.1}",
             input.content_score, input.ai_score
@@ -308,14 +366,22 @@ fn content(input: &PipelineInput) -> Layer {
         )
     };
     let mut reasons = Vec::new();
-    if score > 0.0 {
+    if scanned > 0.0 {
         reasons.push(
             Reason::new(reason::CONTENT_SCORE)
                 .with_score("content", input.content_score)
                 .with_score("classifier", input.ai_score)
-                .with("rules", input.matched_rules.join(", ")),
+                .with("rules", input.matched_rules.join(", "))
+                .adding(scanned),
         );
     }
+    let rules = rule_lines(input, mailrs_fraud::Layer::Content);
+    if !rules.found.is_empty() {
+        detail.push_str("; ");
+        detail.push_str(&rules.found.join("; "));
+    }
+    reasons.extend(rules.reasons);
+    let score = scanned + rules.score;
     Layer {
         name: "content".to_string(),
         outcome: outcome_for(score),
@@ -330,27 +396,6 @@ fn outcome_for(score: f64) -> Outcome {
         Outcome::Fail
     } else {
         Outcome::Pass
-    }
-}
-
-fn layer_from(
-    name: &str,
-    score: f64,
-    found: Vec<String>,
-    clean: &str,
-    reasons: Vec<Reason>,
-) -> Layer {
-    let detail = if found.is_empty() {
-        clean.to_string()
-    } else {
-        found.join("; ")
-    };
-    Layer {
-        name: name.to_string(),
-        outcome: outcome_for(score),
-        score,
-        detail,
-        reasons,
     }
 }
 

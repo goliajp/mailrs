@@ -1,7 +1,7 @@
 import type { WireFraudVerdict } from '@/wire/schemas/fraud'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import { createStore, Provider } from 'jotai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -115,6 +115,48 @@ describe('the verdict panel', () => {
     delete (old as { placement?: unknown }).placement
     show(old, 'en')
     expect(await screen.findByText('display name claims this organisation')).toBeInTheDocument()
+  })
+
+  it('lists every content rule with what it added, and the layer is their sum', async () => {
+    // as `mailrs_inbound::assess` stores it: the content scan as one
+    // line, each content rule as its own
+    const content = {
+      detail: 'content 1.2, classifier 0.0; the text offers…; the text asks…',
+      name: 'content',
+      outcome: 'fail',
+      reasons: [
+        {
+          code: 'content-score',
+          params: { classifier: '0.0', content: '1.2', rules: 'urgent_wire' },
+          score: 1.25,
+        },
+        { code: 'offers-the-reader-a-sum', score: 5 },
+        { code: 'asks-for-the-readers-line', score: 6 },
+      ],
+      score: 12.25,
+    }
+    const verdict = {
+      ...HELD,
+      layers: HELD.layers.map((l) => {
+        if (l.name === 'content') return content
+        return l
+      }),
+    }
+    show(verdict, 'en')
+    expect(
+      await screen.findByText('The text offers you a share of a sum in the millions.')
+    ).toBeInTheDocument()
+    const row = within(screen.getByTestId('verdict-layer-content'))
+    const shown = (s: string) => Number(s.replace('+', ''))
+    const lines = row.getAllByTestId('line-score').map((e) => shown(e.textContent ?? ''))
+    expect(lines).toHaveLength(3)
+    const total = shown(row.getByTestId('layer-score').textContent ?? '')
+    expect(total).toBe(12.3)
+    expect(lines.reduce((a, b) => a + b, 0)).toBeCloseTo(total, 5)
+    // a line that adds nothing shows no number: the authentication checks
+    expect(
+      within(screen.getByTestId('verdict-layer-transport')).queryAllByTestId('line-score')
+    ).toHaveLength(0)
   })
 
   it('says only why mail nobody suspected was sorted where it is', async () => {

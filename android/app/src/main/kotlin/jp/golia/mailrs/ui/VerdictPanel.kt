@@ -151,9 +151,7 @@ private fun LayerRow(layer: WireVerdict.Layer) {
         Column(Modifier.padding(start = 8.dp).weight(1f)) {
             Row {
                 Text(layerTitle(layer.name), color = theme.fg, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                if (layer.score > 0) {
-                    Text("+" + String.format("%.1f", layer.score), color = theme.fgMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                }
+                if (layer.score > 0) ScoreText(layer.score)
             }
             layerQuestion(layer.name)?.let { Text(it, color = theme.fgMuted, fontSize = 11.sp) }
             when {
@@ -199,14 +197,32 @@ private fun layerQuestion(name: String): String? = when (name) {
     else -> null
 }
 
+/**
+ * Each line beside what it added to its layer, so the layer's score is
+ * the sum of the numbers the reader sees under it.
+ */
 @Composable
 private fun ReasonList(reasons: List<WireVerdict.Reason>) {
     val theme = LocalTheme.current
     val (table, lang) = rememberReasons()
     Column {
-        reasons.forEach { Text(table.words(it, lang), color = theme.fgSecondary, fontSize = 11.sp) }
+        reasons.forEach { reason ->
+            Row {
+                Text(table.words(reason, lang), color = theme.fgSecondary, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                val score = reason.score
+                if (score != null && score > 0) ScoreText(score)
+            }
+        }
     }
 }
+
+@Composable
+private fun ScoreText(score: Double) {
+    Text(scoreLabel(score), color = LocalTheme.current.fgMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+}
+
+/** `+4.5`: how a layer's score and each of its lines are written. */
+internal fun scoreLabel(score: Double): String = "+" + String.format(java.util.Locale.ROOT, "%.1f", score)
 
 /** Why mail no layer found anything in was filed where it is. */
 @Composable

@@ -16,13 +16,21 @@ use serde::{Deserialize, Serialize};
 pub const TABLE: &str = include_str!("reasons.json");
 
 /// One reason: a code from [`TABLE`] and the values its sentence names.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Reason {
     /// A fraud rule's id (`claims-our-name`), or one of the codes below.
     pub code: String,
     /// The values the sentence names, already formatted.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub params: BTreeMap<String, String>,
+    /// What this line added to its verdict layer's score.
+    ///
+    /// Set on every line of a layer that scores, so a layer's score is
+    /// the sum of its lines and the reader sees what each one added.
+    /// `None` on a line that adds nothing (one authentication check), on
+    /// a placement reason, and on verdicts stored before lines carried it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub score: Option<f64>,
 }
 
 impl Reason {
@@ -31,7 +39,15 @@ impl Reason {
         Self {
             code: code.into(),
             params: BTreeMap::new(),
+            score: None,
         }
+    }
+
+    /// The same reason, recording what it added to its layer's score.
+    #[must_use]
+    pub fn adding(mut self, score: f64) -> Self {
+        self.score = Some(score);
+        self
     }
 
     /// The same reason with one more value.
