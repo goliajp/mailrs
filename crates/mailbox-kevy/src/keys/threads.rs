@@ -13,10 +13,9 @@ pub fn thread(tid: &str) -> String {
     format!("mailrs:thread:{tid}")
 }
 
-/// Key prefix the thread-search text index is declared over.
+/// Key prefix of the shared thread hashes.
 pub const THREAD_PREFIX: &[u8] = b"mailrs:thread:";
 
-/// Name of the full-text index over [`THREAD_SEARCH_FIELD`].
 /// The field that answers "does this thread exist at all".
 ///
 /// Every mutator has to ask something, and for a while five of them
@@ -30,19 +29,26 @@ pub const THREAD_PREFIX: &[u8] = b"mailrs:thread:";
 /// nothing that counts, and `delete_thread` has always probed it.
 pub const THREAD_EXISTS_FIELD: &[u8] = b"category";
 
-pub const IDX_THREAD_SEARCH: &[u8] = b"mailrs_thread_search";
+/// The retired text index over the shared thread hashes' `search_blob`,
+/// dropped at boot. It held every member's subject, senders and preview
+/// in one document per conversation, so a reader could find a
+/// conversation by words of a message never delivered to them.
+pub const IDX_THREAD_SEARCH_RETIRED: &[u8] = b"mailrs_thread_search";
 
-/// Synthesised hash field the text index reads. kevy indexes exactly
-/// one field per text index, so subject / senders / preview are
-/// concatenated into this one. Written by every path that writes the
-/// row, and the index is maintained by kevy's commit hook — there is no
-/// separate pipeline that can silently fall behind.
-pub const THREAD_SEARCH_FIELD: &[u8] = b"search_blob";
+/// The conversation search: a text index over the membership rows'
+/// `subject`, `senders_csv` and `latest_preview`, the fields each
+/// reader's list renders, with `user` stored for the `FILTER` that keeps a
+/// query inside the caller's own rows. Maintained by kevy's commit hook
+/// from the rows themselves, so it says what the list says.
+pub const IDX_THREAD_USER_SEARCH: &[u8] = b"mailrs_threaduser_search";
+
+/// The fields [`IDX_THREAD_USER_SEARCH`] indexes, all weighted alike.
+pub const THREAD_USER_SEARCH_FIELDS: [&[u8]; 3] = [b"subject", b"senders_csv", b"latest_preview"];
 
 /// Per-message body text, indexed for full-text search. Separate from
 /// the thread row because a thread accumulates messages: folding every
-/// body into the row's `search_blob` would grow one value without
-/// bound, and rewrite all of it on each arrival.
+/// body into the row would grow one value without bound, and rewrite all
+/// of it on each arrival.
 pub fn message_text(message_id: &str) -> String {
     format!("mailrs:msgtext:{message_id}")
 }
@@ -73,17 +79,6 @@ pub fn cap_message_text(text: &str) -> &str {
         end -= 1;
     }
     &text[..end]
-}
-
-/// Build the value for [`THREAD_SEARCH_FIELD`].
-pub fn search_blob(subject: &str, senders_csv: &str, preview: &str) -> String {
-    let mut out = String::with_capacity(subject.len() + senders_csv.len() + preview.len() + 2);
-    out.push_str(subject);
-    out.push(' ');
-    out.push_str(senders_csv);
-    out.push(' ');
-    out.push_str(preview);
-    out
 }
 
 /// Per-user activity index — zset(tid → max internal_date).
