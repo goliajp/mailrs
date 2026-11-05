@@ -68,13 +68,15 @@ impl Tally {
         (old, old_shadow): (&Findings, &Findings),
         (new, new_shadow): (&Findings, &Findings),
         thread_held_now: Option<bool>,
+        (placed_before, placed_after): (&str, &str),
     ) -> Result<(), String> {
         let (old_hold, new_hold) = (old.hold_worthy(), new.hold_worthy());
         self.held += usize::from(new_hold);
         if let Some(list) = &mut self.list {
             let mut line = serde_json::json!({"path":path,"rules_before":old.rules(),"rules_after":new.rules(),
                 "held_before":old_hold,"held_after":new_hold,
-                "shadow_before":old_shadow.rules(),"shadow_after":new_shadow.rules()});
+                "shadow_before":old_shadow.rules(),"shadow_after":new_shadow.rules(),
+                "placement_before":placed_before,"placement_after":placed_after});
             if let Some(now) = thread_held_now {
                 line["thread_held_now"] = serde_json::json!(now);
             }
