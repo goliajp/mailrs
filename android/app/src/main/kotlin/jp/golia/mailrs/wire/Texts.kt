@@ -32,6 +32,13 @@ object Texts {
         lookup = l
     }
 
+    /** Set [l] and return what was set before, so a test can put it back. */
+    internal fun swap(l: Lookup?): Lookup? {
+        val before = lookup
+        lookup = l
+        return before
+    }
+
     fun get(@StringRes id: Int, vararg args: Any?): String {
         val l = checkNotNull(lookup) { "Texts used before the process set it up" }
         return l.text(id, args)

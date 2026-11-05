@@ -93,6 +93,31 @@ struct FraudVerdictWireTests {
         #expect(v.placement == [Wire.Reason(code: "junk-your-filter")])
     }
 
+    /// A content layer as `mailrs_inbound::assess` stores it: the content
+    /// scan as one line, each content rule as its own, each with what it
+    /// added. The numbers the panel writes under the layer add up to the
+    /// number it writes beside it.
+    @Test("every content rule is a line, and the layer is their sum")
+    func contentLines() throws {
+        let json = """
+        {"verdict":{"layers":[{"name":"transport","outcome":"pass","detail":"",
+          "reasons":[{"code":"auth-check","params":{"check":"SPF","result":"pass"}}],"score":0},
+          {"name":"content","outcome":"fail","detail":"d","score":12.5,
+          "reasons":[{"code":"content-score","params":{"content":"1.5","classifier":"0.0","rules":""},"score":1.5},
+          {"code":"offers-the-reader-a-sum","score":5},{"code":"asks-for-the-readers-line","score":6}]}],
+          "quarantined":true,"rules_version":"2026-11-06.1","score":12.5}}
+        """
+        let v = try #require(try JSONDecoder().decode(
+            Wire.FraudVerdictResponse.self, from: Data(json.utf8)).verdict)
+        let content = try #require(v.layers.first { $0.name == "content" })
+        #expect(content.reasons.map(\.code) == ["content-score", "offers-the-reader-a-sum", "asks-for-the-readers-line"])
+        let shown = content.reasons.compactMap(\.score).map { Double(VerdictPanel.scoreLabel($0).dropFirst())! }
+        #expect(shown.count == content.reasons.count)
+        #expect(VerdictPanel.scoreLabel(shown.reduce(0, +)) == VerdictPanel.scoreLabel(content.score))
+        // the authentication checks add nothing and carry no number
+        #expect(v.layers[0].reasons.allSatisfy { $0.score == nil })
+    }
+
     @Test("no verdict is null, not an error")
     func null() throws {
         let r = try JSONDecoder().decode(Wire.FraudVerdictResponse.self, from: Data(#"{"verdict":null}"#.utf8))

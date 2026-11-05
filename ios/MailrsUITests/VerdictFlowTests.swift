@@ -20,9 +20,14 @@ final class VerdictFlowTests: MailrsUITestCase {
         XCTAssertTrue(identity.exists, "no identity layer")
         XCTAssertTrue(identity.label.contains("The display name claims to be Golia."),
                       "rule reason not worded: \(identity.label)")
+        // a content rule is a line of its own, with what it added
+        let content = element(app, "verdict-layer-content")
+        XCTAssertTrue(content.label.contains("The text asks you to send your own LINE QR code."),
+                      "content rule not listed: \(content.label)")
+        XCTAssertTrue(content.label.contains("+6.0"), "content rule's score not shown: \(content.label)")
         // a layer that passed with nothing to say, and one never checked
-        XCTAssertTrue(element(app, "verdict-layer-content").label.contains("Nothing found."))
-        XCTAssertTrue(element(app, "verdict-layer-provenance").exists)
+        XCTAssertTrue(element(app, "verdict-layer-provenance").label.contains("Nothing found."))
+        XCTAssertTrue(element(app, "verdict-layer-transport").exists)
         XCTAssertTrue(app.staticTexts["rules 2026-11-03.1"].exists)
 
         let checks = element(app, "sender-checks")
