@@ -3,7 +3,7 @@
 //!
 //! The parent's wall-clock limit kills a request that loops; the limits
 //! set here bound what one request can take before that: address space,
-//! CPU seconds per request, and the lowest priority.
+//! CPU seconds per request, and a lower priority than the server.
 //!
 //! `MAILRS_PARSE_WORKER_FAULTS=1` makes an input carrying
 //! `X-Parse-Worker-Fault: abort|hang|exit|garbage` in its first 16 KiB do
@@ -15,18 +15,31 @@ use std::io::{BufReader, BufWriter, Write};
 use mailrs_parse_worker::{answer, proto};
 use rustix::process::{Resource, Rlimit, getrlimit, setpriority_process, setrlimit};
 
-/// Address space. Measured peak resident memory over the production
-/// corpus is in the containment notes; address space runs higher than
-/// resident memory, and allocator arenas round it up.
+/// Address space. Over a copy of the production maildir (45,575
+/// messages) one worker reading every message peaked at 464 MB resident,
+/// and a fresh worker on the largest single message (23.8 MB) at 158 MB;
+/// address space runs higher than resident memory.
 #[cfg(target_os = "linux")]
-const MEMORY_LIMIT: u64 = 1024 * 1024 * 1024;
+///
+/// Sized so that the two resident workers and the one-off document worker
+/// fit beside fastcore and the OCR child in fastcore's container (6g):
+/// 2.5 GB fastcore + 2 × 768 MiB + 1.5 GiB OCR (the document worker and
+/// OCR never run at once) leaves about 400 MB. The client retires a
+/// resident worker past 384 MiB resident, so growth from the allocator
+/// keeping freed memory never meets this limit on an ordinary message.
+const MEMORY_LIMIT: u64 = 768 * 1024 * 1024;
 /// CPU seconds one request may use, past what the worker had used
 /// before it. Above the longest wall-clock limit a caller sets.
 const CPU_PER_REQUEST: u64 = 150;
+/// Below the server, not at the bottom: the receiver waits on this
+/// process during DATA, and at 19 a busy host (the OCR child runs at 19
+/// beside normal-priority work) would stretch an ordinary parse towards
+/// the wall-clock limit and blame the message for it.
+const NICE: i32 = 10;
 const FAULT_HEADER: &[u8] = b"X-Parse-Worker-Fault: ";
 
 fn main() {
-    if let Err(e) = limit_memory().and_then(|()| setpriority_process(None, 19)) {
+    if let Err(e) = limit_memory().and_then(|()| setpriority_process(None, NICE)) {
         fail(&format!("setting limits: {e}"));
     }
     let faults = std::env::var_os("MAILRS_PARSE_WORKER_FAULTS").is_some_and(|v| v == "1");
