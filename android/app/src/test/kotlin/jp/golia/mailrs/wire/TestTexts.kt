@@ -25,9 +25,20 @@ object TestTexts {
 
     /** Use [folder]'s words for every [Texts.get] in this JVM. */
     fun install(folder: String = "values") {
+        Texts.install(lookup(folder))
+    }
+
+    /**
+     * Use [folder]'s words and return the lookup that was in place, for a
+     * test that changes the language to hand back to `Texts.swap` after:
+     * every test class in the JVM shares the one lookup.
+     */
+    fun swap(folder: String): Texts.Lookup? = Texts.swap(lookup(folder))
+
+    private fun lookup(folder: String): Texts.Lookup {
         val words = table(folder)
         val names = R.string::class.java.fields.associate { it.getInt(null) to it.name }
-        Texts.install { id, args ->
+        return Texts.Lookup { id, args ->
             val name = checkNotNull(names[id]) { "no string with id $id" }
             val text = checkNotNull(words[name]) { "$folder has no $name" }
             String.format(text, *args)
