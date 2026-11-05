@@ -7,19 +7,27 @@ impl KevyMailboxStore {
     pub fn ensure_admin_indexes(&self) {
         use kevy_embedded::{IndexKind, IndexValType};
         let s = &self.store;
-        // Full-text over the synthesised `search_blob` field. kevy
-        // maintains this from its commit hook, so it cannot drift from
-        // the rows the way an external search service does — which is
-        // exactly how conversation search ended up dead for weeks
-        // (index name mismatch + dropped writes, 2026-07-19).
-        // Dictionary-free CJK bigrams, so Japanese subjects and sender
-        // names are searchable without an analyzer.
-        let _ = s.idx_create(
-            keys::IDX_THREAD_SEARCH,
-            keys::THREAD_PREFIX,
-            keys::THREAD_SEARCH_FIELD,
-            IndexValType::Str,
-            IndexKind::Text,
+        // Conversation search over each reader's own row. kevy maintains
+        // it from its commit hook, so it cannot drift from the rows the
+        // way an external search service does — which is how conversation
+        // search ended up dead for weeks (index name mismatch + dropped
+        // writes, 2026-07-19). Dictionary-free CJK bigrams, so Japanese
+        // subjects and sender names are searchable without an analyzer.
+        //
+        // It replaces one over the shared thread hash, which answered for
+        // every member's mail at once; the catalog persists, so the old
+        // one is dropped here rather than left to be maintained unread.
+        let _ = s.idx_drop(keys::IDX_THREAD_SEARCH_RETIRED);
+        let fields: Vec<(&[u8], f32)> = keys::THREAD_USER_SEARCH_FIELDS
+            .iter()
+            .map(|f| (*f, 1.0))
+            .collect();
+        let _ = s.idx_create_text(
+            keys::IDX_THREAD_USER_SEARCH,
+            keys::THREAD_USER_PREFIX,
+            &fields,
+            false,
+            &[(b"user", IndexValType::Str)],
         );
         // Message bodies, indexed separately from the thread rows so a
         // long conversation doesn't rewrite one ever-growing value on

@@ -172,15 +172,13 @@ pub(crate) fn thread_user_pairs(
         // are maintained per user by `hincrby` on the arrival path, and
         // this list is written with `hset`, which would overwrite each
         // increment with the shared row's total.
-        (b"subject".to_vec(), row.subject.as_bytes().to_vec()),
-        // `senders_csv` is absent for the reason the flags are: the shared
-        // hash lists every sender any member received, and copying it gave
-        // a member who joined later people who never wrote to them. It is
-        // this reader's, from their own messages (`participants.rs`).
-        (
-            b"latest_preview".to_vec(),
-            row.latest_preview.as_bytes().to_vec(),
-        ),
+        // `subject`, `latest_preview` and `senders_csv` are absent for the
+        // reason the flags are: the shared hash holds whichever member's
+        // mail arrived last and every sender any member received, and
+        // copying them showed a member the subject, opening line and
+        // senders of messages never delivered to them. They are this
+        // reader's, from their own messages (`display.rs`,
+        // `participants.rs`).
         // `importance_level` / `importance_score` are absent for the
         // reason the flags are: a verdict is one reader's, and copying it
         // from the shared hash gave a member who joined a conversation

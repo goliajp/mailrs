@@ -81,6 +81,7 @@ pub mod keys;
 mod labels;
 pub use labels::LabelOpError;
 pub use mailrs_mailbox::labels::{LABEL_COLORS, Label, LabelError, label_color, label_name};
+mod display;
 pub mod ledger;
 mod list_threads;
 mod mark_seen;
@@ -94,8 +95,15 @@ mod move_category;
 mod mutations;
 mod ownerless;
 mod participants;
+pub use display::DisplayRecount;
+#[cfg(test)]
+mod display_tests;
 #[cfg(test)]
 mod participants_tests;
+#[cfg(test)]
+mod read_state_tests;
+mod unread_column;
+pub use unread_column::UnreadColumn;
 mod rethread;
 mod sections;
 mod shared;
