@@ -181,6 +181,7 @@ pub const OWNED: &[Owned] = &[
     mail("release:facts:{user}:*", Shape::Globs(|a| under("release:facts:", a, ":"))),
     mail("rejudge:released:{user}:*", Shape::Globs(|a| under("rejudge:released:", a, ":"))),
     mail("rejudge:recalled:{user}:*", Shape::Globs(|a| under("rejudge:recalled:", a, ":"))),
+    mail("rejudge:unheld:{user}:*", Shape::Globs(|a| under("rejudge:unheld:", a, ":"))),
     mail("rejudge:batch:*", Shape::Members { keys: || "rejudge:batch:*".into(), sep: Some("\t") }),
     mail("mailrs:attpending", Shape::Members { keys: || "mailrs:attpending".into(), sep: Some("\t") }),
     mail("mailrs:imgpending", Shape::Members { keys: || "mailrs:imgpending".into(), sep: Some("\t") }),

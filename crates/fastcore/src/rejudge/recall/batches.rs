@@ -72,8 +72,9 @@ pub(crate) struct Batch {
 pub(crate) enum Refused {
     /// No such batch.
     Missing,
-    /// The batch is not in the state the decision is for: a pending one
-    /// cannot be put back, a decided one cannot be decided again.
+    /// The batch is not in the state the decision is for: a pending or a
+    /// discarded one holds nothing to put back, a decided one cannot be
+    /// decided again.
     Conflict,
 }
 
@@ -178,6 +179,13 @@ pub(crate) fn discard_batch(
     actor: &str,
 ) -> Result<u64, Refused> {
     let mut e = pending_entry(state, observation)?;
+    // their verdicts read "hold": the mark lets a later observation offer them
+    for c in candidates(state, observation) {
+        if let Err(error) = leave_unheld(state, &c.user, &c.mid, observation) {
+            tracing::warn!(%error, user = %c.user, tid = %c.tid,
+                "rejudge: a discarded conversation was not marked; no later observation offers it");
+        }
+    }
     e.pending = false;
     e.discarded_at = now();
     if let Err(error) = put_entry(state, observation, &e) {
@@ -193,14 +201,15 @@ pub(crate) fn discard_batch(
     Ok(e.would_hold)
 }
 
-/// Put every conversation of one batch back, each audited.
+/// Put every conversation of one batch back, each audited. A pending or a
+/// discarded batch holds nothing and is refused.
 pub(crate) fn release_batch(
     state: &FastcoreState,
     observation: &str,
     actor: &str,
 ) -> Result<u64, Refused> {
     let mut e = entry(state, observation).ok_or(Refused::Missing)?;
-    if e.pending {
+    if e.pending || e.discarded_at != 0 {
         return Err(Refused::Conflict);
     }
     let store = state.mailbox.store_ref();

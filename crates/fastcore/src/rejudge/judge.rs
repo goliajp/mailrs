@@ -140,6 +140,10 @@ impl Judge {
         let new = crate::ledger::judged_verdict(&judged.findings, &judged.version, screening);
         let old = state.mailbox.ledger_verdict(user, mid).ok().flatten();
         if old.as_ref().is_some_and(|o| !differs(o, &new)) {
+            // a hold an earlier round left unheld is this round's to offer
+            if new.holds && recall::unheld_by_another(state, user, mid, obs) {
+                act(state, user, mid, &raw, &judged, &new, obs);
+            }
             return true;
         }
         if let Err(e) = state.mailbox.record_verdict(user, mid, &new) {
@@ -220,6 +224,12 @@ fn act(
         _ => return,
     };
     if !recall::acting() || action == "junk" {
+        // with acting on, a later observation offers it again
+        if action == "hold"
+            && let Err(e) = recall::leave_unheld(state, user, mid, obs)
+        {
+            tracing::warn!(error = %e, %user, %mid, "rejudge: the unheld message was not marked");
+        }
         tracing::info!(
             event = "rejudge_shadow", %user, %mid, observation = %obs, action,
             rules = ?new.rules, screening = ?new.screening,
