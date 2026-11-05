@@ -141,9 +141,8 @@ fn fraud_hits() -> serde_json::Value {
     if let Some(v) = cached {
         return with_staleness(v, now);
     }
-    let (version, mut rules) = mailrs_fraud_lua::active_rule_set();
-    // not a rule: reports that could not look for other copies
-    rules.push(mailrs_core_sidestate::families::reports::NO_FINGERPRINT.to_string());
+    let (version, rules) = mailrs_fraud_lua::active_rule_set();
+    let rules = counted(rules);
     let counts = handlers::kevy_util::with_kevy(move |c| {
         mailrs_core_sidestate::families::fraud_hits::counts(c, &rules, now)
     });
@@ -155,6 +154,16 @@ fn fraud_hits() -> serde_json::Value {
         *last = Some((Instant::now(), v.clone()));
     }
     with_staleness(v, now)
+}
+
+/// The counters `fraud_hits` reads: the enforced rules, and beside them
+/// two that are not rules — reports that could not look for other copies,
+/// and attachments that are 7z archives (whose names are not read yet).
+fn counted(mut rules: Vec<String>) -> Vec<String> {
+    use mailrs_core_sidestate::families::{fraud_hits, reports};
+    rules.push(reports::NO_FINGERPRINT.to_string());
+    rules.push(fraud_hits::SEVEN_Z_ATTACHMENT.to_string());
+    rules
 }
 
 fn fraud_hits_value(
@@ -409,6 +418,23 @@ pub(crate) async fn status_handler(
 
 #[cfg(test)]
 mod tests {
+    /// The receiver's 7z count is read back under the same name it was
+    /// written, from the same store `fraud_hits` reads.
+    #[test]
+    fn the_7z_counter_the_receiver_writes_is_read_by_health() {
+        use mailrs_core_sidestate::families::fraud_hits;
+        let rules = super::counted(vec!["svg-runs-script".into()]);
+        let mut c = kevy_client::Connection::connect("mem://health-seven-z").unwrap();
+        let now = 1_793_750_400;
+        fraud_hits::record(&mut c, &[fraud_hits::SEVEN_Z_ATTACHMENT.into()], now).unwrap();
+        let counts = fraud_hits::counts(&mut c, &rules, now).unwrap();
+        let v = super::fraud_hits_value("lua:abc", &counts, now);
+        assert_eq!(v["by_rule_today"]["attachment-7z"], 1);
+        assert_eq!(v["by_rule_30d"]["attachment-7z"], 1);
+        assert_eq!(v["by_rule_today"]["svg-runs-script"], 0);
+        assert_eq!(v["by_rule_today"]["report-no-fingerprint"], 0);
+    }
+
     #[test]
     fn every_enforced_rule_is_listed_and_one_that_never_fired_reads_zero() {
         let mut c = mailrs_core_sidestate::families::fraud_hits::Counts::default();
