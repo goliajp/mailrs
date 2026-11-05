@@ -14,8 +14,7 @@ pub(super) fn taken(conn: &mut Connection, t: &Target, batch: &str, raw: &[u8]) 
     let from = mailrs_inbound::from_header(raw);
     let subject = mailrs_inbound::subject_header(raw);
     let notice = Recalled {
-        thread_id: t.tid.clone(),
-        subject: subject.clone(),
+        thread_ids: vec![t.tid.clone()],
         rules: vec!["reported".into()],
         observation: batch.to_string(),
         at,
@@ -38,7 +37,12 @@ pub(super) fn taken(conn: &mut Connection, t: &Target, batch: &str, raw: &[u8]) 
         }),
     };
     webhook_events::enqueue_logged(conn, &event, at);
-    crate::push::notify_recalled(Some(conn), &t.user, &t.tid, &from, &subject);
+    let taken = crate::push::RecalledConversation {
+        thread_id: &t.tid,
+        sender: &from,
+        subject: &subject,
+    };
+    crate::push::notify_recalled(Some(conn), &t.user, &[taken]);
 }
 
 /// The `quarantine.hold` line every hold writes, with `scam_report` as
