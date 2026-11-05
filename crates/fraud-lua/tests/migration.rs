@@ -65,8 +65,9 @@ fn all_existing_sender_fixtures_match_compiled_rules() {
     // two `new-domain-` rules need a domain first seen this week; theirs are
     // in `tests/new_domain_rules.rs`. `parser-failed-on-message` needs
     // the parse worker to have failed; its tests are in
-    // `tests/parser_failed_rule.rs`.
-    assert_eq!(rules.rule_count(), 37);
+    // `tests/parser_failed_rule.rs`. `archive-names-unreadable` needs an
+    // attachment; its tests are in `tests/unreadable_archive_rule.rs`.
+    assert_eq!(rules.rule_count(), 38);
     for from in &senders {
         for (subject, seen, to) in [
             (
