@@ -37,6 +37,10 @@ pub struct Relation {
     pub first_contact: bool,
     /// The reader has sent mail to this very address.
     pub from_correspondent: bool,
+    /// The reader has sent mail to this message's `Reply-To` address.
+    /// False without one. Set by the host, which knows the header;
+    /// [`assess`] reads only the `From:`.
+    pub reply_to_correspondent: bool,
     /// The reader has sent mail to some address at the sender's
     /// registrable domain. A shared platform (the never-list: gmail.com
     /// and the like) is nobody's domain, so it is never true there.
@@ -85,13 +89,19 @@ pub fn assess(
             .any(|c| c.address != from_address && !c.name.is_empty() && c.name == display);
     Relation {
         first_contact,
-        from_correspondent: !from_address.is_empty()
-            && correspondents.iter().any(|c| c.address == from_address),
+        from_correspondent: wrote_to(from_address, correspondents),
         from_correspondent_domain: !sender.is_empty() && domains.contains(&sender),
         looks_like_correspondent: lookalike_of.is_some(),
         lookalike_of,
         name_borrowed,
+        reply_to_correspondent: false,
     }
+}
+
+/// Whether `address` (lowercased) is one the reader has sent mail to.
+#[must_use]
+pub fn wrote_to(address: &str, correspondents: &[Correspondent]) -> bool {
+    !address.is_empty() && correspondents.iter().any(|c| c.address == address)
 }
 
 /// Within two edits (insert, delete, substitute, swap), on domains long

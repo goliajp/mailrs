@@ -66,6 +66,7 @@ pub mod org_domain;
 pub mod payment;
 pub mod qr;
 pub mod relation;
+pub mod reply_claim;
 pub mod reply_rotation;
 pub mod sending_host;
 pub mod subject_is_our_name;

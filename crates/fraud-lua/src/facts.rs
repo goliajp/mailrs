@@ -110,6 +110,12 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ),
         ("has_bidi_override", f.has_bidi_override),
         ("has_executable_attachment", f.has_executable_attachment),
+        // no rule under rules/ reads these two yet; deployed packs do
+        (
+            "has_encrypted_document_archive",
+            f.has_encrypted_document_archive,
+        ),
+        ("reply_marker_without_thread", f.reply_marker_without_thread),
         ("unauthenticated", f.unauthenticated),
         ("peer_is_private", f.peer_is_private),
         ("offers_the_reader_a_sum", f.offers_the_reader_a_sum),
@@ -130,6 +136,8 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         // "the reader wrote to this sender", for an exemption a deployed
         // pack can make where the domain half cannot (a shared platform)
         ("from_correspondent", f.relation.from_correspondent),
+        // the same, for the Reply-To address; read by deployed packs
+        ("reply_to_correspondent", f.relation.reply_to_correspondent),
         (
             "from_correspondent_domain",
             f.relation.from_correspondent_domain,

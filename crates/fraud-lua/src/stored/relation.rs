@@ -25,12 +25,15 @@ pub enum Counted {
     After,
 }
 
-/// `user`'s history with the sender of `from` (the decoded header).
-/// Nothing known — no store — is all false: no evidence either way.
+/// `user`'s history with the sender of `from` (the decoded header), and
+/// whether `user` has written to `reply_to` (the bare `Reply-To` address,
+/// empty without one). Nothing known — no store — is all false: no
+/// evidence either way.
 pub fn relation(
     conn: Option<&mut kevy_client::Connection>,
     user: &str,
     from: &str,
+    reply_to: &str,
     counted: Counted,
 ) -> Relation {
     let Some(conn) = conn else {
@@ -55,13 +58,19 @@ pub fn relation(
         accepted: contacts::accepted(conn, user, &address),
     };
     let correspondents = correspondents(conn, user);
-    mailrs_fraud::relation::assess(
-        &address,
-        &fold(&display_name_of(from)),
-        &correspondents,
-        Some(history),
-        |d| NEVER.contains(d),
-    )
+    Relation {
+        reply_to_correspondent: mailrs_fraud::relation::wrote_to(
+            &reply_to.trim().to_ascii_lowercase(),
+            &correspondents,
+        ),
+        ..mailrs_fraud::relation::assess(
+            &address,
+            &fold(&display_name_of(from)),
+            &correspondents,
+            Some(history),
+            |d| NEVER.contains(d),
+        )
+    }
 }
 
 /// Every address `user` has sent mail to (`sent_count` above zero), with

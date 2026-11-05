@@ -55,23 +55,31 @@ fn a_sender_who_only_wrote_in_is_not_a_correspondent() {
         Some(&mut c),
         ME,
         "Stranger <billing@stranger.example>",
+        "",
         Counted::Before,
     );
     assert!(!r.from_correspondent);
     assert!(!r.from_correspondent_domain);
     // another address at the stranger's domain is not one either
-    let r = relation(Some(&mut c), ME, "ops@stranger.example", Counted::Before);
+    let r = relation(
+        Some(&mut c),
+        ME,
+        "ops@stranger.example",
+        "",
+        Counted::Before,
+    );
     assert!(!r.from_correspondent_domain);
     // nor is the stranger's name borrowed by anyone
     let r = relation(
         Some(&mut c),
         ME,
         "Stranger <stranger.billing@free.example>",
+        "",
         Counted::Before,
     );
     assert!(!r.name_borrowed);
     // and a domain one letter from the stranger's is no look-alike
-    let r = relation(Some(&mut c), ME, "x@stranqer.example", Counted::Before);
+    let r = relation(Some(&mut c), ME, "x@stranqer.example", "", Counted::Before);
     assert!(!r.looks_like_correspondent);
 }
 
@@ -82,15 +90,23 @@ fn a_sender_the_reader_wrote_to_is_a_correspondent() {
         Some(&mut c),
         ME,
         "田中 太郎 <tanaka@partner.example>",
+        "",
         Counted::Before,
     );
     assert!(r.from_correspondent && r.from_correspondent_domain);
-    let r = relation(Some(&mut c), ME, "sato@partner.example", Counted::Before);
+    let r = relation(
+        Some(&mut c),
+        ME,
+        "sato@partner.example",
+        "",
+        Counted::Before,
+    );
     assert!(!r.from_correspondent && r.from_correspondent_domain);
     let r = relation(
         Some(&mut c),
         ME,
         "田中 太郎 <tanaka.partner@free.example>",
+        "",
         Counted::Before,
     );
     assert!(r.name_borrowed);
@@ -110,7 +126,7 @@ fn the_receive_path_and_a_rejudgement_agree() {
     .enumerate()
     {
         let mut c = store(&format!("corr-agree-{i}"));
-        let live = relation(Some(&mut c), ME, from, Counted::Before);
+        let live = relation(Some(&mut c), ME, from, "", Counted::Before);
 
         let address = mailrs_fraud::impersonation::address_of(from)
             .unwrap()
@@ -148,4 +164,30 @@ fn the_receive_path_and_a_rejudgement_agree() {
         .unwrap();
         assert_eq!(seen.as_ref(), Some(&live), "{from}");
     }
+}
+
+/// The `Reply-To` half: whether the reader has written to the address
+/// replies go to, whoever the `From:` is.
+#[test]
+fn a_reply_address_the_reader_wrote_to_is_a_correspondent() {
+    let mut c = store("corr-reply-to");
+    let helpdesk = "Support <noreply@helpdesk-mail.com>";
+    let r = relation(
+        Some(&mut c),
+        ME,
+        helpdesk,
+        "Tanaka@Partner.example",
+        Counted::Before,
+    );
+    assert!(r.reply_to_correspondent && !r.from_correspondent);
+    let r = relation(
+        Some(&mut c),
+        ME,
+        helpdesk,
+        "billing@stranger.example",
+        Counted::Before,
+    );
+    assert!(!r.reply_to_correspondent, "only wrote in");
+    let r = relation(Some(&mut c), ME, helpdesk, "", Counted::Before);
+    assert!(!r.reply_to_correspondent, "no Reply-To");
 }
