@@ -49,6 +49,7 @@ pub mod send_read;
 pub mod sender_lists;
 pub mod sender_rules;
 pub mod shared_inbox;
+pub mod submitted;
 pub mod suppression;
 pub mod uploads;
 pub mod usage_drift;

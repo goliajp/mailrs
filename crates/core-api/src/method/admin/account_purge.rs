@@ -74,6 +74,16 @@ pub struct RestoreAccountRequest {
     pub parked: Option<String>,
 }
 
+/// What a restore did with the mail its delete withheld, by message: a
+/// send whose time is still ahead waits for it again; one whose time
+/// passed while the account was deleted is not sent, and is back as a
+/// draft of the account.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RestoreAccountResponse {
+    pub rescheduled: u64,
+    pub returned_as_drafts: u64,
+}
+
 /// Why a restore was refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

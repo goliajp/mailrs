@@ -56,8 +56,15 @@ impl From<std::io::Error> for Refused {
     }
 }
 
+/// The audit action of an assignment: actor the member who assigned,
+/// target the conversation (`gid:conv`), detail the member it went to.
+pub const ASSIGN: &str = "shared.assign";
+/// The audit action of an assignment taken back: the same, with no detail.
+pub const UNASSIGN: &str = "shared.unassign";
+
 /// `by` assigns the conversation to `to` (`None` takes it back): the one
-/// writer of both the fact and what is derived from it. The fact is
+/// writer of both the fact and what is derived from it, on both cores. One
+/// audit line ([`ASSIGN`] or [`UNASSIGN`]) is written, then the fact is
 /// appended, then `write_row(member, thread_id, assignee)` copies the
 /// assignee onto every member's thread, each member's webhooks get
 /// `thread.assigned`, and the members' open pages are told. Returns the
@@ -82,12 +89,20 @@ pub fn assign(
     {
         return Err(Refused::AssigneeNotMember);
     }
+    let by = by.trim().to_ascii_lowercase();
+    // the audit line first: an assignment it cannot record is not made
+    let action = match to {
+        Some(_) => ASSIGN,
+        None => UNASSIGN,
+    };
+    let to_whom = to.clone().unwrap_or_default();
+    crate::families::audit::append(conn, &by, action, &r.tag(), &to_whom, at)?;
     append(
         conn,
         r,
         &AssignFact {
             at,
-            by: by.trim().to_ascii_lowercase(),
+            by,
             to: to.clone(),
         },
     )?;

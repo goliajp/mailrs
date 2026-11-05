@@ -12,8 +12,8 @@ use std::collections::HashSet;
 
 use super::{ViewKey, renumber, trash_entry, trash_uidvalidity, unwrap, wrap};
 use crate::backend::{
-    Account, Error, Expunged, Filed, Flag, LabelFolder, Message, Quota, Result, Selected,
-    ShownMessage, Trashed,
+    Account, Error, Expunged, Filed, FiledCopy, Flag, LabelFolder, Message, Quota, Result,
+    Selected, ShownMessage, Trashed,
 };
 
 /// The name the held conversations go by.
@@ -286,6 +286,26 @@ impl<A: Account> Account for HeldView<A> {
     async fn remove(&self, mailbox: &Self::Mailbox, message: &Message<Self::Key>) -> Result<()> {
         match mailbox {
             HeldMailbox::Filed(m) => self.inner.remove(m, &unwrap(message).0).await,
+            HeldMailbox::Review { .. } => refused(),
+        }
+    }
+
+    async fn filed_copy(&self, mailbox: &Self::Mailbox, bytes: &[u8]) -> Result<Option<FiledCopy>> {
+        match mailbox {
+            HeldMailbox::Filed(m) => self.inner.filed_copy(m, bytes).await,
+            HeldMailbox::Review { .. } => Ok(None),
+        }
+    }
+
+    async fn replace_submitted(
+        &self,
+        mailbox: &Self::Mailbox,
+        old: Filed,
+        bytes: Vec<u8>,
+        flags: Vec<Flag>,
+    ) -> Result<Filed> {
+        match mailbox {
+            HeldMailbox::Filed(m) => self.inner.replace_submitted(m, old, bytes, flags).await,
             HeldMailbox::Review { .. } => refused(),
         }
     }

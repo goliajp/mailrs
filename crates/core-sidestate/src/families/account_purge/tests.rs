@@ -122,6 +122,25 @@ fn seed(c: &mut Connection, who: &str, tag: &str, now: i64) {
         )],
     )
     .unwrap();
+    // a send scheduled for later, which the delete's mark withholds
+    let job = match tag {
+        "bob" => 9001,
+        _ => 9002,
+    };
+    let blob = serde_json::json!({ "sender": who }).to_string();
+    c.hset(
+        crate::families::outbound::job_key(job).as_bytes(),
+        &[
+            (b"state".as_slice(), b"pending".as_slice()),
+            (b"blob", blob.as_bytes()),
+        ],
+    )
+    .unwrap();
+    c.zadd(
+        crate::families::outbound::SCHEDULED_IDX,
+        &[(9e9, job.to_string().as_bytes())],
+    )
+    .unwrap();
     for owned in OWNED.iter().filter(|o| o.store == Store::Network) {
         let keys = match owned.shape {
             Shape::Key(f) => vec![f(who)],

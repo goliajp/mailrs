@@ -49,4 +49,14 @@ impl Core for Fastcore {
     fn may_send_as(&self, user: &str, from: &str) -> bool {
         crate::routes::may_send_as_blocking(&self.state, user, from)
     }
+
+    fn file_submitted(
+        &self,
+        user: &str,
+        body: &[u8],
+        recipients: &[String],
+    ) -> std::io::Result<()> {
+        let store = crate::sent::Store(self.state.clone());
+        mailrs_intake::sent::file_submitted(&store, user, body, recipients).map(|_| ())
+    }
 }

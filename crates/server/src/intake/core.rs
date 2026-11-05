@@ -87,4 +87,13 @@ impl Core for PgCore {
                 ));
         perms.is_ok_and(|p| p.may_send_as(from))
     }
+
+    fn file_submitted(
+        &self,
+        user: &str,
+        body: &[u8],
+        recipients: &[String],
+    ) -> std::io::Result<()> {
+        mailrs_intake::sent::file_submitted(self, user, body, recipients).map(|_| ())
+    }
 }

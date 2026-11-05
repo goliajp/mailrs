@@ -6,6 +6,21 @@ use super::{TRASH, TrashView, ViewKey, ViewMailbox, trash_uidvalidity, unwrap};
 use crate::backend::{Account, Error, Expunged, Filed, Message, Result};
 
 impl<A: Account> TrashView<A> {
+    /// The mailbox new mail is filed in; refused for those that only show
+    /// messages filed elsewhere.
+    pub(super) fn filed_mailbox(mailbox: &ViewMailbox<A::Mailbox>) -> Result<&A::Mailbox> {
+        match mailbox {
+            ViewMailbox::Filed(m) => Ok(m),
+            ViewMailbox::Trash { .. }
+            | ViewMailbox::Label { .. }
+            | ViewMailbox::Archive { .. }
+            | ViewMailbox::AllMail { .. } => Err(Error::Refused(
+                "[CANNOT] messages reach the Trash, Archive or a label by being copied there"
+                    .into(),
+            )),
+        }
+    }
+
     /// Where `Trash` stands now, for the reply to a move or copy into it.
     async fn filed_in_trash(&self, mailbox: &A::Mailbox, uid: u32) -> Result<Filed> {
         let name = self.inner.mailbox_name(mailbox).to_string();

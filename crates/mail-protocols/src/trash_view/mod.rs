@@ -23,8 +23,8 @@ use keys::{renumber, trash_entry, trash_uidvalidity, unwrap, wrap};
 type Inner<A> = Message<<A as Account>::Key>;
 
 use crate::backend::{
-    Account, Error, Expunged, Filed, Flag, LabelFolder, Message, Quota, Result, Selected,
-    ShownMessage, Trashed,
+    Account, Error, Expunged, Filed, FiledCopy, Flag, LabelFolder, Message, Quota, Result,
+    Selected, ShownMessage, Trashed,
 };
 
 /// The name `Trash` goes by, in every case a client may write it.
@@ -305,22 +305,32 @@ impl<A: Account> Account for TrashView<A> {
         }
     }
 
+    async fn filed_copy(&self, mailbox: &Self::Mailbox, bytes: &[u8]) -> Result<Option<FiledCopy>> {
+        match mailbox {
+            ViewMailbox::Filed(m) => self.inner.filed_copy(m, bytes).await,
+            _ => Ok(None),
+        }
+    }
+
+    async fn replace_submitted(
+        &self,
+        mailbox: &Self::Mailbox,
+        old: Filed,
+        bytes: Vec<u8>,
+        flags: Vec<Flag>,
+    ) -> Result<Filed> {
+        let m = Self::filed_mailbox(mailbox)?;
+        self.inner.replace_submitted(m, old, bytes, flags).await
+    }
+
     async fn append(
         &self,
         mailbox: &Self::Mailbox,
         bytes: Vec<u8>,
         flags: Vec<Flag>,
     ) -> Result<Filed> {
-        match mailbox {
-            ViewMailbox::Filed(m) => self.inner.append(m, bytes, flags).await,
-            ViewMailbox::Trash { .. }
-            | ViewMailbox::Label { .. }
-            | ViewMailbox::Archive { .. }
-            | ViewMailbox::AllMail { .. } => Err(Error::Refused(
-                "[CANNOT] messages reach the Trash, Archive or a label by being copied there"
-                    .into(),
-            )),
-        }
+        let m = Self::filed_mailbox(mailbox)?;
+        self.inner.append(m, bytes, flags).await
     }
 
     async fn vanished_since(&self, mailbox: &Self::Mailbox, modseq: u64) -> Result<Vec<u32>> {

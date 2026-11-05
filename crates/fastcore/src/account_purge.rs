@@ -114,15 +114,22 @@ fn purge_one(
         return Ok(row);
     }
     // conversation by conversation first: a conversation's shared records
-    // stay while another owner holds it, and go with the last
+    // stay while another owner holds it, and go with the last. Deleting a
+    // conversation takes the reader's ledger rows, so the messages read are
+    // noted first, for their fingerprints, which go with the last reader.
     for spelling in spellings(address) {
+        let read = purge::last_reader::messages_read_by(&mut mail, &spelling)?;
         for tid in state.mailbox.all_thread_ids_for_user(&spelling)? {
             state.mailbox.delete_thread(&spelling, &tid)?;
+        }
+        for mid in read {
+            let mid = String::from_utf8_lossy(&mid);
+            state.mailbox.forget_template_if_unread(&mid)?;
         }
     }
     purge::remove_store(&mut mail, Store::Mail, address)?;
     purge::remove_store(net, Store::Network, address)?;
-    maildir::remove(&dirs)?;
+    maildir::remove(Path::new(&state.maildir_root), &dirs)?;
     let mut u = purge::unregistered(net, address)?;
     u.extend(mail_unregistered(&mut mail, address)?);
     row.unregistered = u;

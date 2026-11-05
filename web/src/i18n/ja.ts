@@ -5,6 +5,7 @@ import { adminJa } from './admin/ja'
 import { appJa } from './app/ja'
 import { calendarJa } from './calendar/ja'
 import { composerJa } from './composer/ja'
+import { draftsJa } from './drafts/ja'
 import { mockJa } from './mock/ja'
 import { reasonsJa } from './reasons/ja'
 import { sectionsJa } from './sections/ja'
@@ -13,6 +14,7 @@ import { settingsJa } from './settings/ja'
 export const ja: Record<Key, string> = {
   ...appJa,
   ...composerJa,
+  ...draftsJa,
   ...calendarJa,
   ...sectionsJa,
   ...reasonsJa,
@@ -196,14 +198,6 @@ export const ja: Record<Key, string> = {
   'date.today': '今日',
   'date.yesterday': '昨日',
   'deleteThread.body': 'メッセージは削除され、元に戻せません。',
-  'drafts.delete': '下書きを削除',
-  'drafts.deleteFailed': '下書きを削除できませんでした',
-  'drafts.loading': '下書きを読み込んでいます…',
-  'drafts.noMatch': '一致する下書きはありません',
-  'drafts.open': '開く',
-  'drafts.search': '下書きを検索',
-  'drafts.searchPlaceholder': '下書きを検索…',
-  'drafts.to': '宛先: {to}',
   'error.reload': '再読み込み',
   'error.title': 'エラーが発生しました',
   'feedback.block': '送信者をブロック',
