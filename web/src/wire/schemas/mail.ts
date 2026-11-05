@@ -79,6 +79,8 @@ export type WireSnoozeResult = z.infer<typeof snoozeResultSchema>
 
 export const draftSchema = z
   .object({
+    // the attachments a draft a restore returned could not carry, by name
+    attachments_not_included: z.array(z.string()).default([]),
     bcc: z.string().default(''),
     body: z.string().default(''),
     cc: z.string().default(''),
@@ -90,6 +92,7 @@ export const draftSchema = z
     subject: z.string().default(''),
     to: z.string().default(''),
     updated_at: wireTimestampSchema,
+    withheld_send_at: z.number().nullable().default(null),
   })
   .passthrough()
 

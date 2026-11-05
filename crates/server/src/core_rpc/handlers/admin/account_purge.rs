@@ -1,9 +1,7 @@
 //! Purging deleted accounts on the SQL core: the same pass as fastcore's,
 //! with this core's rows taken by table. The registry, the maildir and the
 //! network part are `mailrs_core_sidestate::families::account_purge`. The
-//! same task and a route of their own purge deleted email groups' team
-//! state (`group_purge`) and their reply claims in this core's table, as
-//! fastcore does in its store.
+//! same task also purges deleted email groups (`super::group_purge`).
 
 use std::io;
 use std::path::Path;
@@ -14,17 +12,14 @@ use axum::Json;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use kevy_client::Connection;
-use mailrs_core_api::method::admin::{
-    AccountPurgeResponse, AccountPurgeRow, GroupPurgeResponse, PurgeCount,
-};
+use mailrs_core_api::method::admin::{AccountPurgeResponse, AccountPurgeRow, PurgeCount};
 use mailrs_core_sidestate::NetKevy;
 use mailrs_core_sidestate::families::account_purge::{self as purge, maildir, pending};
-use mailrs_core_sidestate::families::group_purge;
 use purge::registry::{SQL_CASCADED, SQL_TABLES, Store};
 
 use crate::core_rpc::CoreRpcState;
 
-fn now() -> i64 {
+pub(super) fn now() -> i64 {
     chrono::Utc::now().timestamp()
 }
 
@@ -35,13 +30,13 @@ fn failed(what: &'static str) -> impl Fn(io::Error) -> StatusCode {
     }
 }
 
-fn sql_failed(e: sqlx::Error) -> StatusCode {
+pub(super) fn sql_failed(e: sqlx::Error) -> StatusCode {
     tracing::error!(error = %e, "account purge: the database failed");
     StatusCode::INTERNAL_SERVER_ERROR
 }
 
 /// Run `f` on the network kevy, off the async workers.
-async fn net<T: Send + 'static>(
+pub(super) async fn net<T: Send + 'static>(
     state: &Arc<CoreRpcState>,
     f: impl FnOnce(&mut Connection) -> io::Result<T> + Send + 'static,
 ) -> Result<T, StatusCode> {
@@ -64,10 +59,30 @@ pub(crate) async fn is_account(state: &CoreRpcState, address: &str) -> Result<bo
     Ok(found.is_some())
 }
 
+/// A message's template fingerprint is kept once per message, not per
+/// reader: the account's purge takes those of the messages it is the last
+/// reader of, as fastcore's does in its store. Run before the mailboxes go.
+const LAST_READER_TEMPLATES: &str = "FROM message_templates t \
+     WHERE t.message_id IN (SELECT m.message_id FROM messages m \
+         JOIN mailboxes b ON b.id = m.mailbox_id WHERE b.user_address = $1) \
+     AND NOT EXISTS (SELECT 1 FROM messages m JOIN mailboxes b ON b.id = m.mailbox_id \
+         WHERE m.message_id = t.message_id AND b.user_address <> $1)";
+
 /// The account's rows, by table, and its messages, which go with its
 /// mailboxes.
 async fn count_rows(state: &CoreRpcState, address: &str) -> Result<Vec<PurgeCount>, StatusCode> {
     let mut out = Vec::new();
+    let (n,): (i64,) = sqlx::query_as(&format!("SELECT COUNT(*) {LAST_READER_TEMPLATES}"))
+        .bind(address)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(sql_failed)?;
+    if n > 0 {
+        out.push(PurgeCount {
+            name: "message_templates".into(),
+            count: n as u64,
+        });
+    }
     let messages = "SELECT COUNT(*) FROM messages WHERE mailbox_id IN \
                     (SELECT id FROM mailboxes WHERE user_address = $1)";
     let (n,): (i64,) = sqlx::query_as(messages)
@@ -104,6 +119,11 @@ async fn count_rows(state: &CoreRpcState, address: &str) -> Result<Vec<PurgeCoun
 
 async fn delete_rows(state: &CoreRpcState, address: &str) -> Result<(), StatusCode> {
     let mut tx = state.pool.begin().await.map_err(sql_failed)?;
+    sqlx::query(&format!("DELETE {LAST_READER_TEMPLATES}"))
+        .bind(address)
+        .execute(&mut *tx)
+        .await
+        .map_err(sql_failed)?;
     for (table, column) in SQL_TABLES {
         let q = format!("DELETE FROM {table} WHERE {column} = $1");
         sqlx::query(&q)
@@ -187,7 +207,8 @@ async fn purge_one(
         purge::unregistered(c, &a)
     })
     .await?;
-    maildir::remove(&dirs).map_err(failed("removing the parked maildir"))?;
+    maildir::remove(Path::new(&state.maildir_root), &dirs)
+        .map_err(failed("removing the parked maildir"))?;
     row.unregistered = unregistered;
     let done = row.clone();
     net(state, move |c| purge::finish(c, &done, now)).await?;
@@ -195,7 +216,7 @@ async fn purge_one(
     Ok(row)
 }
 
-fn yes() -> bool {
+pub(super) fn yes() -> bool {
     true
 }
 
@@ -213,65 +234,6 @@ pub async fn account_purge_route(
 ) -> Result<Json<AccountPurgeResponse>, StatusCode> {
     let days = pending::retention_days();
     run(&state, q.dry_run, q.address, now(), days)
-        .await
-        .map(Json)
-}
-
-#[derive(Debug, serde::Deserialize)]
-pub struct GroupPurgeQuery {
-    #[serde(default = "yes")]
-    dry_run: bool,
-    gid: Option<i64>,
-}
-
-/// The table a group purge counts this core's reply claims under.
-const REPLY_TABLE: &str = "shared_reply_state";
-
-/// One group pass: the network kevy's part, and the reply claims of the
-/// groups' conversations in this core's table, as fastcore's.
-pub(crate) async fn run_groups(
-    state: &Arc<CoreRpcState>,
-    dry_run: bool,
-    only: Option<i64>,
-    now: i64,
-    retention_days: u64,
-) -> Result<GroupPurgeResponse, StatusCode> {
-    let pass = net(state, move |c| {
-        group_purge::due(c, now, retention_days, only)
-    })
-    .await?;
-    let mut rows = Vec::new();
-    for g in &pass.due {
-        let n = state
-            .mailbox
-            .purge_group_replies(g.gid, dry_run)
-            .await
-            .map_err(sql_failed)?;
-        let mail = vec![PurgeCount {
-            name: REPLY_TABLE.to_string(),
-            count: n,
-        }];
-        let g = g.clone();
-        let row = net(state, move |c| {
-            let row = group_purge::row(&g, group_purge::network(c, &g, dry_run)?, mail);
-            if !dry_run {
-                group_purge::finish(c, &row, now)?;
-            }
-            Ok(row)
-        })
-        .await?;
-        rows.push(row);
-    }
-    Ok(pass.response(dry_run, retention_days, rows))
-}
-
-/// POST /v1/admin/maintenance:group-purge
-pub async fn group_purge_route(
-    State(state): State<Arc<CoreRpcState>>,
-    Query(q): Query<GroupPurgeQuery>,
-) -> Result<Json<GroupPurgeResponse>, StatusCode> {
-    let days = group_purge::retention_days();
-    run_groups(&state, q.dry_run, q.gid, now(), days)
         .await
         .map(Json)
 }
@@ -335,7 +297,7 @@ pub(crate) fn spawn(state: Arc<CoreRpcState>) {
             let accounts = run(&state, false, None, now(), days)
                 .await
                 .map_or(0, |r| r.rows.len());
-            let groups = run_groups(&state, false, None, now(), days)
+            let groups = super::group_purge::run_groups(&state, false, None, now(), days)
                 .await
                 .map_or(0, |r| r.rows.len());
             let purged = accounts + groups;

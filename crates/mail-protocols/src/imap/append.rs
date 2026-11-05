@@ -8,7 +8,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::flags::parse_imap_flags;
 use super::session::{Io, State, no};
-use crate::backend::Account;
+use crate::backend::{Account, Filed};
 
 pub(super) async fn append_flow<A, S>(
     session: &State<A>,
@@ -58,19 +58,42 @@ where
     // this server was not this server's
     let bytes =
         mailrs_rfc5322::auth_results::without_claiming(&bytes, account.authserv_id()).into_owned();
-    match account.append(&dest, bytes, flags).await {
-        Ok(filed) => vec![format_ok(
-            tag,
-            &format!(
-                "[APPENDUID {} {}] APPEND completed",
-                filed.uidvalidity, filed.uid
-            ),
-        )],
+    // a client that submitted over SMTP files its own copy in Sent next;
+    // one copy is kept, as Gmail does, and it is the client's: it can hold
+    // what was not submitted, a Bcc above all
+    let mut existing = None;
+    if account.mailbox_name(&dest).eq_ignore_ascii_case("Sent") {
+        match account.filed_copy(&dest, &bytes).await {
+            Ok(Some(copy)) if !copy.submitted => return vec![appended(tag, copy.filed)],
+            Ok(copy) => existing = copy,
+            Err(e) => return vec![no(tag, "APPEND", &e)],
+        }
+    }
+    let filed = match existing {
+        Some(copy) => {
+            account
+                .replace_submitted(&dest, copy.filed, bytes, flags)
+                .await
+        }
+        None => account.append(&dest, bytes, flags).await,
+    };
+    match filed {
+        Ok(filed) => vec![appended(tag, filed)],
         Err(e) => {
             tracing::warn!(err = %e, "imap: APPEND failed");
             vec![format_no(tag, &format!("append failed: {e}"))]
         }
     }
+}
+
+fn appended(tag: &str, filed: Filed) -> String {
+    format_ok(
+        tag,
+        &format!(
+            "[APPENDUID {} {}] APPEND completed",
+            filed.uidvalidity, filed.uid
+        ),
+    )
 }
 
 /// The flag list of what the parser leaves between the mailbox and the

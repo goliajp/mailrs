@@ -227,3 +227,24 @@ fn a_sent_copy_loses_a_results_header_naming_this_server() {
     file(&core, "alice@example.test", &raw, &[]).expect("filed");
     filed_without_our_name(&files(&tmp.path().join("example.test/alice/.Sent")));
 }
+
+#[test]
+fn a_submission_already_held_files_nothing() {
+    let tmp = tempfile::tempdir().expect("tmp");
+    let core = Recorder {
+        root: tmp.path().to_string_lossy().into_owned(),
+        indexed: RefCell::default(),
+        arrivals: RefCell::default(),
+    };
+    let held = b"From: alice@example.test\r\nMessage-ID: <parent@x.test>\r\n\r\nagain\r\n";
+    let none = file_submitted(&core, "alice@example.test", held, &[]).expect("checked");
+    assert_eq!(none, None);
+    assert!(core.indexed.borrow().is_empty());
+
+    let filed = file_submitted(&core, "alice@example.test", REPLY, &[]).expect("filed");
+    assert_eq!(
+        filed.map(|f| f.message_id).as_deref(),
+        Some("mine@example.test")
+    );
+    assert_eq!(core.indexed.borrow().len(), 1);
+}

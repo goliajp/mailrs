@@ -65,6 +65,23 @@ async fn rows(
     .unwrap_or_default()
 }
 
+/// (actor, action, target, detail) of one core's `shared.*` audit rows,
+/// oldest first.
+fn assign_audit(kevy: &str) -> Vec<(String, String, String, String)> {
+    use mailrs_core_sidestate::families::audit::AuditFact;
+    let mut c = kevy_client::Connection::connect(kevy).expect("kevy");
+    let mut got: Vec<_> = c
+        .lrange(mailrs_core_sidestate::keys::admin::AUDIT_LOG, 0, -1)
+        .expect("audit")
+        .iter()
+        .map(|r| serde_json::from_slice::<AuditFact>(r).expect("fact"))
+        .filter(|f| f.action.starts_with("shared."))
+        .map(|f| (f.actor, f.action, f.target, f.detail))
+        .collect();
+    got.reverse();
+    got
+}
+
 fn claim(seen_seq: u64, force: bool, at: i64) -> ClaimReplyRequest {
     ClaimReplyRequest {
         gid: GID,
@@ -129,6 +146,40 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
             .await,
         &[],
     );
+
+    let back = AssignRequest {
+        to: None,
+        at: 1_790_000_100,
+        ..assign.clone()
+    };
+    d.both(
+        "shared_assign taken back",
+        c.fastcore.shared_assign(BOB, &back).await,
+        c.pg_core.shared_assign(BOB, &back).await,
+        &[],
+    );
+    let read = StateRequest { gid: GID, conv: 1 };
+    d.both(
+        "shared_state before any reply",
+        c.fastcore.shared_state(ALICE, &read).await,
+        c.pg_core.shared_state(ALICE, &read).await,
+        &[],
+    );
+    // each core audits every change, and neither the refusal nor the read
+    let line = |actor: &str, action: &str, detail: &str| {
+        (
+            actor.to_string(),
+            action.to_string(),
+            "2:1".to_string(),
+            detail.to_string(),
+        )
+    };
+    let want = vec![
+        line(ALICE, "shared.assign", BOB),
+        line(BOB, "shared.unassign", ""),
+    ];
+    assert_eq!(assign_audit(FASTCORE_KEVY), want, "fastcore");
+    assert_eq!(assign_audit(PG_CORE_KEVY), want, "SQL core");
 
     // two members answer the same message: one claim wins
     let a = d.both(
