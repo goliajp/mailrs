@@ -21,6 +21,7 @@ mod group_purge;
 mod harness;
 mod import;
 mod intake;
+mod intake_redrain;
 mod intake_rules;
 mod labels;
 mod mail;

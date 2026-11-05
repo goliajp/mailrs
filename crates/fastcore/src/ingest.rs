@@ -75,6 +75,13 @@ pub(crate) fn ingest_delivered_file(
     effects::after_store(state.net_conn(), addr, &a, held);
 }
 
+/// Whether stored `blob_ref` names maildir file `bare`, wherever it has
+/// moved since: `cur/` with flags appended, or a folder.
+fn same_file(blob_ref: &str, bare: &str) -> bool {
+    let name = blob_ref.rsplit('/').next().unwrap_or(blob_ref);
+    name.split(':').next() == bare.split(':').next()
+}
+
 /// The writes to this store. Returns whether the thread was held as fraud.
 pub(crate) fn store_arrival(
     state: &Arc<FastcoreState>,
@@ -85,8 +92,26 @@ pub(crate) fn store_arrival(
     fraud_verdict: Option<&str>,
 ) -> bool {
     let bare = blob_ref.rsplit('/').next().unwrap_or(blob_ref);
-    let unread = !a.is_own;
-    let uid = assign_uid(state, addr, bare, &a.message_id, blob_ref);
+    // This very file already stored for this user: the spool file is being
+    // drained again after an attempt that stopped part way. Its uid and
+    // the flags the user has set since stand; a second uid, a second
+    // uidlist line or the message unread again would each be a duplicate.
+    let prior = state
+        .mailbox
+        .user_message_facts(addr, &a.message_id)
+        .ok()
+        .flatten()
+        .filter(|p| same_file(&p.blob_ref, bare));
+    let (uid, flags) = match &prior {
+        Some(p) => (p.uid, p.flags),
+        None => {
+            let uid = assign_uid(state, addr, bare, &a.message_id, blob_ref);
+            (uid, u32::from(a.is_own) * mailrs_mailbox::types::FLAG_SEEN)
+        }
+    };
+    let unread = !a.is_own && flags & mailrs_mailbox::types::FLAG_SEEN == 0;
+    // and where the file is now, which a client may have moved it from
+    let blob_ref = prior.as_ref().map_or(blob_ref, |p| p.blob_ref.as_str());
     // The invitation, if this is one. Read from the whole body rather
     // than the 16 KB header window: a calendar part routinely sits past it.
     let invite = crate::invites::find(body);
@@ -105,7 +130,7 @@ pub(crate) fn store_arrival(
         date: a.date,
         internal_date: a.date,
         size: body.len() as u32,
-        flags: if unread { 0 } else { 1 },
+        flags,
         message_id: a.message_id.clone(),
         in_reply_to: a.in_reply_to.clone(),
         sender_trust: a.sender_trust.clone(),
@@ -263,6 +288,58 @@ Please review the attached figures before Friday. The numbers moved.\r\n";
             payload.contains("\"dtstart_utc\":\""),
             "the stored payload has no resolved instant: {payload}"
         );
+    }
+
+    /// The same delivered file indexed again, as when the spool drain
+    /// stopped after the store write and the spool file was drained once
+    /// more: still one message with its first uid, and still read if the
+    /// user had read it in between.
+    #[test]
+    fn indexing_the_same_file_again_changes_nothing_the_user_did() {
+        let state = fresh_state();
+        let user = "bob@golia.jp";
+        ingest_delivered_file(&state, user, "m1.eml", MESSAGE, "INBOX", None);
+        let first = state
+            .mailbox
+            .user_message_facts(user, "m1@example.com")
+            .unwrap()
+            .expect("the copy is stored");
+        assert!(crate::routes::thread_actions::mark_thread_read_everywhere(
+            &state,
+            user,
+            "m1@example.com"
+        ));
+
+        ingest_delivered_file(&state, user, "m1.eml", MESSAGE, "INBOX", None);
+
+        let again = state
+            .mailbox
+            .user_message_facts(user, "m1@example.com")
+            .unwrap()
+            .unwrap();
+        assert_eq!(again.uid, first.uid, "a second uid for the same file");
+        assert_eq!(
+            again.flags & mailrs_mailbox::types::FLAG_SEEN,
+            mailrs_mailbox::types::FLAG_SEEN,
+            "the message the user read is unread again"
+        );
+        let row = state
+            .mailbox
+            .get_thread_for_user(user, "m1@example.com")
+            .unwrap()
+            .unwrap();
+        assert_eq!(row.count, 1, "the thread counts the file twice");
+        assert_eq!(row.unread_count, 0, "the thread is unread again");
+
+        // a different file with the same Message-ID is a second copy, as
+        // before: it is not taken for this one
+        ingest_delivered_file(&state, user, "m1-again.eml", MESSAGE, "INBOX", None);
+        let other = state
+            .mailbox
+            .user_message_facts(user, "m1@example.com")
+            .unwrap()
+            .unwrap();
+        assert_eq!(other.blob_ref, "m1-again.eml");
     }
 
     /// A reply the user writes into a thread somebody else started

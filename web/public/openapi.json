@@ -15754,6 +15754,42 @@
               }
             }
           },
+          "spool": {
+            "type": "object",
+            "nullable": true,
+            "description": "The spool the core drains. Null when the core does not answer.",
+            "properties": {
+              "quarantined": {
+                "type": "integer",
+                "description": "Spool files set aside in quarantine/ because the core stopped while delivering each of them three times"
+              },
+              "oldest_incoming_age_seconds": {
+                "type": "integer",
+                "description": "Age in seconds of the oldest file waiting in incoming/new/; 0 when none is waiting"
+              }
+            }
+          },
+          "set_aside": {
+            "type": "object",
+            "description": "Work items given up on because the process stopped on them each time it tried.",
+            "properties": {
+              "attachment_text": {
+                "type": "integer",
+                "nullable": true,
+                "description": "Attachment-text queue items; null when the core does not answer"
+              },
+              "fraud_backfill": {
+                "type": "integer",
+                "nullable": true,
+                "description": "Conversations the fraud backfill skipped for its current rules; null when no backfill runs or the core does not answer"
+              },
+              "sender": {
+                "type": "integer",
+                "nullable": true,
+                "description": "Outbound jobs the sender set aside; null when the shared store cannot be read"
+              }
+            }
+          },
           "new_domains": {
             "type": "object",
             "nullable": true,
