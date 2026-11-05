@@ -85,7 +85,9 @@ done
 kill_worker_of() {
     local parent=$1 pid=""
     for _ in $(seq 1 100); do
-        pid=$(pgrep -P "$parent" -x mailrs-parse-worker | head -1 || true)
+        # -f: Linux truncates the process name to 15 characters, so -x
+        # never matches there; -P keeps the match to $parent's children
+        pid=$(pgrep -P "$parent" -f mailrs-parse-worker | head -1 || true)
         [[ -n "$pid" ]] && break
         sleep 0.02
     done
