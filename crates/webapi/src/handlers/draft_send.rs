@@ -88,50 +88,61 @@ pub(crate) async fn attach(
     Ok(())
 }
 
-/// The attachments' names to drop, largest first, for the rest to fit.
-fn to_drop(files: &[(&str, u64)], limit: u64) -> Vec<String> {
+/// What an attachment adds to the message: base64, lines of 76 + CRLF.
+fn encoded(bytes: u64) -> u64 {
+    bytes.div_ceil(57) * 78
+}
+
+/// The attachments' names to drop, largest first, for the message to shrink
+/// by `excess` bytes.
+fn to_drop(files: &[(&str, u64)], excess: u64) -> Vec<String> {
     let mut by_size: Vec<&(&str, u64)> = files.iter().collect();
     by_size.sort_by_key(|(_, size)| std::cmp::Reverse(*size));
-    let mut total: u64 = files.iter().map(|(_, s)| s).sum();
+    let mut freed = 0;
     let mut out = Vec::new();
     for (name, size) in by_size {
-        if total <= limit {
+        if freed >= excess {
             break;
         }
-        total -= size;
+        freed += encoded(*size);
         out.push(name.to_string());
     }
     out
 }
 
-/// Refuse a message whose attachments, wherever they came from (the
-/// draft, the form, a forward or a redraft), come to more than
-/// `uploads::MAX_ATTACHMENT_BYTES`; the refusal names which to drop.
-pub(crate) fn ensure_within_limit(parts: &ComposeParts) -> Result<(), SendError> {
+/// A send that names a draft: the message, the draft's files counted in
+/// it, must fit the whole-message cap every send already meets
+/// (`sent::MAX_MESSAGE_BYTES`, what the core files). Refused here rather
+/// than by the core so the refusal can name which attachments to drop. A
+/// send without a draft is left to that same cap as before.
+pub(crate) fn ensure_message_fits(
+    draft_id: Option<i64>,
+    parts: &ComposeParts,
+    message_bytes: usize,
+) -> Result<(), SendError> {
+    let limit = mailrs_core_api::method::sent::MAX_MESSAGE_BYTES;
+    if draft_id.is_none() || message_bytes <= limit {
+        return Ok(());
+    }
     let files: Vec<(&str, u64)> = parts
         .attachments
         .iter()
         .map(|a| (a.filename.as_str(), a.bytes.len() as u64))
         .collect();
-    let total: u64 = files.iter().map(|(_, s)| s).sum();
-    let limit = uploads::MAX_ATTACHMENT_BYTES;
-    if total <= limit {
-        return Ok(());
-    }
     Err(SendError::with_body(
         StatusCode::PAYLOAD_TOO_LARGE,
         serde_json::json!({
             "error": format!(
-                "the attachments come to more than the {} MiB limit",
+                "the message is larger than the {} MiB limit",
                 limit / (1024 * 1024)
             ),
             "limit_bytes": limit,
-            "total_bytes": total,
+            "message_bytes": message_bytes,
             "attachments": files
                 .iter()
                 .map(|(name, size)| serde_json::json!({ "name": name, "size": size }))
                 .collect::<Vec<_>>(),
-            "drop": to_drop(&files, limit),
+            "drop": to_drop(&files, (message_bytes - limit) as u64),
         }),
     ))
 }
@@ -169,29 +180,32 @@ mod tests {
     }
 
     #[test]
-    fn an_oversized_send_names_what_to_drop() {
+    fn an_oversized_draft_send_names_what_to_drop() {
         const MIB: usize = 1024 * 1024;
-        assert!(ensure_within_limit(&parts(&[("a", 20 * MIB), ("b", 5 * MIB)])).is_ok());
-        let err = ensure_within_limit(&parts(&[
-            ("from the draft.pdf", 20 * MIB),
+        let limit = mailrs_core_api::method::sent::MAX_MESSAGE_BYTES;
+        let p = parts(&[
+            ("from the draft.pdf", 24 * MIB),
             ("small.txt", MIB),
-            ("added.mov", 10 * MIB),
-        ]))
-        .unwrap_err();
+            ("added.mov", 20 * MIB),
+        ]);
+        // without a draft, the core's cap applies as it always did
+        assert!(ensure_message_fits(None, &p, limit + 1).is_ok());
+        assert!(ensure_message_fits(Some(1), &p, limit).is_ok());
+        let err = ensure_message_fits(Some(1), &p, limit + 10 * MIB).unwrap_err();
         assert_eq!(err.status(), StatusCode::PAYLOAD_TOO_LARGE);
         assert_eq!(
             err.body()["drop"],
             serde_json::json!(["from the draft.pdf"])
         );
-        assert_eq!(err.body()["limit_bytes"], 25 * MIB);
+        assert_eq!(err.body()["limit_bytes"], limit);
         assert_eq!(err.body()["attachments"][2]["name"], "added.mov");
         assert_eq!(
             to_drop(&[("a", 10), ("b", 30), ("c", 20)], 35),
             vec!["b".to_string()]
         );
         assert_eq!(
-            to_drop(&[("a", 10), ("b", 30), ("c", 20)], 5),
-            vec!["b".to_string(), "c".to_string(), "a".to_string()]
+            to_drop(&[("a", 570), ("b", 5700), ("c", 2850)], 8000),
+            vec!["b".to_string(), "c".to_string()]
         );
     }
 
