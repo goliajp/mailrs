@@ -17,12 +17,48 @@ pub(super) struct Corpus<'r> {
     replies: HashMap<String, std::collections::HashSet<String>>,
     our_stamp: Option<String>,
     hist: Option<kevy_client::Connection>,
+    /// each reader's not-junk list, read once; `None` when it could not
+    /// be read, which the sweep counts as naming the sender
+    whitelists: HashMap<String, Option<std::collections::HashSet<String>>>,
+}
+
+impl Corpus<'_> {
+    /// Whether the readers' not-junk lists are read at all.
+    pub(super) fn whitelist_checked(&self) -> bool {
+        self.hist.is_some()
+    }
+
+    /// Whether `reader` marked this sender not junk, as the re-judge
+    /// sweep reads it: no store means no list, and a list that cannot be
+    /// read names the sender.
+    fn whitelisted(&mut self, reader: &str, raw: &[u8]) -> bool {
+        let Some(conn) = self.hist.as_mut() else {
+            return false;
+        };
+        let list = self
+            .whitelists
+            .entry(reader.to_string())
+            .or_insert_with(|| {
+                mailrs_core_sidestate::families::sender_lists::whitelist(conn, reader).ok()
+            });
+        match list {
+            Some(list) => mailrs_inbound::sender_listed(
+                list,
+                "",
+                &mailrs_inbound::identity::from_address(raw),
+            ),
+            None => true,
+        }
+    }
 }
 
 /// One message as both bundles judged it.
 pub(super) struct Judged {
     pub(super) month: String,
     pub(super) from: String,
+    /// the registrable domain of the `From:` address
+    pub(super) domain: String,
+    pub(super) whitelisted: bool,
     pub(super) subject: String,
     pub(super) old: Findings,
     pub(super) old_shadow: Findings,
@@ -67,6 +103,7 @@ pub(super) fn corpus<'r>(
         hist: std::env::var("MAILRS_KEVY_URL")
             .ok()
             .and_then(|u| kevy_client::Connection::connect(&u).ok()),
+        whitelists: HashMap::new(),
     })
 }
 
@@ -188,9 +225,12 @@ pub(super) fn judge(
     if !new.errors.is_empty() {
         return Err(format!("candidate: {:?}", new.errors));
     }
+    let whitelisted = c.whitelisted(&reader, &raw);
     Ok(Judged {
         month: month_of(&raw),
         from,
+        domain: reg,
+        whitelisted,
         subject,
         old,
         old_shadow,
