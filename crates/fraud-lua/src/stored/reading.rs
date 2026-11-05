@@ -27,7 +27,8 @@ pub struct Reading {
     has_bidi_override: bool,
     has_zero_width_inside_a_word: bool,
     has_zero_width_in_name: bool,
-    has_executable_attachment: bool,
+    inside: mailrs_fraud::attachment_inside::Inside,
+    reply_marker_without_thread: bool,
     offers_the_reader_a_sum: bool,
     asks_for_the_readers_line: bool,
     shown_links: String,
@@ -70,10 +71,9 @@ impl Reading {
             has_zero_width_inside_a_word: deception.zero_width_inside_a_word,
             has_zero_width_in_name: mailrs_inbound::deception_in_display_name(raw)
                 .unjustified_zero_width,
-            has_executable_attachment: mailrs_fraud::attachment_inside::any_carries_code(
-                parsed
-                    .attachments()
-                    .map(|p| (p.attachment_filename().unwrap_or(""), &p.body[..])),
+            inside: mailrs_inbound::body::attachments_inside(&parsed),
+            reply_marker_without_thread: mailrs_inbound::thread_claim::reply_marker_without_thread(
+                raw,
             ),
             offers_the_reader_a_sum: mailrs_inbound::body::offers_the_reader_a_sum(&parsed),
             asks_for_the_readers_line: mailrs_inbound::body::asks_for_the_readers_line(&parsed),
@@ -131,7 +131,9 @@ impl Reading {
             has_zero_width: self.has_zero_width,
             has_bidi_override: self.has_bidi_override,
             has_zero_width_in_name: self.has_zero_width_in_name,
-            has_executable_attachment: self.has_executable_attachment,
+            has_executable_attachment: self.inside.carries_code,
+            has_encrypted_document_archive: self.inside.encrypted_document_archive,
+            reply_marker_without_thread: self.reply_marker_without_thread,
             has_zero_width_inside_a_word: self.has_zero_width_inside_a_word,
             offers_the_reader_a_sum: self.offers_the_reader_a_sum,
             asks_for_the_readers_line: self.asks_for_the_readers_line,

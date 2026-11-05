@@ -14,34 +14,88 @@ use crate::attachment::is_executable_name;
 /// Entries read from one archive's directory, at most.
 const ENTRIES_MAX: usize = 10_000;
 
+/// Extensions an encrypted archive entry may carry and still be read as a
+/// document: formats that cannot carry a macro under their plain name.
+/// The legacy Office formats (`doc`, `xls`, `ppt`) and `rtf` can, and an
+/// encrypted one cannot be looked into, so they are not here.
+const DOCUMENT_EXTENSIONS: &[&str] = &[
+    "pdf", "docx", "xlsx", "pptx", "odt", "ods", "odp", "txt", "csv",
+];
+
+/// What one message's attachments hold, read once.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Inside {
+    /// An attachment is named like something the machine runs, or hides
+    /// one inside — [`carries_code`].
+    pub carries_code: bool,
+    /// An archive encrypts entries that are all documents, and nothing
+    /// attached carries code: the password-in-the-letter habit banks and
+    /// accountants share with malware.
+    pub encrypted_document_archive: bool,
+}
+
 /// Whether this attachment carries code: named like something the machine
 /// runs, or hiding one inside.
 #[must_use]
 pub fn carries_code(name: &str, bytes: &[u8]) -> bool {
-    is_executable_name(name) || zip_hides_code(bytes) || ole_has_macros(bytes)
+    is_executable_name(name)
+        || zip_reading(bytes).is_some_and(|z| z.hides_code)
+        || ole_has_macros(bytes)
 }
 
-/// Whether any of `(name, bytes)` carries code.
+/// What `(name, bytes)` hold between them.
 #[must_use]
-pub fn any_carries_code<'a>(parts: impl IntoIterator<Item = (&'a str, &'a [u8])>) -> bool {
-    parts.into_iter().any(|(n, b)| carries_code(n, b))
+pub fn read<'a>(parts: impl IntoIterator<Item = (&'a str, &'a [u8])>) -> Inside {
+    let mut code = false;
+    let mut encrypted_documents = false;
+    for (name, bytes) in parts {
+        code |= carries_code(name, bytes);
+        encrypted_documents |= zip_reading(bytes).is_some_and(|z| z.encrypted_documents);
+    }
+    Inside {
+        carries_code: code,
+        encrypted_document_archive: encrypted_documents && !code,
+    }
 }
 
-/// A zip (or an OOXML document, which is one) whose directory names an
-/// executable, a macro project, or an entry it encrypted: a password-
-/// protected archive is how a payload gets past every scanner, and the
-/// password is in the letter.
-fn zip_hides_code(bytes: &[u8]) -> bool {
-    let Some(entries) = central_directory(bytes) else {
-        return false;
-    };
-    entries.iter().any(|(name, encrypted)| {
-        *encrypted
-            || is_executable_name(name)
-            || name
-                .rsplit('/')
-                .next()
-                .is_some_and(|base| base.eq_ignore_ascii_case("vbaProject.bin"))
+/// What a zip's directory says about it.
+struct ZipReading {
+    /// It names an executable or a macro project, or encrypts an entry
+    /// whose name does not say it is a document. Entry names are
+    /// readable whether or not the entry is encrypted; encryption hides
+    /// the contents, so an encrypted archive inside, or an encrypted
+    /// legacy Office file, could still hold anything.
+    hides_code: bool,
+    /// It encrypts at least one entry, and every encrypted entry is a
+    /// document.
+    encrypted_documents: bool,
+}
+
+/// A zip (or an OOXML document, which is one) read from its central
+/// directory. `None` when this is not a zip.
+fn zip_reading(bytes: &[u8]) -> Option<ZipReading> {
+    let entries = central_directory(bytes)?;
+    let mut hides_code = false;
+    let mut encrypted = false;
+    for (name, is_encrypted) in &entries {
+        if name.ends_with('/') {
+            continue;
+        }
+        let base = name.rsplit('/').next().unwrap_or(name);
+        hides_code |= is_executable_name(name)
+            || base.eq_ignore_ascii_case("vbaProject.bin")
+            || (*is_encrypted && !is_document_name(base));
+        encrypted |= *is_encrypted;
+    }
+    Some(ZipReading {
+        hides_code,
+        encrypted_documents: encrypted && !hides_code,
+    })
+}
+
+fn is_document_name(name: &str) -> bool {
+    name.rsplit_once('.').is_some_and(|(stem, ext)| {
+        !stem.is_empty() && DOCUMENT_EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str())
     })
 }
 
@@ -148,9 +202,80 @@ mod tests {
         ));
     }
 
+    /// The bank statement of 2026-03-04: one encrypted PDF, the password
+    /// in the letter. The names are readable, and they name a document.
     #[test]
-    fn an_archive_that_hides_what_it_holds_carries_code() {
-        assert!(carries_code("scan.zip", &zip(&[("scan.pdf", true)])));
+    fn an_encrypted_archive_of_documents_carries_no_code() {
+        assert!(!carries_code(
+            "statement.zip",
+            &zip(&[("statement.pdf", true)])
+        ));
+        // not in the corpus: a Japanese name, an upper-case extension
+        assert!(!carries_code("明細.zip", &zip(&[("取引明細書.PDF", true)])));
+        assert!(!carries_code(
+            "payroll.zip",
+            &zip(&[
+                ("2026/", false),
+                ("2026/payroll.xlsx", true),
+                ("readme.txt", false)
+            ])
+        ));
+    }
+
+    #[test]
+    fn an_encrypted_archive_of_documents_is_its_own_fact() {
+        let statement = zip(&[("statement.pdf", true)]);
+        let both = |parts: &[(&str, &[u8])]| {
+            let r = read(parts.iter().copied());
+            (r.carries_code, r.encrypted_document_archive)
+        };
+        assert_eq!(both(&[("statement.zip", &statement)]), (false, true));
+        // nothing encrypted: an ordinary archive, neither fact
+        let open = zip(&[("statement.pdf", false)]);
+        assert_eq!(both(&[("statement.zip", &open)]), (false, false));
+        // code anywhere in the message is the stronger fact, and the only one
+        assert_eq!(
+            both(&[("statement.zip", &statement), ("run.exe", b"MZ")]),
+            (true, false)
+        );
+        let script = zip(&[("statement.pdf", true), ("open.hta", true)]);
+        assert_eq!(both(&[("statement.zip", &script)]), (true, false));
+        // a document with no stem, or no extension, is no document
+        let nameless = zip(&[(".pdf", true)]);
+        assert_eq!(both(&[("x.zip", &nameless)]), (true, false));
+        assert_eq!(both(&[]), (false, false));
+    }
+
+    /// Encryption hides the contents, never the names: a script or a
+    /// program inside is code whether or not it is encrypted.
+    #[test]
+    fn an_encrypted_program_is_still_code() {
+        assert!(carries_code(
+            "invoice.zip",
+            &zip(&[("invoice.hta", true), ("readme.txt", false)])
+        ));
+        assert!(carries_code("order.zip", &zip(&[("order.pdf.pif", true)])));
+    }
+
+    /// What encryption hides and a name cannot vouch for still counts:
+    /// an archive inside, a legacy Office file that can carry macros
+    /// under its plain name, a file with no extension, a script in a
+    /// script not on the executable list.
+    #[test]
+    fn an_encrypted_entry_that_is_not_a_document_still_counts() {
+        for name in [
+            "inner.zip",
+            "inner.7z",
+            "report.doc",
+            "sheet.xls",
+            "payload",
+            "a.rtf",
+        ] {
+            assert!(
+                carries_code("x.zip", &zip(&[(name, true)])),
+                "{name} should still count"
+            );
+        }
     }
 
     #[test]
