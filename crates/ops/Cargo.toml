@@ -1,0 +1,39 @@
+[package]
+name = "mailrs-ops"
+version.workspace = true
+edition = "2024"
+publish = false
+description = "The mailrs operations daemon: stateful alerts over each process's health and pushed reports, sent through channels that do not depend on the mail path it watches."
+license = "Apache-2.0 OR MIT"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "mailrs-ops"
+path = "src/main.rs"
+
+[dependencies]
+axum = "0.8"
+base64 = "0.22"
+chrono = { workspace = true }
+hex = "0.4"
+mailrs-core-api = { path = "../core-api", features = ["client"] }
+mailrs-ops-report = { path = "../ops-report" }
+mailrs-smtp-client = { path = "../smtp-client", version = "3" }
+mailrs-webhook-signature = { path = "../webhook-signature", version = "1" }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+# 0.32 links the same libsqlite3-sys (0.30) the workspace lock already
+# carries through sqlx; two versions of a `links = "sqlite3"` crate cannot
+# share one dependency graph
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = "0.11"
+tokio = { workspace = true }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+tempfile = "3"
+mailrs-ops-report = { path = "../ops-report", features = ["push"] }
