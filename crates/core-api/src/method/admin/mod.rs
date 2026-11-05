@@ -16,6 +16,7 @@ mod ownerless;
 mod permissions;
 mod quota;
 mod rejudge;
+mod sent_to;
 mod usage_drift;
 mod userdata;
 
@@ -28,6 +29,7 @@ pub use ownerless::*;
 pub use permissions::*;
 pub use quota::*;
 pub use rejudge::*;
+pub use sent_to::*;
 pub use usage_drift::*;
 pub use userdata::*;
 
