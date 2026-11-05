@@ -101,12 +101,40 @@ impl KevyMailboxStore {
             .collect())
     }
 
-    /// Take one pair off the queue.
+    /// Take one pair off the queue, and forget its attempts.
     pub fn dequeue_attachment_text(&self, user: &str, message_id: &str) -> io::Result<()> {
         let m = member(user, message_id);
         self.store()
             .srem(keys::ATTACHMENT_TEXT_PENDING, &[m.as_bytes()])?;
+        self.store()
+            .hdel(keys::ATTACHMENT_TEXT_ATTEMPTS, &[m.as_bytes()])?;
         Ok(())
+    }
+
+    /// Count one more attempt at `user`'s copy, on disk before it returns:
+    /// the store's log is otherwise flushed up to a second later, and a
+    /// process that dies reading the message would take the count with it.
+    /// Returns the attempts so far, this one included.
+    pub fn begin_attachment_text(&self, user: &str, message_id: &str) -> io::Result<u32> {
+        let m = member(user, message_id);
+        let n = self
+            .store()
+            .hincrby(keys::ATTACHMENT_TEXT_ATTEMPTS, m.as_bytes(), 1)?;
+        self.store().fsync_aof()?;
+        Ok(u32::try_from(n).unwrap_or(u32::MAX))
+    }
+
+    /// Give up on `user`'s copy: off the queue, into the set-aside set.
+    pub fn set_aside_attachment_text(&self, user: &str, message_id: &str) -> io::Result<()> {
+        let m = member(user, message_id);
+        self.store()
+            .sadd(keys::ATTACHMENT_TEXT_SET_ASIDE, &[m.as_bytes()])?;
+        self.dequeue_attachment_text(user, message_id)
+    }
+
+    /// How many queue members were given up on.
+    pub fn attachment_texts_set_aside(&self) -> io::Result<usize> {
+        Ok(self.store().scard(keys::ATTACHMENT_TEXT_SET_ASIDE)?)
     }
 
     /// Whether `user`'s copy of the message is queued.

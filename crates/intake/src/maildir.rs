@@ -6,12 +6,19 @@ use std::path::PathBuf;
 /// Deliver one file to one recipient. `subfolder` is empty for INBOX
 /// or a `.Maildir++Folder` for a sieve fileinto action. Returns `Ok(true)` on success, `Ok(false)` when the
 /// target directory is absent.
+///
+/// A copy already there under the same name is left as it is: the spool
+/// file is being drained again after an attempt that wrote it. On a
+/// `retry` that also covers a copy a client has since moved to `cur/`
+/// (`F:2,S`), which a second write to `new/` would duplicate; the `cur/`
+/// listing is read only then.
 pub fn deliver(
     maildir_root: &str,
     addr: &str,
     subfolder: &str,
     filename: &str,
     body: &[u8],
+    retry: bool,
 ) -> std::io::Result<bool> {
     let (local, domain) = match addr.split_once('@') {
         Some(x) => x,
@@ -34,6 +41,10 @@ pub fn deliver(
         return Ok(false);
     }
     let target = user_new.join(filename);
+    if target.exists() || (retry && in_cur(&user_new, filename)) {
+        tracing::info!(%addr, file = %filename, "maildir copy already written by an earlier attempt");
+        return Ok(true);
+    }
     std::fs::write(&target, body)?;
     #[cfg(unix)]
     {
@@ -41,6 +52,22 @@ pub fn deliver(
         let _ = std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o644));
     }
     Ok(true)
+}
+
+/// Whether the `cur/` beside `new` holds `filename`, with or without its
+/// `:2,<flags>` suffix.
+fn in_cur(new: &std::path::Path, filename: &str) -> bool {
+    let Some(cur) = new.parent().map(|p| p.join("cur")) else {
+        return false;
+    };
+    let Ok(entries) = std::fs::read_dir(cur) else {
+        return false;
+    };
+    entries.flatten().any(|e| {
+        let name = e.file_name();
+        let name = name.to_string_lossy();
+        name.split(':').next() == Some(filename)
+    })
 }
 
 /// Make sure `addr` has a maildir: an account gets its skeleton on first

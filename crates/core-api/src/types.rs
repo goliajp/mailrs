@@ -27,6 +27,36 @@ pub struct HealthResponse {
     /// cgroup cannot be read (not in a container, cgroup v1).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub memory: Option<MemoryWire>,
+    /// The spool this core drains. `None` from a core that predates it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spool: Option<SpoolHealthWire>,
+    /// Work items this core gave up on because the process died on them
+    /// each time it tried. `None` from a core without those loops (the SQL
+    /// core) or one that predates it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub set_aside: Option<SetAsideWire>,
+}
+
+/// The spool, as a health probe sees it.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SpoolHealthWire {
+    /// Files set aside in `<spool>/quarantine/` after the drain died on
+    /// each of them three times.
+    pub quarantined: u64,
+    /// Age of the oldest file waiting in `<spool>/incoming/new/`, in
+    /// seconds; 0 when none is waiting.
+    pub oldest_incoming_age_seconds: u64,
+}
+
+/// Items set aside by the core's background loops.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SetAsideWire {
+    /// Attachment-text queue items given up on; `None` when the store
+    /// could not be read.
+    pub attachment_text: Option<u64>,
+    /// Conversations the fraud backfill skipped for its current rules;
+    /// `None` when no backfill runs here.
+    pub fraud_backfill: Option<u64>,
 }
 
 /// A container's memory, as its cgroup counts it: the process and every

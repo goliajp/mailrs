@@ -15,6 +15,8 @@ use tokio::sync::Notify;
 use crate::drain::{Core, drain_once};
 
 pub(crate) mod aging;
+pub mod attempts;
+pub mod quarantine;
 pub(crate) mod stuck;
 mod wake;
 
@@ -35,6 +37,37 @@ impl SpoolDirs {
             new: incoming.join("new"),
             cur: incoming.join("cur"),
         }
+    }
+}
+
+/// What a health probe reports about a spool.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpoolHealth {
+    /// Files set aside in `quarantine/` (see [`quarantine`]).
+    pub quarantined: u64,
+    /// Age in seconds of the oldest file in `incoming/new/`; 0 when it is
+    /// empty. A file that sits there for minutes is one the drain is not
+    /// getting through.
+    pub oldest_incoming_age_seconds: u64,
+}
+
+/// The spool under `root`, as [`SpoolHealth`] reports it: two directory
+/// reads.
+pub fn health(root: &Path) -> SpoolHealth {
+    let now = std::time::SystemTime::now();
+    let oldest = std::fs::read_dir(SpoolDirs::under(root).new)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|e| e.file_type().is_ok_and(|t| t.is_file()))
+        .filter_map(|e| e.metadata().and_then(|m| m.modified()).ok())
+        .filter_map(|m| now.duration_since(m).ok())
+        .map(|age| age.as_secs())
+        .max()
+        .unwrap_or(0);
+    SpoolHealth {
+        quarantined: quarantine::count(root),
+        oldest_incoming_age_seconds: oldest,
     }
 }
 

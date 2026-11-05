@@ -66,6 +66,22 @@ pub const SUPPRESSION: &[u8] = b"mailrs:outbound:suppression";
 /// Next job id.
 pub const COUNTER: &[u8] = b"mailrs:outbound:counter";
 
+/// The job already queued for one enqueue that must happen once (a spool
+/// file's forward, redirect or relay, however often the file is drained):
+/// `once` is the caller's hash of what makes it that enqueue. Holds the
+/// job id, for [`ONCE_TTL_SECS`].
+pub fn once_key(once: &str) -> String {
+    format!("mailrs:outbound:once:{once}")
+}
+
+/// How long an [`once_key`] is kept: longer than a spool file waits for an
+/// unresolved recipient before it is set aside.
+pub const ONCE_TTL_SECS: u64 = 7 * 24 * 3600;
+
+/// Jobs the sender stopped while sending too many times, set aside instead
+/// of queued again: id → when.
+pub const SET_ASIDE_IDX: &[u8] = b"mailrs:outbound:set-aside-idx";
+
 /// A deleted account's jobs not yet released for delivery, stopped at the
 /// delete: job id → the send time it was waiting for.
 pub fn withheld_key(address: &str) -> String {

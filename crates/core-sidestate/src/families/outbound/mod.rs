@@ -72,6 +72,27 @@ pub fn write_fresh_pending(
     write_pending(conn, job, None, now)
 }
 
+/// [`write_fresh_pending`], once for `once` (see [`once_key`]): the id of
+/// the job written now, or `None` when an earlier call with the same key
+/// already queued it.
+///
+/// The marker goes in the same pipeline as the job, so a process that dies
+/// before sending it leaves neither and the next call queues the job; one
+/// that dies after leaves both. Not atomic against a second caller with the
+/// same key at the same moment; a spool file has one drain.
+pub fn write_fresh_pending_once(
+    conn: &mut kevy_client::Connection,
+    job: &FreshPending<'_>,
+    once: &str,
+    now: i64,
+) -> std::io::Result<Option<i64>> {
+    let key = once_key(once);
+    if conn.exists(&[key.as_bytes()])? > 0 {
+        return Ok(None);
+    }
+    write_pending_marked(conn, job, None, Some(&key), now).map(Some)
+}
+
 /// The kind a security alert's job carries. The sender neither counts
 /// nor holds it: an alert must leave even when its own account is paused.
 pub const SECURITY_ALERT_KIND: &str = "security_alert";
@@ -91,6 +112,16 @@ fn write_pending(
     conn: &mut kevy_client::Connection,
     job: &FreshPending<'_>,
     kind: Option<&str>,
+    now: i64,
+) -> std::io::Result<i64> {
+    write_pending_marked(conn, job, kind, None, now)
+}
+
+fn write_pending_marked(
+    conn: &mut kevy_client::Connection,
+    job: &FreshPending<'_>,
+    kind: Option<&str>,
+    once_key: Option<&str>,
     now: i64,
 ) -> std::io::Result<i64> {
     let FreshPending {
@@ -123,7 +154,17 @@ fn write_pending(
     let id_str = id.to_string();
     let now_str = now.to_string();
     let sched_score = scheduled_at.map(|t| t.to_string());
+    let once_ttl = ONCE_TTL_SECS.to_string();
     conn.pipeline(|p| {
+        if let Some(key) = once_key {
+            p.cmd(&[
+                b"SET",
+                key.as_bytes(),
+                id_str.as_bytes(),
+                b"EX",
+                once_ttl.as_bytes(),
+            ]);
+        }
         p.cmd(&[
             b"HSET",
             job_k.as_bytes(),
@@ -202,4 +243,40 @@ fn row_blob(row: &OutboundMessageWire, kind: Option<&str>, account: Option<&str>
         blob["account"] = account.to_ascii_lowercase().into();
     }
     blob.to_string()
+}
+
+#[cfg(test)]
+mod once_tests {
+    use super::*;
+
+    /// Against a kevy-server: the job is written with a pipeline, which the
+    /// in-process store does not run.
+    #[tokio::test]
+    async fn a_job_written_once_is_written_once() {
+        let (_kevy, url) = mailrs_test_docker::kevy::kevy_server().await;
+        let mut c = kevy_client::Connection::connect(&url).unwrap();
+        let job = FreshPending {
+            sender: "a@x.test",
+            recipient: "b@y.test",
+            message_data_base64: "",
+            scheduled_at: None,
+            original_sender: None,
+            send_id: None,
+            account: None,
+        };
+        let first = write_fresh_pending_once(&mut c, &job, "k1", 100).unwrap();
+        assert!(first.is_some());
+        assert_eq!(
+            write_fresh_pending_once(&mut c, &job, "k1", 101).unwrap(),
+            None
+        );
+        assert!(
+            write_fresh_pending_once(&mut c, &job, "k2", 102)
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(c.lrange(PENDING_IDX, 0, -1).unwrap().len(), 2);
+        let marker = c.get(once_key("k1").as_bytes()).unwrap();
+        assert_eq!(marker, first.map(|id| id.to_string().into_bytes()));
+    }
 }

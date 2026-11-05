@@ -195,6 +195,8 @@ pub const OWNED: &[Owned] = &[
     // is decided; the batch counts the purged reader's out, and goes at none
     mail("rejudge:candidates:*", Shape::Custom(rejudge::candidates)),
     mail("mailrs:attpending", Shape::Members { keys: || "mailrs:attpending".into(), sep: Some("\t") }),
+    mail("mailrs:attattempts", Shape::Members { keys: || "mailrs:attattempts".into(), sep: Some("\t") }),
+    mail("mailrs:attsetaside", Shape::Members { keys: || "mailrs:attsetaside".into(), sep: Some("\t") }),
     mail("mailrs:imgpending", Shape::Members { keys: || "mailrs:imgpending".into(), sep: Some("\t") }),
     mail("mailrs:sync:cursor:{user}", Shape::Key(|a| format!("mailrs:sync:cursor:{a}"))),
     mail("mailrs:mbid:*", Shape::Custom(custom::mailbox_ids)),

@@ -40,7 +40,8 @@ impl<C: Core + ?Sized> Inbound<'_, C> {
         let Some(target) = f.target() else {
             return true;
         };
-        match enqueue_redirect(addr, target, self.body, &self.env.reverse_path) {
+        let once = self.once("forward", addr, target);
+        match enqueue_redirect(addr, target, self.body, &self.env.reverse_path, Some(&once)) {
             Ok(()) => {
                 tracing::info!(recipient = %addr, %target, "forwarding: queued");
                 f.keep_copy

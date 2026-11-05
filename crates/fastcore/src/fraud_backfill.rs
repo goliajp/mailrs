@@ -21,6 +21,130 @@ struct Progress {
     junked: u64,
     no_file: u64,
     complete: bool,
+    /// Conversations skipped because the process died judging them.
+    #[serde(default)]
+    skipped: u64,
+}
+
+/// A batch started and not yet saved as done: `inflight.json`. Found at
+/// the same cursor when the next run starts, it says the process died
+/// during that batch.
+#[derive(Debug, Serialize, Deserialize)]
+struct Inflight {
+    version: String,
+    cursor: usize,
+    end: usize,
+    /// Starts of this same range that did not finish.
+    attempts: u32,
+    /// Set once a batch was interrupted [`BATCH_ATTEMPTS`] times: until the
+    /// cursor reaches this, conversations are judged one at a time.
+    #[serde(default)]
+    one_by_one_until: Option<usize>,
+}
+
+/// Interrupted starts of one batch before it is judged one conversation at
+/// a time. As for the spool: a deploy can interrupt an innocent batch once.
+const BATCH_ATTEMPTS: u32 = 3;
+
+/// Interrupted starts of one conversation, judged alone, before it is
+/// skipped. One: its batch has already died [`BATCH_ATTEMPTS`] times, and
+/// a skipped conversation is recorded in `skipped.json` for a manual
+/// rescan, so a wrong skip is cheap.
+const ITEM_ATTEMPTS: u32 = 1;
+
+/// One conversation the backfill skipped.
+#[derive(Debug, Serialize, Deserialize)]
+struct Skipped {
+    version: String,
+    user: String,
+    thread_id: String,
+    at: i64,
+}
+
+fn now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64)
+}
+
+fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> Result<Option<T>, String> {
+    match fs::read(path) {
+        Ok(raw) => serde_json::from_slice(&raw)
+            .map(Some)
+            .map_err(|e| e.to_string()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// How many conversations the backfill in `journal` skipped for its
+/// current version; `None` when it has not started.
+pub fn skipped(journal: &Path) -> Option<u64> {
+    read_json::<Progress>(&journal.join("progress.json"))
+        .ok()
+        .flatten()
+        .map(|p| p.skipped)
+}
+
+/// The range to judge next from `progress.cursor`, and the in-flight
+/// record to write before judging it. Skips (and records) the conversation
+/// a run judging it alone died on.
+fn next_range(
+    journal: &Path,
+    progress: &mut Progress,
+    targets: &[(String, String)],
+) -> Result<Inflight, String> {
+    let flight = read_json::<Inflight>(&journal.join("inflight.json"))?
+        .filter(|f| f.version == progress.version && f.cursor == progress.cursor);
+    let mut until = flight.as_ref().and_then(|f| f.one_by_one_until);
+    let mut prior = flight.as_ref().map_or(0, |f| f.attempts);
+    match &flight {
+        Some(f) if f.attempts >= ITEM_ATTEMPTS && f.end == f.cursor + 1 && until.is_some() => {
+            let (user, thread_id) = targets[f.cursor].clone();
+            tracing::error!(event = "fraud_backfill_skipped", version = %f.version,
+                cursor = f.cursor, %user, %thread_id,
+                "fraud backfill: the process stopped judging this conversation; skipped");
+            let skipped_file = journal.join("skipped.json");
+            let mut list: Vec<Skipped> = read_json(&skipped_file)?.unwrap_or_default();
+            list.push(Skipped {
+                version: f.version.clone(),
+                user,
+                thread_id,
+                at: now(),
+            });
+            save(&skipped_file, &list)?;
+            progress.cursor += 1;
+            progress.skipped += 1;
+            progress.complete = progress.cursor == progress.total;
+            save(&journal.join("progress.json"), progress)?;
+            prior = 0;
+        }
+        Some(f) if f.attempts >= BATCH_ATTEMPTS && until.is_none() => {
+            tracing::warn!(version = %f.version, cursor = f.cursor, end = f.end,
+                "fraud backfill: this batch stopped the process {} times; judging it one at a time",
+                f.attempts);
+            until = Some(f.end);
+            prior = 0;
+        }
+        Some(f) if f.attempts > 0 => {
+            tracing::warn!(version = %f.version, cursor = f.cursor, attempts = f.attempts,
+                "fraud backfill: the last run stopped during this batch");
+        }
+        _ => {}
+    }
+    let until = until.filter(|u| progress.cursor < *u);
+    let end = match until {
+        Some(_) => progress.cursor + 1,
+        None => progress.cursor + BATCH,
+    }
+    .min(targets.len());
+    Ok(Inflight {
+        version: progress.version.clone(),
+        cursor: progress.cursor,
+        end,
+        attempts: prior + 1,
+        one_by_one_until: until,
+    })
 }
 
 fn save(path: &Path, value: &impl Serialize) -> Result<(), String> {
@@ -91,6 +215,7 @@ pub async fn run_once(
             junked: 0,
             no_file: 0,
             complete: false,
+            skipped: 0,
         };
         save(&progress_file, &next)?;
         if let Some(old) = &progress {
@@ -112,8 +237,57 @@ pub async fn run_once(
     if targets.len() != progress.total || progress.cursor > progress.total {
         return Err("backfill snapshot/cursor mismatch".into());
     }
-    let end = (progress.cursor + BATCH).min(targets.len());
+    let inflight_file = journal.join("inflight.json");
+    let flight = next_range(journal, &mut progress, &targets)?;
+    if progress.complete {
+        let _ = fs::remove_file(&inflight_file);
+        return Ok(false);
+    }
+    // on disk before judging, so a process that dies judging leaves it
+    save(&inflight_file, &flight)?;
+    let end = flight.end;
     let batch = targets[progress.cursor..end].to_vec();
+    let judged = judge(state, batch, &current, &mut progress, end).await;
+    if let Err(e) = &judged {
+        // a run that returned did not die: this start is not counted
+        let undo = Inflight {
+            attempts: flight.attempts - 1,
+            ..flight
+        };
+        save(&inflight_file, &undo)?;
+        return Err(e.clone());
+    }
+    progress.complete = end == progress.total;
+    save(&progress_file, &progress)?;
+    match flight.one_by_one_until.filter(|u| end < *u) {
+        Some(until) => save(
+            &inflight_file,
+            &Inflight {
+                version: current.clone(),
+                cursor: end,
+                end: end + 1,
+                attempts: 0,
+                one_by_one_until: Some(until),
+            },
+        )?,
+        None => fs::remove_file(&inflight_file).map_err(|e| e.to_string())?,
+    }
+    tracing::info!(version=%current, cursor=end, total=progress.total,
+        complete=progress.complete, held=progress.held, released=progress.released,
+        junked=progress.junked, no_file=progress.no_file, skipped=progress.skipped,
+        "fraud backfill progress");
+    Ok(!progress.complete)
+}
+
+/// Judge `batch`, the targets up to `end`, and add what came of it to
+/// `progress` with the cursor moved to `end`.
+async fn judge(
+    state: Arc<FastcoreState>,
+    batch: Vec<(String, String)>,
+    current: &str,
+    progress: &mut Progress,
+    end: usize,
+) -> Result<(), String> {
     // A lost response/checkpoint repeats only this batch. The apply path checks
     // existing verdict, quarantine and unread state before writing.
     let response = fraud_rescan::rescan(
@@ -126,7 +300,7 @@ pub async fn run_once(
             action: fraud_rescan::Action::Hold,
         },
         Some(batch),
-        Some(&current),
+        Some(current),
     )
     .await;
     if !response.status().is_success() {
@@ -150,12 +324,15 @@ pub async fn run_once(
         .as_u64()
         .ok_or("missing scored_moved_to_junk count")?;
     progress.no_file += result["no_file"].as_u64().ok_or("missing no_file count")?;
-    progress.complete = end == progress.total;
-    save(&progress_file, &progress)?;
-    tracing::info!(version=%current, cursor=end, total=progress.total,
-        complete=progress.complete, held=progress.held, released=progress.released,
-        junked=progress.junked, no_file=progress.no_file, "fraud backfill progress");
-    Ok(!progress.complete)
+    Ok(())
+}
+
+/// The journal of the backfill this process runs; unset when it runs none.
+static JOURNAL: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
+/// [`skipped`] for the backfill this process runs.
+pub(crate) fn skipped_here() -> Option<u64> {
+    skipped(JOURNAL.get()?)
 }
 
 pub(crate) fn spawn(state: Arc<FastcoreState>, data_dir: &str) {
@@ -164,6 +341,7 @@ pub(crate) fn spawn(state: Arc<FastcoreState>, data_dir: &str) {
     };
     let rules = std::path::PathBuf::from(rules);
     let journal = Path::new(data_dir).join("fraud-backfill");
+    let _ = JOURNAL.set(journal.clone());
     tokio::spawn(async move {
         let mut delay = 15;
         loop {
