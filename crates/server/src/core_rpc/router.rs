@@ -201,6 +201,10 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
             post(handlers::admin::account_purge::account_purge_route),
         )
         .route(
+            adm_paths::PATH_GROUP_PURGE,
+            post(handlers::admin::account_purge::group_purge_route),
+        )
+        .route(
             adm_paths::PATH_USAGE_DRIFT,
             get(handlers::admin::usage_drift_route).post(handlers::admin::usage_drift_apply_route),
         )

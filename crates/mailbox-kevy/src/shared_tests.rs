@@ -100,3 +100,30 @@ fn an_undone_reply_releases_its_claim() {
         Claim::Won { .. }
     ));
 }
+
+#[test]
+fn a_group_purge_takes_its_reply_claims_and_no_other_groups() {
+    let st = store();
+    for tag in ["4:1", "4:2", "40:1", "5:1"] {
+        assert!(matches!(
+            st.claim_reply(tag, "a@x", 0, false, 1).unwrap(),
+            Claim::Won { .. }
+        ));
+    }
+    assert_eq!(st.purge_group_replies(4, true).unwrap(), 2);
+    assert_eq!(
+        st.reply_state("4:1").unwrap().seq,
+        1,
+        "a dry run removed it"
+    );
+    assert_eq!(st.purge_group_replies(4, false).unwrap(), 2);
+    assert_eq!(st.reply_state("4:1").unwrap().seq, 0);
+    assert_eq!(st.reply_state("4:2").unwrap().seq, 0);
+    assert_eq!(
+        st.reply_state("40:1").unwrap().seq,
+        1,
+        "group 40 is not group 4"
+    );
+    assert_eq!(st.reply_state("5:1").unwrap().seq, 1);
+    assert_eq!(st.purge_group_replies(4, false).unwrap(), 0);
+}

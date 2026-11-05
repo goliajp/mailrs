@@ -78,7 +78,8 @@ impl MailrsMcpService {
         // the handler writes the audit row
         crate::handlers::complete::delete_email_group(
             self.require_confirmed()?,
-            axum::Extension(AuthedUser(user)),
+            axum::extract::State(self.state.clone()),
+            axum::extract::Extension(crate::handlers::conversations::AuthedUser(user)),
             Path(params.id),
         )
         .await

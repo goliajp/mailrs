@@ -1,6 +1,9 @@
 //! Purging deleted accounts on the SQL core: the same pass as fastcore's,
 //! with this core's rows taken by table. The registry, the maildir and the
-//! network part are `mailrs_core_sidestate::families::account_purge`.
+//! network part are `mailrs_core_sidestate::families::account_purge`. The
+//! same task and a route of their own purge deleted email groups' team
+//! state (`group_purge`) and their reply claims in this core's table, as
+//! fastcore does in its store.
 
 use std::io;
 use std::path::Path;
@@ -11,9 +14,12 @@ use axum::Json;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use kevy_client::Connection;
-use mailrs_core_api::method::admin::{AccountPurgeResponse, AccountPurgeRow, PurgeCount};
+use mailrs_core_api::method::admin::{
+    AccountPurgeResponse, AccountPurgeRow, GroupPurgeResponse, PurgeCount,
+};
 use mailrs_core_sidestate::NetKevy;
 use mailrs_core_sidestate::families::account_purge::{self as purge, maildir, pending};
+use mailrs_core_sidestate::families::group_purge;
 use purge::registry::{SQL_CASCADED, SQL_TABLES, Store};
 
 use crate::core_rpc::CoreRpcState;
@@ -211,6 +217,65 @@ pub async fn account_purge_route(
         .map(Json)
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct GroupPurgeQuery {
+    #[serde(default = "yes")]
+    dry_run: bool,
+    gid: Option<i64>,
+}
+
+/// The table a group purge counts this core's reply claims under.
+const REPLY_TABLE: &str = "shared_reply_state";
+
+/// One group pass: the network kevy's part, and the reply claims of the
+/// groups' conversations in this core's table, as fastcore's.
+pub(crate) async fn run_groups(
+    state: &Arc<CoreRpcState>,
+    dry_run: bool,
+    only: Option<i64>,
+    now: i64,
+    retention_days: u64,
+) -> Result<GroupPurgeResponse, StatusCode> {
+    let pass = net(state, move |c| {
+        group_purge::due(c, now, retention_days, only)
+    })
+    .await?;
+    let mut rows = Vec::new();
+    for g in &pass.due {
+        let n = state
+            .mailbox
+            .purge_group_replies(g.gid, dry_run)
+            .await
+            .map_err(sql_failed)?;
+        let mail = vec![PurgeCount {
+            name: REPLY_TABLE.to_string(),
+            count: n,
+        }];
+        let g = g.clone();
+        let row = net(state, move |c| {
+            let row = group_purge::row(&g, group_purge::network(c, &g, dry_run)?, mail);
+            if !dry_run {
+                group_purge::finish(c, &row, now)?;
+            }
+            Ok(row)
+        })
+        .await?;
+        rows.push(row);
+    }
+    Ok(pass.response(dry_run, retention_days, rows))
+}
+
+/// POST /v1/admin/maintenance:group-purge
+pub async fn group_purge_route(
+    State(state): State<Arc<CoreRpcState>>,
+    Query(q): Query<GroupPurgeQuery>,
+) -> Result<Json<GroupPurgeResponse>, StatusCode> {
+    let days = group_purge::retention_days();
+    run_groups(&state, q.dry_run, q.gid, now(), days)
+        .await
+        .map(Json)
+}
+
 /// Mark `address` deleted at `now`, for its purge. `Ok(false)` when no
 /// network kevy is configured (tests); one configured and unreachable is
 /// a 503, since a delete that cannot mark would never be purged.
@@ -250,8 +315,8 @@ pub(crate) async fn is_pending(
 const BASE: Duration = Duration::from_secs(3600);
 const MAX: Duration = Duration::from_secs(24 * 3600);
 
-/// The wait after a pass that purged `purged` accounts: doubling while
-/// nothing is due, back to hourly after one that purged.
+/// The wait after a pass that purged `purged` accounts and groups:
+/// doubling while nothing is due, back to hourly after one that purged.
 fn next_wait(wait: Duration, purged: usize) -> Duration {
     match purged {
         0 => (wait * 2).min(MAX),
@@ -259,17 +324,21 @@ fn next_wait(wait: Duration, purged: usize) -> Duration {
     }
 }
 
-/// Purge what is due, for ever. A pass with nothing due reads one hash and
-/// writes nothing.
+/// Purge what is due, deleted accounts and deleted groups' team state, for
+/// ever. A pass with nothing due reads two hashes and writes nothing.
 pub(crate) fn spawn(state: Arc<CoreRpcState>) {
     tokio::spawn(async move {
         let mut wait = BASE;
         loop {
             tokio::time::sleep(wait).await;
             let days = pending::retention_days();
-            let purged = run(&state, false, None, now(), days)
+            let accounts = run(&state, false, None, now(), days)
                 .await
                 .map_or(0, |r| r.rows.len());
+            let groups = run_groups(&state, false, None, now(), days)
+                .await
+                .map_or(0, |r| r.rows.len());
+            let purged = accounts + groups;
             wait = next_wait(wait, purged);
         }
     });
