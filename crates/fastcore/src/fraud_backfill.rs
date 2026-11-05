@@ -295,9 +295,11 @@ fn judge(
             limit: BATCH as u64,
             pause_ms: 100,
             action: fraud_rescan::Action::Hold,
+            candidate: None,
         },
         Some(batch),
         Some(current),
+        None,
         hangup,
     )
     .map_err(|e| format!("rescan failed: {e}"))?;
