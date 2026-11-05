@@ -12,6 +12,23 @@ end)
 rule('executable-attachment', 'content', 6, true, function(m)
     if m.has_executable_attachment then return 'carries an attachment the operating system would run' end
 end)
+-- An attachment whose signature says archive but whose entry names
+-- cannot all be read: a 7z, a RAR with header encryption, a RAR whose
+-- headers break off or that has more entries than are read.  Nothing
+-- in it was checked for a program; when another attachment, or a name
+-- that could be read, shows one, the rule above holds and this fact is
+-- not set.
+--
+-- **Scored, not held.**  An archive that will not say what it holds is
+-- not proof of anything: ordinary senders send 7z, and header
+-- encryption is a setting people choose to keep file names private.
+-- 3 is below the Junk threshold (5), so alone it leaves the inbox
+-- alone; with another signal it adds up.
+rule('archive-names-unreadable', 'content', 3, false, function(m)
+    if m.has_unreadable_archive then
+        return 'the names of the files inside an attached archive could not be read, so what it holds was not checked'
+    end
+end)
 -- A letter that offers its reader part of a sum in the millions: the
 -- advance-fee fraud.  It has no header of its own — the wave that
 -- reached an inbox on 2026-09-28 came from a real company's stolen

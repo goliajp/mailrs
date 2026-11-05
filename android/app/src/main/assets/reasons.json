@@ -1,4 +1,9 @@
 {
+  "archive-names-unreadable": {
+    "en": "The names of the files inside an attached archive could not be read, so its contents could not be checked.",
+    "ja": "添付の圧縮ファイルに入っているファイルの名前を読み取れなかったため、中身を確認できませんでした。",
+    "zh": "附件里的压缩包读不出里面的文件名，没能检查里面装的是什么。"
+  },
   "asks-for-the-readers-line": {
     "en": "The text asks you to send your own LINE QR code.",
     "ja": "本文があなた自身の LINE QR コードを送るよう求めています。",
