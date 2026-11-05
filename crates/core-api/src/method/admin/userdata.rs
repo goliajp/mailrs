@@ -61,7 +61,12 @@ pub struct DraftWire {
     /// When the message is set to go, in epoch seconds; absent sends at once.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scheduled_at: Option<i64>,
-    /// Epoch seconds.
+    /// Files kept with the draft, in the order the composer shows them.
+    /// Left out when there are none, so a draft without files reads exactly
+    /// as it did before drafts could hold any.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<DraftAttachment>,
+    /// Epoch seconds; the first save's, kept by every later save.
     pub created_at: i64,
     /// Epoch seconds.
     pub updated_at: i64,
@@ -101,6 +106,23 @@ pub struct SaveDraftRequest {
     /// When the message is set to go, in epoch seconds.
     #[serde(default)]
     pub scheduled_at: Option<i64>,
+    /// Absent keeps the files the draft already has, so a client that does
+    /// not know about them cannot drop them by saving; `[]` removes them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attachments: Option<Vec<DraftAttachment>>,
+}
+
+/// A file kept with a draft. The bytes are in the account's upload store
+/// under `blob_id`; the draft holds only this reference.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DraftAttachment {
+    /// `U` and the SHA-256 of the bytes, as an upload answers it.
+    pub blob_id: String,
+    pub name: String,
+    pub content_type: String,
+    /// Bytes. The saved draft takes it from the stored file.
+    pub size: u64,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

@@ -77,8 +77,21 @@ export type WireSnoozeResult = z.infer<typeof snoozeResultSchema>
 // object under Zod strip (default '' for the wrong-name fields,
 // validation error for the wrong-type timestamps).
 
+// Backend: crates/core-api/src/method/admin/userdata.rs — struct DraftAttachment
+export const draftAttachmentSchema = z.object({
+  blob_id: z.string(),
+  content_type: z.string(),
+  name: z.string(),
+  size: z.number(),
+})
+
+export type WireDraftAttachment = z.infer<typeof draftAttachmentSchema>
+
 export const draftSchema = z
   .object({
+    // absent when the draft has none; listed only to a client that asks
+    // with `with_attachments=true` (crates/webapi/src/handlers/draft_send.rs)
+    attachments: z.array(draftAttachmentSchema).default([]),
     bcc: z.string().default(''),
     body: z.string().default(''),
     cc: z.string().default(''),

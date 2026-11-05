@@ -100,3 +100,8 @@
 /api/admin/rejudge/batches/{observation}/release  # one batch put back by the super administrator with curl, after reading the list.
 /api/admin/rejudge/batches/{observation}/confirm  # a round waiting over the hold cap, held by the super administrator with curl after reading the list. No admin page has been asked for.
 /api/admin/rejudge/batches/{observation}/discard  # a round waiting over the hold cap, dropped by the super administrator with curl after reading the list. No admin page has been asked for.
+
+# ---- server half shipped first; the clients follow in their own releases ----
+
+/api/mail/draft-attachments             # draft files: the server half (upload, draft save, send with draft_id) ships first; the web composer and then the apps call it when they keep files in drafts. Until then nothing saves a draft with files.
+/api/mail/draft-attachments/{blob_id}    # as above: opening a draft's file

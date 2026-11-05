@@ -15,7 +15,9 @@ use crate::WebState;
 use crate::handlers::compose::*;
 use crate::handlers::compose_attach::*;
 use crate::handlers::conversations::AuthedUser;
+use crate::handlers::draft_send;
 use crate::handlers::send_error::SendError;
+pub(crate) use crate::handlers::send_key_audit::record_key_send;
 use crate::handlers::send_queue::*;
 use crate::handlers::shared_inbox::claim as team;
 use crate::session::AgentKey;
@@ -54,6 +56,7 @@ pub(crate) async fn send_message(
         reply_to_thread_id: req.reply_to_thread_id,
         attachments: Vec::new(),
     };
+    draft_send::attach(&user, req.draft_id, &mut parts).await?;
     // If the compose is a forward, look up the original message and
     // prepend its body onto what the user typed. Pre-2.9.38 the field
     // was passed through untouched and build_rfc5322 ignored it, so
@@ -71,6 +74,7 @@ pub(crate) async fn send_message(
         &mut parts,
     )
     .await?;
+    draft_send::ensure_within_limit(&parts)?;
     // Before `build_rfc5322`, which is what writes In-Reply-To/References.
     infer_in_reply_to(&state, &user, &mut parts).await;
     if breaks_a_header_line(&parts) {
@@ -109,6 +113,7 @@ pub(crate) async fn send_message(
     .await;
     team::settle(&state, &user, claimed, &message_id, queued.is_ok()).await;
     queued?;
+    draft_send::discard(&user, req.draft_id);
     Ok(Json(SendResponse {
         message_id,
         success: true,
@@ -190,7 +195,7 @@ pub(crate) async fn send_email_mcp(
 /// POST /api/mail/send-multipart — multipart/form-data compose form.
 /// Fields: from, to (repeated), cc (repeated), bcc (repeated), subject,
 /// body, html_body, attachments (repeated file parts), in_reply_to,
-/// scheduled_at, forward_message_id, forward_attachments_from.
+/// scheduled_at, forward_message_id, forward_attachments_from, draft_id.
 pub(crate) async fn send_message_multipart(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
@@ -203,6 +208,7 @@ pub(crate) async fn send_message_multipart(
         ..Default::default()
     };
     let mut redraft_of: Option<String> = None;
+    let mut draft_id: Option<i64> = None;
     let mut undo_seconds: Option<u32> = None;
     // Absent and empty are different: absent keeps every carried
     // attachment, an empty list keeps none. A form that dropped the
@@ -240,6 +246,10 @@ pub(crate) async fn send_message_multipart(
                 undo_seconds = field.text().await.ok().and_then(|s| s.trim().parse().ok())
             }
             "redraft_of" => redraft_of = field.text().await.ok().filter(|s| !s.is_empty()),
+            "draft_id" => {
+                let raw = field.text().await.map_err(SendError::form)?;
+                draft_id = Some(raw.trim().parse().map_err(|_| StatusCode::BAD_REQUEST)?);
+            }
             "shared" => {
                 let raw = field.text().await.map_err(SendError::form)?;
                 shared = Some(serde_json::from_str(&raw).map_err(|_| StatusCode::BAD_REQUEST)?);
@@ -284,6 +294,7 @@ pub(crate) async fn send_message_multipart(
     }
     ensure_from_allowed(&state, &user, &parts.from).await?;
     super::send_queue::ensure_not_paused(&user, &parts.from)?;
+    draft_send::attach(&user, draft_id, &mut parts).await?;
     parts.scheduled_at = super::compose::hold_for_undo(
         parts.scheduled_at,
         undo_seconds,
@@ -300,6 +311,7 @@ pub(crate) async fn send_message_multipart(
         &mut parts,
     )
     .await?;
+    draft_send::ensure_within_limit(&parts)?;
     infer_in_reply_to(&state, &user, &mut parts).await;
     if breaks_a_header_line(&parts) {
         return Err(SendError::header_line_break());
@@ -343,71 +355,10 @@ pub(crate) async fn send_message_multipart(
     .await;
     team::settle(&state, &user, claimed, &message_id, queued.is_ok()).await;
     queued?;
+    draft_send::discard(&user, draft_id);
     Ok(Json(SendResponse {
         message_id,
         success: true,
         message: None,
     }))
-}
-
-/// A send made with an agent key leaves an audit line before anything is
-/// filed or queued; when the line cannot be written, nothing is sent.
-pub(crate) fn record_key_send(
-    key: Option<&AgentKey>,
-    user: &str,
-    headers: &HeaderMap,
-    message_id: &str,
-) -> Result<(), StatusCode> {
-    let Some(key) = key else {
-        return Ok(());
-    };
-    crate::handlers::audit::record_required(
-        user,
-        "mail.send.agent_key",
-        message_id,
-        &key_send_detail(key, headers),
-    )
-}
-
-/// `x-caller` is what the caller says it is, so it is cut short and kept
-/// to printable characters.
-fn key_send_detail(key: &AgentKey, headers: &HeaderMap) -> String {
-    let caller: String = headers
-        .get("x-caller")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("")
-        .chars()
-        .filter(|c| !c.is_control())
-        .take(64)
-        .collect();
-    format!("key={} caller={caller} ip={}", key.prefix, key.source)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_audit_line_names_the_key_caller_and_source() {
-        let key = AgentKey {
-            id: 3,
-            prefix: "mk_ab12c".into(),
-            source: "203.0.113.9".parse().unwrap(),
-        };
-        let mut headers = HeaderMap::new();
-        headers.insert("x-caller", "insight weekly\treport".parse().unwrap());
-        assert_eq!(
-            key_send_detail(&key, &headers),
-            "key=mk_ab12c caller=insight weeklyreport ip=203.0.113.9"
-        );
-        headers.insert("x-caller", "a".repeat(100).parse().unwrap());
-        assert_eq!(
-            key_send_detail(&key, &headers),
-            format!("key=mk_ab12c caller={} ip=203.0.113.9", "a".repeat(64))
-        );
-        assert_eq!(
-            key_send_detail(&key, &HeaderMap::new()),
-            "key=mk_ab12c caller= ip=203.0.113.9"
-        );
-    }
 }

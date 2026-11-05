@@ -112,6 +112,7 @@ pub const OWNED: &[Owned] = &[
     net("encryption_keys:{user}", Shape::Key(|a| format!("encryption_keys:{a}"))),
     net("pgp_keys:{user}", Shape::Key(|a| format!("pgp_keys:{a}"))),
     net("inline:*", Shape::Custom(custom::inline_uploads)),
+    net("upload store {user} (files on disk)", Shape::Custom(custom::upload_dir)),
     net("inline-uploaded:{user}", Shape::Key(|a| format!("inline-uploaded:{}", a.to_lowercase()))),
     net("mailrs:jmap:snapshots:{user}", Shape::Key(|a| format!("mailrs:jmap:snapshots:{a}"))),
     net("mailrs:jmap:snapshot:{user}:*", Shape::Globs(|a| under("mailrs:jmap:snapshot:", a, ":"))),

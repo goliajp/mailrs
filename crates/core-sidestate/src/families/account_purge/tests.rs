@@ -5,7 +5,7 @@ use kevy_client::Connection;
 use super::registry::{OWNED, Store};
 use super::shape::Shape;
 use super::*;
-use crate::families::{identity_link, masked_email, mock, webhook_outbox, webhooks};
+use crate::families::{identity_link, masked_email, mock, uploads, webhook_outbox, webhooks};
 use crate::keys::{credentials, session};
 
 const ALICE: &str = "alice@x.test";
@@ -69,7 +69,7 @@ fn seed(c: &mut Connection, who: &str, tag: &str, now: i64) {
         .unwrap();
     }
     c.hset(
-        format!("inline:{tag}").as_bytes(),
+        crate::families::inline_images::key(tag).as_bytes(),
         &[(b"owner".as_slice(), who.as_bytes())],
     )
     .unwrap();
@@ -100,6 +100,13 @@ fn seed(c: &mut Connection, who: &str, tag: &str, now: i64) {
     )
     .unwrap();
     mock::create_namespace(c, who, &format!("ns-{tag}")).unwrap();
+    uploads::put(
+        &uploads::root(),
+        who,
+        tag.as_bytes(),
+        std::time::SystemTime::now(),
+    )
+    .unwrap();
     c.hset(
         mailrs_alias_store::keys::alias_v2_key(&format!("alias-{tag}@y.test")).as_bytes(),
         &[(b"target".as_slice(), who.as_bytes())],
@@ -170,6 +177,9 @@ fn bookkeeping(key: &[u8]) -> bool {
 
 #[tokio::test]
 async fn a_purge_leaves_nothing_of_the_account_and_all_of_the_others() {
+    let uploads_root = tempfile::tempdir().unwrap();
+    // SAFETY: no other test in this crate reads the variable
+    unsafe { std::env::set_var("MAILRS_JMAP_UPLOAD_DIR", uploads_root.path()) };
     let (_server, url) = mailrs_test_docker::kevy::kevy_server().await;
     let mut c = Connection::connect(&url).unwrap();
     let now = 1_800_000_000;
@@ -190,6 +200,8 @@ async fn a_purge_leaves_nothing_of_the_account_and_all_of_the_others() {
     assert_eq!(snapshot(&mut c), before, "counting wrote");
 
     remove_store(&mut c, Store::Network, ALICE).unwrap();
+    assert!(!uploads::account_dir(uploads_root.path(), ALICE).exists());
+    assert!(uploads::account_dir(uploads_root.path(), BOB).exists());
     let left = unregistered(&mut c, ALICE).unwrap();
     assert!(left.is_empty(), "keys naming the account remain: {left:?}");
     let after = count_store(&mut c, Store::Network, ALICE).unwrap();

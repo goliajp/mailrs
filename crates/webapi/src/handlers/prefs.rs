@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 use crate::handlers::kevy_util::with_kevy;
 use axum::Json;
-use axum::extract::{Extension, Path, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::StatusCode;
 
 use crate::WebState;
@@ -55,6 +55,7 @@ pub(crate) fn next_id(c: &mut kevy_client::Connection, counter_key: &str) -> std
 pub async fn list_drafts(
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Query(q): Query<crate::handlers::draft_send::ListDrafts>,
 ) -> Result<Json<Vec<mailrs_core_api::method::admin::DraftWire>>, StatusCode> {
     let key = mailrs_core_sidestate::families::prefs::drafts_key(&user);
     let out = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))?;
@@ -68,50 +69,36 @@ pub async fn list_drafts(
             drafts.push(d);
         }
     }
+    drafts.retain(|d| q.shows(d));
     drafts.sort_by_key(|d| -d.updated_at);
     Ok(Json(drafts))
 }
 
-/// POST /api/mail/drafts — { id: N }
+/// POST /api/mail/drafts — { id: N }, through the one draft writer.
 pub async fn save_draft(
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Json(req): Json<mailrs_core_api::method::admin::SaveDraftRequest>,
-) -> Result<Json<mailrs_core_api::method::admin::SaveDraftResponse>, StatusCode> {
-    let now = now_secs();
-    let key = mailrs_core_sidestate::families::prefs::drafts_key(&user);
-    let ckey = mailrs_core_sidestate::families::prefs::drafts_counter_key(&user);
-    let ckey_c = ckey.clone();
-    // upsert: a client-supplied id reuses the same hash field (in-place
-    // update); otherwise allocate a fresh id. hset overwrites either way.
-    let id = match req.id {
-        Some(existing) => existing,
-        None => with_kevy(move |c| next_id(c, &ckey_c))?,
-    };
-    let draft = mailrs_core_api::method::admin::DraftWire {
-        id,
-        to: req.to,
-        cc: req.cc,
-        bcc: req.bcc,
-        subject: req.subject,
-        body: req.body,
-        reply_to_thread_id: req.reply_to_thread_id,
-        from: req.from,
-        scheduled_at: req.scheduled_at,
-        created_at: now,
-        updated_at: now,
-    };
-    let json = serde_json::to_vec(&draft).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    with_kevy(move |c| {
-        c.hset(
-            key.as_bytes(),
-            &[(id.to_string().as_bytes(), json.as_slice())],
-        )?;
-        Ok(())
-    })?;
-    Ok(Json(mailrs_core_api::method::admin::SaveDraftResponse {
-        id,
-    }))
+) -> Result<
+    Json<mailrs_core_api::method::admin::SaveDraftResponse>,
+    (StatusCode, Json<serde_json::Value>),
+> {
+    use mailrs_core_sidestate::families::{draft_store, uploads};
+    let saved = crate::handlers::kevy_util::off_reactor(move || {
+        crate::kevy_pool::with_conn(|c| {
+            Ok(draft_store::save(
+                c,
+                &uploads::root(),
+                &user,
+                req,
+                now_secs(),
+            ))
+        })
+    });
+    match saved {
+        Ok(r) => r.map(Json).map_err(draft_store::SaveError::into_parts),
+        Err(e) => Err(draft_store::SaveError::Store(e).into_parts()),
+    }
 }
 
 /// DELETE /api/mail/drafts/{id}
@@ -120,11 +107,7 @@ pub async fn delete_draft(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = mailrs_core_sidestate::families::prefs::drafts_key(&user);
-    with_kevy(move |c| {
-        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])?;
-        Ok(())
-    })?;
+    with_kevy(move |c| mailrs_core_sidestate::families::draft_store::remove(c, &user, id))?;
     Ok(StatusCode::NO_CONTENT)
 }
 
