@@ -250,6 +250,12 @@ pub(crate) async fn deliver_message(
         tracing::error!(err = %e, %user, %thread_id, "upsert_user_message failed");
         return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
+    if let Err(e) = state
+        .mailbox
+        .set_message_category(&user, &req.message_id, &req.category)
+    {
+        tracing::warn!(err = %e, %user, %thread_id, "storing the message's category failed");
+    }
     // register the (sent-copy) message id → thread so a remote reply
     // citing it via In-Reply-To resolves into this conversation instead
     // of opening a fragment (the v2.9.5 threading fix's key edge).

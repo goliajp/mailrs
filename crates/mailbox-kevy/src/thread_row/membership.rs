@@ -43,6 +43,12 @@ pub(crate) const PER_USER_FLAGS: [&str; 9] = [
 
 /// `1` / `0` as the stored bytes for a boolean column. i64-typed in the
 /// declaration so `FILTER flag EQ 1` coerces cleanly.
+/// The declared columns that place a conversation in one reader's lists
+/// and are this reader's rather than the conversation's: never derived
+/// from the shared thread hash after the row exists (`standing.rs`).
+pub(crate) const PER_READER_STANDING: [&str; 4] =
+    ["bucket", "category", "activity", "requires_action"];
+
 pub(crate) fn flag(v: bool) -> &'static [u8] {
     if v { b"1" } else { b"0" }
 }
@@ -100,7 +106,6 @@ pub(crate) fn thread_user_pairs(
     row: &ThreadRow,
     counts: Option<(i64, i64)>,
 ) -> Vec<(Vec<u8>, Vec<u8>)> {
-    let bucket = keys::bucket_of(&row.category);
     let (sent_only, is_sender) = match counts {
         Some((total, own)) => axis_flags(total, own),
         // The fallback, for a thread the index cannot answer for — one
@@ -132,12 +137,6 @@ pub(crate) fn thread_user_pairs(
         (
             b"ord".to_vec(),
             tid_ord(&row.thread_id).to_string().into_bytes(),
-        ),
-        (b"bucket".to_vec(), bucket.name().as_bytes().to_vec()),
-        (b"category".to_vec(), row.category.as_bytes().to_vec()),
-        (
-            b"activity".to_vec(),
-            row.latest_date.to_string().into_bytes(),
         ),
         (b"account_id".to_vec(), row.account_id.as_bytes().to_vec()),
         (b"sent_only".to_vec(), flag(sent_only).to_vec()),
@@ -184,9 +183,11 @@ pub(crate) fn thread_user_pairs(
         // from the shared hash gave a member who joined a conversation
         // later the score of whoever was scored first.
         // `set_thread_importance` writes them on this row directly.
-        (
-            b"requires_action".to_vec(),
-            flag(row.requires_action).to_vec(),
-        ),
+        // `bucket`, `category`, `activity` and `requires_action` are absent
+        // for the same reason: the shared hash's are whichever member's
+        // mail arrived or whichever member filed it last, and copying them
+        // moved one member's conversation between tabs and re-sorted their
+        // list by mail only another member received. A row starts with them
+        // from `seed_standing`, and `standing.rs` writes them after that.
     ]
 }

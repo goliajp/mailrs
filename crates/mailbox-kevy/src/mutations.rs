@@ -98,54 +98,26 @@ impl KevyMailboxStore {
         thread_id: &str,
         bucket: keys::Bucket,
     ) -> io::Result<bool> {
-        let thread_key = keys::thread(thread_id);
         let user_key = keys::thread_user(user, thread_id);
-        let new_category = bucket.category().as_bytes();
-        self.store()
-            .atomic(|ctx| {
-                if !ctx.hexists(thread_key.as_bytes(), keys::THREAD_EXISTS_FIELD)? {
-                    return Ok(false);
-                }
-                // Only somebody in the thread files it. The shared row's
-                // category is written below and flows into every other
-                // owner's row, so a stranger who knew the id could
-                // otherwise move other people's mail.
-                if !ctx.hexists(user_key.as_bytes(), b"tid")? {
-                    return Ok(false);
-                }
-                // Moving a thread into a folder un-archives it.
-                // Archiving means "out of the incoming stream"; filing
-                // it somewhere is putting it back. Without this the
-                // thread lands in its new bucket and stays in the
-                // Archived tab, which is where it was moved *from* —
-                // the move appears to do nothing.
-                //
-                // Safe because this is only ever a user action:
-                // classification on the ingest path goes through
-                // record_message_arrival and never calls this.
-                ctx.hset(
-                    thread_key.as_bytes(),
-                    &[(b"category" as &[u8], new_category), (b"archived", b"0")],
-                )?;
-                hset_membership(
-                    ctx,
-                    user_key.as_bytes(),
-                    &[
-                        (b"bucket".as_slice(), bucket.name().as_bytes()),
-                        (b"category".as_slice(), new_category),
-                        (b"archived".as_slice(), b"0".as_slice()),
-                    ],
-                )?;
-                Ok(true)
-            })
-            .map_err(std::io::Error::from)
-            .and_then(|found| {
-                // in or out of Junk changes whether it has a section
-                if found {
-                    self.rewrite_section(&user_key)?;
-                }
-                Ok(found)
-            })
+        // Only somebody in the thread files it, and only for themselves:
+        // the move is on their row and their messages (`standing.rs`), and
+        // the shared hash is no longer written, so it cannot reach another
+        // member's row.
+        if !self.store().hexists(user_key.as_bytes(), b"tid")? {
+            return Ok(false);
+        }
+        self.file_for_reader(user, thread_id, bucket.category())?;
+        // Moving a thread into a folder un-archives it. Archiving means
+        // "out of the incoming stream"; filing it somewhere is putting it
+        // back. Without this the thread lands in its new bucket and stays
+        // in the Archived tab, which is where it was moved *from* — the
+        // move appears to do nothing.
+        //
+        // Safe because this is only ever a user action: classification on
+        // the ingest path goes through record_message_arrival and never
+        // calls this.
+        self.toggle_flag(user, thread_id, "archived", false)?;
+        Ok(true)
     }
 
     /// Common path: hset the boolean field on **this user's** membership
@@ -300,18 +272,10 @@ impl KevyMailboxStore {
 }
 
 impl KevyMailboxStore {
-    /// Set a thread's display date.
-    ///
-    /// Goes through `upsert_thread` rather than writing the two fields
-    /// directly, and that is the whole point. The shared hash calls
-    /// this `latest_date` and the membership row calls it `activity`,
-    /// but the row belongs to a **declared table**: its ordering is
-    /// derived from the row when the row is written the way the table
-    /// expects. Poking `activity` with a bare `hset` updated the field
-    /// — `get_thread` and a by-id lookup both reported the new value —
-    /// and left the index sorting on the old one, so the conversation
-    /// list went on showing the date and the position that had just
-    /// been repaired.
+    /// Set `user`'s display date for a conversation: the `activity` on
+    /// their own row, which every ORDERPATH sorts on, through the one writer
+    /// of it (`standing.rs`). The shared hash's `latest_date` is somebody
+    /// else's as often as it is theirs, so a repair goes nowhere near it.
     ///
     /// Returns whether anything changed, so a sweep with nothing to do
     /// does nothing.
@@ -321,15 +285,7 @@ impl KevyMailboxStore {
         thread_id: &str,
         date: i64,
     ) -> io::Result<bool> {
-        let Some(mut row) = self.get_thread(thread_id)? else {
-            return Ok(false);
-        };
-        if row.latest_date == date {
-            return Ok(false);
-        }
-        row.latest_date = date;
-        self.upsert_thread(user, &row)?;
-        Ok(true)
+        self.write_standing(user, thread_id, None, Some(date), None)
     }
 }
 
@@ -659,7 +615,10 @@ mod tests {
 
         assert!(s.set_bucket(u, "t1", keys::Bucket::Promotions).unwrap());
         assert_eq!(where_is_it(&s), vec!["Promotions"]);
-        assert_eq!(s.get_thread("t1").unwrap().unwrap().category, "promotion");
+        assert_eq!(
+            s.get_thread_for_user(u, "t1").unwrap().unwrap().category,
+            "promotion"
+        );
 
         assert!(s.set_bucket(u, "t1", keys::Bucket::Notifications).unwrap());
         assert_eq!(where_is_it(&s), vec!["Notifications"]);

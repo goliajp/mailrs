@@ -7,7 +7,7 @@
 
 use std::io;
 
-use super::{PER_USER_FLAGS, ThreadRow, hset_membership, thread_user_pairs};
+use super::{PER_READER_STANDING, PER_USER_FLAGS, ThreadRow, hset_membership, thread_user_pairs};
 use crate::KevyMailboxStore;
 use crate::keys;
 
@@ -47,7 +47,10 @@ impl KevyMailboxStore {
             .copied()
             .filter(|f| !have.contains_key(f.as_bytes()))
             .collect();
-        if missing.is_empty() && want.iter().all(|(k, v)| have.get(k) == Some(v)) {
+        let no_standing = PER_READER_STANDING
+            .iter()
+            .any(|f| !have.contains_key(f.as_bytes()));
+        if missing.is_empty() && !no_standing && want.iter().all(|(k, v)| have.get(k) == Some(v)) {
             if !have.contains_key(b"senders_csv".as_slice()) {
                 self.seed_participants(user, &row.thread_id)?;
             }
@@ -55,6 +58,15 @@ impl KevyMailboxStore {
                 self.seed_display(user, &row.thread_id)?;
             }
             return Ok(false);
+        }
+        let mut want = want;
+        // a field the row lacks starts from the reader's own messages
+        if no_standing {
+            want.extend(
+                self.seed_standing(user, row)?
+                    .into_iter()
+                    .filter(|(k, _)| !have.contains_key(k)),
+            );
         }
         let refs: Vec<(&[u8], &[u8])> = want
             .iter()
@@ -100,7 +112,15 @@ impl KevyMailboxStore {
             .iter()
             .map(|(k, v)| (k.as_slice(), v.as_slice()))
             .collect();
-        self.store()
+        // What a row created here starts with; an existing row keeps its
+        // own and is recounted below.
+        let seed = self.seed_standing(user, row)?;
+        let seed_refs: Vec<(&[u8], &[u8])> = seed
+            .iter()
+            .map(|(k, v)| (k.as_slice(), v.as_slice()))
+            .collect();
+        let fresh = self
+            .store()
             .atomic(|ctx| {
                 ctx.hset(key.as_bytes(), &pair_refs)?;
 
@@ -118,11 +138,15 @@ impl KevyMailboxStore {
                 hset_membership(ctx, tu_key.as_bytes(), &tu_refs)?;
                 if fresh {
                     hset_membership(ctx, tu_key.as_bytes(), &zeros_for(&PER_USER_FLAGS))?;
+                    hset_membership(ctx, tu_key.as_bytes(), &seed_refs)?;
                 }
 
-                Ok(())
+                Ok(fresh)
             })
             .map_err(std::io::Error::from)?;
+        if !fresh {
+            self.recount_standing(user, &row.thread_id, false)?;
+        }
         self.seed_participants(user, &row.thread_id)?;
         self.display_after_upsert(user, &row.thread_id, &row.subject, &row.latest_preview)
     }

@@ -1,9 +1,5 @@
-//! `move_category` — switch a thread from one category to another.
-//!
-//! v2 Stage B.1: kevy 3.17 `AtomicCtx` has `zrem`; the 4-op sequence
-//! (read old / hset new / zrem old / zadd new) now runs inside one
-//! atomic closure holding a single shard write lock. No inconsistent
-//! window between zrem and zadd.
+//! `move_category` — switch one reader's copy of a thread from one
+//! category to another.
 
 use std::io;
 
@@ -11,53 +7,23 @@ use super::KevyMailboxStore;
 use super::keys;
 
 impl KevyMailboxStore {
-    /// Move `thread_id` from its current category to `new_category`.
-    /// No-op if the row is already in `new_category`. Returns true if
-    /// the row was found.
+    /// Move `user`'s copy of `thread_id` into `new_category`, for them
+    /// alone (`standing.rs`). No-op if it is already there. Returns true if
+    /// they hold the conversation.
     pub fn move_category(
         &self,
         user: &str,
         thread_id: &str,
         new_category: &str,
     ) -> io::Result<bool> {
-        let thread_key = keys::thread(thread_id);
-        self.store()
-            .atomic(|ctx| {
-                let old = ctx
-                    .hget(thread_key.as_bytes(), b"category")?
-                    .and_then(|v| String::from_utf8(v).ok());
-                let Some(old) = old else {
-                    return Ok(false);
-                };
-                if old == new_category {
-                    return Ok(true);
-                }
-                ctx.hset(
-                    thread_key.as_bytes(),
-                    &[(b"category" as &[u8], new_category.as_bytes())],
-                )?;
-                // The membership row is what the bucket and category
-                // axes read; the engine derives both indexes from it.
-                ctx.hset(
-                    keys::thread_user(user, thread_id).as_bytes(),
-                    &[
-                        (b"category".as_slice(), new_category.as_bytes()),
-                        (
-                            b"bucket".as_slice(),
-                            keys::bucket_of(new_category).name().as_bytes(),
-                        ),
-                    ],
-                )?;
-                Ok(true)
-            })
-            .map_err(std::io::Error::from)
-            .and_then(|found| {
-                // in or out of Junk changes whether it has a section
-                if found {
-                    self.rewrite_section(&keys::thread_user(user, thread_id))?;
-                }
-                Ok(found)
-            })
+        if !self
+            .store()
+            .hexists(keys::thread_user(user, thread_id).as_bytes(), b"tid")?
+        {
+            return Ok(false);
+        }
+        self.file_for_reader(user, thread_id, new_category)?;
+        Ok(true)
     }
 }
 
@@ -113,7 +79,7 @@ mod tests {
 
         assert_eq!(count("inbox"), 0, "the old category must let it go");
         assert_eq!(count("social"), 1, "the new one must hold it");
-        let row = s.get_thread("t1").unwrap().unwrap();
+        let row = s.get_thread_for_user(u, "t1").unwrap().unwrap();
         assert_eq!(row.category, "social");
     }
 

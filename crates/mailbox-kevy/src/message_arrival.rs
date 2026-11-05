@@ -54,6 +54,8 @@ impl KevyMailboxStore {
         let preview = m.latest_preview.as_bytes().to_vec();
         let category = m.category.as_bytes().to_vec();
         let tu_key = keys::thread_user(m.user, m.thread_id);
+        // the reader's row as it was, which decides what this arrival moves
+        let before = self.standing_before(m.user, m.thread_id)?;
 
         self.store().atomic(|ctx| {
             // senders_csv is the participant UNION, not "latest sender" —
@@ -177,6 +179,9 @@ impl KevyMailboxStore {
         self.add_participants(m.user, m.thread_id, m.senders_csv)?;
         // And its subject and preview, onto the reader's row only.
         self.add_display(m.user, m.thread_id, m.subject, m.latest_preview, m.is_own)?;
+        // And its tab and time, onto the reader's row only: the shared
+        // hash's category and date above are whoever's mail came last.
+        self.arrive_standing(m, before)?;
         Ok(())
     }
 }

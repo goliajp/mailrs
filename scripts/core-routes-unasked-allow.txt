@@ -46,6 +46,8 @@ POST /v1/admin/maintenance:recompute-thread-importance | put each reader's own i
 POST /v1/admin/maintenance:recompute-thread-participants | put each reader's participant list back to the senders of their own messages (dry run unless dry_run=false; skip/limit; all=true for single-reader conversations)
 POST /v1/admin/maintenance:recompute-unread-column | put each reader's unread column back to what their own message rows say (dry run unless dry_run=false; skip/limit; all=true for single-reader conversations)
 POST /v1/admin/maintenance:recompute-thread-display | put each reader's subject and preview back to their own messages and count what showed other people's mail (dry run unless dry_run=false; skip/limit; all=true for single-reader conversations)
+POST /v1/admin/maintenance:recompute-thread-standing | put each reader's tab and time back to their own messages and count, per account, the conversations that would move tab or re-sort (dry run unless dry_run=false; skip/limit; all=true for single-reader conversations)
+POST /v1/admin/maintenance:recompute-message-dates | put stored message dates back to what ingest computes from the file (zone ignored, or 0) and recount each reader's row time; counts per account the messages and rows whose time changes and the rows that move (dry run unless dry_run=false; skip/limit; user=)
 POST /v1/admin/maintenance:reindex | put the maildir's own facts back onto every thread row
 POST /v1/admin/maintenance:repair-blob-refs | give back the file reference to rows listed with an empty blob_ref
 POST /v1/admin/maintenance:backfill-message-files | record every file each copy of a message has, so a delete removes them all
