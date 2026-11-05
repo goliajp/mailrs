@@ -22,10 +22,25 @@ pub fn park(root: &Path, address: &str, ts: i64) -> io::Result<()> {
         Err(e) => return Err(e),
     }
     let into = root.join(".deleted").join(domain);
-    std::fs::create_dir_all(&into)?;
-    std::fs::rename(&from, into.join(format!("{local}.{ts}")))?;
+    move_into(&from, &into, &format!("{local}.{ts}"), || {})?;
     tracing::info!(%address, to = %into.display(), "deleted account's maildir set aside");
     Ok(())
+}
+
+/// Move `from` to `into/name`, making `into` first. A purge removes
+/// `into` when it is empty ([`let_go_of`]), and can do so between the two
+/// steps; the move then finds no directory, so `into` is made again and the
+/// move tried once more. `made` runs after `into` is first made.
+fn move_into(from: &Path, into: &Path, name: &str, made: impl FnOnce()) -> io::Result<()> {
+    std::fs::create_dir_all(into)?;
+    made();
+    match std::fs::rename(from, into.join(name)) {
+        Err(e) if e.kind() == io::ErrorKind::NotFound && from.exists() => {
+            std::fs::create_dir_all(into)?;
+            std::fs::rename(from, into.join(name))
+        }
+        moved => moved,
+    }
 }
 
 /// Every parked maildir of `address`, oldest first: one per delete, so an
@@ -79,10 +94,35 @@ pub fn measure(dirs: &[PathBuf]) -> io::Result<(u64, u64)> {
     Ok((files, bytes))
 }
 
-/// Remove `dirs` and everything in them.
-pub fn remove(dirs: &[PathBuf]) -> io::Result<()> {
+/// Remove `dirs`, parked under `root`, and everything in them; then
+/// `.deleted/<domain>/` and `.deleted/` where that left them empty.
+pub fn remove(root: &Path, dirs: &[PathBuf]) -> io::Result<()> {
     for d in dirs {
         std::fs::remove_dir_all(d)?;
+        let_go_of(root, d)?;
+    }
+    Ok(())
+}
+
+/// `parked` has left `<root>/.deleted/<domain>/` (removed, or moved back
+/// by a restore): remove that directory and `.deleted/` if nothing else is
+/// in them. `remove_dir` refuses a directory that is not empty, so a
+/// maildir parked meanwhile is never touched.
+pub fn let_go_of(root: &Path, parked: &Path) -> io::Result<()> {
+    let deleted = root.join(".deleted");
+    let Some(domain) = parked
+        .parent()
+        .filter(|p| p.parent() == Some(deleted.as_path()))
+    else {
+        return Ok(());
+    };
+    for dir in [domain, deleted.as_path()] {
+        match std::fs::remove_dir(dir) {
+            Ok(()) => {}
+            Err(e) if e.kind() == io::ErrorKind::DirectoryNotEmpty => return Ok(()),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+        }
     }
     Ok(())
 }
@@ -119,10 +159,55 @@ mod tests {
             ]
         );
         assert_eq!(measure(&dirs).unwrap(), (3, 17));
-        remove(&dirs).unwrap();
+        remove(root, &dirs).unwrap();
         assert!(parked(root, "a@x.test").unwrap().is_empty());
         assert!(root.join(".deleted/x.test/a.b.7").exists());
         assert!(root.join(".deleted/x.test/ab.7").exists());
+    }
+
+    #[test]
+    fn the_purge_removes_the_parents_it_emptied_and_no_other() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        file(&root.join("x.test/a/cur"), "1", 1);
+        file(&root.join("y.test/b/cur"), "2", 1);
+        file(&root.join("y.test/c/cur"), "3", 1);
+        for address in ["a@x.test", "b@y.test", "c@y.test"] {
+            park(root, address, 100).unwrap();
+        }
+
+        remove(root, &parked(root, "a@x.test").unwrap()).unwrap();
+        assert!(!root.join(".deleted/x.test").exists());
+        assert!(root.join(".deleted").exists(), "y.test is still parked");
+
+        remove(root, &parked(root, "b@y.test").unwrap()).unwrap();
+        assert!(root.join(".deleted/y.test/c.100").exists());
+
+        remove(root, &parked(root, "c@y.test").unwrap()).unwrap();
+        assert!(!root.join(".deleted").exists());
+        assert!(
+            root.join("x.test").exists(),
+            "a live domain dir was removed"
+        );
+        // nothing parked is nothing to remove
+        remove(root, &[]).unwrap();
+    }
+
+    #[test]
+    fn parking_survives_a_purge_removing_the_empty_parent_meanwhile() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        file(&root.join("x.test/a/cur"), "1", 1);
+        let into = root.join(".deleted/x.test");
+        // a purge of the domain's last parked maildir lets go of the
+        // directory just made, between making it and the move
+        move_into(&root.join("x.test/a"), &into, "a.100", || {
+            let_go_of(root, &into.join("b.50")).unwrap();
+            assert!(!root.join(".deleted").exists());
+        })
+        .unwrap();
+        assert!(into.join("a.100/cur/1").exists());
+        assert_eq!(parked(root, "a@x.test").unwrap(), [into.join("a.100")]);
     }
 
     #[test]

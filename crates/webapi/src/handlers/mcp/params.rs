@@ -368,14 +368,6 @@ pub struct EmailGroupIdNumParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub struct EmailGroupMemberParams {
-    /// Email group id as returned by `list_email_groups`.
-    pub group_id: String,
-    /// Member address to add / remove.
-    pub address: String,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
 pub struct SetEncryptionKeyParams {
     /// `pgp` or `smime`.
     pub key_type: String,

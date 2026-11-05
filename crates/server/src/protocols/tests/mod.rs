@@ -22,6 +22,7 @@ mod passwordless;
 mod script;
 mod seen;
 mod selection;
+mod sent_append;
 mod steps;
 mod uidl;
 
@@ -158,6 +159,7 @@ async fn conversations<D: Directory>(
         diffs.extend(converse(client, "pop3", &steps).await);
     }
     diffs.extend(forged_append::append(dir.clone(), home.clone()).await);
+    diffs.extend(sent_append::append_twice(dir.clone(), home.clone()).await);
     diffs.extend(bodies::folders(dir.clone(), home.clone(), net).await);
     diffs.extend(labelled::label(dir.clone(), home).await);
     diffs.extend(passwordless_refused(dir).await);
@@ -222,6 +224,14 @@ async fn both_cores_hold_the_same_mail_conversations() {
         report.push(format!("pg-core: {diff}"));
     }
     report.extend(archived_alike(&backends).await);
+    sent_append::submit_on_fastcore(&backends).await;
+    for diff in sent_append::after_submission(backends.fastcore.clone(), backends.home(0)).await {
+        report.push(format!("fastcore: {diff}"));
+    }
+    sent_append::submit_on_pg(&backends).await;
+    for diff in sent_append::after_submission(backends.pg.clone(), backends.home(1)).await {
+        report.push(format!("pg-core: {diff}"));
+    }
     assert!(
         report.is_empty(),
         "{} difference(s) from the script:\n\n{}",

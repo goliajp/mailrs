@@ -104,12 +104,16 @@ fn fastcore(net_url: &str, root: &std::path::Path) -> (Arc<FastcoreDirectory>, A
     store.set(b"hostname", HOST.as_bytes()).unwrap();
     let mut state = FastcoreState::new(mailrs_mailbox_kevy::KevyMailboxStore::new(store));
     state.net_url = Some(net_url.to_string());
+    // where the drain files a submission's Sent copy
+    state.maildir_root = root.to_string_lossy().into_owned();
     // the pg directory below goes by HOST too
     state.authserv_id = Some(HOST.into());
     let hash = crate::users::UserStore::hash_password(PASSWORD).unwrap();
     let blob = serde_json::json!({ "password_hash": hash }).to_string();
     state.mailbox.upsert_account(USER, &blob).unwrap();
     state.mailbox.create_label(USER, LABEL, "blue", 0).unwrap();
+    // the SQL side's domain store holds it too: mail to it stays here
+    state.mailbox.upsert_domain("example.test", 0).unwrap();
     for (who, stored) in passwordless_accounts() {
         let blob = serde_json::json!({ "password_hash": stored }).to_string();
         state.mailbox.upsert_account(who, &blob).unwrap();

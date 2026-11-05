@@ -19,7 +19,7 @@ use super::{custom, last_reader, rejudge};
 use crate::families::{
     calendar_events, calendar_feeds, contact_cards, contacts, devices, email_groups, forwarding,
     local_forward, masked_email, notify, outbound::pause, permission_groups, prefs, recall_notices,
-    rules, saved_searches, send, sender_lists, sender_rules, shared_inbox, vacation,
+    rules, saved_searches, send, sender_lists, sender_rules, shared_inbox, submitted, vacation,
 };
 use crate::keys::{credentials, push, quota, reset, session};
 
@@ -108,6 +108,7 @@ pub const OWNED: &[Owned] = &[
     net("templates:{user}", Shape::Key(prefs::templates_key)),
     net("templates:{user}:counter", Shape::Key(prefs::templates_counter_key)),
     net("mailrs:send:{user}:*", Shape::Globs(|a| vec![send::send_key(&glob_escape(a), "*")])),
+    net("mailrs:submitted:{user}", Shape::Key(submitted::key)),
     net("mailrs:recalled:{user}", Shape::Key(recall_notices::key)),
     net("mailrs:imap-import:progress:{user}", Shape::Key(|a| format!("mailrs:imap-import:progress:{a}"))),
     net("mailrs:imap-import:started:{user}:*", Shape::Globs(|a| under("mailrs:imap-import:started:", a, ":"))),

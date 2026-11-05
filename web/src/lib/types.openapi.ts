@@ -14809,7 +14809,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The round is waiting for a decision and holds nothing to put back */
+            /** @description The round is waiting for a decision or was discarded, and holds nothing to put back */
             409: {
                 headers: {
                     [name: string]: unknown;
