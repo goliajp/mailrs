@@ -36,6 +36,9 @@ pub enum Op {
     Office { kind: OfficeKind },
     /// The embedded text of one PDF, page by page.
     Pdf,
+    /// One HTML document (UTF-8), cleaned to text
+    /// ([`mailrs_clean::clean_email_html`]).
+    CleanHtml,
 }
 
 /// The readings of [`Op::Message`] a caller wants.
@@ -197,6 +200,14 @@ pub enum AnswerHeader {
     Pdf {
         pages: Result<Vec<String>, String>,
     },
+    CleanHtml(CleanedHtml),
+}
+
+/// [`mailrs_clean::clean_email_html`]'s text and what it found.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CleanedHtml {
+    pub clean_text: String,
+    pub facts: HtmlFacts,
 }
 
 /// A full answer.
