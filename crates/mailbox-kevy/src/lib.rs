@@ -95,6 +95,10 @@ mod move_category;
 mod mutations;
 mod ownerless;
 mod participants;
+mod standing;
+pub use standing::StandingRecount;
+#[cfg(test)]
+mod standing_tests;
 pub use display::DisplayRecount;
 #[cfg(test)]
 mod display_tests;

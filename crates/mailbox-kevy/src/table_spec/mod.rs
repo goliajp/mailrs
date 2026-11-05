@@ -309,6 +309,7 @@ mod table_spec_tests {
         written.extend(
             thread_row::PER_USER_FLAGS
                 .iter()
+                .chain(thread_row::PER_READER_STANDING.iter())
                 .map(|f| f.as_bytes().to_vec()),
         );
         // and the section writer's, absent until a message is recorded

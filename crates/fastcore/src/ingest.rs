@@ -159,6 +159,14 @@ pub(crate) fn store_arrival(
     };
     let root = &a.thread_id;
     write_message_row(state, addr, root, &a.message_id, a.date, blob_ref, &wire);
+    // the category this recipient's copy was filed under, which a recount
+    // of their row reads after an expunge, a split or a merge
+    if let Err(e) = state
+        .mailbox
+        .set_message_category(addr, &a.message_id, a.category)
+    {
+        tracing::warn!(error = %e, %addr, %root, "drain ingest: the message's category was not stored");
+    }
 
     // **The message row first, the arrival second.** Two of the membership
     // row's declared columns, `is_sender` and `sent_only`, are derived from

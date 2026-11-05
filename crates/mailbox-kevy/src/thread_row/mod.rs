@@ -6,8 +6,6 @@
 //! other, which is the pairing that has to stay honest
 //! (`field_names_match_to_pairs`).
 
-use super::keys;
-
 /// Sent-folder membership predicate — true when the thread's
 /// `senders_csv` names the user's own address.
 ///
@@ -357,6 +355,7 @@ mod tests {
 
     use super::*;
     use crate::KevyMailboxStore;
+    use crate::keys;
     use kevy_embedded::{Config, Store};
     use std::sync::Arc;
 
@@ -392,8 +391,10 @@ mod tests {
             "second write over identical data must be a no-op"
         );
 
+        // A field the row derives from the conversation, not one of the
+        // reader's own (their category is `standing.rs`'s).
         let mut moved = row.clone();
-        moved.category = "spam".into();
+        moved.account_id = "other-mailbox".into();
         assert!(
             st.write_thread_user_if_changed("alice@x.com", &moved)
                 .unwrap(),
