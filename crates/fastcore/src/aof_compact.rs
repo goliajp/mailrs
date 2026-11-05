@@ -27,8 +27,9 @@ const INITIAL_DELAY: Duration = Duration::from_secs(5 * 60);
 const REWRITE_THRESHOLD_BYTES: u64 = 256 * 1024 * 1024;
 
 /// Spawn the hourly compaction check. Called once from `lib::run`.
+/// On the maintenance runtime: a rewrite is one synchronous call of seconds.
 pub fn spawn(state: Arc<FastcoreState>, kevy_dir: String) {
-    tokio::spawn(async move {
+    crate::maintenance::offload::spawn(async move {
         sleep(INITIAL_DELAY).await;
         // the size the last rewrite left; unknown until one has run
         let mut compacted: Option<u64> = None;

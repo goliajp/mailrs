@@ -9,8 +9,10 @@ pub(super) fn spawn_workers(state: &Arc<FastcoreState>, kevy_dir: &str) {
     // Spawn the ingestion sync loop before the HTTP listener so new
     // messages start replicating as soon as the process boots. Failures
     // are logged + retried; they don't crash the server.
+    // Its self-heal reads every user's maildir synchronously (in full at
+    // boot and daily), so it runs on the maintenance runtime.
     let sync_state = state.clone();
-    tokio::spawn(async move {
+    crate::maintenance::offload::spawn(async move {
         crate::ingest_loop::ingest_sync_loop(sync_state).await;
     });
 
