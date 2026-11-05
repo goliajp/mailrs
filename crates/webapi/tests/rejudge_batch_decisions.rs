@@ -168,4 +168,23 @@ async fn deciding_on_a_waiting_round_takes_a_confirmed_super_administrator() {
         .call(Method::POST, &path("r999", "confirm"), &sup, None)
         .await;
     assert_eq!(status, 404);
+
+    // a discarded round holds nothing to put back: refused like a waiting
+    // one, with no audit line on either tier and the round left as it was
+    let (status, _) = live
+        .call(Method::POST, &path("r2", "release"), &sup, None)
+        .await;
+    assert_eq!(status, 409);
+    assert!(audit_rows("rejudge.batch_release").is_empty());
+    let (_, list) = live
+        .call(Method::GET, "/api/admin/rejudge/batches", &sup, None)
+        .await;
+    let r2 = list["items"]
+        .as_array()
+        .expect("items")
+        .iter()
+        .find(|b| b["observation"] == "r2")
+        .cloned()
+        .expect("r2 listed");
+    assert_eq!(r2["released_at"], 0, "{r2}");
 }

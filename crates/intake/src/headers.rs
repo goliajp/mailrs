@@ -203,6 +203,12 @@ pub fn maildir_filename_epoch(name: &str) -> Option<i64> {
     if n > 946_684_800 { Some(n) } else { None }
 }
 
+/// The `Message-ID` of `body` as the index keeps it, without its angle
+/// brackets; empty when it has none.
+pub fn message_id_of(body: &[u8]) -> String {
+    extract_headers(&body[..body.len().min(16 * 1024)]).0
+}
+
 /// `header_id` when the message has one, otherwise an id derived from its
 /// maildir file name: `<epoch>.<unique>@mailrs.local`.
 ///

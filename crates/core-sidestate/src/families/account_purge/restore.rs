@@ -5,9 +5,10 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use kevy_client::Connection;
-use mailrs_core_api::method::admin::{RestoreRefusal, RestoreRefused};
+use mailrs_core_api::method::admin::{RestoreAccountResponse, RestoreRefusal, RestoreRefused};
 
 use super::{maildir, pending};
+use crate::families::outbound;
 
 /// The audit action of a restore.
 pub const RESTORED: &str = "account.restore";
@@ -68,7 +69,10 @@ fn live_dir(root: &Path, address: &str) -> Option<PathBuf> {
 }
 
 /// With the core's account record back: move `dir` back to where delivery
-/// finds it, write the audit row, and stop waiting for the purge.
+/// finds it, give back the mail the delete withheld (a send whose time is
+/// still ahead waits for it again, one whose time passed is a draft, not
+/// sent), write the audit row with both counts, and stop waiting for the
+/// purge.
 pub fn finish(
     c: &mut Connection,
     root: &Path,
@@ -76,16 +80,26 @@ pub fn finish(
     dir: Option<&Path>,
     by: &str,
     now: i64,
-) -> io::Result<()> {
-    let detail = match (dir, live_dir(root, address)) {
+) -> io::Result<RestoreAccountResponse> {
+    let parked = match (dir, live_dir(root, address)) {
         (Some(from), Some(to)) => {
             std::fs::rename(from, &to)?;
-            format!("parked={}", parked_id(from))
+            maildir::let_go_of(root, from)?;
+            parked_id(from)
         }
-        _ => "parked=none".to_string(),
+        _ => "none".to_string(),
     };
+    let back = outbound::release(c, address, now, outbound::Lapsed::Draft)?;
+    let detail = format!(
+        "parked={parked} rescheduled={} drafts={} attachments_not_included={}",
+        back.rescheduled, back.drafts, back.attachments_not_included
+    );
     crate::families::audit::append(c, by, RESTORED, address, &detail, now)?;
-    pending::clear(c, address)
+    pending::clear(c, address)?;
+    Ok(RestoreAccountResponse {
+        rescheduled: back.rescheduled,
+        returned_as_drafts: back.drafts,
+    })
 }
 
 #[cfg(test)]

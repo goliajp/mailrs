@@ -6,6 +6,7 @@
 //! can be computed again from the file. Finding candidates needs the hash's
 //! four 16-bit pieces indexed; that index (`L:ts:{mid}`) is kept only for
 //! [`SEGMENT_DAYS`], the span a report looks back over, and pruned after.
+//! Both go when the account purge removes the message's last reader.
 
 use std::io;
 
@@ -115,6 +116,16 @@ impl KevyMailboxStore {
                 Ok(true)
             })
             .map_err(io::Error::from)
+    }
+
+    /// Removes a message's fingerprint and segment row once no reader has a
+    /// ledger row for it; true when removed.
+    pub fn forget_template_if_unread(&self, mid: &str) -> io::Result<bool> {
+        if !self.ledger_readers(mid)?.is_empty() {
+            return Ok(false);
+        }
+        let (t, s) = (tpl_key(mid), seg_key(mid));
+        Ok(self.store().del(&[t.as_bytes(), s.as_bytes()])? > 0)
     }
 
     /// The fingerprint recorded for a message, if any.

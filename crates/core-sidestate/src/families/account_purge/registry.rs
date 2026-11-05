@@ -14,14 +14,16 @@
 //! Order matters within a store: an entry that finds entries through an
 //! index runs before the entry that removes the index.
 
-use super::custom;
 use super::shape::{Shape, glob_escape};
+use super::{custom, last_reader, rejudge};
 use crate::families::{
     calendar_events, calendar_feeds, contact_cards, contacts, devices, email_groups, forwarding,
     local_forward, masked_email, notify, outbound::pause, permission_groups, prefs, recall_notices,
-    rules, saved_searches, send, sender_lists, sender_rules, shared_inbox, vacation,
+    rules, saved_searches, send, sender_lists, sender_rules, shared_inbox, submitted, vacation,
 };
 use crate::keys::{credentials, push, quota, reset, session};
+
+pub use super::sql_tables::{SQL_CASCADED, SQL_TABLES};
 
 /// Which store a family lives in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -106,6 +108,7 @@ pub const OWNED: &[Owned] = &[
     net("templates:{user}", Shape::Key(prefs::templates_key)),
     net("templates:{user}:counter", Shape::Key(prefs::templates_counter_key)),
     net("mailrs:send:{user}:*", Shape::Globs(|a| vec![send::send_key(&glob_escape(a), "*")])),
+    net("mailrs:submitted:{user}", Shape::Key(submitted::key)),
     net("mailrs:recalled:{user}", Shape::Key(recall_notices::key)),
     net("mailrs:imap-import:progress:{user}", Shape::Key(|a| format!("mailrs:imap-import:progress:{a}"))),
     net("mailrs:imap-import:started:{user}:*", Shape::Globs(|a| under("mailrs:imap-import:started:", a, ":"))),
@@ -140,6 +143,7 @@ pub const OWNED: &[Owned] = &[
     // what the user's account is allowed and counted
     net("mailrs:quota:{user}:used_bytes", Shape::Key(quota::used_key)),
     net("mailrs:quota:{user}:limit_bytes", Shape::Key(quota::limit_key)),
+    net("mailrs:outbound:withheld:{user}", Shape::Custom(crate::families::outbound::purge_withheld)),
     net("outbound:paused:{user}", Shape::Key(pause::paused_key)),
     net("outbound:held:{user}", Shape::Key(pause::held_key)),
     net("outbound:paused", Shape::Members { keys: || "outbound:paused".into(), sep: None }),
@@ -173,6 +177,10 @@ pub const OWNED: &[Owned] = &[
     mail("mailrs:message:by-maildir:{user}:*", Shape::Globs(|a| under("mailrs:message:by-maildir:", a, ":"))),
     mail("mailrs:placement:{user}:*", Shape::Globs(|a| under("mailrs:placement:", a, ":"))),
     mail("mailrs:user:{user}:*", Shape::Globs(|a| under("mailrs:user:", a, ":"))),
+    // kept once per message, not per reader: removed when no reader
+    // remains, found through the ledger rows the next entry removes
+    mail("L:ts:* (no reader left)", Shape::Custom(last_reader::segments)),
+    mail("L:t:* (no reader left)", Shape::Custom(last_reader::fingerprints)),
     mail("L:m:{user}|*", Shape::Globs(|a| under("L:m:", a, "|"))),
     mail("L:l:{user}|*", Shape::Globs(|a| under("L:l:", a, "|"))),
     mail("L:f:{user}|*", Shape::Globs(|a| under("L:f:", a, "|"))),
@@ -181,7 +189,11 @@ pub const OWNED: &[Owned] = &[
     mail("release:facts:{user}:*", Shape::Globs(|a| under("release:facts:", a, ":"))),
     mail("rejudge:released:{user}:*", Shape::Globs(|a| under("rejudge:released:", a, ":"))),
     mail("rejudge:recalled:{user}:*", Shape::Globs(|a| under("rejudge:recalled:", a, ":"))),
+    mail("rejudge:unheld:{user}:*", Shape::Globs(|a| under("rejudge:unheld:", a, ":"))),
     mail("rejudge:batch:*", Shape::Members { keys: || "rejudge:batch:*".into(), sep: Some("\t") }),
+    // what a round gathered to hold, until it settles or its pending batch
+    // is decided; the batch counts the purged reader's out, and goes at none
+    mail("rejudge:candidates:*", Shape::Custom(rejudge::candidates)),
     mail("mailrs:attpending", Shape::Members { keys: || "mailrs:attpending".into(), sep: Some("\t") }),
     mail("mailrs:imgpending", Shape::Members { keys: || "mailrs:imgpending".into(), sep: Some("\t") }),
     mail("mailrs:sync:cursor:{user}", Shape::Key(|a| format!("mailrs:sync:cursor:{a}"))),
@@ -207,7 +219,7 @@ pub const KEPT: &[Kept] = &[
     Kept { name: "auth:alerts:pending", why: "security alerts already raised, mailed to the operator" },
     Kept { name: "owner-notices", why: "notices to the operator, not the user's" },
     Kept { name: "mailrs:masked:submit_log", why: "the log of mail sent from masks, kept like the audit log" },
-    Kept { name: "mailrs:outbound:*", why: "mail the user sent that is still on its way: it is delivered or bounced, then dropped by the queue" },
+    Kept { name: "mailrs:outbound:*", why: "mail the user sent that was released for delivery and is still on its way: it is delivered or bounced, then dropped by the queue; mail not yet released is withheld at the delete and purged with mailrs:outbound:withheld:{user}" },
     Kept { name: "shared:{gid}:*", why: "a team's working state (presence, copies, notes, drafts): the group's, not a member's; purged with the group, after the same retention (group_purge)" },
     Kept { name: "mailrs:shared-reply:*", why: "a team's reply claims, keyed by conversation: team working state" },
     Kept { name: "gl:*|{user}", why: "greylisting triplets, keyed by sender and recipient, expire on their own within days" },
@@ -240,56 +252,6 @@ pub const KEPT: &[Kept] = &[
     Kept { name: "mailrs:purge:records", why: "the dropped account record a restore needs, beside the mark; cleared with it" },
     Kept { name: "mailrs:purge:groups", why: "deleted email groups waiting for the purge of their team state, by group id; group_purge clears a group's field last" },
     Kept { name: "mailrs:purge:pending", why: "the purge's own record of who is waiting; the purge clears the address's field last" },
-];
-
-/// The SQL core's rows an account owns that no foreign key ties to the
-/// account row (`init-schema.sql`): table, column. The purge deletes
-/// them, then the row, which takes [`SQL_CASCADED`] with it.
-pub const SQL_TABLES: &[(&str, &str)] = &[
-    ("account_send_as", "account_address"),
-    ("user_uids", "user_address"),
-    ("email_contacts", "user_address"),
-    ("sender_feedback", "user_address"),
-    ("snoozed_conversations", "account_address"),
-    ("message_placements", "account_address"),
-    ("quarantine_holds", "account_address"),
-    ("release_facts", "account_address"),
-    ("trashed_conversations", "account_address"),
-    ("accepted_senders", "account_address"),
-    ("shared_thread_copies", "account_address"),
-    ("thread_labels", "account_address"),
-    ("labels", "account_address"),
-    ("webhook_subscriptions", "account_address"),
-    ("drafts", "user_address"),
-    ("spam_feedback", "user_address"),
-    ("vacation_dedup", "recipient"),
-    ("aliases", "target_address"),
-    // last: its messages, their attachment text and analysis cascade
-    ("mailboxes", "user_address"),
-];
-
-/// The SQL core's rows that reference the account row by a cascading
-/// foreign key: kept while the row is marked deleted, so a restore brings
-/// them back, and gone with the row at the purge. Counted by the purge;
-/// table, column. Their own dependents (calendar events, contacts, an
-/// app's keys) cascade with them.
-pub const SQL_CASCADED: &[(&str, &str)] = &[
-    ("sieve_scripts", "address"),
-    ("email_templates", "user_address"),
-    ("account_groups", "account_address"),
-    ("account_permission_overrides", "account_address"),
-    ("apps", "owner_address"),
-    ("api_keys", "account_address"),
-    ("email_group_members", "member_address"),
-    ("signatures", "account_address"),
-    ("password_reset_tokens", "account_address"),
-    ("totp_secrets", "account_address"),
-    ("encryption_keys", "account_address"),
-    ("calendars", "account_address"),
-    ("address_books", "account_address"),
-    ("oauth_auth_codes", "account_address"),
-    ("oauth_refresh_tokens", "account_address"),
-    ("external_calendar_feeds", "account_address"),
 ];
 
 /// The spellings of `address` keys may carry: as given, and lowercased.

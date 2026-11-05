@@ -76,6 +76,18 @@ impl KevyMailboxStore {
             .sismember(key.as_bytes(), file_base(file).as_bytes())?)
     }
 
+    /// `user`'s copies of `message_id`: each file as `blob_ref` names it,
+    /// without its `:2,` flags.
+    pub fn message_files(&self, user: &str, message_id: &str) -> io::Result<Vec<String>> {
+        let key = keys::user_message_files(user, message_id);
+        Ok(self
+            .store()
+            .smembers(key.as_bytes())?
+            .into_iter()
+            .filter_map(|f| String::from_utf8(f).ok())
+            .collect())
+    }
+
     /// Record `file` as one of `user`'s copies of `message_id`; whether it
     /// was new. For the backfill — new copies are recorded by
     /// `upsert_user_message`.
