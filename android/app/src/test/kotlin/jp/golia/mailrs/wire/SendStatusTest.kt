@@ -22,6 +22,14 @@ class SendStatusTest {
         assertEquals("送信失敗", SendStatus.text("failed"))
     }
 
+    @Test
+    fun a_partly_refused_send_is_a_warning_between_failed_and_delivered() {
+        assertEquals(SendStatus.Tone.Warning, SendStatus.tone("partial"))
+        assertEquals(SendStatus.Tone.Danger, SendStatus.tone("failed"))
+        assertEquals(SendStatus.Tone.Success, SendStatus.tone("delivered"))
+        assertEquals(SendStatus.Tone.Muted, SendStatus.tone("sending"))
+    }
+
     /** A state this build cannot name is still shown, as the server said it. */
     @Test
     fun an_unknown_state_is_shown_as_it_came() {

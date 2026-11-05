@@ -271,8 +271,9 @@ private fun SentRow(
     }
 }
 
-private fun statusColour(status: String, theme: Theme) = when (status) {
-    "delivered", "sent" -> theme.success
-    "failed", "bounced" -> theme.danger
-    else -> theme.fgMuted
+private fun statusColour(status: String, theme: Theme) = when (SendStatus.tone(status)) {
+    SendStatus.Tone.Success -> theme.success
+    SendStatus.Tone.Warning -> theme.warning
+    SendStatus.Tone.Danger -> theme.danger
+    SendStatus.Tone.Muted -> theme.fgMuted
 }

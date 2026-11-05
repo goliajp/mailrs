@@ -21,6 +21,16 @@ object SendStatus {
         else -> null
     }
 
+    enum class Tone { Success, Warning, Danger, Muted }
+
+    /** Partly refused is not a failure, and not an arrival either. */
+    fun tone(status: String): Tone = when (status) {
+        "delivered", "sent" -> Tone.Success
+        "partial" -> Tone.Warning
+        "failed", "bounced" -> Tone.Danger
+        else -> Tone.Muted
+    }
+
     fun text(status: String): String {
         val id = label(status) ?: return status
         return Texts.get(id)
