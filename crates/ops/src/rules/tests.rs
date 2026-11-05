@@ -152,10 +152,65 @@ fn accounts_without_quota_and_over_80() {
 #[test]
 fn new_domains_over_the_configured_rate() {
     let mut s = healthy(NOW);
-    webapi(&mut s, &["new_domains", "added_24h"], 51.into());
+    webapi(&mut s, &["new_domains", "added_24h"], 5001.into());
     holds("new_domains_burst", &s, "domains");
-    s.limits.new_domains_per_day = 60;
+    s.limits.new_domains_per_day = 6000;
     clear("new_domains_burst", &s, "domains");
+}
+
+#[test]
+fn a_census_without_its_keys_or_marked_stale_is_unknown_not_zero() {
+    let unknown = |s: &Snapshot, rule: &str, object: &str| {
+        let e = eval_of(rule, s, object);
+        assert!(
+            matches!(
+                e,
+                Eval::Unreadable {
+                    source_down: false,
+                    ..
+                }
+            ),
+            "{rule}: {e:?}"
+        );
+    };
+    let mut s = healthy(NOW);
+    if let Reading::Got(h) = &mut s.webapi {
+        h["new_domains"].as_object_mut().unwrap().remove("keys");
+    }
+    unknown(&s, "new_domains_burst", "domains");
+    let mut s = healthy(NOW);
+    webapi(&mut s, &["new_domains", "stale"], true.into());
+    unknown(&s, "new_domains_burst", "domains");
+    let mut s = healthy(NOW);
+    if let Reading::Got(h) = &mut s.webapi {
+        h["new_domains"].as_object_mut().unwrap().remove("stale");
+        h["quota"].as_object_mut().unwrap().remove("accounts");
+        h["kevy_server_memory"]
+            .as_object_mut()
+            .unwrap()
+            .remove("used_bytes");
+        h["jmap_uploads"]["volume_free_bytes"] = serde_json::Value::Null;
+        h["set_aside"]["sender"] = serde_json::Value::Null;
+    }
+    unknown(&s, "new_domains_burst", "domains");
+    unknown(&s, "accounts_without_quota", "accounts");
+    unknown(&s, "accounts_over_80_percent", "accounts");
+    unknown(&s, "kevy_server_memory_high", "kevy-server");
+    unknown(&s, "data_volume_low", "mailrs-data");
+    unknown(&s, "work_set_aside", "sender");
+    // the core's cgroup unread is no reading; a cgroup without a limit is one
+    let mut s = healthy(NOW);
+    fastcore(&mut s, |h| h.memory = None);
+    unknown(&s, "core_memory_high", "fastcore");
+    fastcore(&mut s, |h| {
+        h.memory = Some(mailrs_core_api::types::MemoryWire {
+            used_bytes: 1,
+            limit_bytes: None,
+            kevy_used_bytes: None,
+            kevy_keys: None,
+        })
+    });
+    clear("core_memory_high", &s, "fastcore");
 }
 
 #[test]
@@ -260,6 +315,16 @@ fn a_process_on_another_build() {
     let mut s = healthy(NOW);
     s.processes.get_mut("sender").unwrap().latest.build.version = "2.213.0".into();
     holds("versions_differ", &s, "deployment");
+    // webapi's build is read from its report, the core's from its ops status
+    let mut s = healthy(NOW);
+    s.processes.get_mut("webapi").unwrap().latest.build.commit = Some("0000000".into());
+    holds("versions_differ", &s, "deployment");
+    let mut s = healthy(NOW);
+    if let Reading::Got(o) = &mut s.fastcore_ops {
+        o.build.version = "2.213.0".into();
+    }
+    holds("versions_differ", &s, "deployment");
+    assert!(by_name("versions_differ").for_secs >= 600);
 }
 
 #[test]

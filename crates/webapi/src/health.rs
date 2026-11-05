@@ -66,7 +66,6 @@ pub(crate) async fn health_handler(
         "ok": kevy_ok,
         "service": "mailrs-webapi",
         "version": env!("CARGO_PKG_VERSION"),
-        "build": mailrs_ops_report::build::build(),
         "uptime_secs": uptime_secs,
         "kevy": kevy_ok,
         "pg": serde_json::Value::Null,
