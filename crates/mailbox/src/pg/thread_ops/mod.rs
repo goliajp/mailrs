@@ -132,11 +132,11 @@ impl PgMailboxStore {
                     .map(|(i, _)| format!("${}", i + 3))
                     .collect();
                 let f = format!(
-                    "mb.user_address IN (SELECT address FROM accounts WHERE domain IN ({}))",
+                    "mb.user_address IN (SELECT address FROM accounts WHERE deleted_at IS NULL AND domain IN ({}))",
                     placeholders.join(",")
                 );
                 let f2 = format!(
-                    "mb2.user_address IN (SELECT address FROM accounts WHERE domain IN ({}))",
+                    "mb2.user_address IN (SELECT address FROM accounts WHERE deleted_at IS NULL AND domain IN ({}))",
                     placeholders.join(",")
                 );
                 (f, f2)

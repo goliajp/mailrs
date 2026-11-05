@@ -20,7 +20,7 @@ impl DomainStore {
     /// Whether `addr` is an active account.
     pub(crate) async fn is_active_account(&self, addr: &str) -> Result<bool> {
         Ok(sqlx::query_as::<_, (bool,)>(
-            "SELECT true FROM accounts WHERE address = $1 AND active = true",
+            "SELECT true FROM accounts WHERE address = $1 AND active = true AND deleted_at IS NULL",
         )
         .bind(addr)
         .fetch_optional(self.pool()?)

@@ -40,6 +40,7 @@ pub const ADMIN_ROUTES: &[(&str, Need)] = &[
     ("/api/admin/accounts/{address}/password", ACCOUNTS),
     ("/api/admin/accounts/{address}/protocol-password", Super),
     ("/api/admin/accounts/{address}/quota", ACCOUNTS),
+    ("/api/admin/accounts/{address}/restore", Super),
     ("/api/admin/accounts/{address}/send-as", ACCOUNTS),
     ("/api/admin/accounts/{address}/sieve", Super),
     (

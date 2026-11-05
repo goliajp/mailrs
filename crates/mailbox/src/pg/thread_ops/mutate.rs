@@ -22,7 +22,7 @@ impl PgMailboxStore {
                 .collect();
             (
                 format!(
-                    "user_address IN (SELECT address FROM accounts WHERE domain IN ({}))",
+                    "user_address IN (SELECT address FROM accounts WHERE deleted_at IS NULL AND domain IN ({}))",
                     placeholders.join(",")
                 ),
                 doms.len(),

@@ -10,8 +10,10 @@
 //! the coverage check at the end needs to have seen all of them: every path
 //! the client can ask for must have been asked of both cores.
 
+mod account_purge;
 mod accounts;
 mod coverage;
+mod deleted_rows;
 mod deletes;
 mod forged_results;
 mod harness;
@@ -66,6 +68,7 @@ async fn the_two_cores_answer_every_client_call_alike() {
     rejudge::run(&cores, &mut d).await;
     reports::run(&cores, &mut d).await;
     usage_drift::run(&cores, &mut d).await;
+    account_purge::run(&cores, &mut d).await;
     accounts::teardown(&cores, &mut d).await;
     d.both(
         "healthz",
