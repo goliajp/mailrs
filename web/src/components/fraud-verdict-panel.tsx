@@ -118,13 +118,16 @@ function Layer({ layer }: { layer: WireFraudLayer }) {
   const Icon = outcomeIcon(layer.outcome)
   const question = LAYER[layer.name]?.question
   return (
-    <li className="flex items-start gap-2 py-1">
+    <li className="flex items-start gap-2 py-1" data-testid={`verdict-layer-${layer.name}`}>
       <Icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${outcomeClass(layer.outcome)}`} />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
           <span className="text-fg text-xs font-medium">{layerTitle(layer.name, t)}</span>
           {layer.score > 0 && (
-            <span className="text-fg-muted shrink-0 font-mono text-[10px]">
+            <span
+              className="text-fg-muted shrink-0 font-mono text-[10px]"
+              data-testid="layer-score"
+            >
               +{layer.score.toFixed(1)}
             </span>
           )}
@@ -156,6 +159,19 @@ function layerTitle(name: string, t: Translate): string {
   const key = LAYER[name]?.title
   if (key) return t(key)
   return name
+}
+
+/**
+ * What one line added to its layer, beside it, so the layer's score is
+ * the sum of the numbers the reader sees under it.
+ */
+function LineScore({ score }: { score: number | undefined }) {
+  if (score === undefined || score <= 0) return null
+  return (
+    <span className="text-fg-muted shrink-0 font-mono text-[10px]" data-testid="line-score">
+      +{score.toFixed(1)}
+    </span>
+  )
 }
 
 function outcomeClass(outcome: WireFraudLayer['outcome']): string {
@@ -228,8 +244,9 @@ function ReasonList({
     <ul className="text-fg-secondary text-[11px] leading-snug">
       {reasons.map((r, i) => (
         // static per verdict: the stored list never reorders
-        <li className="break-words" key={`${r.code}-${i}`}>
-          {reasonText(r, lang, t) ?? r.code}
+        <li className="flex items-baseline justify-between gap-2" key={`${r.code}-${i}`}>
+          <span className="min-w-0 break-words">{reasonText(r, lang, t) ?? r.code}</span>
+          <LineScore score={r.score} />
         </li>
       ))}
     </ul>

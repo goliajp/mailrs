@@ -12,12 +12,18 @@ import kotlinx.serialization.Serializable
  * `get_fraud_verdict` (crates/webapi/src/handlers/quarantine.rs) returns it.
  */
 object WireVerdict {
-    /** A fraud rule id or a reason code, and the values its sentence names. */
+    /**
+     * A fraud rule id or a reason code, and the values its sentence names.
+     * `score` is set on a verdict layer's lines: what each added, so the
+     * layer's score is the sum of its lines; absent on a line that adds
+     * nothing, on placement, and on older verdicts.
+     */
     @Serializable
     data class Reason(
         val code: String,
         // left out by the server when empty
         val params: Map<String, String> = emptyMap(),
+        val score: Double? = null,
     )
 
     /** A link worth a second look; `shown` only when its text shows another host. */

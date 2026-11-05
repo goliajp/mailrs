@@ -62,7 +62,9 @@ class VerdictFlowTest : MailrsUiTest() {
         unfoldAll()
         waitFor("no verdict panel on a held message") { exists("verdict.panel") }
         assertTrue("rule reason not worded", exists("verdict.layer.identity", "The display name claims to be Golia."))
-        assertTrue("a passing layer did not say so", exists("verdict.layer.content", "Nothing found."))
+        assertTrue("content rule not listed", exists("verdict.layer.content", "The text asks you to send your own LINE QR code."))
+        assertTrue("content rule's score not shown", exists("verdict.layer.content", "+6.0"))
+        assertTrue("a passing layer did not say so", exists("verdict.layer.provenance", "Nothing found."))
         assertTrue("no SPF/DKIM/DMARC line", exists("sender.checks", "DKIM: fail"))
         assertTrue("no callback notice", exists("callback.notice", "+81 3-1234-5678"))
         assertTrue("no placement note on the filed message", exists("verdict.placement", "Promotions"))

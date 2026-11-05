@@ -21,20 +21,29 @@ ARMED = [False]
 HELD_MESSAGE = "<m2@x>"
 FILED_MESSAGE = "<m1@x>"
 
+# as `mailrs_inbound::assess` stores it: every finding a line of the layer
+# it was filed under, each scored line carrying what it added, so a layer's
+# score is the sum of its lines and the verdict's the sum of the layers.
+# Transport was never checked (a re-scan of mail with no
+# Authentication-Results); provenance looked and found nothing.
 HELD = {
     "layers": [
-        {"name": "transport", "outcome": "fail", "score": 2.0,
-         "detail": "nothing vouches for the sender",
-         "reasons": [{"code": "nothing-vouches-for-the-sender"}]},
-        {"name": "identity", "outcome": "fail", "score": 4.0,
-         "detail": "display name claims Golia",
-         "reasons": [{"code": "claims-our-name", "params": {"name": "Golia"}}]},
-        {"name": "provenance", "outcome": "not_applicable", "score": 0.0, "detail": ""},
-        {"name": "content", "outcome": "pass", "score": 0.0, "detail": "", "reasons": []},
+        {"name": "transport", "outcome": "not_applicable", "score": 0.0, "detail": ""},
+        {"name": "identity", "outcome": "fail", "score": 6.0,
+         "detail": "display name claims Golia; nothing vouches for the sender",
+         "reasons": [
+             {"code": "claims-our-name", "params": {"name": "Golia"}, "score": 4.0},
+             {"code": "nothing-vouches-for-the-sender", "score": 2.0},
+         ]},
+        {"name": "provenance", "outcome": "pass", "score": 0.0,
+         "detail": "nothing unusual in the headers", "reasons": []},
+        {"name": "content", "outcome": "fail", "score": 6.0,
+         "detail": "content 0.0, classifier 0.0; the text asks the reader to send their own LINE QR code",
+         "reasons": [{"code": "asks-for-the-readers-line", "score": 6.0}]},
     ],
     "quarantined": True,
     "rules_version": "2026-11-03.1",
-    "score": 6.0,
+    "score": 12.0,
 }
 
 # mail nobody suspected, filed by the classifier
