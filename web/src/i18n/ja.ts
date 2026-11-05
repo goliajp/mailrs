@@ -226,6 +226,8 @@ export const ja: Record<Key, string> = {
     '迷惑メールと確認待ちのメールでは画像を読み込みません。読み込むと、このアドレスが使われていることが送信者に伝わります。',
   'images.hidden': 'このメールの画像は非表示になっています。',
   'images.hiddenBySettings': '設定により画像は表示されません',
+  'images.loading': '画像を読み込んでいます',
+  'images.missing': '一部の画像を読み込めませんでした',
   'images.show': '画像を表示',
   'images.showAnyway': 'それでも画像を表示',
   'invite.accept': '承諾',

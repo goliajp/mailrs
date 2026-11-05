@@ -4,11 +4,17 @@ import DOMPurify from 'dompurify'
 import { useAtom, useAtomValue } from 'jotai'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { ImagesHeldNote, ImagesHiddenNote, TrackersNote } from '@/components/images-note'
+import {
+  ImagesHeldNote,
+  ImagesHiddenNote,
+  ImagesWaitNote,
+  TrackersNote,
+} from '@/components/images-note'
+import { useRemoteImages } from '@/components/use-remote-images'
 import { cjkFonts, cjkLang, injectCjkFonts } from '@/lib/cjk-fonts'
 import { fitHeight, fitScale, shouldReflowTable } from '@/lib/fit-to-width'
 import { type LinkWarning, useLinkWarningMarks } from '@/lib/link-warnings'
-import { markRemoteImage, reload, showPrefetched, watchMissing } from '@/lib/remote-images'
+import { markRemoteImage } from '@/lib/remote-images'
 import {
   disarmTracker,
   isTrackingImage,
@@ -17,7 +23,6 @@ import {
   trackersIn,
 } from '@/lib/trackers'
 import { imageSendersAtom, remoteImagesAtom } from '@/store/settings'
-import { wirePrefetchThreadImages } from '@/wire/endpoints/mail'
 
 // HTML attribute values arrive with entity-encoded specials, e.g. LinkedIn
 // signed CDN URLs come through as src="https://media.licdn.com/…?e=…&amp;v=beta&amp;t=…"
@@ -228,9 +233,6 @@ const SHADOW_STYLES = `
 // Remote images come from the server's prefetched copy (see the purifier
 // hook), so the sender never sees the reader; `referrerpolicy` stays as a
 // second guard.
-/** When to ask again for images the server was asked to fetch just now. */
-const RETRY_MS = [4_000, 12_000, 30_000]
-
 export function HtmlFrame({
   attachments,
   html,
@@ -267,13 +269,11 @@ export function HtmlFrame({
   uid?: number
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
-  const [imagesHeld, setImagesHeld] = useState(false)
   const remoteImages = useAtomValue(remoteImagesAtom)
   const [imageSenders, trustSender] = useAtom(imageSendersAtom)
   const trusted = !!imagesFrom && imageSenders.includes(imagesFrom.toLowerCase())
   // the message the reader asked to see the images of; a new message starts hidden again
   const [shownFor, setShownFor] = useState<null | string>(null)
-  const missingRef = useRef<HTMLImageElement[]>([])
   // Rewrite cid: images BEFORE the sanitize cache lookup so
   // different uid / attachments combinations don't share a cached
   // result (the cache is keyed on the html string).
@@ -398,55 +398,14 @@ export function HtmlFrame({
   }, [sanitized])
   useLinkWarningMarks(hostRef, sanitized, linkWarnings)
 
-  // after the effect above. A miss for mail the server never fetched is
-  // fetched now and asked for again; the listeners go on before the images
-  // get their address, so no failure is missed.
-  useEffect(() => {
-    const root = hostRef.current?.shadowRoot
-    setImagesHeld(false)
-    missingRef.current = []
-    if (!root || !shown) return
-    let asked = false
-    let gone = false
-    const timers: ReturnType<typeof setTimeout>[] = []
-    if (imagesOf) {
-      watchMissing(root, (imgs) => {
-        missingRef.current = imgs
-        if (asked) return
-        asked = true
-        void wirePrefetchThreadImages(imagesOf).then((answer) => {
-          if (gone) return
-          if (answer === 'junk') {
-            setImagesHeld(true)
-            return
-          }
-          RETRY_MS.forEach((ms, i) => {
-            timers.push(setTimeout(() => imgs.forEach((img) => reload(img, i + 1)), ms))
-          })
-        })
-      })
-    }
-    void showPrefetched(root)
-    return () => {
-      gone = true
-      timers.forEach(clearTimeout)
-    }
-  }, [sanitized, shown, imagesOf])
-
-  const showAnyway = () => {
-    if (!imagesOf) return
-    const imgs = missingRef.current
-    setImagesHeld(false)
-    void wirePrefetchThreadImages(imagesOf, true).then(() => {
-      RETRY_MS.forEach((ms, i) => {
-        setTimeout(() => imgs.forEach((img) => reload(img, i + 1)), ms)
-      })
-    })
-  }
+  const images = useRemoteImages(hostRef, sanitized, shown, imagesOf)
 
   return (
     <>
-      {imagesHeld && <ImagesHeldNote onShow={showAnyway} />}
+      {images.note === 'held' && <ImagesHeldNote onShow={images.showAnyway} />}
+      {(images.note === 'loading' || images.note === 'missing') && (
+        <ImagesWaitNote state={images.note} />
+      )}
       {trackers.count > 0 && <TrackersNote count={trackers.count} hosts={trackers.hosts} />}
       {!shown && remoteCount > 0 && (
         <ImagesHiddenNote
