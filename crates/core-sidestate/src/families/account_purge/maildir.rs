@@ -79,10 +79,35 @@ pub fn measure(dirs: &[PathBuf]) -> io::Result<(u64, u64)> {
     Ok((files, bytes))
 }
 
-/// Remove `dirs` and everything in them.
-pub fn remove(dirs: &[PathBuf]) -> io::Result<()> {
+/// Remove `dirs`, parked under `root`, and everything in them; then
+/// `.deleted/<domain>/` and `.deleted/` where that left them empty.
+pub fn remove(root: &Path, dirs: &[PathBuf]) -> io::Result<()> {
     for d in dirs {
         std::fs::remove_dir_all(d)?;
+        let_go_of(root, d)?;
+    }
+    Ok(())
+}
+
+/// `parked` has left `<root>/.deleted/<domain>/` (removed, or moved back
+/// by a restore): remove that directory and `.deleted/` if nothing else is
+/// in them. `remove_dir` refuses a directory that is not empty, so a
+/// maildir parked meanwhile is never touched.
+pub fn let_go_of(root: &Path, parked: &Path) -> io::Result<()> {
+    let deleted = root.join(".deleted");
+    let Some(domain) = parked
+        .parent()
+        .filter(|p| p.parent() == Some(deleted.as_path()))
+    else {
+        return Ok(());
+    };
+    for dir in [domain, deleted.as_path()] {
+        match std::fs::remove_dir(dir) {
+            Ok(()) => {}
+            Err(e) if e.kind() == io::ErrorKind::DirectoryNotEmpty => return Ok(()),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+        }
     }
     Ok(())
 }
@@ -119,10 +144,38 @@ mod tests {
             ]
         );
         assert_eq!(measure(&dirs).unwrap(), (3, 17));
-        remove(&dirs).unwrap();
+        remove(root, &dirs).unwrap();
         assert!(parked(root, "a@x.test").unwrap().is_empty());
         assert!(root.join(".deleted/x.test/a.b.7").exists());
         assert!(root.join(".deleted/x.test/ab.7").exists());
+    }
+
+    #[test]
+    fn the_purge_removes_the_parents_it_emptied_and_no_other() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        file(&root.join("x.test/a/cur"), "1", 1);
+        file(&root.join("y.test/b/cur"), "2", 1);
+        file(&root.join("y.test/c/cur"), "3", 1);
+        for address in ["a@x.test", "b@y.test", "c@y.test"] {
+            park(root, address, 100).unwrap();
+        }
+
+        remove(root, &parked(root, "a@x.test").unwrap()).unwrap();
+        assert!(!root.join(".deleted/x.test").exists());
+        assert!(root.join(".deleted").exists(), "y.test is still parked");
+
+        remove(root, &parked(root, "b@y.test").unwrap()).unwrap();
+        assert!(root.join(".deleted/y.test/c.100").exists());
+
+        remove(root, &parked(root, "c@y.test").unwrap()).unwrap();
+        assert!(!root.join(".deleted").exists());
+        assert!(
+            root.join("x.test").exists(),
+            "a live domain dir was removed"
+        );
+        // nothing parked is nothing to remove
+        remove(root, &[]).unwrap();
     }
 
     #[test]
