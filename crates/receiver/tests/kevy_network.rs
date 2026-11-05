@@ -287,3 +287,62 @@ async fn the_change_feed_answers_on_this_server() {
         batch.frames.len()
     );
 }
+
+/// The correspondent facts over a real kevy-server, written by the writers
+/// production runs: delivery records the sender it heard from, the sender
+/// process records whom the user wrote to (a pipeline, which only the
+/// network store serves). The receive path reads before this message is
+/// counted and a re-judgement after; they must agree.
+#[tokio::test]
+async fn correspondents_are_whom_the_user_wrote_to_on_both_paths() {
+    use mailrs_core_sidestate::families::{contact_cards, contacts};
+    use mailrs_fraud_lua::stored::relation::{Counted, relation};
+    let (_container, url) = setup_kevy().await;
+    let me = "me@golia.example";
+    let stranger = "Stranger <billing@stranger.example>";
+    let partner = "Tanaka <tanaka@partner.example>";
+    {
+        let url = url.clone();
+        tokio::task::spawn_blocking(move || {
+            let mut c = kevy_client::Connection::connect(&url).expect("kevy");
+            for (shown, addr) in [
+                (stranger, "billing@stranger.example"),
+                (partner, "tanaka@partner.example"),
+            ] {
+                c.hset(
+                    contact_cards::autocomplete_key(me).as_bytes(),
+                    &[(addr.as_bytes(), shown.as_bytes())],
+                )
+                .expect("autocomplete");
+                contacts::record_inbound(&mut c, me, addr, "", false, false).expect("inbound");
+            }
+            contacts::record_sent_to(&mut c, me, "tanaka@partner.example").expect("sent");
+        })
+        .await
+        .expect("seed");
+    }
+    let client = Arc::new(KevyNetClient::new(url.clone()));
+    for (from, address, wrote_to) in [
+        (stranger, "billing@stranger.example", false),
+        (partner, "tanaka@partner.example", true),
+        ("sato@partner.example", "sato@partner.example", false),
+    ] {
+        let live =
+            mailrs_receiver::spam_lists::relation_async(Some(client.clone()), me, from).await;
+        assert_eq!(live.from_correspondent, wrote_to, "{from}");
+        assert_eq!(
+            live.from_correspondent_domain,
+            from.contains("partner.example"),
+            "{from}"
+        );
+        let url = url.clone();
+        let later = tokio::task::spawn_blocking(move || {
+            let mut c = kevy_client::Connection::connect(&url).expect("kevy");
+            contacts::record_inbound(&mut c, me, address, "", false, false).expect("inbound");
+            relation(Some(&mut c), me, from, Counted::After)
+        })
+        .await
+        .expect("rejudge");
+        assert_eq!(later, live, "{from}");
+    }
+}
