@@ -18,6 +18,7 @@ POST /v1/admin/maintenance:backfill-attachment-counts | count the attachments of
 POST /v1/admin/maintenance:backfill-attachment-text | queue stored mail carrying a PDF or image for the attachment-text worker
 POST /v1/admin/maintenance:backfill-sections | decide the sectioned inbox's section for mail delivered before sections existed
 POST /v1/admin/maintenance:backfill-contact-relationships | rebuild per-sender received/sent counters from history for importance scoring
+POST /v1/admin/maintenance:backfill-sent-to | list the addresses each user sent mail to, from the relationship counters, for the fraud rules' correspondent facts
 POST /v1/admin/maintenance:backfill-domain-seen | record sending-domain familiarity from stored mail for the brand-impersonation check
 POST /v1/admin/maintenance:backfill-invites | read the calendar part out of stored mail that arrived before invitations were parsed
 POST /v1/admin/maintenance:backfill-reply-rotation | record which sending domains funnel into each off-domain reply address, for the rotation fraud rule
