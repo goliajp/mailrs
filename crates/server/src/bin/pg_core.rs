@@ -18,8 +18,12 @@
 //! No `#[tokio::main]` either — the runtime is built by hand so the boot
 //! sequence and this entry point cannot disagree about how many threads it has.
 
+/// Resident parse workers for the spool drain, as in fastcore.
+const PARSE_WORKERS: usize = 2;
+
 fn main() {
     mailrs_core_api::refuse_blank_secrets();
+    mailrs_parse_worker::install_or_exit("pg-core", PARSE_WORKERS);
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()

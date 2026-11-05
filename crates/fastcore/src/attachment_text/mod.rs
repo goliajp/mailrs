@@ -218,17 +218,10 @@ async fn process(
         let qr = qr_shadow::assess(&raw, &texts, &urls);
         (texts, outcome, qr)
     };
+    // the parsers run in child processes; a panic here is this code's own
     let (texts, outcome, qr) = match tokio::task::spawn_blocking(read).await {
         Ok(done) => done,
-        Err(e) => {
-            tracing::warn!(error = %e, %user, %mid, "attachment text: extraction task failed");
-            let failed = mailrs_mailbox_kevy::AttachmentTextState {
-                version: current_version(ocr),
-                failed: 1,
-                ..Default::default()
-            };
-            (Vec::new(), failed, None)
-        }
+        Err(e) => std::panic::resume_unwind(e.into_panic()),
     };
     if let Err(e) = state.mailbox.store_attachment_texts(mid, &texts, &outcome) {
         tracing::warn!(error = %e, %user, %mid, "attachment text: storing failed");

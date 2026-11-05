@@ -52,6 +52,10 @@ pub struct ReceiverStats {
     /// `None` when the receiver serves no certificate or predates the field.
     #[serde(default)]
     pub dane: Option<DaneStatus>,
+    /// The receiver's parse workers; `None` from a receiver that predates
+    /// them.
+    #[serde(default)]
+    pub parsing: Option<mailrs_core_api::types::ParsingHealthWire>,
 }
 
 /// The receiver's view of DANE for its own hostname.
@@ -146,6 +150,17 @@ mod tests {
                 checked_at: Some(1),
                 sources: vec![],
                 unmatched_swaps: 0,
+            }),
+            parsing: Some(mailrs_core_api::types::ParsingHealthWire {
+                worker: true,
+                failures_24h: 1,
+                last_failure_at: Some(1_700_000_000),
+                worker_restarts: 1,
+                failures: vec![mailrs_core_api::types::ParserFailureWire {
+                    parser: "html2text".into(),
+                    kind: "panic".into(),
+                    count: 1,
+                }],
             }),
         };
         let bytes = serde_json::to_vec(&sent).unwrap();

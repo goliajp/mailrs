@@ -94,7 +94,7 @@ fn index_message(
         return;
     };
     stamp_sender_trust(state, user, tid, &mut w, &raw, c);
-    let text = crate::body_text_for_search(&mailrs_mime::parse(&raw));
+    let text = crate::body_text_for_search(&raw, mailrs_parse_worker::Limit::Batch);
     if let Some(text) = text.as_deref()
         && state
             .mailbox

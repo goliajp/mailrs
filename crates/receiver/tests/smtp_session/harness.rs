@@ -147,6 +147,11 @@ impl Drop for Receiver {
 /// A receiver for `golia.test` asking the stand-in core about local
 /// recipients, with the network kevy at `kevy` (none when `None`).
 pub async fn receiver(name: &str, kevy: Option<&str>) -> Receiver {
+    receiver_with(name, kevy, false).await
+}
+
+/// [`receiver`], with the inbound scan (`run_antispam`) on or off.
+pub async fn receiver_with(name: &str, kevy: Option<&str>, antispam: bool) -> Receiver {
     let spool = std::env::temp_dir().join(format!("{name}-{}", std::process::id()));
     std::fs::create_dir_all(&spool).unwrap();
     let counts = Arc::new(Counts::default());
@@ -170,7 +175,7 @@ pub async fn receiver(name: &str, kevy: Option<&str>) -> Receiver {
         resolver: None,
         dnsbl_zones: Vec::new(),
         dnsbl_enabled: false,
-        antispam_enabled: false,
+        antispam_enabled: antispam,
         smuggle_protection: SmuggleProtection::Off,
         submission_from_check: mailrs_receiver::config::SubmissionFromCheck::Enforce,
         auth_guard: Arc::new(MemoryLoginGuard::default()),

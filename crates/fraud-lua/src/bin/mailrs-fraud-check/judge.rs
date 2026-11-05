@@ -151,7 +151,8 @@ pub(super) fn judge(
         &mailrs_inbound::scan_input::link_hosts(&parsed),
         arrived,
     );
-    let inside = mailrs_inbound::body::attachments_inside(&parsed);
+    let read = mailrs_parse_worker::attachments_inside(&raw, mailrs_parse_worker::Limit::Batch);
+    let inside = read.inside;
     let f = Facts {
         from: &from,
         domain: host,
@@ -180,6 +181,8 @@ pub(super) fn judge(
         is_bulk: mailrs_inbound::body::is_bulk(&raw),
         has_executable_attachment: inside.carries_code,
         has_encrypted_document_archive: inside.encrypted_document_archive,
+        parser_failed_on_message: read.parser_failed,
+        has_unreadable_archive: inside.unreadable_archive,
         reply_marker_without_thread: mailrs_inbound::thread_claim::reply_marker_without_thread(
             &raw,
         ),

@@ -39,6 +39,8 @@ step() { printf "\n\033[1m%s\033[0m\n" "$1"; }
 
 step "[1/4] cargo build --release fastcore + migrate"
 cargo build --release -p mailrs-fastcore --bin mailrs-fastcore --bin mailrs-fastcore-migrate 2>&1 | tail -3
+# fastcore will not start without the parse worker beside it
+cargo build --release -p mailrs-parse-worker --bin mailrs-parse-worker 2>&1 | tail -3
 
 step "[2/4] sample NDJSON → mailrs-fastcore-migrate"
 mkdir -p "$KEVY_DIR"

@@ -7520,6 +7520,45 @@ export interface components {
                 /** @description Outbound jobs the sender set aside; null when the shared store cannot be read */
                 sender?: number | null;
             };
+            /** @description The parse workers of the receiver and of the core. */
+            parsing?: {
+                /** @description One process's parse workers since it started; null when it has not said. */
+                receiver?: {
+                    /** @description Whether parsing runs in workers; false means in process */
+                    worker?: boolean;
+                    /** @description Messages a worker died, was killed or failed on in the last 24 hours */
+                    failures_24h?: number;
+                    /** @description Unix seconds of the last such failure; null before the first */
+                    last_failure_at?: number | null;
+                    /** @description Workers started again after one died or was killed */
+                    worker_restarts?: number;
+                    /** @description parser_failure_total by parser and kind */
+                    failures?: {
+                        parser?: string;
+                        /** @enum {string} */
+                        kind?: "panic" | "timeout" | "killed" | "error";
+                        count?: number;
+                    }[];
+                } | null;
+                /** @description One process's parse workers since it started; null when it has not said. */
+                core?: {
+                    /** @description Whether parsing runs in workers; false means in process */
+                    worker?: boolean;
+                    /** @description Messages a worker died, was killed or failed on in the last 24 hours */
+                    failures_24h?: number;
+                    /** @description Unix seconds of the last such failure; null before the first */
+                    last_failure_at?: number | null;
+                    /** @description Workers started again after one died or was killed */
+                    worker_restarts?: number;
+                    /** @description parser_failure_total by parser and kind */
+                    failures?: {
+                        parser?: string;
+                        /** @enum {string} */
+                        kind?: "panic" | "timeout" | "killed" | "error";
+                        count?: number;
+                    }[];
+                } | null;
+            };
             /** @description Domains with a first-seen time (mailrs:domfirst:), recounted at most every five minutes. Null when the shared store cannot be read. */
             new_domains?: {
                 /** @description Domains with a first-seen time */

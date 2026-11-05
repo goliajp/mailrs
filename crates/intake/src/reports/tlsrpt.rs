@@ -52,7 +52,10 @@ pub fn maybe_ingest(addr: &str, body: &[u8]) {
     // and decompressing a report attachment is the same problem for
     // both, down to the gzip/zip/plain split. If a third report format
     // ever needs it, it should move to its own stone.
-    for payload in mailrs_dmarc::ingest::extract_report_payloads(body) {
+    // decompressed in the parse worker; a report it fails on is skipped
+    let payloads =
+        mailrs_parse_worker::report_payloads(body, mailrs_parse_worker::Limit::Inbound).read();
+    for payload in payloads.unwrap_or_default() {
         let report: Report = match serde_json::from_slice(&payload) {
             Ok(r) => r,
             Err(e) => {

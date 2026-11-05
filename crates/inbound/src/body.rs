@@ -136,18 +136,6 @@ pub fn attachment_text_for_rules(texts: &[String]) -> String {
     out
 }
 
-/// What the attachments hold, each read for what it holds as well as
-/// what it is called — [`mailrs_fraud::attachment_inside::read`].
-pub fn attachments_inside(
-    parsed: &mailrs_mime::Part<'_>,
-) -> mailrs_fraud::attachment_inside::Inside {
-    mailrs_fraud::attachment_inside::read(
-        parsed
-            .attachments()
-            .map(|p| (p.attachment_filename().unwrap_or(""), &p.body[..])),
-    )
-}
-
 /// Whether the message carries `List-Unsubscribe` or `List-Id`.
 pub fn is_bulk(raw: &[u8]) -> bool {
     let head = &raw[..raw.len().min(HEAD_LIMIT)];
