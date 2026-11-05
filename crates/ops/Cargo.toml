@@ -9,6 +9,11 @@ license = "Apache-2.0 OR MIT"
 [lints]
 workspace = true
 
+[features]
+# the watchdog's smoke test stalls a cycle on purpose; no shipped binary is
+# built with it
+stall-hook = []
+
 [[bin]]
 name = "mailrs-ops"
 path = "src/main.rs"
