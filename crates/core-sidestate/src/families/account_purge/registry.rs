@@ -15,7 +15,7 @@
 //! index runs before the entry that removes the index.
 
 use super::shape::{Shape, glob_escape};
-use super::{custom, last_reader};
+use super::{custom, last_reader, rejudge};
 use crate::families::{
     calendar_events, calendar_feeds, contact_cards, contacts, devices, email_groups, forwarding,
     local_forward, masked_email, notify, outbound::pause, permission_groups, prefs, recall_notices,
@@ -190,8 +190,8 @@ pub const OWNED: &[Owned] = &[
     mail("rejudge:recalled:{user}:*", Shape::Globs(|a| under("rejudge:recalled:", a, ":"))),
     mail("rejudge:batch:*", Shape::Members { keys: || "rejudge:batch:*".into(), sep: Some("\t") }),
     // what a round gathered to hold, until it settles or its pending batch
-    // is confirmed or discarded; a confirm finds the purged reader's gone
-    mail("rejudge:candidates:*", Shape::Members { keys: || "rejudge:candidates:*".into(), sep: Some("\t") }),
+    // is decided; the batch counts the purged reader's out, and goes at none
+    mail("rejudge:candidates:*", Shape::Custom(rejudge::candidates)),
     mail("mailrs:attpending", Shape::Members { keys: || "mailrs:attpending".into(), sep: Some("\t") }),
     mail("mailrs:imgpending", Shape::Members { keys: || "mailrs:imgpending".into(), sep: Some("\t") }),
     mail("mailrs:sync:cursor:{user}", Shape::Key(|a| format!("mailrs:sync:cursor:{a}"))),

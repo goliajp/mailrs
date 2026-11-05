@@ -20,6 +20,7 @@ pub mod last_reader;
 pub mod maildir;
 pub mod pending;
 pub mod registry;
+mod rejudge;
 pub mod restore;
 mod shape;
 mod sql_tables;
