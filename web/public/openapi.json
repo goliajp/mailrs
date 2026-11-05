@@ -15735,22 +15735,6 @@
           "version": {
             "type": "string"
           },
-          "build": {
-            "type": "object",
-            "description": "The binary answering and since when: the release version, the commit it was built from (null for a build without one) and the process's start time in unix seconds.",
-            "properties": {
-              "version": {
-                "type": "string"
-              },
-              "commit": {
-                "type": "string",
-                "nullable": true
-              },
-              "started_at": {
-                "type": "integer"
-              }
-            }
-          },
           "uptime_secs": {
             "type": "integer",
             "format": "int64",

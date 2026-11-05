@@ -49,7 +49,9 @@ pub static VERSIONS: Rule = Rule {
     name: "versions_differ",
     source: Source::Reports,
     severity: Severity::Critical,
-    for_secs: 5 * MIN,
+    // a deploy restarts the processes one after another, fastcore last, and
+    // its replay may take minutes; a mix shorter than this is the deploy
+    for_secs: 10 * MIN,
     clear_secs: 0,
     repeat_secs: DEFAULT_REPEAT,
     depends: None,
@@ -62,16 +64,16 @@ pub static VERSIONS: Rule = Rule {
             None => version.to_string(),
         };
         let mut seen: BTreeSet<(String, String)> = BTreeSet::new();
-        if let Some(b) = s.fastcore.got().and_then(|h| h.build.as_ref()) {
+        // the core says what it runs in its ops status; webapi only in its
+        // reports, which it sends at start and when ready
+        if let Some(b) = s.fastcore_ops.got().map(|o| &o.build) {
             seen.insert((label(&b.version, &b.commit), "fastcore".into()));
         }
-        if let Some(v) = s.webapi.got().and_then(|h| h["build"]["version"].as_str()) {
-            let commit = s
-                .webapi
-                .got()
-                .and_then(|h| h["build"]["commit"].as_str())
-                .map(String::from);
-            seen.insert((label(v, &commit), "webapi".into()));
+        if let Some(p) = s.processes.get("webapi") {
+            seen.insert((
+                label(&p.latest.build.version, &p.latest.build.commit),
+                "webapi".into(),
+            ));
         }
         for (name, p) in &s.processes {
             if p.fresh {

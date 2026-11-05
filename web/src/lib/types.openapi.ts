@@ -7414,12 +7414,6 @@ export interface components {
             /** @enum {string} */
             service: "mailrs-webapi";
             version: string;
-            /** @description The binary answering and since when: the release version, the commit it was built from (null for a build without one) and the process's start time in unix seconds. */
-            build?: {
-                version?: string;
-                commit?: string | null;
-                started_at?: number;
-            };
             /**
              * Format: int64
              * @description Seconds since this webapi process started

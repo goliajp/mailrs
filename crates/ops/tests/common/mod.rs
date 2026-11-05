@@ -42,7 +42,6 @@ pub async fn webapi(kevy: bool) -> String {
     let health = serde_json::json!({
         "status": "healthy",
         "kevy": kevy,
-        "build": mailrs_ops_report::build::build(),
         "kevy_server_memory": { "used_bytes": 100, "limit_bytes": 1000 },
         "quota": { "accounts": 1, "accounts_without_limit": 0, "over_80": 0, "computed_at": now, "stale": false },
         "new_domains": { "added_24h": 0, "computed_at": now, "stale": false },

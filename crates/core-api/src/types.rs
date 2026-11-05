@@ -38,10 +38,6 @@ pub struct HealthResponse {
     /// This core's parse workers. `None` from a core that predates them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parsing: Option<ParsingHealthWire>,
-    /// Which binary is answering and since when. `None` from a core that
-    /// predates it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub build: Option<mailrs_ops_report::build::BuildInfo>,
 }
 
 /// What one process's parse workers went through since it started.
