@@ -27,6 +27,7 @@ async fn a_deleted_team_is_gone_at_once_and_its_state_waits_for_the_purge() {
     let gid = create_team(&live, &admin).await;
     let mut net = kevy_client::Connection::connect(KEVY).expect("kevy");
     let r = work(&mut net, gid);
+    claim_reply(&live, r).await;
     let page = format!("/api/shared/{gid}/{}", r.conv);
     let (status, _) = live.call(Method::GET, &page, &alice, None).await;
     assert_eq!(status, 200, "alice reads her team before the delete");
@@ -69,6 +70,7 @@ async fn a_deleted_team_is_gone_at_once_and_its_state_waits_for_the_purge() {
     // its state kept, pending and not due
     assert_eq!(team_keys(&mut net, gid), before);
     assert_eq!(claim_groups(&mut net), [gid]);
+    assert_eq!(reply_seq(&live, r), 1, "the core's reply claim is kept");
     let pass = live.core.group_purge(false, Some(gid)).await.expect("pass");
     assert_eq!((pass.retention_days, pass.pending, pass.due), (30, 1, 0));
     assert!(pass.rows.is_empty());
@@ -93,6 +95,7 @@ async fn a_deleted_team_is_gone_at_once_and_its_state_waits_for_the_purge() {
     assert_eq!(overview["assignments"], serde_json::json!([]), "{overview}");
     assert_eq!(overview["draft"], serde_json::Value::Null, "{overview}");
     assert_eq!(overview["present"], serde_json::json!([]), "{overview}");
+    assert_eq!(overview["reply"]["seq"], 0, "{overview}");
     let (status, notes) = live
         .call(
             Method::GET,

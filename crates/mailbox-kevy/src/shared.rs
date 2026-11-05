@@ -17,7 +17,22 @@ fn reply_key(tag: &str) -> String {
     format!("mailrs:shared-reply:{tag}")
 }
 
+/// What a group purge reports these keys under.
+pub const REPLY_FAMILY: &str = "mailrs:shared-reply:{gid}:{conv}";
+
 impl KevyMailboxStore {
+    /// The reply claims of every conversation of group `gid`, counted, and
+    /// removed unless `dry_run`: part of a deleted group's team state.
+    pub fn purge_group_replies(&self, gid: i64, dry_run: bool) -> io::Result<u64> {
+        let pattern = format!("{}*", reply_key(&format!("{gid}:")));
+        let (_, found) = self.store().scan(0, Some(pattern.as_bytes()), usize::MAX);
+        if !dry_run && !found.is_empty() {
+            let refs: Vec<&[u8]> = found.iter().map(Vec::as_slice).collect();
+            self.store().del(&refs)?;
+        }
+        Ok(found.len() as u64)
+    }
+
     /// Mark `user`'s thread as their copy of team conversation `tag`,
     /// assigned to `assignee` (empty for nobody). A row that already says
     /// so is left alone.

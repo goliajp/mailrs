@@ -1,6 +1,7 @@
 //! Under a retention of 0 days, deleting a team inbox purges its working
-//! state at the delete: every `shared:{gid}:*` key and the reply claims
-//! members hold for it, with one audit row counting what went. Another
+//! state at the delete: every `shared:{gid}:*` key, the reply claims
+//! members hold for it and the core's reply claims of its conversations,
+//! with one audit row counting what went. Another
 //! team's state, and alice's claims for it, stay.
 
 mod live;
@@ -22,7 +23,8 @@ async fn deleting_a_team_under_zero_days_purges_its_working_state() {
     let (admin, _) = people(&live).await;
     let gid = create_team(&live, &admin).await;
     let mut net = kevy_client::Connection::connect(KEVY).expect("kevy");
-    work(&mut net, gid);
+    let r = work(&mut net, gid);
+    claim_reply(&live, r).await;
     // a second team, kept
     let other = gid + 100;
     work(&mut net, other);
@@ -49,7 +51,13 @@ async fn deleting_a_team_under_zero_days_purges_its_working_state() {
     assert_eq!(purged[0]["target"], gid.to_string());
     let detail: serde_json::Value =
         serde_json::from_str(purged[0]["detail"].as_str().expect("detail")).expect("json");
-    let removed = detail["removed"].as_array().expect("removed");
+    assert_eq!(reply_seq(&live, r), 0, "the core's reply claim went too");
+    assert_eq!(
+        detail["mail_store"],
+        serde_json::json!([{ "name": mailrs_mailbox_kevy::SHARED_REPLY_FAMILY, "count": 1 }]),
+        "{detail}"
+    );
+    let removed = detail["network"].as_array().expect("network");
     // one key of each family, all of them, and the claim
     let mut names: Vec<String> = before
         .iter()

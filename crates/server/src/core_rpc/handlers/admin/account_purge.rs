@@ -2,7 +2,8 @@
 //! with this core's rows taken by table. The registry, the maildir and the
 //! network part are `mailrs_core_sidestate::families::account_purge`. The
 //! same task and a route of their own purge deleted email groups' team
-//! state, all in the network kevy (`group_purge`), as fastcore does.
+//! state (`group_purge`) and their reply claims in this core's table, as
+//! fastcore does in its store.
 
 use std::io;
 use std::path::Path;
@@ -223,17 +224,56 @@ pub struct GroupPurgeQuery {
     gid: Option<i64>,
 }
 
+/// The table a group purge counts this core's reply claims under.
+const REPLY_TABLE: &str = "shared_reply_state";
+
+/// One group pass: the network kevy's part, and the reply claims of the
+/// groups' conversations in this core's table, as fastcore's.
+pub(crate) async fn run_groups(
+    state: &Arc<CoreRpcState>,
+    dry_run: bool,
+    only: Option<i64>,
+    now: i64,
+    retention_days: u64,
+) -> Result<GroupPurgeResponse, StatusCode> {
+    let pass = net(state, move |c| {
+        group_purge::due(c, now, retention_days, only)
+    })
+    .await?;
+    let mut rows = Vec::new();
+    for g in &pass.due {
+        let n = state
+            .mailbox
+            .purge_group_replies(g.gid, dry_run)
+            .await
+            .map_err(sql_failed)?;
+        let mail = vec![PurgeCount {
+            name: REPLY_TABLE.to_string(),
+            count: n,
+        }];
+        let g = g.clone();
+        let row = net(state, move |c| {
+            let row = group_purge::row(&g, group_purge::network(c, &g, dry_run)?, mail);
+            if !dry_run {
+                group_purge::finish(c, &row, now)?;
+            }
+            Ok(row)
+        })
+        .await?;
+        rows.push(row);
+    }
+    Ok(pass.response(dry_run, retention_days, rows))
+}
+
 /// POST /v1/admin/maintenance:group-purge
 pub async fn group_purge_route(
     State(state): State<Arc<CoreRpcState>>,
     Query(q): Query<GroupPurgeQuery>,
 ) -> Result<Json<GroupPurgeResponse>, StatusCode> {
-    let at = now();
-    net(&state, move |c| {
-        group_purge::run_now(c, q.dry_run, q.gid, at)
-    })
-    .await
-    .map(Json)
+    let days = group_purge::retention_days();
+    run_groups(&state, q.dry_run, q.gid, now(), days)
+        .await
+        .map(Json)
 }
 
 /// Mark `address` deleted at `now`, for its purge. `Ok(false)` when no
@@ -295,8 +335,7 @@ pub(crate) fn spawn(state: Arc<CoreRpcState>) {
             let accounts = run(&state, false, None, now(), days)
                 .await
                 .map_or(0, |r| r.rows.len());
-            let at = now();
-            let groups = net(&state, move |c| group_purge::run(c, false, None, at, days))
+            let groups = run_groups(&state, false, None, now(), days)
                 .await
                 .map_or(0, |r| r.rows.len());
             let purged = accounts + groups;

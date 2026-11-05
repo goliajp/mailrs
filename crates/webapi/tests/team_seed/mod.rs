@@ -94,6 +94,28 @@ pub fn work(net: &mut kevy_client::Connection, gid: i64) -> ConvRef {
     r
 }
 
+/// Alice claims the reply to `r` through the core: the reply claim the
+/// core keeps in its own store.
+pub async fn claim_reply(live: &Live, r: ConvRef) {
+    let req = mailrs_core_api::method::shared::ClaimReplyRequest {
+        gid: r.gid,
+        conv: r.conv,
+        seen_seq: 0,
+        force: false,
+        at: 20,
+    };
+    live.core
+        .shared_claim_reply(ALICE, &req)
+        .await
+        .expect("claim the reply");
+    assert_eq!(reply_seq(live, r), 1, "the claim is in the core's store");
+}
+
+/// How many replies the core's store says were claimed on `r`.
+pub fn reply_seq(live: &Live, r: ConvRef) -> u64 {
+    live.mailbox.reply_state(&r.tag()).expect("reply state").seq
+}
+
 /// The keys of group `gid`'s working state, sorted.
 pub fn team_keys(net: &mut kevy_client::Connection, gid: i64) -> Vec<String> {
     let mut keys: Vec<String> = net

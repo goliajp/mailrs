@@ -2,8 +2,9 @@
 //! delete takes the group out of use at once (its row and member set go)
 //! and marks it pending; the purge, once the retention period of deleted
 //! accounts has passed, removes its team working state (the
-//! `shared:{gid}:*` keys and the reply claims members hold for it). The
-//! mail itself stays in the members' mailboxes.
+//! `shared:{gid}:*` keys and the reply claims members hold for it) and
+//! the reply claims of its conversations in the core's own store. The mail
+//! itself stays in the members' mailboxes.
 
 use serde::{Deserialize, Serialize};
 
@@ -21,9 +22,13 @@ pub struct GroupPurgeRow {
     pub address: String,
     /// When the group was deleted (unix seconds).
     pub deleted_at: i64,
-    /// Keys by family (`shared:{gid}:{conv}:notes`, ...), and the claims
-    /// members held for the group.
-    pub removed: Vec<PurgeCount>,
+    /// Network-kevy keys by family (`shared:{gid}:{conv}:notes`, ...),
+    /// and the claims members held for the group.
+    pub network: Vec<PurgeCount>,
+    /// The reply claims of the group's conversations in the core's own
+    /// store. The two cores name these differently: fastcore by kevy
+    /// family, the SQL core by table.
+    pub mail_store: Vec<PurgeCount>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -56,10 +61,11 @@ mod tests {
                 gid: 3,
                 address: "team@x.test".into(),
                 deleted_at: 1,
-                removed: vec![PurgeCount {
+                network: vec![PurgeCount {
                     name: "msgids".into(),
                     count: 1,
                 }],
+                mail_store: vec![],
             }],
             skipped_live: vec![],
         };
