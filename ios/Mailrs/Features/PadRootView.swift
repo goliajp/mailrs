@@ -67,7 +67,7 @@ struct PadRootView: View {
                         Button {
                             composing = true
                         } label: {
-                            Label("New message", systemImage: "square.and.pencil")
+                            Label("Compose", systemImage: "square.and.pencil")
                         }
                         .accessibilityIdentifier("pad.compose")
                         .keyboardShortcut("n", modifiers: .command)

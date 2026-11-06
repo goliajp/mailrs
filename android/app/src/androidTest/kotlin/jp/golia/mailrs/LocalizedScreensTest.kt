@@ -67,5 +67,5 @@ class JapaneseScreensTest : LocalizedScreens(
 @RunWith(AndroidJUnit4::class)
 class ChineseScreensTest : LocalizedScreens(
     "zh-CN",
-    mapOf("inbox" to "收件箱", "trash" to "废纸篓", "starred" to "已加星", "toTrash" to "移到废纸篓", "undo" to "撤销"),
+    mapOf("inbox" to "收件箱", "trash" to "已删除邮件", "starred" to "已加星标", "toTrash" to "移至「已删除邮件」", "undo" to "撤销"),
 )
