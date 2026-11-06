@@ -470,6 +470,7 @@ fn every_fixture_has_a_test() {
         "sender-rule-set",
         "web-push-subscribe",
         "web-push-unsubscribe",
+        "unified-push-register",
     ];
     let dir = format!(
         "{}/../../wire-contract/requests",

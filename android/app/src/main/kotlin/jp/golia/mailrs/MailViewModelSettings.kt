@@ -22,12 +22,14 @@ import jp.golia.mailrs.wire.saveSwipeSetting
 import jp.golia.mailrs.wire.saveVacation
 import jp.golia.mailrs.wire.signedInSessions
 import jp.golia.mailrs.wire.swipeSetting
+import jp.golia.mailrs.wire.unifiedPushState
+import jp.golia.mailrs.wire.unregisterUnifiedPush
 import jp.golia.mailrs.wire.vacation
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** A settings page of its own, opened from a row in Settings. */
-enum class SettingsPage { Notifications, Sessions, AppPasswords, Vacation, Masked }
+enum class SettingsPage { Notifications, Push, Sessions, AppPasswords, Vacation, Masked }
 
 fun MailViewModel.openSettingsPage(page: SettingsPage) {
     _state.update { it.copy(settingsPage = page, error = null) }
@@ -115,3 +117,8 @@ fun MailViewModel.saveSwipe(s: SwipeSetting) {
         }
     }
 }
+
+suspend fun MailViewModel.loadUnifiedPush() = settings(R.string.settings_push_load_failed) { client.unifiedPushState() }
+
+suspend fun MailViewModel.removePushDevice(id: String) =
+    settings(R.string.settings_push_remove_failed) { client.unregisterUnifiedPush(id) } != null

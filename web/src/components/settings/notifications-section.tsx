@@ -123,6 +123,7 @@ function PrefsCard() {
 const CHANNELS: { key: Key; name: string }[] = [
   { key: 'settings.notify.channel.apns', name: 'apns' },
   { key: 'settings.notify.channel.web', name: 'web' },
+  { key: 'settings.notify.channel.unifiedpush', name: 'unifiedpush' },
 ]
 
 function StatsCard() {
@@ -138,8 +139,9 @@ function StatsCard() {
       <ul className="space-y-1 text-sm">
         {CHANNELS.map((c) => {
           const n = weekTotals(days, c.name)
-          // nothing could be pushed: say so rather than show zeros
-          if (c.name === 'web' && web?.enabled === false) {
+          // nothing could be pushed: say so rather than show zeros (UnifiedPush
+          // is signed with the Web Push key, so it is off when Web Push is)
+          if (c.name !== 'apns' && web?.enabled === false) {
             return (
               <li key={c.name}>
                 <span className="font-medium">{t(c.key)}</span> {t('settings.notify.webOff')}

@@ -55,6 +55,7 @@ fun SettingsExtras(swipe: SwipeSetting, onSwipe: (SwipeSetting) -> Unit, onPage:
 /** The page's title, for its row and its top bar. */
 fun titleOf(page: SettingsPage): Int = when (page) {
     SettingsPage.Notifications -> R.string.settings_notifications
+    SettingsPage.Push -> R.string.settings_push
     SettingsPage.Sessions -> R.string.settings_sessions
     SettingsPage.AppPasswords -> R.string.settings_app_passwords
     SettingsPage.Vacation -> R.string.settings_vacation

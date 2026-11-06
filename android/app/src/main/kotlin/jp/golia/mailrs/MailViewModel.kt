@@ -18,6 +18,7 @@ import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.PASSWORD_CLEARED
 import jp.golia.mailrs.wire.NewMailWorker
 import jp.golia.mailrs.wire.Prefs
+import jp.golia.mailrs.wire.PushDistributor
 import jp.golia.mailrs.wire.RecentRecipients
 import jp.golia.mailrs.wire.RecipientAutocomplete
 import jp.golia.mailrs.wire.ShareIntent
@@ -191,6 +192,10 @@ class MailViewModel(
     }
 
     fun signOut() {
+        // read before the session goes: the server forgets this phone's
+        // push endpoint with it
+        val leaving = MailrsClient(TokenStore(getApplication()))
+        viewModelScope.launch { PushDistributor.signedOut(getApplication(), leaving) }
         client.signOut()
         // The mailbox goes with the session. A cached list left behind
         // would paint somebody else's mail onto the next sign-in for as

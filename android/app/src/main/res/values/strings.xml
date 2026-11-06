@@ -532,4 +532,25 @@
     <string name="block_confirm_action">Block</string>
     <string name="block_done">Blocked %1$s</string>
     <string name="block_unblocked">Unblocked %1$s</string>
+    <string name="settings_push">Instant notifications</string>
+    <string name="settings_push_load_failed">The instant notification settings could not be loaded</string>
+    <string name="settings_push_remove_failed">The phone was not removed</string>
+    <string name="push_intro">Mail is announced as it arrives through a UnifiedPush distributor app on this phone. The push says only that something arrived; Mailrs then fetches the rest from your mail server</string>
+    <string name="push_server_off">This server has not turned on push notifications</string>
+    <string name="push_none_installed">No UnifiedPush distributor is installed. Without one, Mailrs checks for new mail about every 15 minutes while it is closed, and Android may wait longer</string>
+    <string name="push_none_hint">Install a distributor app such as ntfy, then come back here</string>
+    <string name="push_pick">Distributor</string>
+    <string name="push_turn_on">Turn on</string>
+    <string name="push_turn_off">Turn off</string>
+    <string name="push_status_on">On, through %1$s</string>
+    <string name="push_status_waiting">Waiting for %1$s</string>
+    <string name="push_status_failed">Not turned on: %1$s</string>
+    <string name="push_status_off">Off. Mailrs checks for new mail about every 15 minutes while it is closed</string>
+    <string name="push_failed_network">no network connection</string>
+    <string name="push_failed_action">the distributor needs attention, open it</string>
+    <string name="push_failed_vapid">the distributor needs a key the server did not give</string>
+    <string name="push_failed_internal">the distributor refused</string>
+    <string name="push_devices">Phones that get pushes</string>
+    <string name="push_this_phone">%1$s (this phone)</string>
+    <string name="push_remove">Remove</string>
 </resources>

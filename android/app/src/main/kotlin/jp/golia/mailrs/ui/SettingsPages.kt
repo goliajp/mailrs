@@ -79,6 +79,7 @@ fun SettingsPageScreen(page: SettingsPage, state: UiState, vm: MailViewModel) {
         Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState())) {
             when (page) {
                 SettingsPage.Notifications -> NotifyPage(vm)
+                SettingsPage.Push -> PushPage(vm)
                 SettingsPage.Sessions -> SessionsPage(vm)
                 SettingsPage.AppPasswords -> AppPasswordsPage(state, vm)
                 SettingsPage.Vacation -> VacationPage(vm)

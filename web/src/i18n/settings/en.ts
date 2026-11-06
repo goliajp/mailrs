@@ -281,6 +281,7 @@ export const settingsEn = {
   'settings.notify.always': 'Always push',
   'settings.notify.blurb': 'When mail rings your devices',
   'settings.notify.channel.apns': 'iPhone',
+  'settings.notify.channel.unifiedpush': 'Android (UnifiedPush)',
   'settings.notify.channel.web': 'Browser',
   'settings.notify.failed': 'Could not save',
   'settings.notify.follow': 'Following',

@@ -14,6 +14,8 @@ import androidx.core.content.ContextCompat
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -23,22 +25,18 @@ import jp.golia.mailrs.widget.refreshInboxWidgets
 import java.util.concurrent.TimeUnit
 
 /**
- * "You have mail", without push.
+ * "You have mail": a look at the mailbox, run periodically and whenever a
+ * UnifiedPush ping arrives.
  *
- * The server speaks APNs and an FCM sender needs a Firebase project
- * that does not exist yet, so instant delivery is not available to this
- * app. A mail client that never mentions arriving mail is the
- * alternative, and it is a worse one — a periodic check is what Android
- * offers instead, and it is what this does.
- *
- * **Honest about what it is.** Fifteen minutes is `WorkManager`'s floor
+ * With a UnifiedPush distributor on the phone the server pings it as mail
+ * arrives ([PushPingService]) and this runs at once. Without one, the
+ * periodic run is all there is: fifteen minutes is `WorkManager`'s floor
  * for periodic work and the system will stretch it further on a phone
- * that is asleep. This is not push and does not pretend to be; it is
- * the difference between finding out in a quarter of an hour and
- * finding out next time you open the app.
+ * that is asleep. The periodic run stays on with a distributor too, for
+ * the times its server is down.
  *
  * It asks for a **count**, not a list: one small request per check, and
- * nothing of the mailbox is downloaded in the background.
+ * the inbox only when something arrived.
  */
 class NewMailWorker(
     context: Context,
@@ -54,40 +52,33 @@ class NewMailWorker(
         // nothing to check until somebody signs in again.
         if (client.session == null) return Result.success()
 
-        val count = when (val r = client.unseenCount()) {
-            is MailrsClient.Outcome.Ok -> r.value
-            // The network is the usual reason. Retry rather than
-            // success, so a phone that was in a tunnel is checked again
-            // soon instead of waiting out the full period.
-            is MailrsClient.Outcome.Err -> return Result.retry()
-        }
-
-        val arrived = NewMailRule.arrived(prefs.lastUnseen, count)
-        prefs.lastUnseen = count
-        if (arrived == null) return Result.success()
-
-        // **Who it is from and what it is about**, which is the whole
-        // difference between a notification worth reading on a lock
-        // screen and one that says only that something happened. One
-        // extra request, and only when something actually arrived.
-        val inbox = (client.conversations(MailList.Inbox) as? MailrsClient.Outcome.Ok)?.value
-        val newest = inbox?.filter { it.unreadCount > 0 }?.maxByOrNull { it.lastDate }
+        val check = NewMailCheck(
+            unseen = { (client.unseenCount() as? MailrsClient.Outcome.Ok)?.value },
+            // who it is from and what it is about: one extra request, and
+            // only when something actually arrived
+            inbox = { (client.conversations(MailList.Inbox) as? MailrsClient.Outcome.Ok)?.value },
+        )
+        // The network is the usual reason the count is missing. Retry
+        // rather than success, so a phone that was in a tunnel is checked
+        // again soon instead of waiting out the full period.
+        val found = check.run(prefs.lastUnseen) ?: return Result.retry()
+        prefs.lastUnseen = found.count
 
         // The home-screen widget draws what was last fetched and never
         // fetches itself, and the list is already in hand — so it is
         // written from this trip rather than from a second one.
-        if (inbox != null) {
-            WidgetState.write(applicationContext, signedIn = true, conversations = inbox)
+        if (found.inbox != null) {
+            WidgetState.write(applicationContext, signedIn = true, conversations = found.inbox)
             refreshInboxWidgets(applicationContext)
         }
+        val notice = found.notice ?: return Result.success()
         notify(
             context = applicationContext,
-            title = newest?.let { SenderIdentity.readableName(it.participants.firstOrNull().orEmpty()) }
-                ?: "Mailrs",
-            text = newest?.subject?.ifBlank { Texts.get(R.string.mail_no_subject) } ?: NewMailRule.text(arrived),
-            summary = if (arrived > 1) NewMailRule.text(arrived) else null,
-            threadId = newest?.threadId,
-            channelId = NewMailRule.channelFor(newest?.importanceLevel.orEmpty()),
+            title = notice.title,
+            text = notice.text,
+            summary = notice.summary,
+            threadId = notice.threadId,
+            channelId = notice.channelId,
         )
         return Result.success()
     }
@@ -223,5 +214,28 @@ class NewMailWorker(
                     .build(),
             )
         }
+
+        /**
+         * Look now: a ping said mail arrived.
+         *
+         * `APPEND_OR_REPLACE`: a ping that lands while a check is running
+         * may be for mail that check counted before it arrived, so it
+         * queues one more check behind it rather than being dropped.
+         */
+        fun checkNow(context: Context) {
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                PING_WORK_NAME,
+                ExistingWorkPolicy.APPEND_OR_REPLACE,
+                OneTimeWorkRequestBuilder<NewMailWorker>()
+                    .setConstraints(
+                        Constraints.Builder()
+                            .setRequiredNetworkType(NetworkType.CONNECTED)
+                            .build(),
+                    )
+                    .build(),
+            )
+        }
+
+        private const val PING_WORK_NAME = "new-mail-ping"
     }
 }
