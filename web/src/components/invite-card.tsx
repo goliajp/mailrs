@@ -1,59 +1,29 @@
-import type { CalDateTime } from '@/lib/invite-time'
-import type { Attendee } from '@/lib/invite-types'
+import type { InvitePayload } from '@/lib/invite-types'
 import type { RsvpBody } from '@/wire/endpoints/invites'
 
 import { useQuery } from '@tanstack/react-query'
-import { Calendar, Check, Clock, MapPin, Users, Video, X } from 'lucide-react'
+import { Calendar, Check, MapPin, Users, Video, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { type Key, useT } from '@/i18n'
 import { answerWanted, inviteBadge } from '@/lib/invite-badge'
 import { compactStatusLabel, guestSummary, partstatDot, partstatWord } from '@/lib/invite-guests'
 import { joinLinkOf } from '@/lib/invite-join'
-import {
-  formatCompactRange,
-  formatDateTime,
-  formatEpochOrIso,
-  formatLocalRange,
-  formatOrganiserTime,
-  pickIso,
-  zoneNameOf,
-} from '@/lib/invite-time'
+import { shownSpan } from '@/lib/invite-recurrence'
+import { formatCompactRange, formatDateTime, pickIso } from '@/lib/invite-time'
 import { queryClient } from '@/lib/query-client'
 import { calendarKeys, messageKeys } from '@/lib/query-keys'
 import { adminListGet, adminObjectGet } from '@/wire/endpoints/admin'
 import { wireInviteCounter, wireInviteRsvp } from '@/wire/endpoints/invites'
+
+import { RsvpStatusPill } from './invite-rsvp-pill'
+import { InviteWhen } from './invite-when'
 
 type ConflictRow = {
   dtend: null | string
   dtstart: null | string
   organizer: null | string
   status: null | string
-  summary: string
-  uid: string
-}
-
-type InvitePayload = {
-  attendees?: Attendee[]
-  description?: null | string
-  dtend?: CalDateTime | null
-  /// The instant, resolved on the server against the invitation's own
-  /// VTIMEZONE. Absent for an all-day event, which has no instant, and
-  /// for mail ingested before 2026-08-20.
-  dtend_utc?: null | string
-  dtstart?: CalDateTime
-  dtstart_utc?: null | string
-  /// The way into the meeting, resolved on the server. RFC 5545 has no
-  /// field for it and producers put it wherever, so one implementation
-  /// rather than three.
-  join_url?: null | string
-  location?: null | string
-  method: string
-  organizer?: null | Person
-  recurrence_id?: CalDateTime | null
-  rrule?: null | string
-  sequence: number
-  status?: null | string
   summary: string
   uid: string
 }
@@ -67,8 +37,6 @@ type MessageDetail = {
   rsvp_status?: null | string
   uid: number
 }
-
-type Person = { cn: null | string; email: string }
 
 type RsvpStatus = 'idle' | 'pending' | 'sent' | { error: string }
 
@@ -93,13 +61,14 @@ export function InviteCard({
   })
   const detail = detailQuery.data ?? null
   const payloadForConflicts = detail?.invite_payload
-  const startIso = payloadForConflicts ? pickIso(payloadForConflicts.dtstart) : null
-  const endIso = payloadForConflicts ? (pickIso(payloadForConflicts.dtend) ?? startIso) : null
+  // the occurrence the card shows — the next one of a recurring meeting —
+  // as instants; an all-day or floating event has none and blocks nothing
+  const shown = payloadForConflicts ? shownSpan(payloadForConflicts) : null
+  const conflictStart = utcOf(shown?.start)
+  const conflictEnd = utcOf(shown?.end) || conflictStart
   // Skip conflict lookup in compact mode — narrow timeline rows show one line,
   // no room for "⚠ Conflicts with N events"; the main panel still does it.
-  const conflictsEnabled = !compact && !!(payloadForConflicts && startIso && endIso)
-  const conflictStart = startIso ? (startIso.endsWith('Z') ? startIso : `${startIso}Z`) : ''
-  const conflictEnd = endIso ? (endIso.endsWith('Z') ? endIso : `${endIso}Z`) : ''
+  const conflictsEnabled = !compact && !!conflictStart
   const conflictExcludeUid = payloadForConflicts?.uid ?? ''
   const conflictsQuery = useQuery({
     enabled: conflictsEnabled,
@@ -183,22 +152,10 @@ export function InviteCard({
 
   if (!payload || !badge) return null
 
-  // The resolved instant when the server has one, the wall-clock only
-  // when it does not (all-day, floating, or mail ingested before the
-  // resolution existed). Reading a zoned wall-clock as UTC is what put
-  // a 16:00 Santa Clara meeting at 01:00 in Tokyo.
-  const startAt: CalDateTime | null | undefined = payload.dtstart_utc
-    ? { Utc: payload.dtstart_utc }
-    : payload.dtstart
-  const endAt: CalDateTime | null | undefined = payload.dtend_utc
-    ? { Utc: payload.dtend_utc }
-    : payload.dtend
-  const organiserTime = formatOrganiserTime(payload.dtstart, zoneNameOf(payload.dtstart))
   // From the server, which resolved it once for all three clients —
   // the local rule stays only as a fallback for events stored before
   // the field existed.
   const joinUrl = payload.join_url ?? joinLinkOf(payload.location, payload.description)
-  const range = formatLocalRange(startAt, endAt)
   const cancelled = payload.method.toUpperCase() === 'CANCEL'
   // When the invite carries a RECURRENCE-ID, the organizer is targeting one
   // specific occurrence of a recurring series — RSVP applies to that
@@ -217,7 +174,7 @@ export function InviteCard({
     // the narrow timeline card. compactRange drops year + same-day duplicate
     // and falls back to truncate via `min-w-0 truncate` if it still doesn't
     // fit a particularly narrow viewport.
-    const compactR = formatCompactRange(startAt, endAt)
+    const compactR = formatCompactRange(shownSpan(payload).start, shownSpan(payload).end)
     return (
       <div className="border-border text-fg-muted my-1.5 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs">
         <Calendar className="h-3 w-3 shrink-0" />
@@ -253,17 +210,7 @@ export function InviteCard({
         {isSingleOccurrence && (
           <div className="mt-1 text-xs text-amber-300">ⓘ {t('invite.singleOccurrence')}</div>
         )}
-        {range && (
-          <div className="text-fg-muted mt-1 flex items-center gap-1 text-sm">
-            <Clock className="h-3.5 w-3.5" />
-            {range}
-            {/* The organiser's own zone beside the reader's, when they
-                differ. "08:00" alone is a different claim from "08:00
-                here, 16:00 where it was scheduled", and the second is
-                what somebody joining across an ocean checks. */}
-            {organiserTime && <span className="text-fg-muted/70">· {organiserTime}</span>}
-          </div>
-        )}
+        <InviteWhen payload={payload} />
         {payload.location && (
           <div className="text-fg-muted mt-1 flex items-center gap-1 text-sm">
             <MapPin className="h-3.5 w-3.5" />
@@ -467,34 +414,14 @@ function counterLabel(open: boolean): Key {
   return 'invite.counterPropose'
 }
 
-function replyLabel(partstat: string): Key {
-  if (partstat === 'ACCEPTED') return 'invite.replied.accepted'
-  if (partstat === 'TENTATIVE') return 'invite.replied.tentative'
-  if (partstat === 'DECLINED') return 'invite.replied.declined'
-  return 'invite.replied.other'
-}
-
-/// "4 guests · 1 yes, 2 awaiting" — the shape Gmail uses, because the
-/// count alone does not say whether the meeting is happening.
-function RsvpStatusPill({ at, partstat }: { at: null | string; partstat: string }) {
-  const t = useT()
-  const label = t(replyLabel(partstat), { status: partstat })
-  const cls =
-    partstat === 'ACCEPTED'
-      ? 'bg-emerald-500/15 text-emerald-300'
-      : partstat === 'DECLINED'
-        ? 'bg-red-500/15 text-red-300'
-        : 'bg-amber-500/15 text-amber-300'
-  const when = formatEpochOrIso(at)
-  return (
-    <span className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium ${cls}`}>
-      {label}
-      {when && <span className="text-fg-muted ml-1 font-normal">{when}</span>}
-    </span>
-  )
-}
-
 function showHide(expanded: boolean): Key {
   if (expanded) return 'common.hideParen'
   return 'common.showParen'
+}
+
+/// A shown time as the instant the conflicts query takes; '' for one with
+/// no instant.
+function utcOf(at: ReturnType<typeof shownSpan>['start'] | undefined): string {
+  if (!at || typeof at === 'string' || !('Utc' in at)) return ''
+  return at.Utc
 }

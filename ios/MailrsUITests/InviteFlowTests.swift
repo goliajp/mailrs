@@ -31,11 +31,12 @@ final class InviteFlowTests: MailrsUITestCase {
         // The whole timezone argument, in one label: 16:00 in Santa
         // Clara is 08:00 the next morning here, and the organiser's own
         // clock is named beside it because neither number alone is the
-        // answer.
-        let when = app.staticTexts.containing(
-            NSPredicate(format: "label CONTAINS %@", "Pacific Standard Time")
-        ).firstMatch
-        XCTAssertTrue(when.waitForExistence(timeout: 5), "the organiser's zone is not named")
+        // answer — as the abbreviation in force on 20 August (PDT), not
+        // the Windows TZID, which says "Standard" in summer.
+        let when = app.staticTexts["invite.when"]
+        XCTAssertTrue(when.waitForExistence(timeout: 5), "the card says no time")
+        XCTAssertTrue(when.label.contains("PDT"), "the organiser's zone is not named: \(when.label)")
+        XCTAssertFalse(when.label.contains("Pacific Standard Time"), "a fixed zone label: \(when.label)")
         XCTAssertTrue(
             when.label.contains("8:00") || when.label.contains("08:00"),
             "the reader's own time is wrong or missing: \(when.label)")

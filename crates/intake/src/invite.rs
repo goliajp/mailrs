@@ -112,7 +112,7 @@ pub fn file_event(
     };
     let mut row = ev::from_invite(&found.uid, &found.method, found.sequence, &parsed);
     row.message_id = Some(message_id.to_string()).filter(|m| !m.is_empty());
-    if let Err(e) = ev::file_invite(&mut conn, user, &row) {
+    if let Err(e) = ev::file_invitation(&mut conn, user, &row, &parsed) {
         tracing::warn!(err = %e, %user, uid = %found.uid, "invite: cannot file event");
     }
 }

@@ -63,11 +63,19 @@ struct InviteCard: View {
                 .font(.subheadline.weight(.semibold))
                 .strikethrough(cancelled)
 
-            if let when = whenLine(invite) {
+            // the next occurrence of a series, in the reader's zone, with
+            // the organiser's clock beside it when the two differ
+            if let when = InviteRepeat.whenLine(invite) {
                 Label(when, systemImage: "clock")
                     .font(.caption)
                     .foregroundStyle(theme.fgSecondary)
                     .accessibilityIdentifier("invite.when")
+            }
+            if let repeats = InviteRepeat.ruleLine(invite) {
+                Label(repeats, systemImage: "repeat")
+                    .font(.caption)
+                    .foregroundStyle(theme.fgSecondary)
+                    .accessibilityIdentifier("invite.repeat")
             }
             if let place = invite.location, !place.isEmpty {
                 Label(place, systemImage: "mappin.and.ellipse")
@@ -174,26 +182,5 @@ struct InviteCard: View {
 
     private var badge: LocalizedStringKey {
         InviteMethod.badge(method, sequence: detail?.invite?.sequence ?? 0)
-    }
-
-    /// The reader's own time, and the organiser's beside it when they
-    /// differ — the second is what somebody joining across an ocean
-    /// checks.
-    private func whenLine(_ invite: Wire.Invite) -> String? {
-        guard let starts = invite.startsAt else {
-            // An all-day event has no instant and must not be given one:
-            // its days, as written.
-            return InviteDays.line(firstDay: invite.firstDay, dayAfterLast: invite.dayAfterLast)
-        }
-        let local = starts.formatted(date: .abbreviated, time: .shortened)
-        guard
-            let zone = invite.organiserZone,
-            let wall = invite.organiserWallClock,
-            InviteMethod.zoneDiffers(zone)
-        else {
-            return local
-        }
-        let hhmm = String(wall.dropFirst(11).prefix(5))
-        return "\(local) · \(hhmm) \(zone)"
     }
 }
