@@ -195,10 +195,38 @@ fn notify_overrides_keys_match() {
     assert!(serialized["thread_details"][0]["subject"].is_null());
 }
 
+/// The admin overview's push counts: every channel on every day carries all
+/// four counts, zero included, so the page never has to tell a missing
+/// count from a zero.
+#[test]
+fn admin_push_stats_keys_match() {
+    use handlers::admin_push_stats::PushStats;
+    use mailrs_core_sidestate::families::notify::SiteDay;
+    let sample = PushStats {
+        accounts: 1,
+        days: vec![SiteDay {
+            day: "20261107".into(),
+            ..Default::default()
+        }],
+    };
+    let serialized = serde_json::to_value(&sample).expect("serialize");
+    let from_prod = fixture("admin-push-stats");
+    assert_eq!(keys(&serialized), keys(&from_prod));
+    assert_eq!(keys(&serialized["days"]), keys(&from_prod["days"]));
+    for channel in ["apns", "web", "unifiedpush"] {
+        assert_eq!(
+            keys(&serialized["days"][0][channel]),
+            keys(&from_prod["days"][0][channel]),
+            "{channel}"
+        );
+    }
+}
+
 /// Every fixture is checked by a test above.
 #[test]
 fn every_response_fixture_has_a_test() {
     const CHECKED: &[&str] = &[
+        "admin-push-stats",
         "conversation-categories",
         "conversation-list",
         "notify-overrides",

@@ -1438,6 +1438,12 @@ curl https://mail.golia.ai/api/readiness
 # where mail is in the server right now (admin)
 curl https://mail.golia.ai/api/admin/flow \
   -H "Authorization: Bearer mlrs_..."
+
+# pushes per channel per UTC day over the last 14 days, summed over every
+# account: {accounts, days: [{day, apns, web, unifiedpush}]}, each channel
+# {sent, failed, suppressed_policy, suppressed_quiet} (admin)
+curl "https://mail.golia.ai/api/admin/push-stats?days=14" \
+  -H "Authorization: Bearer mlrs_..."
 ```
 
 ### WebSocket

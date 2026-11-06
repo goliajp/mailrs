@@ -1,0 +1,17 @@
+{
+  "accounts": 12,
+  "days": [
+    {
+      "day": "20261107",
+      "apns": { "sent": 0, "failed": 0, "suppressed_policy": 1, "suppressed_quiet": 0 },
+      "web": { "sent": 1, "failed": 0, "suppressed_policy": 0, "suppressed_quiet": 0 },
+      "unifiedpush": { "sent": 0, "failed": 0, "suppressed_policy": 0, "suppressed_quiet": 0 }
+    },
+    {
+      "day": "20261106",
+      "apns": { "sent": 0, "failed": 0, "suppressed_policy": 3, "suppressed_quiet": 0 },
+      "web": { "sent": 0, "failed": 0, "suppressed_policy": 3, "suppressed_quiet": 0 },
+      "unifiedpush": { "sent": 3, "failed": 1, "suppressed_policy": 3, "suppressed_quiet": 2 }
+    }
+  ]
+}

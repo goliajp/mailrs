@@ -453,7 +453,7 @@
       "text": {
         "en": "Mark as junk",
         "ja": "迷惑メールにする",
-        "zh": "标为垃圾邮件"
+        "zh": "标记为垃圾邮件"
       },
       "web": ["action.markJunk"],
       "ios": ["Mark as junk"],
@@ -487,7 +487,7 @@
       "text": {
         "en": "Mark as Notification",
         "ja": "通知にする",
-        "zh": "标为通知"
+        "zh": "标记为通知"
       },
       "web": ["action.markNotification"],
       "ios": ["Mark as Notification"],
@@ -504,7 +504,7 @@
       "text": {
         "en": "Mark as Promotion",
         "ja": "プロモーションにする",
-        "zh": "标为推广"
+        "zh": "标记为推广"
       },
       "web": ["action.markPromotion"],
       "ios": ["Mark as Promotion"],
