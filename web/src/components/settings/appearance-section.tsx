@@ -16,6 +16,7 @@ import { themeModeAtom } from '@/store/theme'
 import { cardClass, Field, SectionHeader, Toggle } from './_shared'
 import { InboxSectionsCard } from './inbox-sections-card'
 import { LanguageField } from './language-field'
+import { SwipeCard } from './swipe-card'
 
 const REMOTE_IMAGE_OPTIONS: { label: Key; value: RemoteImages }[] = [
   { label: 'settings.appearance.images.show', value: 'auto' },
@@ -124,6 +125,8 @@ export function AppearanceSection() {
           <p className="text-fg-muted text-xs">{t('settings.appearance.imagesHelp')}</p>
         </div>
       </div>
+
+      <SwipeCard />
 
       <InboxSectionsCard />
 

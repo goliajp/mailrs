@@ -51,6 +51,13 @@ fun UiState.axes(): MailListAxes = when {
  * one is what a snackbar can honestly offer.
  */
 fun MailViewModel.triage(conversation: Wire.Conversation, action: RowAction) {
+    // Read and unread change the row where it is; with nothing leaving
+    // the list there is nothing to hold back, so it is sent now, as a menu
+    // sends it, and the snackbar's undo sends the opposite.
+    if (!action.leavesList) {
+        actNow(listOf(conversation), action, null)
+        return
+    }
     pending?.let { commit(it) }
     val before = _state.value.conversations
     val remaining = before.filterNot { it.threadId == conversation.threadId }

@@ -473,6 +473,13 @@
     <string name="settings_images_auto">Always load</string>
     <string name="settings_images_click">Ask each time</string>
     <string name="settings_images_never">Never load</string>
+    <string name="swipe_title">Swiping a conversation</string>
+    <string name="swipe_right">Swipe right</string>
+    <string name="swipe_left">Swipe left</string>
+    <string name="swipe_read">Mark read or unread</string>
+    <string name="swipe_none">Do nothing</string>
+    <string name="swipe_help">The same setting is used on the web and in the iOS app. In the Trash either swipe restores the conversation</string>
+    <string name="swipe_save_failed">The swipe setting was not saved</string>
     <string name="notify_mode_default">Mail to answer and important people</string>
     <string name="notify_mode_all">Every message</string>
     <string name="notify_mode_important">Important people only</string>

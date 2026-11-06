@@ -76,6 +76,7 @@ import jp.golia.mailrs.wire.MailList
 import jp.golia.mailrs.compose
 import jp.golia.mailrs.draftNoticeShown
 import jp.golia.mailrs.loadLabels
+import jp.golia.mailrs.loadSwipe
 import jp.golia.mailrs.R
 import jp.golia.mailrs.wire.RowAction
 import jp.golia.mailrs.wire.Texts
@@ -146,6 +147,8 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
     // The labels are the reader's own and change on the web; asked for
     // whenever the drawer opens, so the list there is the current one.
     LaunchedEffect(drawer.isOpen) { if (drawer.isOpen) vm.loadLabels() }
+    // what a swipe does is the reader's setting, which can change on the web
+    LaunchedEffect(Unit) { vm.loadSwipe() }
 
     ModalNavigationDrawer(
         drawerState = drawer,
@@ -339,8 +342,9 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                                 ) { vm.toggleSelected(c.threadId) }
                             } else {
                                 SwipeableConversationRow(
-                                    onArchive = { vm.triage(c, RowAction.Archive) },
-                                    onMarkRead = { vm.triage(c, RowAction.Read) },
+                                    right = state.swipe.right.action(c, state.list),
+                                    left = state.swipe.left.action(c, state.list),
+                                    onSwipe = { action -> vm.triage(c, action) },
                                 ) {
                                     ConversationRow(
                                         c,

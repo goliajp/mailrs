@@ -458,6 +458,8 @@ fn every_fixture_has_a_test() {
         "template-save",
         "unsubscribe",
         "vacation-set",
+        // read in request_contract_swipe.rs
+        "swipe-set",
         "totp-code",
         "confirm",
         "webhook-create",

@@ -58,6 +58,11 @@ pub(super) fn rule_routes() -> axum::Router<Arc<WebState>> {
             get(crate::handlers::mail_settings::get_vacation)
                 .put(crate::handlers::mail_settings::put_vacation),
         )
+        .route(
+            "/api/settings/swipe",
+            get(crate::handlers::mail_settings::get_swipe)
+                .put(crate::handlers::mail_settings::put_swipe),
+        )
         .route("/api/storage", get(crate::handlers::storage::get_storage))
         .route(
             "/api/settings/forwarding",
