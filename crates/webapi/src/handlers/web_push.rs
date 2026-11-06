@@ -1,8 +1,11 @@
 //! Web Push subscriptions for this browser, and whether Web Push is on.
 //!
-//! - `GET /api/push/web` — `{enabled, public_key}`; `enabled: false` when
-//!   no VAPID key is configured, so the settings page can say so
-//! - `POST /api/push/web-subscriptions` — a browser's `PushSubscription`
+//! - `GET /api/push/web` — `{enabled, public_key, removed}`; `enabled:
+//!   false` when no VAPID key is configured, so the settings page can say
+//!   so; `removed` lists browsers a person removed from another device
+//! - `POST /api/push/web-subscriptions` — a browser's `PushSubscription`,
+//!   plus `resume` when the person turned pushes on just now; a removed
+//!   browser without it is answered `410 {"error":"removed"}`
 //! - `DELETE /api/push/web-subscriptions` — `{endpoint}`
 //! - `POST /api/push/clicked` — a notification was opened
 
@@ -10,12 +13,15 @@ use std::sync::OnceLock;
 
 use axum::Json;
 use axum::extract::Extension;
-use axum::http::StatusCode;
-use mailrs_core_sidestate::families::{notify, push_devices};
+use axum::http::{HeaderMap, StatusCode};
+use axum::response::{IntoResponse, Response};
+use mailrs_core_sidestate::families::notify;
+use mailrs_core_sidestate::families::push_devices::{self, Channel, Filed, Registration};
 use mailrs_webpush::vapid::Vapid;
 
 use crate::handlers::conversations::AuthedUser;
 use crate::handlers::kevy_util::with_kevy;
+use crate::handlers::push;
 
 /// The configured key, read once; `None` means Web Push is off.
 pub(crate) fn vapid() -> Option<&'static Vapid> {
@@ -37,15 +43,22 @@ pub struct WebPushState {
     /// The `applicationServerKey` to subscribe with, when enabled.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub public_key: Option<String>,
+    /// Browsers a person removed from another device, by the sha256 of
+    /// their endpoint, so a browser can tell it was one of them.
+    pub removed: Vec<String>,
 }
 
 /// GET /api/push/web
-pub async fn state() -> Json<WebPushState> {
+pub async fn state(
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+) -> Result<Json<WebPushState>, StatusCode> {
+    let removed = with_kevy(move |c| push_devices::removed(c, &user, Channel::Web))?;
     let public_key = vapid().map(Vapid::public_key);
-    Json(WebPushState {
+    Ok(Json(WebPushState {
         enabled: public_key.is_some(),
         public_key,
-    })
+        removed,
+    }))
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -59,6 +72,9 @@ pub struct Keys {
 pub struct SubscribeBody {
     pub endpoint: String,
     pub keys: Keys,
+    /// The person turned pushes on in this browser just now.
+    #[serde(default)]
+    pub resume: bool,
 }
 
 /// Whether a browser's subscription may be stored: a known push service,
@@ -77,8 +93,9 @@ pub fn acceptable(body: &SubscribeBody) -> bool {
 /// POST /api/push/web-subscriptions
 pub async fn subscribe(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
+    headers: HeaderMap,
     Json(body): Json<SubscribeBody>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<Response, StatusCode> {
     if vapid().is_none() {
         return Err(StatusCode::CONFLICT);
     }
@@ -92,12 +109,15 @@ pub async fn subscribe(
         created_at: chrono::Utc::now().timestamp(),
     };
     let now = sub.created_at;
-    with_kevy(move |c| {
-        let done = push_devices::register(c, &user, push_devices::Registration::Web(&sub), now)?;
-        crate::handlers::push::log_evicted(&user, &done.evicted);
-        Ok(())
+    let session = push::session_of(&headers);
+    let filed = with_kevy(move |c| {
+        let reg = Registration::Web(&sub);
+        push::file(c, &user, reg, session.as_deref(), body.resume, now)
     })?;
-    Ok(StatusCode::NO_CONTENT)
+    match filed {
+        Filed::Registered(_) => Ok(StatusCode::NO_CONTENT.into_response()),
+        Filed::Removed => Ok(push::removed_answer()),
+    }
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -108,9 +128,13 @@ pub struct UnsubscribeBody {
 /// DELETE /api/push/web-subscriptions
 pub async fn unsubscribe(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
+    headers: HeaderMap,
     Json(body): Json<UnsubscribeBody>,
 ) -> Result<StatusCode, StatusCode> {
-    with_kevy(move |c| notify::remove_web_subscription(c, &user, &body.endpoint))?;
+    let session = push::session_of(&headers);
+    let now = chrono::Utc::now().timestamp();
+    let id = notify::endpoint_field(&body.endpoint);
+    with_kevy(move |c| push_devices::remove(c, &user, Channel::Web, &id, session.as_deref(), now))?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -143,6 +167,7 @@ mod tests {
                 p256dh: mailrs_webpush::b64url(&p256dh),
                 auth: mailrs_webpush::b64url(&auth),
             },
+            resume: false,
         }
     }
 

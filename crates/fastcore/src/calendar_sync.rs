@@ -205,15 +205,13 @@ fn apply(state: &Arc<FastcoreState>, user: &str, feed_id: &str, text: &str) -> u
         return 0;
     };
     let mut applied = 0usize;
-    for doc in mailrs_ical::parse::split_vevents(text) {
-        let Ok(parsed) = mailrs_ical::parse_invite(doc.as_bytes()) else {
-            continue;
-        };
+    use mailrs_core_sidestate::families::calendar_events as ev;
+    // a series and the occurrences the organiser changed, as one row
+    for (parsed, recurrence) in ev::series::fold_text(text) {
         // Zoned starts resolve through the document's own VTIMEZONE blocks;
         // one that resolves to nothing is skipped rather than filed at an
         // invented time.
         // An all-day event is filed as its dates (`span_of`).
-        use mailrs_core_sidestate::families::calendar_events as ev;
         let Some((dtstart, dtend)) = ev::span::span_of(&parsed) else {
             continue;
         };
@@ -235,6 +233,7 @@ fn apply(state: &Arc<FastcoreState>, user: &str, feed_id: &str, text: &str) -> u
             ics: None,
             partstat: None,
             message_id: None,
+            recurrence,
         };
         if ev::put(&mut conn, user, &row).is_err() {
             continue;

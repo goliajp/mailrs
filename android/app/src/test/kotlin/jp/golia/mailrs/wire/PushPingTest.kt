@@ -112,6 +112,7 @@ class PushPingTest {
                 endpoint = "https://ntfy.example.org/upJ8sk2LmQ0aZp?up=1",
                 keys = UnifiedPushWire.Keys(p256dh = "k", auth = "a"),
                 name = "Pixel 8",
+                resume = true,
             ),
         )
         val body = Json.parseToJsonElement(sent).jsonObject

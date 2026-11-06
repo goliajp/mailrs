@@ -382,6 +382,10 @@ INVITE = {
     "join_url": "https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc/0",
     "dtstart_utc": "2026-08-20T23:00:00+00:00",
     "dtend_utc": "2026-08-20T23:50:00+00:00",
+    # Added by the server when the message is read: the IANA zone the
+    # Windows TZID names, so a client labels the organiser's clock with
+    # the abbreviation in force that day (PDT in August), not the TZID.
+    "organiser_zone": "America/Los_Angeles",
     "rrule": None,
     "recurrence_id": None,
 }

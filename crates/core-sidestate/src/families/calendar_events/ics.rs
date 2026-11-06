@@ -5,6 +5,7 @@
 //! text itself is kept, so a GET returns what the PUT sent. Out: a row a
 //! feed or a mail produced has no text, so one is written from the columns.
 
+use mailrs_ical::recur::Head;
 use mailrs_ical::{EventStatus, parse_invite};
 
 use super::StoredEvent;
@@ -15,8 +16,15 @@ use super::span::{date_of, span_of};
 /// `Err` says why the text cannot be stored: it does not parse, or its
 /// start names a zone nothing resolves, which would leave an event that
 /// cannot be placed on any calendar.
+///
+/// A recurring event comes as its series plus one `VEVENT` per changed
+/// occurrence; the row is the series, with those folded in.
 pub fn from_ics(ics: &str, source: &str) -> Result<StoredEvent, String> {
-    let parsed = parse_invite(ics.as_bytes()).map_err(|e| format!("{e:?}"))?;
+    let first = parse_invite(ics.as_bytes()).map_err(|e| format!("{e:?}"))?;
+    let (parsed, recurrence) = super::series::fold_text(ics)
+        .into_iter()
+        .find(|(ev, _)| ev.uid == first.uid)
+        .unwrap_or((first, None));
     let (start, end) = span_of(&parsed)
         .ok_or_else(|| "DTSTART names a time zone that cannot be resolved".to_string())?;
     let status = parsed.status.map(|s| match s {
@@ -36,10 +44,13 @@ pub fn from_ics(ics: &str, source: &str) -> Result<StoredEvent, String> {
         ics: Some(ics.to_string()),
         partstat: None,
         message_id: None,
+        recurrence,
     })
 }
 
-/// The iCalendar text CalDAV serves for `ev`.
+/// The iCalendar text CalDAV serves for `ev`. A recurring row is written
+/// as its whole series — rule, exclusions, additions, zone and moved
+/// occurrences — so a client shows every occurrence, not the first.
 ///
 /// Deterministic, because the ETag is a digest of it: the same row must
 /// always produce the same bytes. `DTSTAMP` is required by RFC 5545 and
@@ -47,6 +58,24 @@ pub fn from_ics(ics: &str, source: &str) -> Result<StoredEvent, String> {
 pub fn to_ics(ev: &StoredEvent) -> String {
     if let Some(raw) = &ev.ics {
         return raw.clone();
+    }
+    let stamp = ev
+        .dtstart
+        .as_deref()
+        .and_then(utc_basic)
+        .unwrap_or_else(|| "19700101T000000Z".to_string());
+    let head = Head {
+        uid: &ev.uid,
+        summary: &ev.summary,
+        organizer: ev.organizer.as_deref(),
+        status: ev.status.as_deref(),
+        sequence: ev.sequence,
+        dtstamp: &stamp,
+    };
+    // a series whose zone no longer resolves still shows as its first
+    // occurrence rather than not at all
+    if let Some(text) = super::series::series_of(ev).and_then(|s| s.to_calendar(&head)) {
+        return text;
     }
     let mut lines = vec![
         "BEGIN:VCALENDAR".to_string(),
@@ -57,11 +86,6 @@ pub fn to_ics(ev: &StoredEvent) -> String {
         format!("SEQUENCE:{}", ev.sequence),
     ];
     let start = ev.dtstart.as_deref().and_then(property_value);
-    let stamp = ev
-        .dtstart
-        .as_deref()
-        .and_then(utc_basic)
-        .unwrap_or_else(|| "19700101T000000Z".to_string());
     lines.push(format!("DTSTAMP:{stamp}"));
     if let Some(s) = &start {
         lines.push(format!("DTSTART{s}"));
@@ -181,6 +205,7 @@ mod tests {
             ics: None,
             partstat: None,
             message_id: None,
+            recurrence: None,
         };
         let text = to_ics(&ev);
         assert_eq!(text, to_ics(&ev));

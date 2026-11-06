@@ -315,6 +315,9 @@ final class Session {
     }
 
     func signOut() {
+        // the server ends the session and with it this phone's pushes
+        if let leaving = client { Task { try? await leaving.logout() } }
+        PushRemoval.shared.forget()
         TokenStore.clear()
         client = nil
         role = nil

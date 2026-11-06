@@ -303,6 +303,7 @@ export const settingsZh: Record<SettingsKey, string> = {
   'settings.notify.webEnable': '在本浏览器开启',
   'settings.notify.webOff': '服务器未启用 Web Push',
   'settings.notify.webOn': '本浏览器已开启',
+  'settings.notify.webRemoved': '已在另一台设备上移除；重新开启才能收到推送',
   'settings.notify.webUnsupported': '这个浏览器收不到推送通知',
   'settings.pager.first': '第一页',
   'settings.pager.label': '分页',

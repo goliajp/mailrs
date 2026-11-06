@@ -154,10 +154,20 @@ pub async fn get_message_single(
     // embedded kevy and this process talks to the *network* one — the
     // distinction that made `mark_not_junk` write into a store nobody
     // read.
+    //
+    // The payload was written at delivery; what depends on today — the
+    // next occurrence of a recurring meeting — is added now, once for
+    // every client, so none of them expands a rule of its own.
     let invite_payload = if w.invite_method.is_empty() {
         None
     } else {
-        state.core.get_invite(&user, w.uid).await.ok()
+        state.core.get_invite(&user, w.uid).await.ok().map(|mut p| {
+            mailrs_core_sidestate::families::calendar_events::series::annotate(
+                &mut p,
+                chrono::Utc::now(),
+            );
+            p
+        })
     };
     // The answer this reader already gave, if any. Written by
     // `handlers::invites` into the *network* store under

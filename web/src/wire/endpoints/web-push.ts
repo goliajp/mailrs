@@ -8,6 +8,8 @@ import { webPushStateSchema } from '../schemas/notify'
 export type WebPushSubscriptionBody = {
   endpoint: string
   keys: { auth: string; p256dh: string }
+  /** The person turned pushes on just now: the only kind of subscribe the web makes. */
+  resume: true
 }
 
 /** Whether the server has Web Push configured, and the key to subscribe with. */
@@ -18,7 +20,11 @@ export function wireWebPushState(): Promise<z.infer<typeof webPushStateSchema>> 
 export async function wireWebPushSubscribe(sub: WebPushSubscriptionBody): Promise<void> {
   await wireFetch(emptyResponseSchema, {
     allowEmpty: true,
-    body: { endpoint: sub.endpoint, keys: { auth: sub.keys.auth, p256dh: sub.keys.p256dh } },
+    body: {
+      endpoint: sub.endpoint,
+      keys: { auth: sub.keys.auth, p256dh: sub.keys.p256dh },
+      resume: sub.resume,
+    },
     method: 'POST',
     path: '/push/web-subscriptions',
   })

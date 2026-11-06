@@ -32,6 +32,7 @@
 //! - [`parse`]      — RFC 5545 §3.1 text → raw AST (line folding, property tree, BEGIN/END nesting).
 //! - [`semantics`]  — AST → [`ParsedInvite`] (typed METHOD / ATTENDEE / ORGANIZER / SEQUENCE / RRULE / …).
 //! - [`vtimezone`]  — Inline VTIMEZONE handling with `chrono-tz` IANA fallback.
+//! - [`recur`]      — The occurrences of a recurring event, bounded to a window.
 //! - [`serialize`]  — [`ParsedInvite`] → RFC 5545 text (for iTIP `REPLY`).
 //!
 //! Top-level entry point [`parse_invite`] takes raw `text/calendar` bytes and
@@ -52,11 +53,14 @@ pub mod instants;
 #[cfg(feature = "mime")]
 pub mod mime_part;
 pub mod parse;
+pub mod recur;
 pub mod reply;
 pub mod semantics;
 #[allow(clippy::module_inception)]
 pub mod serialize;
 pub mod vtimezone;
+mod windows_zones;
+mod zone_block;
 
 #[cfg(test)]
 mod tests;
@@ -251,8 +255,8 @@ pub struct ParsedInvite {
     pub organizer: Option<Person>,
     /// `ATTENDEE` list.
     pub attendees: Vec<Attendee>,
-    /// Raw RRULE string (e.g. `FREQ=WEEKLY;BYDAY=MO,WE,FR`). Expansion is
-    /// delegated to the `rrule` crate at MRS-9 time, not done here.
+    /// Raw RRULE string (e.g. `FREQ=WEEKLY;BYDAY=MO,WE,FR`), kept as
+    /// written; [`recur::Series`] expands it.
     pub rrule: Option<String>,
     /// `EXDATE` — explicit exclusions from the recurrence rule.
     pub exdate: Vec<CalDateTime>,

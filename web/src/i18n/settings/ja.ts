@@ -316,6 +316,7 @@ export const settingsJa: Record<SettingsKey, string> = {
   'settings.notify.webEnable': 'このブラウザでオンにする',
   'settings.notify.webOff': 'このサーバーでは Web Push が有効になっていません',
   'settings.notify.webOn': 'このブラウザでオン',
+  'settings.notify.webRemoved': '別の端末から削除されました。もう一度オンにすると通知が届きます',
   'settings.notify.webUnsupported': 'このブラウザはプッシュ通知を受け取れません',
   'settings.pager.first': '最初のページ',
   'settings.pager.label': 'ページ送り',

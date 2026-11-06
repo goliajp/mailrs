@@ -1,6 +1,5 @@
 package jp.golia.mailrs.ui
 
-import jp.golia.mailrs.wire.WireInvite
 import jp.golia.mailrs.R
 import jp.golia.mailrs.wire.Texts
 import androidx.compose.foundation.BorderStroke
@@ -36,6 +35,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import jp.golia.mailrs.MailViewModel
+import jp.golia.mailrs.wire.InviteRepeat
 import jp.golia.mailrs.wire.InviteRules
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.Wire
@@ -91,9 +91,15 @@ fun InviteCard(uid: Int, method: String, vm: MailViewModel) {
                 textDecoration = if (cancelled) TextDecoration.LineThrough else null,
                 modifier = Modifier.padding(top = 2.dp).testTag("invite.summary"),
             )
-            whenLine(invite)?.let {
+            // the next occurrence of a series, in the reader's zone, with
+            // the organiser's clock beside it when the two differ
+            InviteRepeat.whenLine(invite)?.let {
                 Text(it, color = theme.fgSecondary, fontSize = 12.sp,
                      modifier = Modifier.testTag("invite.when"))
+            }
+            InviteRepeat.ruleLine(invite)?.let {
+                Text(it, color = theme.fgSecondary, fontSize = 12.sp,
+                     modifier = Modifier.testTag("invite.repeat"))
             }
             invite.location?.takeIf { it.isNotBlank() }?.let {
                 Text(it, color = theme.fgSecondary, fontSize = 12.sp, maxLines = 2)
@@ -190,39 +196,3 @@ fun InviteCard(uid: Int, method: String, vm: MailViewModel) {
         }
     }
 }
-
-/**
- * The reader's own time, and the organiser's beside it when they
- * differ — the second is what somebody joining across an ocean checks.
- */
-private fun whenLine(invite: WireInvite): String? {
-    // an all-day event has no instant and must not be given one: its days, as written
-    val local = InviteRules.localTime(invite.startsAt)
-        ?: return InviteRules.allDayLine(invite.firstDay, invite.dayAfterLast)
-    val zoned = invite.dtstart?.let { runCatching { it }.getOrNull() }
-    val zone = zoneNameOf(zoned)
-    val wall = wallClockOf(zoned)
-    if (zone == null || wall == null || !InviteRules.zoneDiffers(zone)) return local
-    return "$local · ${wall.drop(11).take(5)} $zone"
-}
-
-private fun zoneNameOf(dtstart: kotlinx.serialization.json.JsonElement?): String? =
-    runCatching {
-        dtstart?.let {
-            (it as? kotlinx.serialization.json.JsonObject)
-                ?.get("Zoned")
-                ?.let { z -> (z as? kotlinx.serialization.json.JsonObject)?.get("tz_name") }
-                ?.let { n -> (n as? kotlinx.serialization.json.JsonPrimitive)?.content }
-        }
-    }.getOrNull()
-
-private fun wallClockOf(dtstart: kotlinx.serialization.json.JsonElement?): String? =
-    runCatching {
-        dtstart?.let {
-            (it as? kotlinx.serialization.json.JsonObject)
-                ?.get("Zoned")
-                ?.let { z -> (z as? kotlinx.serialization.json.JsonObject)?.get("local") }
-                ?.let { n -> (n as? kotlinx.serialization.json.JsonPrimitive)?.content }
-        }
-    }.getOrNull()
-
