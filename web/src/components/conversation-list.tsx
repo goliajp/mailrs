@@ -30,7 +30,6 @@ import { dateGroupLabel } from '@/lib/format'
 import { listIdentity } from '@/lib/list-identity'
 import { persistScroll, readSavedScroll } from '@/lib/list-scroll'
 import { invalidateBucketMove } from '@/lib/mail-cache'
-import { threadAxesOf } from '@/lib/mail-lists'
 import { queryClient } from '@/lib/query-client'
 import { authAtom } from '@/store/auth'
 import { conversationKeys } from '@/store/query-keys-v21'
@@ -292,8 +291,9 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
               try {
                 // Scoped to the list on screen, with the same axes the
                 // list read sends — "mark all as read" pressed inside
-                // Notifications must not silence the inbox.
-                const resp = await wireMarkAllRead(threadAxesOf(activeList) ?? undefined)
+                // Pinned or a label must not mark the folder around it.
+                if (!filters) return
+                const resp = await wireMarkAllRead(filters)
                 // Refetched, not patched. The old code zeroed every
                 // cached list, which was right when this marked the
                 // whole mailbox and is a lie now: the server touched

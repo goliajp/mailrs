@@ -356,15 +356,18 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
     );
     compare_views(c, d, "unsnooze").await;
 
-    let filter = ConversationFilter {
-        limit: 50,
-        folder: Some("NP".into()),
-        ..Default::default()
+    let np = mailrs_core_api::method::thread::MarkListReadRequest {
+        filter: ConversationFilter {
+            limit: 50,
+            folder: Some("NP".into()),
+            ..Default::default()
+        },
+        quarantined: false,
     };
     d.both(
         "mark_list_conversations_read NP",
-        fc.mark_list_conversations_read(ALICE, &filter).await,
-        pg.mark_list_conversations_read(ALICE, &filter).await,
+        fc.mark_list_conversations_read(ALICE, &np).await,
+        pg.mark_list_conversations_read(ALICE, &np).await,
         &[],
     );
     compare_views(c, d, "mark_list_conversations_read").await;

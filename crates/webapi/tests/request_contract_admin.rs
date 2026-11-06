@@ -3,8 +3,9 @@
 //!
 //! Split from `request_contract.rs` by who sends the request: this file
 //! is the admin console, that one is the mail client. Both read the
-//! same fixture directory and `every_fixture_has_a_test` over there
-//! covers every file in it, so a fixture cannot land here unread.
+//! same fixture directory and `every_fixture_has_a_test` in
+//! `request_contract_registry.rs` covers every file in it, so a fixture
+//! cannot land here unread.
 
 mod common;
 use common::parse;

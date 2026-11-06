@@ -88,6 +88,27 @@ fn default_limit() -> u32 {
 }
 
 impl ListQuery {
+    /// Whether these parameters name a list rather than leave it open.
+    ///
+    /// `category`, `include_quarantined`, `accounts` and `followup_due_by`
+    /// refine a list and do not name one; `limit`, `before_ts` and
+    /// `cursor` page it. Every list a client draws names itself by one of
+    /// the others, so a request with none of them is a request about the
+    /// whole mailbox, which is how `mark-all-read` has read it since
+    /// before it could scope.
+    pub fn names_a_list(&self) -> bool {
+        self.folder.is_some()
+            || self.archived
+            || self.trashed
+            || self.label.is_some()
+            || self.unread.is_some()
+            || self.starred.is_some()
+            || self.pinned.is_some()
+            || self.snoozed.is_some()
+            || self.section.is_some()
+            || self.assigned_to_me
+    }
+
     /// The list these parameters name, as the core is asked for it.
     ///
     /// One reading for the list and for the search inside it, so the two

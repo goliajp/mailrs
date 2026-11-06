@@ -28,6 +28,7 @@ mod intake_redrain;
 mod intake_rules;
 mod labels;
 mod mail;
+mod mark_list_read;
 mod operator;
 mod ops;
 mod ownerless;

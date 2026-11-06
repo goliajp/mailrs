@@ -1,5 +1,5 @@
 //! The search query string, checked against the same fixture as the web
-//! client's `listPath`; `request_contract.rs` lists the fixture in
+//! client's `listPath`; `request_contract_registry.rs` lists the fixture in
 //! `every_fixture_has_a_test`.
 //!
 //! Search is a GET, so its fixture is the query parameters, as strings,

@@ -126,14 +126,11 @@ impl Client {
     pub async fn mark_list_conversations_read(
         &self,
         user: &str,
-        filter: &crate::types::ConversationFilter,
+        req: &crate::method::thread::MarkListReadRequest,
     ) -> ApiResult<u32> {
         let path = format!("/v1/users/{}/conversations:mark-list-read", Self::enc(user));
-        let body = crate::method::conversation::ListConversationsRequest {
-            filter: filter.clone(),
-        };
         let v: serde_json::Value = self
-            .post_authed_json(path, &body, "mark_list_conversations_read")
+            .post_authed_json(path, req, "mark_list_conversations_read")
             .await?;
         Ok(v.get("flipped").and_then(|f| f.as_u64()).unwrap_or(0) as u32)
     }

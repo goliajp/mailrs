@@ -1,6 +1,6 @@
 //! Request fixtures for team inboxes: the same contract as
-//! `request_contract.rs`, whose `every_fixture_has_a_test` lists these
-//! fixtures too.
+//! `request_contract.rs`; `every_fixture_has_a_test` in
+//! `request_contract_registry.rs` lists these fixtures too.
 
 mod common;
 use common::parse;

@@ -12,6 +12,10 @@
  * "issue the request, parse the response, throw structured errors".
  */
 
+import type { MailListFilters } from '@/lib/query-keys'
+
+import { listAxes } from '@/lib/list-axes'
+
 import { wireFetch } from '../client'
 import {
   batchMutationResponseSchema,
@@ -128,31 +132,24 @@ export function wireEmptyTrash(): Promise<WireEmptyTrashResponse> {
 /**
  * Mark read what the current list is showing.
  *
- * The axes go in the query string — the same ones the conversation
- * list sends — and the server marks exactly what that query returns,
- * including the rows this client has not scrolled to. Called with no
- * axes it is the whole mailbox, which is what this did before the
- * route learned to scope (2026-08-12) and what the name still says.
+ * The list goes in the query string — built by the same `listAxes` the
+ * conversation list and its search use, so Pinned, a label, the Trash,
+ * Snoozed, a section or Assigned to me name themselves here as they do
+ * there — and the server marks exactly what that list shows, including
+ * the rows this client has not scrolled to. Review is its own endpoint,
+ * named by `quarantined=true`. A search typed into the list does not
+ * narrow it: the request carries the list, not the search.
  *
  * Scoped server-side rather than by sending thread ids: a client can
  * only name the page it has loaded, and marking 50 of 1,458 would look
  * finished and do a fraction.
  */
-export function wireMarkAllRead(axes?: {
-  archived?: boolean
-  folder?: null | string
-  starred?: boolean
-  unread?: boolean
-}): Promise<WireMarkAllReadResponse> {
-  const query = new URLSearchParams()
-  if (axes?.folder) query.set('folder', axes.folder)
-  if (axes?.archived) query.set('archived', 'true')
-  if (axes?.starred) query.set('starred', 'true')
-  if (axes?.unread) query.set('unread', 'true')
-  const suffix = query.size > 0 ? `?${query}` : ''
+export function wireMarkAllRead(filters: MailListFilters): Promise<WireMarkAllReadResponse> {
+  let query = listAxes(filters).slice(1)
+  if (filters.quarantined) query = 'quarantined=true'
   return wireFetch(markAllReadResponseSchema, {
     body: {},
     method: 'POST',
-    path: `/conversations/mark-all-read${suffix}`,
+    path: `/conversations/mark-all-read?${query}`,
   })
 }

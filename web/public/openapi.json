@@ -7916,57 +7916,57 @@
     "/api/conversations/mark-all-read": {
       "post": {
         "operationId": "markAllConversationsRead",
-        "summary": "Mark every unread conversation read, mailbox-wide or for one list",
-        "description": "With none of `folder`, `unread`, `starred` set and `archived` false, marks the whole mailbox. With any of them, marks exactly the list `GET /api/conversations` would show for the same query (`category`, `section` and `include_quarantined` then also narrow it). Takes the conversation list's query string; `limit`, `before` and `accounts` are parsed but ignored.",
+        "summary": "Mark read every conversation of one list, or of the whole mailbox",
+        "description": "Takes the query string GET /api/conversations takes and marks read every conversation that list shows, all pages of it. `quarantined=true` marks the Review list instead. With no list named (none of `folder`, `archived`, `trashed`, `label`, `unread`, `starred`, `pinned`, `snoozed`, `section`, `assigned_to_me`) it marks the whole mailbox, held conversations left alone; `category`, `include_quarantined`, `accounts` and `followup_due_by` refine a list and do not name one. `limit`, `before` and `cursor` are not read.",
         "tags": [
           "Conversations"
         ],
         "parameters": [
           {
-            "name": "folder",
+            "name": "category",
             "in": "query",
-            "description": "Folder of the list to mark",
+            "description": "Filter by category (personal, notification, promotion, spam, scam, general)",
             "schema": {
               "type": "string"
             }
           },
           {
-            "name": "unread",
+            "name": "domains",
             "in": "query",
-            "description": "Unread filter of the list to mark",
+            "description": "Comma-separated domain filter",
             "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "starred",
-            "in": "query",
-            "description": "Starred filter of the list to mark",
-            "schema": {
-              "type": "boolean"
+              "type": "string"
             }
           },
           {
             "name": "archived",
             "in": "query",
-            "description": "Mark the archived list",
+            "description": "If true, show archived conversations",
             "schema": {
               "type": "boolean",
               "default": false
             }
           },
           {
-            "name": "category",
+            "name": "trashed",
             "in": "query",
-            "description": "Category filter; applies only when the request is scoped",
+            "description": "List the Trash instead; archived and folder are ignored",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "label",
+            "in": "query",
+            "description": "One label's conversations, archived ones included; folder and archived are ignored",
             "schema": {
               "type": "string"
             }
           },
           {
-            "name": "section",
+            "name": "folder",
             "in": "query",
-            "description": "Section filter; applies only when the request is scoped",
+            "description": "Filter by folder name",
             "schema": {
               "type": "string"
             }
@@ -7974,7 +7974,79 @@
           {
             "name": "include_quarantined",
             "in": "query",
-            "description": "Include conversations held as suspected fraud; applies only when the request is scoped",
+            "description": "Show conversations held as suspected fraud in place, marked. Default false; the exclusion lives in the query shape, so held conversations are out of the totals too.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "unread",
+            "in": "query",
+            "description": "Only conversations with unread mail",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "starred",
+            "in": "query",
+            "description": "Only starred conversations",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "pinned",
+            "in": "query",
+            "description": "Only pinned conversations, across folders",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "snoozed",
+            "in": "query",
+            "description": "Only conversations snoozed until a time still to come, across folders",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "section",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "reply",
+                "awaiting",
+                "new",
+                "feed",
+                "other"
+              ]
+            },
+            "description": "One section of the sectioned inbox. awaiting spans the Inbox and Sent, is ordered by awaiting_since and pages by before against it; the others are the live list in that section, newest first."
+          },
+          {
+            "name": "followup_due_by",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "With section=awaiting: only conversations waiting since this epoch second or earlier."
+          },
+          {
+            "name": "assigned_to_me",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Only the reader's team conversations assigned to the reader, newest first."
+          },
+          {
+            "name": "quarantined",
+            "in": "query",
+            "description": "Mark the conversations held for review (the Review list, GET /api/quarantine) instead; the list parameters are not read.",
             "schema": {
               "type": "boolean",
               "default": false
