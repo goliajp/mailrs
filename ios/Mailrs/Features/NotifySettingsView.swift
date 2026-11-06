@@ -29,7 +29,7 @@ struct NotifySettingsView: View {
                 Section {
                     Picker("Notify me about", selection: field(\.mode)) {
                         Text("Mail to answer and important people (recommended)").tag("default")
-                        Text("All mail except Junk and N & P").tag("all")
+                        Text("All mail except Junk, notifications and promotions").tag("all")
                         Text("Important people only").tag("important")
                         Text("Nothing").tag("off")
                     }

@@ -977,7 +977,7 @@
         }
       }
     },
-    "All mail except Junk and N & P": {
+    "All mail except Junk, notifications and promotions": {
       "localizations": {
         "ja": {
           "stringUnit": {
