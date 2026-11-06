@@ -19,11 +19,12 @@
 # A latency gate on a busy machine measures the machine. On studio with
 # every core taken, the parse worker's P95 read four times its quiet
 # figure with no code change (2.213.0 deploy). So each gate binary runs
-# alone, load1 is sampled before, during and after it, and a run during
-# which load1 went above PERF_GATE_MAX_LOAD is void: it is run again
-# once load1 is back under the threshold. When no quiet run is possible
-# within PERF_GATE_MAX_WAIT seconds of waiting in total, the script
-# exits 75 and says so; that is neither a pass nor a failure.
+# alone, load1 is sampled before, during and after it, and a failure
+# during which load1 went above PERF_GATE_MAX_LOAD is void: it is run
+# again once load1 is back under the threshold. A pass under load
+# stands, since load only makes latency worse. When no quiet run is
+# possible within PERF_GATE_MAX_WAIT seconds of waiting in total, the
+# script exits 75 and says so; that is neither a pass nor a failure.
 #
 # Run this before a release, or after touching anything on a hot path.
 #
@@ -32,7 +33,7 @@
 #   ./scripts/perf-gates.sh mailrs-dkim  # just one
 #
 # Environment:
-#   PERF_GATE_MAX_LOAD   load1 above which a run is void (default 16,
+#   PERF_GATE_MAX_LOAD   load1 above which a failure is void (default 16,
 #                        studio's core count; its ordinary load1 is ~12)
 #   PERF_GATE_MAX_WAIT   seconds of waiting for a quiet machine, in
 #                        total, before giving up (default 1200)
@@ -127,7 +128,7 @@ else
     echo "==> perf gates (release), whole workspace"
     echo "    first run builds in release and takes a while"
 fi
-echo "    a run is void when load1 goes above $MAX_LOAD (PERF_GATE_MAX_LOAD)"
+echo "    a failure is void when load1 goes above $MAX_LOAD (PERF_GATE_MAX_LOAD)"
 
 list=$(mktemp -t perf-gate-bins.XXXXXX)
 gate_binaries "${sel[@]}" > "$list"
@@ -144,7 +145,8 @@ while IFS=$'\t' read -r dir exe <&3; do
         echo "==> $name"
         started=$SECONDS
         run_sampled "$dir" "$exe"
-        if above "$peak" "$MAX_LOAD"; then
+        # a pass under load stands: load only makes latency worse
+        if [ "$rc" -ne 0 ] && above "$peak" "$MAX_LOAD"; then
             if above "$peak" "$busiest"; then busiest=$peak; fi
             # a void run is time spent waiting too, or a machine that is
             # quiet between runs and busy during them would loop forever
@@ -153,7 +155,7 @@ while IFS=$'\t' read -r dir exe <&3; do
                 echo "!! machine too busy to judge perf (load1 max $busiest > threshold $MAX_LOAD)"
                 exit "$BUSY_EXIT"
             fi
-            echo "    void: load1 reached $peak during the run (> $MAX_LOAD); running again when quiet"
+            echo "    void: failed while load1 reached $peak (> $MAX_LOAD); running again when quiet"
             continue
         fi
         break
@@ -166,4 +168,4 @@ if [ ${#failed[@]} -gt 0 ]; then
     echo "!! perf gates failed on a quiet machine: ${failed[*]}"
     exit 1
 fi
-echo "==> perf gates passed (load1 stayed at or under $MAX_LOAD)"
+echo "==> perf gates passed"
