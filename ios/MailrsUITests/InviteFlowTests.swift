@@ -90,7 +90,7 @@ final class InviteFlowTests: MailrsUITestCase {
         let repeats = app.staticTexts["invite.repeat"]
         XCTAssertTrue(repeats.exists, "the card does not say it repeats")
         XCTAssertTrue(repeats.label.hasPrefix("Weekly on Thursday · until "), "\(repeats.label)")
-        XCTAssertTrue(app.staticTexts["invite.organizer"].label == "From Chris Dai")
+        XCTAssertTrue(app.staticTexts["invite.organizer"].label == "Organizer: Chris Dai")
     }
 
     /// The app set to Japanese on a phone in English, which is how these

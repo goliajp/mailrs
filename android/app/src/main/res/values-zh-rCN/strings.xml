@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="shortcut_compose_short">写信</string>
-    <string name="shortcut_compose_long">新邮件</string>
+    <string name="shortcut_compose_short">写邮件</string>
+    <string name="shortcut_compose_long">写邮件</string>
     <string name="shortcut_search_short">搜索</string>
     <string name="shortcut_search_long">搜索邮件</string>
     <string name="widget_description">一眼看到未读邮件</string>
@@ -52,7 +52,7 @@
     <string name="action_delete_forever_done">已永久删除</string>
     <string name="action_mark_junk">标为垃圾邮件</string>
     <string name="action_mark_junk_done">已移到垃圾邮件</string>
-    <string name="action_mark_not_junk">标为非垃圾邮件</string>
+    <string name="action_mark_not_junk">这不是垃圾邮件</string>
     <string name="action_mark_not_junk_done">已标为非垃圾邮件</string>
     <string name="action_mark_notification">标为通知</string>
     <string name="action_mark_notification_done">已移到通知</string>
@@ -71,7 +71,7 @@
     <string name="action_read">标为已读</string>
     <string name="action_unread">标为未读</string>
     <string name="action_unread_done">已标为未读</string>
-    <string name="action_star">加星标</string>
+    <string name="action_star">加注星标</string>
     <string name="action_unstar">取消星标</string>
     <string name="action_label">标签</string>
     <string name="action_unlabel">去掉标签</string>
@@ -90,7 +90,7 @@
     <string name="common_search">搜索</string>
     <string name="common_refresh">刷新</string>
     <string name="draft_saved">草稿已保存</string>
-    <string name="compose_new">写新邮件</string>
+    <string name="compose_new">写邮件</string>
     <string name="thread_open_failed">无法打开这个会话</string>
     <string name="error_action_unknown">这个 App 不支持这个操作</string>
     <string name="error_batch_refused">服务器拒绝了 %2$s 个中的 %1$s 个</string>
@@ -159,7 +159,7 @@
     <string name="group_remove_member">移除 %1$s</string>
     <string name="invite_join">加入会议</string>
     <string name="invite_yes">参加</string>
-    <string name="invite_maybe">待定</string>
+    <string name="invite_maybe">不确定</string>
     <string name="invite_no">不参加</string>
     <string name="mailboxes_connected">已连接</string>
     <string name="mailboxes_none">还没有其他邮箱</string>
@@ -334,7 +334,7 @@
     <string name="invite_counter">提议了新时间</string>
     <string name="invite_event">日程</string>
     <string name="invite_reply">回复</string>
-    <string name="invite_updated">已更新的邀请</string>
+    <string name="invite_updated">邀请已更新</string>
     <string name="invite_new">新邀请</string>
     <string name="invite_invitation">邀请</string>
     <string name="invite_one_guest">1 位来宾</string>
@@ -452,8 +452,8 @@
     <string name="settings_session_end_failed">没能让设备退出登录</string>
     <string name="settings_app_passwords_load_failed">无法加载应用专用密码</string>
     <string name="settings_app_password_revoke_failed">没能吊销应用专用密码</string>
-    <string name="settings_vacation_load_failed">无法加载休假自动回复</string>
-    <string name="settings_vacation_save_failed">休假自动回复没有保存</string>
+    <string name="settings_vacation_load_failed">无法加载外出回复</string>
+    <string name="settings_vacation_save_failed">外出回复没有保存</string>
     <string name="settings_masks_load_failed">无法加载掩码地址</string>
     <string name="settings_mask_create_failed">没能新建掩码地址</string>
     <string name="settings_file_sender_failed">没能分拣这个发件人的邮件</string>
@@ -463,7 +463,7 @@
     <string name="settings_notifications">通知</string>
     <string name="settings_sessions">已登录的设备</string>
     <string name="settings_app_passwords">应用专用密码</string>
-    <string name="settings_vacation">休假自动回复</string>
+    <string name="settings_vacation">外出回复</string>
     <string name="settings_masked">掩码地址</string>
     <string name="settings_images_auto">总是加载</string>
     <string name="settings_images_click">每次询问</string>
@@ -479,19 +479,19 @@
     <string name="sections_toggle">分区收件箱</string>
     <string name="sections_help">在收件箱上方显示「我要回复」「等待回复」「新发件人」几个标签。网页和 iPhone 用的是同一个设置</string>
     <string name="sections_save_failed">分区收件箱的设置没有保存</string>
-    <string name="notify_mode_default">需要回复的邮件和重要联系人</string>
+    <string name="notify_mode_default">需要回复的邮件和重要联系人（推荐）</string>
     <string name="notify_mode_all">所有邮件</string>
-    <string name="notify_mode_important">只通知重要联系人</string>
-    <string name="notify_mode_off">不通知</string>
+    <string name="notify_mode_important">只推重要联系人</string>
+    <string name="notify_mode_off">无</string>
     <string name="notify_hide_content">隐藏发件人和主题</string>
-    <string name="notify_quiet_hours">免打扰时段</string>
+    <string name="notify_quiet_hours">勿扰时段</string>
     <string name="notify_quiet_window">%1$s 至 %2$s，按这台手机的时区</string>
     <string name="notify_senders">发件人</string>
     <string name="notify_threads">会话</string>
     <string name="notify_remove">移除</string>
-    <string name="notify_always">总是通知</string>
-    <string name="notify_never">从不通知</string>
-    <string name="notify_follow">每次回复</string>
+    <string name="notify_always">总是推送</string>
+    <string name="notify_never">从不推送</string>
+    <string name="notify_follow">跟踪</string>
     <string name="notify_muted">已静音</string>
     <string name="sessions_unknown_device">未知设备</string>
     <string name="sessions_sign_out">退出登录</string>
