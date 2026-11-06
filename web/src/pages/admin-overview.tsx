@@ -4,6 +4,7 @@ import { Attention } from '@/components/admin-overview/attention'
 import { attentionItems } from '@/components/admin-overview/flow-model'
 import { FlowStrip } from '@/components/admin-overview/flow-strip'
 import { uptime } from '@/components/admin-overview/format'
+import { PushStats } from '@/components/admin-overview/push-stats'
 import { RecentAudit } from '@/components/admin-overview/recent-audit'
 import { AdminErrorState, AdminPageShell } from '@/components/admin-page'
 import { useT } from '@/i18n'
@@ -62,6 +63,7 @@ function Body({
     <div className="space-y-6">
       <FlowStrip flow={flow} />
       <Attention items={attentionItems(flow, kevyState(health), t)} />
+      <PushStats />
       <RecentAudit />
     </div>
   )
