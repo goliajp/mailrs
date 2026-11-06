@@ -548,4 +548,5 @@
     <string name="push_devices">接收推送的设备</string>
     <string name="push_this_phone">%1$s（这台手机）</string>
     <string name="push_remove">移除</string>
+    <string name="push_reregistered">服务器曾移除这台手机，已于 %1$s 重新登记</string>
 </resources>

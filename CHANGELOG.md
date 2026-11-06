@@ -18,6 +18,13 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### An Android phone the server dropped from push registers again
+
+- When the server drops an Android phone from instant notifications
+  (for example because another device took its place), the app notices
+  the next time it is opened, or when its instant notifications page is
+  opened, and registers again. The page then notes the date it did so.
+
 ### Swiping a conversation does the same thing on every device
 
 - On the web, iOS and Android, swiping a conversation right archives it
