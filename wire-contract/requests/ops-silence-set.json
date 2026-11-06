@@ -1,0 +1,6 @@
+{
+  "for_secs": 3600,
+  "object": "spool",
+  "reason": "known file",
+  "rule": "spool_quarantined"
+}
