@@ -274,6 +274,7 @@ export const settingsJa: Record<SettingsKey, string> = {
   'settings.notify.always': '常に通知',
   'settings.notify.blurb': 'どのメールを端末に通知するか',
   'settings.notify.channel.apns': 'iPhone',
+  'settings.notify.channel.unifiedpush': 'Android（UnifiedPush）',
   'settings.notify.channel.web': 'ブラウザ',
   'settings.notify.failed': '保存できませんでした',
   'settings.notify.follow': 'フォロー中',

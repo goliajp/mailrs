@@ -90,11 +90,16 @@ pub fn maybe_notify(
     }
     let apns = client();
     let web = crate::web_push::vapid();
-    let channels: Vec<&str> = [("apns", apns.is_some()), ("web", web.is_some())]
-        .into_iter()
-        .filter(|(_, on)| *on)
-        .map(|(c, _)| c)
-        .collect();
+    // UnifiedPush is signed with the Web Push key, so it is on when that is
+    let channels: Vec<&str> = [
+        ("apns", apns.is_some()),
+        ("web", web.is_some()),
+        (crate::unified_push::CHANNEL, web.is_some()),
+    ]
+    .into_iter()
+    .filter(|(_, on)| *on)
+    .map(|(c, _)| c)
+    .collect();
     if channels.is_empty() {
         tracing::debug!("push: no channel configured, no push");
         return;
@@ -122,6 +127,7 @@ pub fn maybe_notify(
     if let Some(vapid) = web {
         let payload =
             crate::web_push::payload(&a.thread_id, sender, subject, decision.hide_content);
+        crate::unified_push::spawn(vapid.clone(), addr, now);
         crate::web_push::spawn(vapid, addr, payload, now);
     }
     let Some(apns) = apns else {

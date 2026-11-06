@@ -30,6 +30,7 @@ import stub_restart
 import stub_role
 import stub_login
 import stub_block
+import stub_upush
 
 WIDE = ('<table width="760" style="width:760px"><tr><td>'
         '<div style="width:760px;background:#eef;padding:8px">'
@@ -542,7 +543,7 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
-        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.state(self) or stub_triage.get(self, VERBS) or stub_verdict.get(self, MESSAGES) or stub_compose.get(self) or stub_sections.get(self) or stub_settings.get(self):
+        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.state(self) or stub_triage.get(self, VERBS) or stub_verdict.get(self, MESSAGES) or stub_compose.get(self) or stub_sections.get(self) or stub_settings.get(self) or stub_upush.get(self):
             return
         if self.path.split("?")[0] == "/api/conversations/search":
             query = parse_qs(urlparse(self.path).query)
@@ -1002,7 +1003,7 @@ class H(BaseHTTPRequestHandler):
         self._send({}, 404)
 
     def do_DELETE(self):
-        if stub_restart.refused(self) or stub_role.refused(self) or stub_compose.delete(self) or stub_settings.delete(self):
+        if stub_restart.refused(self) or stub_role.refused(self) or stub_compose.delete(self) or stub_settings.delete(self) or stub_upush.delete(self):
             return
         if stub_confirm.refused(self, "DELETE") or stub_triage.delete(self, VERBS):
             return
@@ -1127,7 +1128,7 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
-        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.handle(self) or stub_triage.post(self, VERBS) or stub_verdict.arm(self) or stub_invite.arm(self) or stub_compose.post(self) or stub_sections.post(self) or stub_settings.post(self) or stub_block.post(self, SPAM_LISTS, VERBS):
+        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.handle(self) or stub_triage.post(self, VERBS) or stub_verdict.arm(self) or stub_invite.arm(self) or stub_compose.post(self) or stub_sections.post(self) or stub_settings.post(self) or stub_upush.post(self) or stub_block.post(self, SPAM_LISTS, VERBS):
             return
         if self.path.split("?")[0] == "/api/auth/confirm":
             stub_confirm.answer(self)
@@ -1249,7 +1250,7 @@ class H(BaseHTTPRequestHandler):
             # would otherwise 401 every test after it, and the failure
             # would look like anything but a leftover flag.
             REJECT_SESSION[0] = False
-            for stub in (stub_confirm, stub_invite, stub_restart, stub_role, stub_reset, stub_verdict, stub_compose, stub_sections, stub_settings):
+            for stub in (stub_confirm, stub_invite, stub_restart, stub_role, stub_reset, stub_verdict, stub_compose, stub_sections, stub_settings, stub_upush):
                 stub.reset()
             VERB_REFUSE.clear()
             FETCHED.clear()

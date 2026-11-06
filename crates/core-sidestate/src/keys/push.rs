@@ -12,6 +12,12 @@ pub fn web_subscriptions_key(user: &str) -> String {
     format!("push:web:{}", user.to_lowercase())
 }
 
+/// One user's phones on UnifiedPush: hash, field = the endpoint's sha256,
+/// value = the device JSON.
+pub fn unified_push_key(user: &str) -> String {
+    format!("push:unifiedpush:{}", user.to_lowercase())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

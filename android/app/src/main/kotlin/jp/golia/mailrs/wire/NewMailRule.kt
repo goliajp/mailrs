@@ -5,11 +5,9 @@ import jp.golia.mailrs.R
 /**
  * Whether a check found new mail worth saying something about.
  *
- * Push is not available to this app — the server speaks APNs and an FCM
- * sender needs a Firebase project that does not exist yet — so a mail
- * client that never mentions arriving mail is what is left. A periodic
- * check is the other thing Android offers, and this is the one decision
- * inside it, kept out of the worker so it can be read and tested.
+ * A check runs periodically and whenever a UnifiedPush ping says mail
+ * arrived ([NewMailCheck]); this is the one decision inside it, kept apart
+ * so it can be read and tested.
  *
  * **Only a rise counts.** The count falls whenever mail is read on any
  * device, and a client that notified on every change would announce

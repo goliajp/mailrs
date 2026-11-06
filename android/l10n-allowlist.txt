@@ -314,7 +314,12 @@ wire/MailrsClientUser.kt	${s.server}/api/mail/messages/$uid/attachments/$index
 wire/MailrsClientUser.kt	Authorization
 wire/MailrsClientUser.kt	Bearer ${s.token}
 wire/MailrsClientUser.kt	${s.server}/api/mail/drafts/$id
-wire/NewMailWorker.kt	Mailrs
+wire/NewMailCheck.kt	Mailrs
+wire/PushDistributor.kt	Mailrs
+wire/PushRegistration.kt	$endpoint $p256dh $auth
+ui/PushPage.kt	push.serverOff
+ui/PushPage.kt	push.noDistributor
+ui/PushPage.kt	push.noDistributorHint
 wire/RecentRecipients.kt	jp.golia.mailrs.category.SHARE_TARGET
 wire/RecentRecipients.kt	recipient:$address
 wire/RecipientAutocomplete.kt	$email, 
