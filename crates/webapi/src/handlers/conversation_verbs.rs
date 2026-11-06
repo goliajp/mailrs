@@ -110,65 +110,47 @@ pub async fn mark_thread_read(
         .map_err(map_err)
 }
 
-/// POST /api/conversations/mark-all-read — sweep every unread thread
-/// for the current user. The old "Mark all as read" button was only
-/// batching the currently-loaded pagination slice; with 99+ unread
-/// spread across pages the tail stayed untouched. This endpoint fixes
-/// that by walking the has_unread zset server-side.
+/// The parameter `mark-all-read` takes besides the list's own.
+#[derive(Debug, serde::Deserialize)]
+pub struct MarkAllReadQuery {
+    /// Mark the Review list: what is held as suspected fraud. The list
+    /// parameters are then not read.
+    #[serde(default)]
+    pub quarantined: bool,
+}
+
 /// `POST /api/conversations/mark-all-read`
 ///
-/// With no query parameters this is the whole mailbox, which is what
-/// the web has always called and what the name says. With the *same*
-/// query the conversation list takes — `folder`, `unread`, `starred`,
-/// `archived` — it marks that list instead, because "mark all as
-/// read" pressed inside Notifications should not silence the inbox.
+/// Takes the query string the conversation list takes and marks read
+/// every conversation that list shows, including the pages the client
+/// has not loaded — scoped server-side rather than by sending thread
+/// ids, since a client can only name the page it has loaded. The list
+/// is read by [`ListQuery::filter`](crate::handlers::conversations::ListQuery::filter),
+/// the one reading the list and its search share, so Pinned, a label,
+/// the Trash, Snoozed, a section or Assigned to me marks that list and
+/// not the folder or the mailbox around it; `quarantined=true` marks
+/// Review.
 ///
-/// Scoped server-side rather than by sending thread ids: a client can
-/// only name the page it has loaded, and marking 50 of 1,458 would
-/// look finished and do a fraction.
+/// With no list named at all it marks the whole mailbox, held mail
+/// left alone — what the route did before it could scope, and what the
+/// MCP tool of the same name does.
 pub async fn mark_all_read(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Query(review): Query<MarkAllReadQuery>,
     Query(q): Query<crate::handlers::conversations::ListQuery>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let scoped = q.folder.is_some() || q.unread.is_some() || q.starred.is_some() || q.archived;
-    let flipped = if scoped {
-        let filter = mailrs_core_api::types::ConversationFilter {
-            label: None,
-            accounts: None,
-            limit: 0,
-            before_ts: None,
-            after_cursor: None,
-            category: q.category,
-            domains: None,
-            archived: q.archived,
-            trashed: false,
-            // The set marked is the set on screen — which is what
-            // this route's own doc promises — so a reader who is
-            // showing held conversations marks those too.
-            include_quarantined: q.include_quarantined,
-            folder: q.folder,
-            unread: q.unread,
-            starred: q.starred,
-            pinned: None,
-            snoozed: None,
-            // marking reads the folder; a section is not a scope it knows
-            section: None,
-            followup_due_by: None,
-            assigned_to_me: false,
-        };
-        state
-            .core
-            .mark_list_conversations_read(&user, &filter)
-            .await
-            .map_err(map_err)?
-    } else {
-        state
-            .core
-            .mark_all_conversations_read(&user)
-            .await
-            .map_err(map_err)?
-    };
+    let flipped = match review.quarantined || q.names_a_list() {
+        true => {
+            let req = mailrs_core_api::method::thread::MarkListReadRequest {
+                filter: q.filter(),
+                quarantined: review.quarantined,
+            };
+            state.core.mark_list_conversations_read(&user, &req).await
+        }
+        false => state.core.mark_all_conversations_read(&user).await,
+    }
+    .map_err(map_err)?;
     Ok(Json(
         serde_json::json!({ "success": true, "flipped": flipped }),
     ))

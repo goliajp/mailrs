@@ -20,14 +20,14 @@ const MINTED: &[&str] = &["id", "mailbox_id", "created_at", "modseq", "trashed_a
 const FC_KEVY: &str = "mem://search-scope-fastcore-side-state";
 const PG_KEVY: &str = "mem://search-scope-pg-core-side-state";
 
-const HELLO: &str = "t-hello@partner.test";
-const INVOICE: &str = "t-invoice@billing.test";
-const SALE: &str = "t-sale@shop.test";
+pub(super) const HELLO: &str = "t-hello@partner.test";
+pub(super) const INVOICE: &str = "t-invoice@billing.test";
+pub(super) const SALE: &str = "t-sale@shop.test";
 const SENT: &str = "t-sent@example.test";
-const SHARED: &str = "t-shared@example.test";
-const INTRO: &str = "t-intro@far.test";
-const PHISHED: &str = "p1@outside.example";
-const TEAM: &str = "order1@outside.example";
+pub(super) const SHARED: &str = "t-shared@example.test";
+pub(super) const INTRO: &str = "t-intro@far.test";
+pub(super) const PHISHED: &str = "p1@outside.example";
+pub(super) const TEAM: &str = "order1@outside.example";
 
 /// Matches every conversation, so what comes back is the scope alone.
 const EVERYTHING: &str = "after:2000-01-01";
@@ -37,7 +37,7 @@ fn filter(f: ConversationFilter) -> ConversationFilter {
 }
 
 /// The lists a client searches from, by the filter it lists them with.
-fn lists() -> Vec<(&'static str, ConversationFilter)> {
+pub(super) fn lists() -> Vec<(&'static str, ConversationFilter)> {
     let none = ConversationFilter::default();
     vec![
         ("no list", filter(none.clone())),
@@ -173,9 +173,10 @@ async fn listed(c: &Cores, user: &str, f: &ConversationFilter) -> [Vec<String>; 
     ]
 }
 
-/// Pinned, snoozed, trashed, labelled, assigned and held, on both cores.
-async fn arrange(c: &Cores) {
-    for kevy in [FC_KEVY, PG_KEVY] {
+/// Pinned, snoozed, trashed, labelled, assigned and held, on both cores;
+/// `kevies` are the side-state stores the cores were started on.
+pub(super) async fn arrange(c: &Cores, kevies: [&str; 2]) {
+    for kevy in kevies {
         team_group(kevy);
     }
     let spools = Spools::new(c);
@@ -219,7 +220,7 @@ async fn a_search_finds_what_its_list_shows_on_both_cores() {
     let mut d = Diffs::default();
     accounts::seed(&cores, &mut d).await;
     mail::seed(&cores, &mut d).await;
-    arrange(&cores).await;
+    arrange(&cores, [FC_KEVY, PG_KEVY]).await;
 
     // what each list must hold, so two empty answers cannot agree
     let expect: &[(&str, &str, &[&str])] = &[

@@ -260,16 +260,28 @@ pub async fn mark_all_read(
 }
 
 /// POST /v1/users/{user}/conversations:mark-list-read — marks the rows the
-/// list shows, through the list's own query. Every row, not one page.
+/// list shows, through the list's own query: [`thread_query`], a label's
+/// conversations by [`labelled_query`], or Review as `list_quarantined`
+/// reads it. Every row, not one page.
 pub async fn mark_list_read(
     State(state): State<Arc<CoreRpcState>>,
     Path(user): Path<String>,
-    Json(req): Json<conv::ListConversationsRequest>,
+    Json(req): Json<wire::MarkListReadRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let q = ThreadQuery {
-        limit: None,
-        ..thread_query(&user, &req.filter)
+    let whole = req.whole_list();
+    let labelled = match (req.quarantined, whole.label.as_deref()) {
+        (false, Some(id)) => Some(labelled_matches(&state, &user, id, None).await?),
+        _ => None,
     };
+    let q = match (req.quarantined, labelled.as_deref()) {
+        (true, _) => ThreadQuery {
+            held: Held::Only,
+            ..ThreadQuery::all(&user)
+        },
+        (false, Some(ids)) => labelled_query(thread_query(&user, &whole), ids),
+        (false, None) => thread_query(&user, &whole),
+    };
+    let q = ThreadQuery { limit: None, ..q };
     let flipped = state
         .mailbox
         .mark_rows_read(&q)

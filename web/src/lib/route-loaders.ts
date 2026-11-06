@@ -128,9 +128,9 @@ function listPath(filters: MailListFilters, cursor?: string): string {
   if (cursor !== undefined) params.set('cursor', cursor)
   if (filters.folder) params.set('folder', filters.folder)
   if (filters.category) params.set('category', filters.category)
-  if (filters.unread) params.set('unread', '1')
-  if (filters.starred) params.set('starred', '1')
-  if (filters.archived) params.set('archived', '1')
+  if (filters.unread) params.set('unread', 'true')
+  if (filters.starred) params.set('starred', 'true')
+  if (filters.archived) params.set('archived', 'true')
   if (filters.query) params.set('q', filters.query)
   if (filters.domains && filters.domains.length > 0) {
     params.set('domains', filters.domains.join(','))
