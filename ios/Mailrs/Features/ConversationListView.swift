@@ -69,44 +69,16 @@ struct ConversationListView: View {
                         .contextMenu {
                             ConversationRowMenu(conversation: conversation) { pendingDelete = $0 }
                         }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        // What each direction does is the reader's swipe
+                        // setting; "do nothing" also gives up the full swipe.
+                        .swipeActions(edge: .trailing, allowsFullSwipe: session.swipe.left != .none) {
                             TrailingSwipes(conversation: conversation) { pendingDelete = $0 }
                         }
-                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                            // Read owns the right full swipe, as in
-                            // Apple Mail; both directions are undone by
-                            // the same swipe again.
-                            Button {
-                                Task { await session.toggleRead(conversation) }
-                            } label: {
-                                Label(
-                                    ReadToggle.label(unread: conversation.unreadCount > 0),
-                                    systemImage: ReadToggle.icon(unread: conversation.unreadCount > 0)
-                                )
-                            }
-                            .tint(.blue)
-                            // Reachable by swipe, not only by a long
-                            // press. Reported from the phone as looking
-                            // for it on the swipes and not finding it —
-                            // which is the right place to look, and a
-                            // menu nobody can see is a menu nobody has.
-                            if !MailBucket.offered(from: session.activeList).isEmpty {
-                                Button {
-                                    pendingMove = conversation
-                                } label: {
-                                    Label("Move", systemImage: "tray.and.arrow.down")
-                                }
-                                .tint(.indigo)
-                            }
-                            Button {
-                                Task { await session.toggleStarred(conversation) }
-                            } label: {
-                                Label(
-                                    StarToggle.label(starred: conversation.flagged),
-                                    systemImage: StarToggle.icon(starred: conversation.flagged)
-                                )
-                            }
-                            .tint(.yellow)
+                        .swipeActions(edge: .leading, allowsFullSwipe: session.swipe.right != .none) {
+                            // The bucket picker is reachable by swipe, not
+                            // only by a long press: a menu nobody can see is
+                            // a menu nobody has.
+                            LeadingSwipes(conversation: conversation) { pendingMove = $0 }
                         }
                         .onAppear {
                             // Paging on the last row appearing, rather
@@ -132,7 +104,10 @@ struct ConversationListView: View {
                 }
             }
             // the reader's labels, for the list menu and the row menu
-            .task { await session.loadLabels() }
+            .task {
+                await session.loadLabels()
+                await session.loadSwipe()
+            }
             // deleting for good can be refused until the password is
             // typed; not while Settings is up, whose screens ask for it
             // themselves

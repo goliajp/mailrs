@@ -142,6 +142,7 @@ struct PadRootView: View {
         .task {
             await session.loadConversations()
             await session.loadLabels()
+            await session.loadSwipe()
         }
         .confirmPrompt(when: !showingSettings && !composing)
     }
@@ -183,19 +184,11 @@ struct PadRootView: View {
                     // dropped them, and losing archive-by-swipe is
                     // losing the gesture triage is actually done with —
                     // on the device with the most room to do it.
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    .swipeActions(edge: .trailing, allowsFullSwipe: session.swipe.left != .none) {
                         TrailingSwipes(conversation: conversation) { pendingDelete = $0 }
                     }
-                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                        Button {
-                            Task { await session.toggleRead(conversation) }
-                        } label: {
-                            Label(
-                                ReadToggle.label(unread: conversation.unreadCount > 0),
-                                systemImage: ReadToggle.icon(
-                                    unread: conversation.unreadCount > 0))
-                        }
-                        .tint(.blue)
+                    .swipeActions(edge: .leading, allowsFullSwipe: session.swipe.right != .none) {
+                        LeadingSwipes(conversation: conversation)
                     }
             }
             .accessibilityIdentifier("pad.conversations")

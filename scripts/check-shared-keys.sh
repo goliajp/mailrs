@@ -53,6 +53,7 @@ rules:;crates/core-sidestate/src/families/rules.rs
 forwarding:;crates/core-sidestate/src/families/forwarding.rs
 owner-notices;crates/core-sidestate/src/families/owner_notices.rs
 vacation:;crates/core-sidestate/src/families/vacation.rs
+swipe:;crates/core-sidestate/src/families/swipe.rs
 devices:;crates/core-sidestate/src/families/devices.rs
 mailrs:domfirst;crates/core-sidestate/src/families/domain_first.rs
 mailrs:fraud:hits:;crates/core-sidestate/src/families/fraud_hits.rs

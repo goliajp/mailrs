@@ -189,6 +189,7 @@ struct MacRootView: View {
         .task {
             await session.loadConversations()
             await session.loadLabels()
+            await session.loadSwipe()
         }
     }
 
@@ -222,8 +223,11 @@ struct MacRootView: View {
                     }
                     // Swipes exist on a trackpad too, and they are how
                     // the same triage is done on the other platforms.
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    .swipeActions(edge: .trailing, allowsFullSwipe: session.swipe.left != .none) {
                         TrailingSwipes(conversation: conversation) { pendingDelete = $0 }
+                    }
+                    .swipeActions(edge: .leading, allowsFullSwipe: session.swipe.right != .none) {
+                        LeadingSwipes(conversation: conversation)
                     }
             }
             .accessibilityIdentifier("mac.conversations")

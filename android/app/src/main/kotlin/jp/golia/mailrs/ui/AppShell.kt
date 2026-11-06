@@ -56,6 +56,7 @@ import jp.golia.mailrs.chooseNotify
 import jp.golia.mailrs.closeSettings
 import jp.golia.mailrs.closeSettingsPage
 import jp.golia.mailrs.openSettingsPage
+import jp.golia.mailrs.saveSwipe
 import jp.golia.mailrs.closeSource
 import jp.golia.mailrs.closeThread
 import jp.golia.mailrs.MailViewModel
@@ -317,6 +318,7 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
                                 onMailAccounts = { vm.openMailAccounts() },
                                 onMergedMail = { vm.openMergedMail() },
                                 onPage = { vm.openSettingsPage(it) },
+                                onSwipe = { vm.saveSwipe(it) },
                                 onSignOut = { vm.closeSettings(); vm.signOut() },
                             )
                         }

@@ -175,6 +175,8 @@ final class Session {
     /// The reader's labels, and the one shown while `activeList` is `.label`.
     var labels: [Wire.LabelItem] = []
     var activeLabel: Wire.LabelItem?
+    /// What a swipe on a row does, the reader's setting on the server.
+    var swipe: SwipeSetting = .standard
     /// Both sender lists, for the message menu's Block / Unblock; nil until read.
     var senderLists: SenderLists?
     var pendingUndo: PendingUndo?

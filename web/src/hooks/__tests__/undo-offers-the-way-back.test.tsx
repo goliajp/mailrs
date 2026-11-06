@@ -51,8 +51,14 @@ vi.mock('@/lib/api', () => ({
   unsnoozeConversation: vi.fn(() => Promise.resolve()),
 }))
 
-const { wireArchiveThread, wireMarkJunk, wireMarkNotJunk, wireUnarchiveThread } =
-  await import('@/wire/endpoints/mutations')
+const {
+  wireArchiveThread,
+  wireMarkJunk,
+  wireMarkNotJunk,
+  wireTrashThread,
+  wireUnarchiveThread,
+  wireUntrashThread,
+} = await import('@/wire/endpoints/mutations')
 const { queryClient } = await import('@/lib/query-client')
 const { useConversationActions } = await import('@/hooks/use-conversation-actions')
 
@@ -77,6 +83,19 @@ describe('undo', () => {
     expect(action?.label, 'archiving offered no way back').toBe('Undo')
     action?.onClick()
     await waitFor(() => expect(wireUnarchiveThread).toHaveBeenCalledWith('t1'))
+  })
+
+  // the left swipe's default: the Trash keeps it, and the toast brings it back
+  it('moving to the Trash offers it, and taking it restores', async () => {
+    const { result } = renderHook(() => useConversationActions(), { wrapper })
+    await result.current.act('t3', 'trash')
+    await waitFor(() => expect(wireTrashThread).toHaveBeenCalledWith('t3'))
+    await waitFor(() => expect(toastCalls.length).toBeGreaterThan(0))
+
+    const action = toastCalls[toastCalls.length - 1].opts?.action
+    expect(action?.label, 'trashing offered no way back').toBe('Undo')
+    action?.onClick()
+    await waitFor(() => expect(wireUntrashThread).toHaveBeenCalledWith('t3'))
   })
 
   it('junking offers it, and taking it puts the thread back', async () => {

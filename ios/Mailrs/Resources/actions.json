@@ -572,5 +572,9 @@
         "android": "Filled.RestoreFromTrash"
       }
     }
-  ]
+  ],
+  "swipe": {
+    "choices": ["archive", "trash", "read", "none"],
+    "default": { "left": "trash", "right": "archive" }
+  }
 }
