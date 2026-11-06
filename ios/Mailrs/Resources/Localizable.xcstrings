@@ -977,6 +977,22 @@
         }
       }
     },
+    "All mail except Junk and N & P": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "迷惑メールと通知・宣伝以外のすべて"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "除垃圾邮件和「通知与推广」以外的全部邮件"
+          }
+        }
+      }
+    },
     "Always allow": {
       "localizations": {
         "ja": {
@@ -2910,22 +2926,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "所有域名"
-          }
-        }
-      }
-    },
-    "Every message": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "すべてのメール"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "所有邮件"
           }
         }
       }
