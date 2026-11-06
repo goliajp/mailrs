@@ -9,16 +9,21 @@
 //! - Its session ends ([`drop_for_session`], [`drop_all`]): signing out,
 //!   ending a session from the sessions list, a password change or reset.
 //!   Nothing is kept: signing in again registers again.
+//! - Its session expired after a week unused, which nothing is told of: the
+//!   senders call [`drop_signed_out`] before each push and drop it then,
+//!   the same way.
 //!
 //! The cap's evictions and the push services' 404 / 410 leave no record
 //! either: the device did nothing a person asked to undo.
 
+use std::collections::HashMap;
 use std::time::Duration;
 
 use kevy_client::HExpireCond;
 
 use super::{Channel, evict, held, used_field};
 use crate::keys::push::{removed_key, session_link_key, used_key};
+use crate::keys::session::session_key_by_ref;
 
 /// How long a removal keeps a device from registering itself back.
 pub const REMOVED_KEPT: Duration = Duration::from_secs(30 * 24 * 3600);
@@ -161,6 +166,52 @@ pub fn drop_for_session(
         else {
             continue;
         };
+        if evict(conn, user, channel, id)? {
+            gone += 1;
+        }
+        unlink(conn, user, &field)?;
+    }
+    Ok(gone)
+}
+
+/// Drop the devices on `channel` whose registering session no longer
+/// exists, as if it had been ended: a session that expires after a week
+/// unused ends with no one to call [`drop_for_session`]. A device linked to
+/// no session (registered before devices were linked, or with an agent key)
+/// is kept: no link is not a sign of an ended session. How many went.
+///
+/// One read of the links, then one existence check per distinct session.
+///
+/// # Errors
+/// The store could not be read or written.
+pub fn drop_signed_out(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+    channel: Channel,
+) -> std::io::Result<usize> {
+    let prefix = format!("{}:", channel.as_str());
+    let mut alive: HashMap<Vec<u8>, bool> = HashMap::new();
+    let mut gone = 0;
+    for pair in conn
+        .hgetall(session_link_key(user).as_bytes())?
+        .chunks_exact(2)
+    {
+        let field = String::from_utf8_lossy(&pair[0]).into_owned();
+        let Some(id) = field.strip_prefix(&prefix) else {
+            continue;
+        };
+        let live = match alive.get(&pair[1]) {
+            Some(live) => *live,
+            None => {
+                let key = session_key_by_ref(&String::from_utf8_lossy(&pair[1]));
+                let live = conn.exists(&[key.as_bytes()])? > 0;
+                alive.insert(pair[1].clone(), live);
+                live
+            }
+        };
+        if live {
+            continue;
+        }
         if evict(conn, user, channel, id)? {
             gone += 1;
         }
