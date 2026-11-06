@@ -128,10 +128,10 @@ object SenderIdentity {
     fun agree(claimed: String, sending: String): Boolean =
         claimed == sending || sending.endsWith(".$claimed") || claimed.endsWith(".$sending")
 
-    /** The part of a From header a person reads, for display. */
-    fun readableName(sender: String): String {
-        val name = displayName(sender)
-        if (name.isNotEmpty()) return name
-        return domainOf(sender)?.let { sender.substringBefore('@') } ?: sender
-    }
+    /**
+     * The part of a From header a person reads, for display: the name, or
+     * for a bare address its local part — the same rule as the other two
+     * clients, which is [SenderName.extractName].
+     */
+    fun readableName(sender: String): String = SenderName.extractName(sender)
 }

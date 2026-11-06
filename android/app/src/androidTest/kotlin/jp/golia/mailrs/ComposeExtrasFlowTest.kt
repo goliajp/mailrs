@@ -1,5 +1,7 @@
 package jp.golia.mailrs
 
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
@@ -118,6 +120,32 @@ class ComposeExtrasFlowTest : MailrsUiTest() {
         val sent = lastSent()
         assertEquals("Send dropped the draft's time", at, sent.optLong("scheduled_at"))
         assertEquals("Send dropped the draft's address", "sales@golia.jp", sent.optString("from"))
+    }
+
+    /**
+     * Sending later has a button of its own in the bar, as on the iPhone
+     * and the web; it was reachable only by a long press on Send, which
+     * nobody finds.
+     */
+    @Test
+    fun send_later_is_a_button_in_the_bar() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.compose").performClick()
+        waitForTag("field.body", "the composer never opened")
+        compose.onNodeWithTag("button.sendLater").assertIsNotEnabled()
+
+        compose.onNodeWithTag("field.to").performTextInput("later@example.com")
+        compose.onNodeWithTag("field.subject").performTextInput("Timed from the bar")
+        compose.onNodeWithTag("button.sendLater").assertIsEnabled().performClick()
+        waitForTag("sendTime.LaterToday", "the clock button did not offer the times")
+        val before = System.currentTimeMillis() / 1000
+        compose.onNodeWithTag("sendTime.LaterToday").performClick()
+
+        val sent = lastSent()
+        assertEquals("Timed from the bar", sent.optString("subject"))
+        val at = sent.optLong("scheduled_at")
+        assertTrue("not three hours on: $at from $before", at in (before + 3 * 3600 - 60)..(before + 3 * 3600 + 120))
     }
 
     private fun openComposer(to: String) {

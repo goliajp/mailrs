@@ -31,23 +31,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import jp.golia.mailrs.wire.SenderIdentity
+import jp.golia.mailrs.wire.SenderName
 import jp.golia.mailrs.wire.Wire
 
 /**
  * One conversation, as a row — the unit everything multiplies.
  *
- * Two lines, no preview: the preview line answers a question triage
- * doesn't ask, and costs a third of every row — a call
- * the web made on 2026-07-17 and iOS inherited. The first Android draft
- * had a snippet line, which is exactly the thing all three had already
- * decided against.
+ * The same three lines as the iPhone's row and the web's, from the same
+ * wire fields:
  *
- *     ● sender·······················×3  14:32
+ *     ● sender +2····················×3  14:32
  *       subject····························★
+ *       first line of the newest message
  *
- * - Line 1: sender, semibold when unread; `×N` only when N > 1; date.
+ * - Line 1: the other participant's name (never the reader's own, never
+ *   a bare address), `+N` for everyone else on it, `×N` only when N > 1,
+ *   date.
  * - Line 2: subject, secondary; star when flagged.
+ * - Line 3: the snippet, which says what the message wants where the
+ *   subject only says what it is filed under.
  * - Read rows recede to 70% — unread already carries the dot and the
  *   weight, and dimming what is done is what makes a long list
  *   scannable rather than uniformly loud.
@@ -61,6 +63,8 @@ import jp.golia.mailrs.wire.Wire
 @Composable
 fun ConversationRow(
     c: Wire.Conversation,
+    /** The signed-in address, so the row wears somebody else's name. */
+    myAddress: String,
     selected: Boolean = false,
     onLongPress: (() -> Unit)? = null,
     /**
@@ -78,7 +82,10 @@ fun ConversationRow(
 ) {
     val theme = LocalTheme.current
     val unread = c.unreadCount > 0
-    val sender = c.participants.firstOrNull().orEmpty()
+    val others = SenderName.others(c.participants, myAddress)
+    // whose colour and initial the avatar wears: the participant the name comes from
+    val face = others.firstOrNull() ?: c.participants.firstOrNull().orEmpty()
+    val extraParticipants = maxOf(0, others.size - 1)
 
     Row(
         Modifier
@@ -101,19 +108,28 @@ fun ConversationRow(
             .alpha(if (unread) 1f else 0.7f),
         verticalAlignment = Alignment.Top,
     ) {
-        SenderAvatarView(sender, unread = unread)
+        SenderAvatarView(face, unread = unread)
 
         Column(Modifier.padding(start = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = SenderIdentity.readableName(sender).ifBlank { Texts.get(R.string.mail_no_sender) },
+                    text = SenderName.rowFace(c.participants, myAddress).ifBlank { Texts.get(R.string.mail_no_sender) },
                     color = theme.fg,
                     fontSize = 15.sp,
                     fontWeight = if (unread) FontWeight.SemiBold else FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
+                    modifier = Modifier.weight(1f, fill = false).testTag("row.sender.${c.threadId}"),
                 )
+                if (extraParticipants > 0) {
+                    Text(
+                        "+$extraParticipants",
+                        color = theme.fgSecondary,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        modifier = Modifier.padding(start = 5.dp).testTag("row.others.${c.threadId}"),
+                    )
+                }
                 if (c.messageCount > 1) {
                     Text(
                         "×${c.messageCount}",
@@ -178,6 +194,16 @@ fun ConversationRow(
                             .padding(horizontal = 5.dp, vertical = 1.dp),
                     )
                 }
+            }
+            if (c.snippet.isNotBlank()) {
+                Text(
+                    c.snippet,
+                    color = theme.fgMuted,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag("row.snippet.${c.threadId}"),
+                )
             }
             // A team conversation says who answers it, so two people do not both reply.
             TeamRow.assignee(c)?.let { who ->

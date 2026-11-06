@@ -337,6 +337,7 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                                 // files them cannot share a finger.
                                 ConversationRow(
                                     c,
+                                    state.myAddress,
                                     selected = picked,
                                     onLongPress = { vm.toggleSelected(c.threadId) },
                                 ) { vm.toggleSelected(c.threadId) }
@@ -348,6 +349,7 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                                 ) {
                                     ConversationRow(
                                         c,
+                                        state.myAddress,
                                         selected = false,
                                         onLongPress = { vm.toggleSelected(c.threadId) },
                                         onArchive = { vm.triage(c, RowAction.Archive) },

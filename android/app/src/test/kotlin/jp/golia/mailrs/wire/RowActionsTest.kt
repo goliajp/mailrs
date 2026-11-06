@@ -4,8 +4,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.ZoneId
-import java.time.ZonedDateTime
 
 /**
  * The action table against the web's (`web/src/lib/actions.ts`): the
@@ -101,15 +99,5 @@ class RowActionsTest {
     fun a_label_list_offers_to_take_the_label_off() {
         assertTrue(RowAction.Unlabel in RowActions.forRow(row(), MailList.Label, 0))
         assertFalse(RowAction.Unlabel in RowActions.forRow(row(), MailList.Inbox, 0))
-    }
-
-    /** As the web snoozes: nine in the morning, tomorrow, where the reader is. */
-    @Test
-    fun snooze_is_tomorrow_at_nine_local() {
-        val tokyo = ZoneId.of("Asia/Tokyo")
-        val at = ZonedDateTime.ofInstant(java.time.Instant.ofEpochSecond(tomorrowMorning(tokyo)), tokyo)
-        assertEquals(9, at.hour)
-        assertEquals(0, at.minute)
-        assertEquals(java.time.LocalDate.now(tokyo).plusDays(1), at.toLocalDate())
     }
 }

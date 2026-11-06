@@ -22,8 +22,9 @@ import jp.golia.mailrs.wire.SendSchedule
  *
  * A bottom sheet, which is where Android puts a short list of choices
  * that answer one question — not a dialog, which is for something that
- * has to be decided before anything else can happen. Long-pressing Send
- * opens it; every other press means now.
+ * has to be decided before anything else can happen. The clock button
+ * beside Send opens it, and so does a long press on Send; a plain press
+ * on Send means now.
  *
  * The choices are all relative and all in the future. "Later today" is
  * three hours on rather than an evening clock time, because chosen at

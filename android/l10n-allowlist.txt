@@ -184,7 +184,9 @@ accounts/TrashFolder.kt	deleted messages
 ui/Attachments.kt	$bytes B
 ui/ConversationRow.kt	×${c.messageCount}
 ui/ConversationRow.kt	↓${c.receivedCount} ↑${c.sentCount}
+ui/ConversationRow.kt	+$extraParticipants
 wire/InviteRepeat.kt	$line · $organiser
+wire/InviteRepeat.kt	$first → $last
 wire/InviteRepeat.kt	$time $abbreviation
 wire/InviteRepeat.kt	${wall.drop(11).take(5)} $tzName
 wire/InviteRepeat.kt	Zoned
