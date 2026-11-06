@@ -116,6 +116,10 @@ class FilingActionsTest : MailrsUiTest() {
             "MarkPromotion" to "mark-promotion ",
         )) {
             selectFirstAndPick(action)
+            if (action == "Snooze") {
+                waitForTag("snooze.TomorrowMorning", "Snooze did not ask until when")
+                compose.onNodeWithTag("snooze.TomorrowMorning").performClick()
+            }
             compose.waitUntil(TIMEOUT_MS) { rowCount() == full - 1 }
             verbsContain(verb, "$action never reached the server")
             // the stub's inbox does not change, so a refresh puts the row
@@ -123,6 +127,28 @@ class FilingActionsTest : MailrsUiTest() {
             compose.onNodeWithTag("button.refresh").performClick()
             compose.waitUntil(TIMEOUT_MS) { rowCount() == full }
         }
+    }
+
+    /** The iPhone's four answers, from the open thread's menu as from a selection. */
+    @Test
+    fun snooze_asks_until_when_with_the_iphones_four_choices() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+        waitForTag("button.threadMore", "the thread has no more-actions menu")
+        compose.onNodeWithTag("button.threadMore").performClick()
+        waitForTag("action.Snooze", "the thread menu did not offer Snooze")
+        compose.onNodeWithTag("action.Snooze").performClick()
+        waitForTag("dialog.snooze", "Snooze did not ask until when")
+        for (choice in jp.golia.mailrs.wire.SnoozeChoice.entries) {
+            compose.onNodeWithTag("snooze.${choice.name}").assertExists("no ${choice.name}")
+        }
+        assertTrue(
+            "it was sent before a time was chosen",
+            !readStub("/debug/verbs").contains("snooze "),
+        )
+        compose.onNodeWithTag("snooze.NextWeek").performClick()
+        verbsContain("snooze ", "snoozing from the thread never reached the server")
     }
 
     @Test

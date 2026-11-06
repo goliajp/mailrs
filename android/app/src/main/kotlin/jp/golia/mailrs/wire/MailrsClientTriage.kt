@@ -5,9 +5,6 @@ import kotlinx.coroutines.withContext
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.MediaType.Companion.toMediaType
-import java.time.LocalDate
-import java.time.LocalTime
-import java.time.ZoneId
 
 /**
  * Filing mail with the routes the web uses: the batch route for the
@@ -21,16 +18,19 @@ import java.time.ZoneId
  * at the first refusal so the caller can put the rows back — a partial
  * success reported as success leaves rows off the screen that are still
  * in the mailbox.
+ *
+ * [until] is when a snooze ends, in epoch seconds — the reader's choice
+ * from [SnoozeChoice], so it is required for [RowAction.Snooze].
  */
 suspend fun MailrsClient.act(
     action: RowAction,
     threadIds: List<String>,
     labelId: String? = null,
-    zone: ZoneId = ZoneId.systemDefault(),
+    until: Long? = null,
 ): MailrsClient.Outcome<Unit> {
     action.batch?.let { verb -> return batchVerb(verb, threadIds, labelId) }
     for (id in threadIds) {
-        val r = actOne(action, id, zone)
+        val r = actOne(action, id, until)
         if (r is MailrsClient.Outcome.Err) return r
     }
     return MailrsClient.Outcome.Ok(Unit)
@@ -39,7 +39,7 @@ suspend fun MailrsClient.act(
 private suspend fun MailrsClient.actOne(
     action: RowAction,
     threadId: String,
-    zone: ZoneId,
+    until: Long?,
 ): MailrsClient.Outcome<String> {
     val path = "/api/conversations/${enc(threadId)}"
     return when (action) {
@@ -54,7 +54,7 @@ private suspend fun MailrsClient.actOne(
         RowAction.Snooze -> {
             val body = json.encodeToString(
                 WireTriage.SnoozeBody.serializer(),
-                WireTriage.SnoozeBody(tomorrowMorning(zone)),
+                WireTriage.SnoozeBody(checkNotNull(until)),
             )
             request("PUT", "$path/snooze", body)
         }
@@ -116,10 +116,6 @@ suspend fun MailrsClient.heldList(page: ThreadPage.Next?): MailrsClient.Outcome<
         get("/api/quarantine?limit=50" + ThreadPage.query(page)),
         WireTriage.HeldList.serializer(),
     ).map { it.items }
-
-/** Tomorrow at 9:00 where the reader is, as the web snoozes. */
-fun tomorrowMorning(zone: ZoneId): Long =
-    LocalDate.now(zone).plusDays(1).atTime(LocalTime.of(9, 0)).atZone(zone).toEpochSecond()
 
 private suspend fun MailrsClient.request(
     method: String,
