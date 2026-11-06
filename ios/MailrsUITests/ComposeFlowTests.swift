@@ -69,7 +69,7 @@ final class ComposeFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 15), "inbox never listed")
 
-        app.buttons["New message"].tap()
+        app.buttons["Compose"].tap()
         let to = app.textFields["someone@example.com"]
         XCTAssertTrue(to.waitForExistence(timeout: 5), "compose never opened")
         to.tap()
@@ -112,7 +112,7 @@ final class ComposeFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 15), "inbox never listed")
 
-        app.buttons["New message"].tap()
+        app.buttons["Compose"].tap()
         let to = app.textFields["someone@example.com"]
         XCTAssertTrue(to.waitForExistence(timeout: 5), "compose never opened")
         to.tap()
@@ -151,7 +151,7 @@ final class ComposeFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 15), "inbox never listed")
 
-        app.buttons["New message"].tap()
+        app.buttons["Compose"].tap()
         let to = app.textFields["someone@example.com"]
         XCTAssertTrue(to.waitForExistence(timeout: 5), "compose never opened")
         to.tap()
@@ -187,7 +187,7 @@ final class ComposeFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 15), "inbox never listed")
 
-        app.buttons["New message"].tap()
+        app.buttons["Compose"].tap()
 
         let to = app.textFields["someone@example.com"]
         XCTAssertTrue(to.waitForExistence(timeout: 5), "compose never opened")
@@ -237,7 +237,7 @@ final class ComposeFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 15), "inbox never listed")
 
-        app.buttons["New message"].tap()
+        app.buttons["Compose"].tap()
         let to = app.textFields["someone@example.com"]
         XCTAssertTrue(to.waitForExistence(timeout: 5), "compose never opened")
         to.tap()
@@ -270,7 +270,7 @@ final class ComposeFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 15), "inbox never listed")
 
-        app.buttons["New message"].tap()
+        app.buttons["Compose"].tap()
         let to = app.textFields["someone@example.com"]
         XCTAssertTrue(to.waitForExistence(timeout: 5), "compose never opened")
         to.tap()
@@ -316,7 +316,7 @@ final class ComposeFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 15), "inbox never listed")
 
-        app.buttons["New message"].tap()
+        app.buttons["Compose"].tap()
         let subject = app.textFields["composer-subject"]
         XCTAssertTrue(app.textFields["someone@example.com"].waitForExistence(timeout: 5))
         subject.tap()
@@ -347,7 +347,7 @@ final class ComposeFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 15), "inbox never listed")
 
-        app.buttons["New message"].tap()
+        app.buttons["Compose"].tap()
         XCTAssertTrue(app.textFields["someone@example.com"].waitForExistence(timeout: 5))
         app.buttons["Cancel"].tap()
 
@@ -370,7 +370,7 @@ final class ComposeFlowTests: MailrsUITestCase {
 
         // A draft to be found, so "No drafts" would be a false claim
         // rather than a true one arriving early.
-        app.buttons["New message"].tap()
+        app.buttons["Compose"].tap()
         let to = app.textFields["someone@example.com"]
         XCTAssertTrue(to.waitForExistence(timeout: 5), "compose never opened")
         to.tap()
@@ -416,7 +416,7 @@ final class ComposeFlowTests: MailrsUITestCase {
         XCTAssertTrue(
             app.staticTexts["Quarterly report and the follow-up notes"]
                 .waitForExistence(timeout: 15), "inbox never listed")
-        app.buttons["New message"].tap()
+        app.buttons["Compose"].tap()
 
         let to = app.textFields["someone@example.com"]
         XCTAssertTrue(to.waitForExistence(timeout: 10), "composer never opened")

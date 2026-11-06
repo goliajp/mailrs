@@ -53,7 +53,7 @@ class LocalizationTest {
         assertEquals("受信トレイ", Texts.get(MailList.Inbox.title))
         assertEquals("ゴミ箱に移動しました", Texts.get(RowAction.Trash.done!!))
         TestTexts.install("values-zh-rCN")
-        assertEquals("废纸篓", Texts.get(MailList.Trash.title))
+        assertEquals("已删除邮件", Texts.get(MailList.Trash.title))
         TestTexts.install()
     }
 }
