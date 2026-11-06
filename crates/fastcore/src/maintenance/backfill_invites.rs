@@ -29,6 +29,12 @@ pub(crate) struct BackfillInvitesQuery {
     /// Report what would change without changing it.
     #[serde(default)]
     dry_run: bool,
+    /// Also file the calendar event again for invitations already
+    /// recorded, so rows filed before recurring events kept their series
+    /// get one. The masters of a series are filed before its single
+    /// occurrences, so a moved or cancelled week lands in the series.
+    #[serde(default)]
+    refile: bool,
 }
 
 /// `POST /v1/admin/maintenance:backfill-invites?dry_run=true`
@@ -53,8 +59,10 @@ pub(crate) async fn backfill_invites_route(
     let mut errors = 0u64;
     let mut by_method: std::collections::BTreeMap<String, u64> = Default::default();
     let mut samples: Vec<serde_json::Value> = Vec::new();
+    let mut refiled = 0u64;
 
     for user in &users {
+        let mut to_refile: Vec<(crate::invites::FoundInvite, String)> = Vec::new();
         // One directory pass per mailbox, keyed the way a `blob_ref`
         // names a file. Per-message `Maildir::fetch` falls back to a
         // linear scan of `cur/`, which is what made the first version of
@@ -123,6 +131,9 @@ pub(crate) async fn backfill_invites_route(
                 *by_method.entry(found.method.clone()).or_default() += 1;
                 if wire.invite_method == found.method {
                     already += 1;
+                    if q.refile {
+                        to_refile.push((found, wire.message_id.clone()));
+                    }
                     continue;
                 }
                 if samples.len() < 20 {
@@ -173,6 +184,14 @@ pub(crate) async fn backfill_invites_route(
                 }
             }
         }
+        // a series before the occurrences that change it
+        to_refile.sort_by_key(|(found, _)| is_one_occurrence(found));
+        for (found, message_id) in to_refile {
+            refiled += 1;
+            if !q.dry_run {
+                crate::invites::file_event(&state, user, &found, &message_id);
+            }
+        }
     }
 
     axum::Json(serde_json::json!({
@@ -185,6 +204,7 @@ pub(crate) async fn backfill_invites_route(
         "by_method": by_method,
         "already_recorded": already,
         "changed": changed,
+        "refiled": refiled,
         "not_an_invitation": not_an_invite,
         "no_file": no_file,
         "errors": errors,
@@ -192,4 +212,12 @@ pub(crate) async fn backfill_invites_route(
         "store": motion.finish(&state),
     }))
     .into_response()
+}
+
+/// An invitation for one occurrence of a series (it has a `RECURRENCE-ID`).
+fn is_one_occurrence(found: &crate::invites::FoundInvite) -> bool {
+    serde_json::from_str::<serde_json::Value>(&found.payload_json)
+        .ok()
+        .and_then(|v| v.get("recurrence_id").map(|r| !r.is_null()))
+        .unwrap_or(false)
 }

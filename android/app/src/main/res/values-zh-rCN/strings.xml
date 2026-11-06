@@ -549,4 +549,18 @@
     <string name="push_this_phone">%1$s（这台手机）</string>
     <string name="push_remove">移除</string>
     <string name="push_reregistered">服务器曾移除这台手机，已于 %1$s 重新登记</string>
+    <string name="invite_next">下一次：%1$s</string>
+    <string name="invite_organiser_time">（按组织者的时间）</string>
+    <string name="invite_repeat_ended">已全部结束</string>
+    <string name="invite_repeat_daily">每天</string>
+    <string name="invite_repeat_daily_n">每 %1$s 天</string>
+    <string name="invite_repeat_weekly">每%1$s</string>
+    <string name="invite_repeat_weekly_n">每 %1$s 周的%2$s</string>
+    <string name="invite_repeat_monthly">每月</string>
+    <string name="invite_repeat_monthly_day">每月 %1$s 日</string>
+    <string name="invite_repeat_yearly">每年</string>
+    <string name="invite_repeat_other">重复</string>
+    <string name="invite_repeat_until">到 %1$s 为止</string>
+    <string name="invite_repeat_count">共 %1$s 次</string>
+    <string name="invite_repeat_day_separator">、</string>
 </resources>

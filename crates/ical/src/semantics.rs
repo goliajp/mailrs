@@ -6,7 +6,7 @@
 //!   SUMMARY / LOCATION / DESCRIPTION / STATUS / RECURRENCE-ID)
 //! - ATTENDEE list with PARTSTAT / RSVP / ROLE / CN parameters
 //! - ORGANIZER with mailto + CN
-//! - RRULE / EXDATE / RDATE (raw — RRULE expansion is done by the `rrule` crate)
+//! - RRULE / EXDATE / RDATE (raw — expanded by [`super::recur`])
 //!
 //! TZID resolution against inline VTIMEZONE blocks is intentionally deferred
 //! to [`super::vtimezone`]: this layer captures the TZID name verbatim into
@@ -74,7 +74,7 @@ pub fn lift(calendar: &RawComponent) -> Result<ParsedInvite, IcalError> {
         attendees.push(parse_attendee(prop)?);
     }
 
-    // RRULE is captured raw — expansion happens in MRS-9 via the rrule crate.
+    // captured raw; `recur` expands it
     let rrule = find_property(&vevent.properties, "RRULE").map(|p| p.value.clone());
 
     let mut exdate = Vec::new();

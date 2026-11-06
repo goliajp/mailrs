@@ -110,7 +110,7 @@ export function MonthView({
             </div>
             <div className="flex flex-col gap-0.5">
               {onDay.slice(0, MONTH_CELL_LIMIT).map((ev) => (
-                <EventChip ev={ev} key={ev.uid} onOpen={onOpen} />
+                <EventChip ev={ev} key={`${ev.uid}|${ev.recurrence_id ?? ''}`} onOpen={onOpen} />
               ))}
               {hidden > 0 && (
                 <span className="text-fg-muted text-xs">{t('calendar.more', { n: hidden })}</span>
@@ -145,7 +145,7 @@ export function WeekView({
           <DayHeading day={day} today={today} />
           <div className="flex flex-col gap-1">
             {eventsOn(events, day).map((ev) => (
-              <EventChip ev={ev} key={ev.uid} onOpen={onOpen} />
+              <EventChip ev={ev} key={`${ev.uid}|${ev.recurrence_id ?? ''}`} onOpen={onOpen} />
             ))}
           </div>
         </div>

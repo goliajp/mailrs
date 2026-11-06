@@ -35,9 +35,12 @@ export function Calendar() {
   })
   const events = query.data ?? NO_EVENTS
   const openUid = params.get('event')
-  const open = events.find((ev) => ev.uid === openUid) ?? null
+  // a recurring event is in the list once per occurrence, all with its uid
+  const openOccurrence = params.get('occurrence')
+  const open =
+    events.find((ev) => ev.uid === openUid && (ev.recurrence_id ?? null) === openOccurrence) ?? null
 
-  const go = (next: Partial<Record<'date' | 'event' | 'view', null | string>>) => {
+  const go = (next: Partial<Record<'date' | 'event' | 'occurrence' | 'view', null | string>>) => {
     const merged = new URLSearchParams(params)
     for (const [k, v] of Object.entries(next)) {
       if (v === null || v === undefined) merged.delete(k)
@@ -107,13 +110,13 @@ export function Calendar() {
         <p className="text-fg-muted text-sm">{t('calendar.noEvents')}</p>
       )}
 
-      {open && <EventDetail ev={open} onClose={() => go({ event: null })} />}
+      {open && <EventDetail ev={open} onClose={() => go({ event: null, occurrence: null })} />}
 
       {view === 'week' && (
         <WeekView
           days={days}
           events={events}
-          onOpen={(ev) => go({ event: ev.uid })}
+          onOpen={(ev) => go({ event: ev.uid, occurrence: ev.recurrence_id ?? null })}
           today={today}
         />
       )}
@@ -122,7 +125,7 @@ export function Calendar() {
           anchor={anchor}
           days={days}
           events={events}
-          onOpen={(ev) => go({ event: ev.uid })}
+          onOpen={(ev) => go({ event: ev.uid, occurrence: ev.recurrence_id ?? null })}
           today={today}
         />
       )}

@@ -65,7 +65,7 @@ pub fn resolve(tzid: &str, inline_blocks: &[VTimezone]) -> Option<ResolvedTz> {
     }
 
     // Step 3 — Microsoft / Outlook alias.
-    if let Some(iana) = microsoft_to_iana(trimmed)
+    if let Some(iana) = crate::windows_zones::microsoft_to_iana(trimmed)
         && let Ok(tz) = chrono_tz::Tz::from_str(iana)
     {
         return Some(ResolvedTz::Iana(tz));
@@ -74,27 +74,46 @@ pub fn resolve(tzid: &str, inline_blocks: &[VTimezone]) -> Option<ResolvedTz> {
     None
 }
 
+/// The IANA name a `TZID` stands for — itself, or the zone a Windows name
+/// means — so a client can format an instant in the organiser's zone with
+/// its own time-zone database. `None` for a name that is neither.
+pub fn iana_name(tzid: &str) -> Option<&'static str> {
+    let trimmed = tzid.trim();
+    if let Ok(tz) = chrono_tz::Tz::from_str(trimmed) {
+        return Some(tz.name());
+    }
+    let iana = crate::windows_zones::microsoft_to_iana(trimmed)?;
+    chrono_tz::Tz::from_str(iana).ok().map(|tz| tz.name())
+}
+
 /// Convert a local wall-clock time into a UTC offset using the resolved tz.
 ///
-/// For [`ResolvedTz::Iana`] this delegates to chrono-tz's `from_local_datetime`
-/// and picks the earliest interpretation when ambiguous (DST fall-back).
-/// For [`ResolvedTz::Custom`] it walks the transition table.
+/// RFC 5545 §3.3.5 for the two hours that are not one instant: a time the
+/// clocks skip over takes the offset in force before the gap (so it lands
+/// later by the size of the gap), and a time that happens twice is the
+/// first of the two.
 pub fn local_to_utc_offset_seconds(rt: &ResolvedTz, local: NaiveDateTime) -> Option<i32> {
     match rt {
         ResolvedTz::Iana(tz) => {
             use chrono::TimeZone;
-            tz.from_local_datetime(&local)
-                .earliest()
-                .map(|d| d.offset().fix().local_minus_utc())
+            let offset = |t: NaiveDateTime| {
+                tz.from_local_datetime(&t)
+                    .earliest()
+                    .map(|d| d.offset().fix().local_minus_utc())
+            };
+            // no gap anywhere is three hours wide
+            offset(local).or_else(|| offset(local - chrono::Duration::hours(3)))
         }
         ResolvedTz::Custom(transitions) => {
-            // Walk the table to find the most recent transition that took
-            // effect at or before `local`. The table is sorted ascending.
+            // A transition's time is on the clock before it. Going forward,
+            // the local times in the gap still belong to the old offset;
+            // going back, the repeated hour is first read on the old one.
             let mut last: Option<i32> = None;
             for t in transitions {
-                if t.effective_from <= local {
+                let gap = last.map_or(0, |before| (t.utc_offset_seconds - before).max(0));
+                if t.effective_from + chrono::Duration::seconds(gap as i64) <= local {
                     last = Some(t.utc_offset_seconds);
-                } else {
+                } else if t.effective_from > local {
                     break;
                 }
             }
@@ -255,119 +274,6 @@ fn parse_utc_offset(s: &str) -> Option<i32> {
         0
     };
     Some(sign * (h * 3600 + m * 60 + sec))
-}
-
-/// Microsoft / Outlook display name → IANA name.
-///
-/// Sourced from the Unicode CLDR `windowsZones.xml` "default" mapping (the
-/// territory="001" rows). Trimmed to the alias names that real Outlook /
-/// Exchange invites tend to emit. Extend as fixtures show new cases.
-fn microsoft_to_iana(name: &str) -> Option<&'static str> {
-    static ALIASES: &[(&str, &str)] = &[
-        ("AUS Central Standard Time", "Australia/Darwin"),
-        ("AUS Eastern Standard Time", "Australia/Sydney"),
-        ("Afghanistan Standard Time", "Asia/Kabul"),
-        ("Alaskan Standard Time", "America/Anchorage"),
-        ("Arab Standard Time", "Asia/Riyadh"),
-        ("Arabian Standard Time", "Asia/Dubai"),
-        ("Arabic Standard Time", "Asia/Baghdad"),
-        ("Argentina Standard Time", "America/Buenos_Aires"),
-        ("Atlantic Standard Time", "America/Halifax"),
-        ("Azerbaijan Standard Time", "Asia/Baku"),
-        ("Azores Standard Time", "Atlantic/Azores"),
-        ("Bahia Standard Time", "America/Bahia"),
-        ("Bangladesh Standard Time", "Asia/Dhaka"),
-        ("Canada Central Standard Time", "America/Regina"),
-        ("Cape Verde Standard Time", "Atlantic/Cape_Verde"),
-        ("Caucasus Standard Time", "Asia/Yerevan"),
-        ("Cen. Australia Standard Time", "Australia/Adelaide"),
-        ("Central America Standard Time", "America/Guatemala"),
-        ("Central Asia Standard Time", "Asia/Almaty"),
-        ("Central Brazilian Standard Time", "America/Cuiaba"),
-        ("Central Europe Standard Time", "Europe/Budapest"),
-        ("Central European Standard Time", "Europe/Warsaw"),
-        ("Central Pacific Standard Time", "Pacific/Guadalcanal"),
-        ("Central Standard Time", "America/Chicago"),
-        ("Central Standard Time (Mexico)", "America/Mexico_City"),
-        ("China Standard Time", "Asia/Shanghai"),
-        ("Dateline Standard Time", "Etc/GMT+12"),
-        ("E. Africa Standard Time", "Africa/Nairobi"),
-        ("E. Australia Standard Time", "Australia/Brisbane"),
-        ("E. Europe Standard Time", "Europe/Bucharest"),
-        ("E. South America Standard Time", "America/Sao_Paulo"),
-        ("Eastern Standard Time", "America/New_York"),
-        ("Eastern Standard Time (Mexico)", "America/Cancun"),
-        ("Egypt Standard Time", "Africa/Cairo"),
-        ("Ekaterinburg Standard Time", "Asia/Yekaterinburg"),
-        ("FLE Standard Time", "Europe/Kiev"),
-        ("Fiji Standard Time", "Pacific/Fiji"),
-        ("GMT Standard Time", "Europe/London"),
-        ("GTB Standard Time", "Europe/Athens"),
-        ("Georgian Standard Time", "Asia/Tbilisi"),
-        ("Greenland Standard Time", "America/Godthab"),
-        ("Greenwich Standard Time", "Atlantic/Reykjavik"),
-        ("Hawaiian Standard Time", "Pacific/Honolulu"),
-        ("India Standard Time", "Asia/Kolkata"),
-        ("Iran Standard Time", "Asia/Tehran"),
-        ("Israel Standard Time", "Asia/Jerusalem"),
-        ("Jordan Standard Time", "Asia/Amman"),
-        ("Korea Standard Time", "Asia/Seoul"),
-        ("Magadan Standard Time", "Asia/Magadan"),
-        ("Mauritius Standard Time", "Indian/Mauritius"),
-        ("Middle East Standard Time", "Asia/Beirut"),
-        ("Montevideo Standard Time", "America/Montevideo"),
-        ("Morocco Standard Time", "Africa/Casablanca"),
-        ("Mountain Standard Time", "America/Denver"),
-        ("Mountain Standard Time (Mexico)", "America/Chihuahua"),
-        ("Myanmar Standard Time", "Asia/Rangoon"),
-        ("N. Central Asia Standard Time", "Asia/Novosibirsk"),
-        ("Namibia Standard Time", "Africa/Windhoek"),
-        ("Nepal Standard Time", "Asia/Kathmandu"),
-        ("New Zealand Standard Time", "Pacific/Auckland"),
-        ("Newfoundland Standard Time", "America/St_Johns"),
-        ("North Asia East Standard Time", "Asia/Irkutsk"),
-        ("North Asia Standard Time", "Asia/Krasnoyarsk"),
-        ("Pacific SA Standard Time", "America/Santiago"),
-        ("Pacific Standard Time", "America/Los_Angeles"),
-        ("Pacific Standard Time (Mexico)", "America/Tijuana"),
-        ("Pakistan Standard Time", "Asia/Karachi"),
-        ("Paraguay Standard Time", "America/Asuncion"),
-        ("Romance Standard Time", "Europe/Paris"),
-        ("Russian Standard Time", "Europe/Moscow"),
-        ("SA Eastern Standard Time", "America/Cayenne"),
-        ("SA Pacific Standard Time", "America/Bogota"),
-        ("SA Western Standard Time", "America/La_Paz"),
-        ("SE Asia Standard Time", "Asia/Bangkok"),
-        ("Samoa Standard Time", "Pacific/Apia"),
-        ("Singapore Standard Time", "Asia/Singapore"),
-        ("South Africa Standard Time", "Africa/Johannesburg"),
-        ("Sri Lanka Standard Time", "Asia/Colombo"),
-        ("Syria Standard Time", "Asia/Damascus"),
-        ("Taipei Standard Time", "Asia/Taipei"),
-        ("Tasmania Standard Time", "Australia/Hobart"),
-        ("Tokyo Standard Time", "Asia/Tokyo"),
-        ("Tonga Standard Time", "Pacific/Tongatapu"),
-        ("Turkey Standard Time", "Europe/Istanbul"),
-        ("US Eastern Standard Time", "America/Indianapolis"),
-        ("US Mountain Standard Time", "America/Phoenix"),
-        ("UTC", "Etc/UTC"),
-        ("UTC-02", "Etc/GMT+2"),
-        ("UTC-11", "Etc/GMT+11"),
-        ("UTC+12", "Etc/GMT-12"),
-        ("Ulaanbaatar Standard Time", "Asia/Ulaanbaatar"),
-        ("Venezuela Standard Time", "America/Caracas"),
-        ("Vladivostok Standard Time", "Asia/Vladivostok"),
-        ("W. Australia Standard Time", "Australia/Perth"),
-        ("W. Central Africa Standard Time", "Africa/Lagos"),
-        ("W. Europe Standard Time", "Europe/Berlin"),
-        ("West Asia Standard Time", "Asia/Tashkent"),
-        ("West Pacific Standard Time", "Pacific/Port_Moresby"),
-        ("Yakutsk Standard Time", "Asia/Yakutsk"),
-    ];
-    ALIASES
-        .iter()
-        .find(|(k, _)| k.eq_ignore_ascii_case(name))
-        .map(|(_, v)| *v)
 }
 
 #[cfg(test)]
