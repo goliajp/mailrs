@@ -23,13 +23,13 @@ extension MailrsClient {
         let (data, response) = try await send(
             "POST", "/api/invites/\(uid)/rsvp", body: body, authorized: true)
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         if http.statusCode == 202 {
             let why =
                 (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["message"]
                 as? String
-            throw MailrsError.transport(why ?? "The reply could not be sent.")
+            throw MailrsError.transport(why ?? "The reply could not be sent")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)

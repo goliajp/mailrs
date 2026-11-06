@@ -46,33 +46,32 @@ final class LayoutShotTests: MailrsUITestCase {
 
         // Select mode, with something chosen. Reported from the phone
         // as not being able to tell which rows were picked.
-        app.buttons["Select"].tap()
+        // By identifier, not by label: the walk runs in Japanese and
+        // Chinese too, where these say 選択 and 完了, and an English label
+        // stopped it at the first step.
+        app.buttons["list.select"].tap()
         app.buttons.containing(
             NSPredicate(format: "label CONTAINS %@", "Quarterly report")
         ).firstMatch.tap()
         shoot(app, "01b-selection")
-        app.buttons["Done"].tap()
+        app.buttons["list.done"].tap()
 
         // The move choice, from the swipe it now lives on.
         let target = app.buttons.containing(
             NSPredicate(format: "label CONTAINS %@", "Quarterly report")
         ).firstMatch
-        swipeAndTap(app, row: target, edge: .leading, action: "Move")
-        if app.buttons["Mark as notification"].waitForExistence(timeout: 5) {
-            shoot(app, "01c-move")
-            app.buttons["Cancel"].tap()
-        }
+        swipeAndTap(app, row: target, edge: .leading, action: "swipe.move")
+        XCTAssertTrue(app.buttons["move.notification"].waitForExistence(timeout: 5), "no move choice")
+        shoot(app, "01c-move")
+        app.buttons["move.cancel"].firstMatch.tap()
 
         let row = app.buttons.containing(
             NSPredicate(format: "label CONTAINS %@", "Quarterly report")
         ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 5), "no tappable row")
         row.tap()
-        XCTAssertTrue(
-            app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", "To:"))
-                .firstMatch.waitForExistence(timeout: 10),
-            "thread never opened"
-        )
+        // the folded first message, which says the same in every language
+        XCTAssertTrue(app.buttons["collapsed-1"].firstMatch.waitForExistence(timeout: 10), "thread never opened")
         shoot(app, "02-thread")
 
         // Scrolled, because the message card's own header is what the

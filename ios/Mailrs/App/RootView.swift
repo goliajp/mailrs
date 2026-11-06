@@ -111,7 +111,7 @@ struct RootView: View {
         authenticating = true
         defer { authenticating = false }
         let passed = await BiometricLock.authenticate(
-            reason: String(localized: "Unlock your mail"))
+            reason: AppText.string("Unlock your mail"))
         guard passed else { return }
         locked = false
     }

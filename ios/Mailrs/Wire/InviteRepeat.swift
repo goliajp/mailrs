@@ -42,7 +42,12 @@ enum InviteRepeat {
     }
 
     /// The time line: the next occurrence of a series, else the event itself.
-    static func whenLine(_ invite: Wire.Invite, reader: TimeZone = .current, locale: Locale = .current) -> String? {
+    /// Start → end, as the web writes it.
+    ///
+    /// No defaults for `reader` and `locale`: `.current` is the phone's
+    /// language and zone, not the ones chosen in the app, and the card
+    /// read English on a phone whose app was set to Japanese.
+    static func whenLine(_ invite: Wire.Invite, reader: TimeZone, locale: Locale) -> String? {
         let next = invite.next
         guard let starts = next.flatMap({ instant($0.start) }) ?? invite.startsAt else {
             // an all-day event has no instant and must not be given one: its days, as written
@@ -52,15 +57,31 @@ enum InviteRepeat {
             }
             return InviteDays.line(firstDay: invite.firstDay, dayAfterLast: invite.dayAfterLast, locale: locale)
         }
-        let style = Date.FormatStyle(date: .abbreviated, time: .shortened, locale: locale, timeZone: reader)
-        var line = starts.formatted(style)
+        var ends = invite.endsAt
+        if let next { ends = instant(next.end) }
+        var line = span(starts, ends, reader: reader, locale: locale)
         if next != nil { line = words(locale).next(line) }
         guard let organiser = organiserClock(starts, invite, reader: reader, locale: locale) else { return line }
         return "\(line) · \(organiser)"
     }
 
+    /// "Nov 13, 2026 at 3:00 PM → 3:50 PM": the end's date only when it
+    /// falls on another day in the reader's zone.
+    static func span(_ start: Date, _ end: Date?, reader: TimeZone, locale: Locale) -> String {
+        let full = Date.FormatStyle(date: .abbreviated, time: .shortened, locale: locale, timeZone: reader)
+        let head = start.formatted(full)
+        guard let end else { return head }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = reader
+        if calendar.isDate(start, inSameDayAs: end) {
+            let time = Date.FormatStyle(date: .omitted, time: .shortened, locale: locale, timeZone: reader)
+            return "\(head) → \(end.formatted(time))"
+        }
+        return "\(head) → \(end.formatted(full))"
+    }
+
     /// "每周四 · 到 2027年4月29日 为止"; nil for an invitation that does not repeat.
-    static func ruleLine(_ invite: Wire.Invite, reader: TimeZone = .current, locale: Locale = .current) -> String? {
+    static func ruleLine(_ invite: Wire.Invite, reader: TimeZone, locale: Locale) -> String? {
         guard let rule = invite.rule else { return nil }
         let w = words(locale)
         var parts = [ruleWords(rule, firstDay: invite.organiserWallClock, locale: locale)]
@@ -91,7 +112,7 @@ enum InviteRepeat {
         guard
             let tzName = invite.organiserZone,
             let wall = invite.next?.organiserLocal ?? invite.organiserWallClock,
-            InviteMethod.zoneDiffers(tzName)
+            InviteMethod.zoneDiffers(tzName, reader: reader)
         else { return nil }
         return "\(String(wall.dropFirst(11).prefix(5))) \(tzName)"
     }
@@ -99,7 +120,7 @@ enum InviteRepeat {
     private static func organiserZoneDiffers(_ invite: Wire.Invite, reader: TimeZone) -> Bool {
         if let name = invite.organiserIana { return name != reader.identifier }
         guard let tzName = invite.organiserZone else { return false }
-        return InviteMethod.zoneDiffers(tzName)
+        return InviteMethod.zoneDiffers(tzName, reader: reader)
     }
 
     private static let days = ["MO": 2, "TU": 3, "WE": 4, "TH": 5, "FR": 6, "SA": 7, "SU": 1]

@@ -55,7 +55,7 @@ final class MailAccountsModel {
     func add() async {
         failure = nil
         guard draft.addressLooksComplete else {
-            failure = "Enter the full email address of the account to add"
+            failure = AppText.string("Enter the full email address of the account to add")
             return
         }
         var account = MailAccount.make(
@@ -64,7 +64,7 @@ final class MailAccountsModel {
             sort: accounts.count)
         if draft.manual {
             guard let manual = manualEndpoints() else {
-                failure = "Both servers need a name and a port"
+                failure = AppText.string("Both servers need a name and a port")
                 return
             }
             account.imapHost = manual.imapHost
@@ -85,7 +85,10 @@ final class MailAccountsModel {
         // to be wrong is an account that sits in the list doing nothing,
         // and that is indistinguishable from having no new mail.
         if let bad = await AccountConnection.verify(account, secret: draft.secret) {
-            failure = "The \(bad.stage.rawValue) refused: \(bad.message)"
+            switch bad.stage {
+            case .incoming: failure = AppText.string("The incoming server refused: \(bad.message)")
+            case .outgoing: failure = AppText.string("The outgoing server refused: \(bad.message)")
+            }
             return
         }
         AccountStore.saveSecret(draft.secret, for: account.id)

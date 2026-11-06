@@ -3,7 +3,9 @@
 `GET /api/conversations?folder=Inbox&section=…` narrows the Inbox
 (`crates/mailbox/src/section.rs`). Each section answers its own rows, so a
 client that sent no `section` (and got the whole Inbox) cannot pass a test
-that looks for a section's row.
+that looks for a section's row. `section=awaiting` with no folder is the
+"Waiting for a reply" list, and `assigned_to_me=true` the "Assigned to me"
+list (`crates/webapi/src/handlers/conversations.rs`).
 
 - `reply`: a team conversation assigned to bob, so the row can name who
   answers it, and a plain one beside it.
@@ -69,12 +71,30 @@ def _sender(row):
 
 
 def answer(handler, query):
-    """Answer a sectioned Inbox list; False when no section was asked for."""
+    """Answer a sectioned list, or the reader's assigned conversations;
+    False when neither was asked for."""
+    if query.get("assigned_to_me", [""])[0] == "true":
+        handler._send(_assigned())
+        return True
     section = query.get("section", [""])[0]
     if not section:
         return False
     handler._send(_rows(section))
     return True
+
+
+def _assigned():
+    """`assigned_to_me=true`: what a teammate handed the reader, across
+    folders. One is a team conversation with its shared id, the other an
+    unread one from the Junk folder, which an Inbox-only filter would drop."""
+    return [
+        _row("t41", "Invoice dispute from the reseller", "can you take this one",
+             BASE_TS + 40, ["reseller@shop.test"], assignee="me@golia.jp",
+             shared_conv="1:9", section="reply"),
+        _row("t42", "Assigned: supplier onboarding", "the forms are attached",
+             BASE_TS + 35, ["supplier@vendor.test"], assignee="me@golia.jp",
+             unread_count=1, category="junk"),
+    ]
 
 
 def post(handler):

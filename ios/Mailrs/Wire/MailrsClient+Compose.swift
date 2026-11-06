@@ -122,7 +122,7 @@ extension MailrsClient {
             throw MailrsError.decoding("send response — \(error)")
         }
         guard result.success else {
-            throw MailrsError.transport(result.message ?? "The server did not queue the message.")
+            throw MailrsError.transport(result.message ?? "The server did not queue the message")
         }
         return result
     }
@@ -159,7 +159,7 @@ extension MailrsClient {
             "POST", "/api/mail/send", body: try JSONEncoder().encode(payload), authorized: true
         )
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)
@@ -171,7 +171,7 @@ extension MailrsClient {
             throw MailrsError.decoding("send response — \(error)")
         }
         guard result.success else {
-            throw MailrsError.transport(result.message ?? "The server did not queue the message.")
+            throw MailrsError.transport(result.message ?? "The server did not queue the message")
         }
         return result
     }
@@ -182,7 +182,7 @@ extension MailrsClient {
     func drafts() async throws -> [Wire.Draft] {
         let (data, response) = try await send("GET", "/api/mail/drafts", body: nil, authorized: true)
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)
@@ -201,7 +201,7 @@ extension MailrsClient {
             "POST", "/api/mail/drafts", body: try JSONEncoder().encode(draft), authorized: true
         )
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)

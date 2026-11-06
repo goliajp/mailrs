@@ -75,7 +75,7 @@ enum BiometricLock {
         let context = LAContext()
         // Shown under the Face ID sheet when it falls back to the
         // passcode. Left as the system default wording otherwise.
-        context.localizedCancelTitle = String(localized: "Cancel")
+        context.localizedCancelTitle = AppText.string("Cancel")
         do {
             return try await context.evaluatePolicy(.deviceOwnerAuthentication,
                                                     localizedReason: reason)
