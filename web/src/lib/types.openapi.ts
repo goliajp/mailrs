@@ -3027,7 +3027,7 @@ export interface paths {
         };
         /**
          * Get calendar conflicts
-         * @description Events overlapping the window, other than one named by exclude_uid. An event the reader declined is not a conflict.
+         * @description Events overlapping the window, other than one named by exclude_uid. An event the reader declined is not a conflict. A recurring event conflicts on every occurrence, not only its first.
          */
         get: {
             parameters: {
@@ -3072,7 +3072,7 @@ export interface paths {
         };
         /**
          * List calendar events
-         * @description Every event overlapping the window, in start order: the reader's own, invitations filed from mail (with the reader's answer), and each subscribed feed's. Declined events are included. 400 when either bound is not an instant.
+         * @description Every event overlapping the window, in start order, a recurring one once per occurrence (RRULE / RDATE / EXDATE and moved or cancelled occurrences applied, in the organiser's zone across clock changes): the reader's own, invitations filed from mail (with the reader's answer), and each subscribed feed's. Declined events are included. 400 when either bound is not an instant.
          */
         get: {
             parameters: {
@@ -7979,7 +7979,7 @@ export interface components {
             clean_text?: string;
             /** @description iTIP method of the message's text/calendar part, upper-case (REQUEST / REPLY / CANCEL / PUBLISH / COUNTER). Empty for mail that carries no calendar part, which is nearly all of it. Computed at ingest and carried on every message read, so a list can mark an invitation without fetching one. */
             invite_method?: string;
-            /** @description The typed invitation, present only when invite_method is set. Fields follow RFC 5545 (uid, sequence, summary, location, organizer, attendees, dtstart, dtend, rrule, recurrence_id, status), plus dtstart_utc / dtend_utc: the instants resolved on the server against the invitation's own VTIMEZONE. Clients must prefer those — a zoned wall-clock plus a Windows zone name such as "Pacific Standard Time" is not a moment a browser can evaluate. */
+            /** @description The typed invitation, present only when invite_method is set. Fields follow RFC 5545 (uid, sequence, summary, location, organizer, attendees, dtstart, dtend, rrule, recurrence_id, status), plus dtstart_utc / dtend_utc: the instants resolved on the server against the invitation's own VTIMEZONE. Clients must prefer those — a zoned wall-clock plus a Windows zone name such as "Pacific Standard Time" is not a moment a browser can evaluate. Added each time the message is read: organiser_zone, the IANA zone the TZID names (Windows names resolved), for formatting the organiser's clock with the abbreviation in force on that date; and for a recurring invitation recurrence (the rule read for words: freq, interval, by_day, by_month_day, by_month, count, until as the organiser's last day YYYY-MM-DD, plain) and next_occurrence ({start, end, organiser_local, organiser_offset_secs} for the first occurrence that has not ended, start/end RFC 3339 or YYYY-MM-DD for an all-day series; null once the series is over). An invitation for one occurrence (recurrence_id set) gets neither. */
             invite_payload?: Record<string, never> | null;
             /** @description The answer this reader already gave: ACCEPTED / TENTATIVE / DECLINED, or null. */
             rsvp_status?: string | null;
@@ -8636,7 +8636,7 @@ export interface components {
             /** @description iCalendar UID */
             uid: string;
             summary: string;
-            /** @description RFC 3339 instant */
+            /** @description RFC 3339 instant; for a recurring event, this occurrence's */
             dtstart?: string | null;
             /** @description RFC 3339 instant; absent means one hour */
             dtend?: string | null;
@@ -8654,6 +8654,8 @@ export interface components {
             message_id?: string;
             /** @description The conversation that mail is in now, looked up when the events are listed. Absent when there is no mail to open. */
             thread_id?: string;
+            /** @description For one occurrence of a recurring event: which occurrence it is, as the start the rule gave it (RFC 3339, or YYYY-MM-DD for an all-day series). A recurring event comes back once per occurrence in the window, every one with the same uid. Absent for an event that does not repeat. */
+            recurrence_id?: string;
         };
         /** @description A masked address: a random address for one site that delivers to the account. Field names follow Fastmail's MaskedEmail object. */
         MaskedEmail: {

@@ -147,6 +147,29 @@ describe('Calendar', () => {
     expect(detail.textContent).not.toContain('Start')
   })
 
+  // the server sends a recurring event once per occurrence, all with its uid
+  it('shows each occurrence of a recurring event and opens the one clicked', async () => {
+    const occurrence = (d: number) => ({
+      dtend: at(2026, 8, d, 10),
+      dtstart: at(2026, 8, d, 9),
+      organizer: null,
+      recurrence_id: at(2026, 8, d, 9),
+      source: 'mail:daily',
+      status: null,
+      summary: 'Daily sync',
+      uid: 'daily',
+    })
+    events.mockResolvedValue([occurrence(1), occurrence(2), occurrence(3)])
+    show('/calendar?date=2026-09-02')
+    const chips = await screen.findAllByText('Daily sync')
+    expect(chips).toHaveLength(3)
+    fireEvent.click(chips[0])
+    const first = (await screen.findByRole('region', { name: 'Daily sync' })).textContent
+    fireEvent.click(chips[2])
+    const third = (await screen.findByRole('region', { name: 'Daily sync' })).textContent
+    expect(third).not.toEqual(first)
+  })
+
   it('says the calendar could not be loaded rather than showing an empty week', async () => {
     events.mockRejectedValue(new Error('down'))
     show('/calendar?date=2026-09-02')

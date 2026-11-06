@@ -84,6 +84,35 @@ export function formatLocalRange(
   return `${s} → ${e}`
 }
 
+/// The organiser's clock at an instant: "22:00 PDT", or `null` when the
+/// reader is in the organiser's zone.
+///
+/// `zone` is the IANA name the server resolved the `TZID` to (a Windows
+/// name like "Pacific Standard Time" included). The instant is formatted
+/// in it with the platform's zone database, so the time and the
+/// abbreviation are the ones in force on that date — PDT in October, PST
+/// in November — never a fixed label read off the `TZID`.
+export function formatOrganiserClock(
+  instantIso: string,
+  zone: string,
+  readerZone: string = Intl.DateTimeFormat().resolvedOptions().timeZone
+): null | string {
+  if (zone === readerZone) return null
+  const d = new Date(instantIso)
+  if (isNaN(d.getTime())) return null
+  const time = d.toLocaleTimeString(currentLocale(), {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: zone,
+  })
+  // abbreviations like PDT exist in English; other locales spell GMT-7
+  const abbreviation = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'short' })
+    .formatToParts(d)
+    .find((p) => p.type === 'timeZoneName')?.value
+  if (!abbreviation) return time
+  return `${time} ${abbreviation}`
+}
+
 /// The event's own zone, when it is not the reader's.
 ///
 /// Gmail shows both, and it is right to: "08:00" alone is a different

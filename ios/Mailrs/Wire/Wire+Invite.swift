@@ -5,7 +5,8 @@ extension Wire {
     ///
     /// Backend: `crates/webapi/src/handlers/complete.rs` —
     /// `get_message_single`'s `invite_payload`, which is
-    /// `mailrs_ical::ParsedInvite` plus the two resolved instants.
+    /// `mailrs_ical::ParsedInvite` plus the two resolved instants, and
+    /// what `calendar_events::series::annotate` adds when it is read.
     struct Invite: Decodable, Sendable {
         let uid: String
         /// Higher on every re-send. Exchange does not send
@@ -44,6 +45,17 @@ extension Wire {
         let organiserZone: String?
         /// The wall-clock the organiser wrote, for that same line.
         let organiserWallClock: String?
+        /// The IANA zone the organiser's `TZID` names, Windows names
+        /// resolved on the server. The organiser's clock is formatted from
+        /// the instant in it, so the abbreviation is the one in force on
+        /// that date — PDT in October, PST in November.
+        let organiserIana: String?
+        /// How a recurring invitation repeats; nil for one that does not.
+        let rule: InviteRepeat.Rule?
+        /// The first occurrence that has not ended, worked out by the
+        /// server when the message is read. Nil for a single event, and
+        /// for a series that is over (then `rule` is still set).
+        let next: InviteRepeat.Occurrence?
 
         struct Person: Decodable, Sendable {
             let cn: String?
@@ -85,6 +97,9 @@ extension Wire {
             case dtstartDate = "dtstart_date"
             case dtendDate = "dtend_date"
             case dtstart
+            case organiserIana = "organiser_zone"
+            case rule = "recurrence"
+            case next = "next_occurrence"
         }
 
         init(from decoder: Decoder) throws {
@@ -110,6 +125,9 @@ extension Wire {
             let zoned = (try? c.decodeIfPresent(Zoned.self, forKey: .dtstart)) ?? nil
             organiserZone = zoned?.Zoned.tzName
             organiserWallClock = zoned?.Zoned.local
+            organiserIana = try c.decodeIfPresent(String.self, forKey: .organiserIana)
+            rule = try c.decodeIfPresent(InviteRepeat.Rule.self, forKey: .rule)
+            next = try c.decodeIfPresent(InviteRepeat.Occurrence.self, forKey: .next)
         }
 
         private struct Zoned: Decodable, Sendable {

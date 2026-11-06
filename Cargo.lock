@@ -4293,6 +4293,7 @@ dependencies = [
  "mailrs-mime",
  "rrule",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

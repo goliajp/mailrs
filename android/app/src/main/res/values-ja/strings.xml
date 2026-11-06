@@ -548,4 +548,18 @@
     <string name="push_devices">プッシュを受け取る端末</string>
     <string name="push_this_phone">%1$s（この端末）</string>
     <string name="push_remove">削除</string>
+    <string name="invite_next">次回：%1$s</string>
+    <string name="invite_organiser_time">（主催者の時間）</string>
+    <string name="invite_repeat_ended">すべて終了しました</string>
+    <string name="invite_repeat_daily">毎日</string>
+    <string name="invite_repeat_daily_n">%1$s 日ごと</string>
+    <string name="invite_repeat_weekly">毎週%1$s</string>
+    <string name="invite_repeat_weekly_n">%1$s 週間ごとの%2$s</string>
+    <string name="invite_repeat_monthly">毎月</string>
+    <string name="invite_repeat_monthly_day">毎月 %1$s 日</string>
+    <string name="invite_repeat_yearly">毎年</string>
+    <string name="invite_repeat_other">繰り返し</string>
+    <string name="invite_repeat_until">%1$s まで</string>
+    <string name="invite_repeat_count">全 %1$s 回</string>
+    <string name="invite_repeat_day_separator">・</string>
 </resources>

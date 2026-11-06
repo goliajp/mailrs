@@ -5475,7 +5475,7 @@
     "/api/calendar/conflicts": {
       "get": {
         "summary": "Get calendar conflicts",
-        "description": "Events overlapping the window, other than one named by exclude_uid. An event the reader declined is not a conflict.",
+        "description": "Events overlapping the window, other than one named by exclude_uid. An event the reader declined is not a conflict. A recurring event conflicts on every occurrence, not only its first.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5524,7 +5524,7 @@
     "/api/calendar/events": {
       "get": {
         "summary": "List calendar events",
-        "description": "Every event overlapping the window, in start order: the reader's own, invitations filed from mail (with the reader's answer), and each subscribed feed's. Declined events are included. 400 when either bound is not an instant.",
+        "description": "Every event overlapping the window, in start order, a recurring one once per occurrence (RRULE / RDATE / EXDATE and moved or cancelled occurrences applied, in the organiser's zone across clock changes): the reader's own, invitations filed from mail (with the reader's answer), and each subscribed feed's. Declined events are included. 400 when either bound is not an instant.",
         "parameters": [
           {
             "name": "start",
@@ -17404,7 +17404,7 @@
           "invite_payload": {
             "type": "object",
             "nullable": true,
-            "description": "The typed invitation, present only when invite_method is set. Fields follow RFC 5545 (uid, sequence, summary, location, organizer, attendees, dtstart, dtend, rrule, recurrence_id, status), plus dtstart_utc / dtend_utc: the instants resolved on the server against the invitation's own VTIMEZONE. Clients must prefer those — a zoned wall-clock plus a Windows zone name such as \"Pacific Standard Time\" is not a moment a browser can evaluate."
+            "description": "The typed invitation, present only when invite_method is set. Fields follow RFC 5545 (uid, sequence, summary, location, organizer, attendees, dtstart, dtend, rrule, recurrence_id, status), plus dtstart_utc / dtend_utc: the instants resolved on the server against the invitation's own VTIMEZONE. Clients must prefer those — a zoned wall-clock plus a Windows zone name such as \"Pacific Standard Time\" is not a moment a browser can evaluate. Added each time the message is read: organiser_zone, the IANA zone the TZID names (Windows names resolved), for formatting the organiser's clock with the abbreviation in force on that date; and for a recurring invitation recurrence (the rule read for words: freq, interval, by_day, by_month_day, by_month, count, until as the organiser's last day YYYY-MM-DD, plain) and next_occurrence ({start, end, organiser_local, organiser_offset_secs} for the first occurrence that has not ended, start/end RFC 3339 or YYYY-MM-DD for an all-day series; null once the series is over). An invitation for one occurrence (recurrence_id set) gets neither."
           },
           "rsvp_status": {
             "type": "string",
@@ -19494,7 +19494,7 @@
               "string",
               "null"
             ],
-            "description": "RFC 3339 instant"
+            "description": "RFC 3339 instant; for a recurring event, this occurrence's"
           },
           "dtend": {
             "type": [
@@ -19539,6 +19539,10 @@
           "thread_id": {
             "type": "string",
             "description": "The conversation that mail is in now, looked up when the events are listed. Absent when there is no mail to open."
+          },
+          "recurrence_id": {
+            "type": "string",
+            "description": "For one occurrence of a recurring event: which occurrence it is, as the start the rule gave it (RFC 3339, or YYYY-MM-DD for an all-day series). A recurring event comes back once per occurrence in the window, every one with the same uid. Absent for an event that does not repeat."
           }
         }
       },

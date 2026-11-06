@@ -59,7 +59,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - POST /api/invites/{uid}/rsvp — answer an invitation (ACCEPTED / TENTATIVE / DECLINED); records the choice on the calendar event and queues an iTIP REPLY to the organiser
 - POST /api/invites/{uid}/counter — propose a different time
 - GET /api/calendar/conflicts?start=&end= — what else is already in the calendar over that window (declined invitations are not conflicts)
-- GET /api/calendar/events?start=&end= — every event in that window: own, invitations filed from mail with the reader's answer (`partstat`), and subscribed feeds
+- GET /api/calendar/events?start=&end= — every event in that window: own, invitations filed from mail with the reader's answer (`partstat`), and subscribed feeds; a recurring event comes back once per occurrence (same `uid`, each with its `recurrence_id`)
 - POST /api/conversations/{thread_id}/read — mark read
 - POST /api/conversations/{thread_id}/star — star
 - POST /api/conversations/{thread_id}/archive — archive
