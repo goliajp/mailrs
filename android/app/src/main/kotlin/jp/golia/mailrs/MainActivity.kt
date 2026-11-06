@@ -29,6 +29,7 @@ import jp.golia.mailrs.ui.MailrsApp
 import jp.golia.mailrs.wire.NewMailWorker
 import jp.golia.mailrs.wire.ShareIntent
 import jp.golia.mailrs.wire.Prefs
+import jp.golia.mailrs.wire.PushSyncWorker
 import jp.golia.mailrs.ui.MailrsTheme
 
 class MainActivity : ComponentActivity() {
@@ -199,6 +200,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         NewMailWorker.ensureChannel(this)
+        // the server can drop this phone without telling it; a launch, not a rotation
+        if (savedInstanceState == null) PushSyncWorker.check(this)
         setContent {
             // Not Material You: the three clients hold one palette, and
             // an accent taken from the wallpaper is not that. See

@@ -553,4 +553,5 @@
     <string name="push_devices">Phones that get pushes</string>
     <string name="push_this_phone">%1$s (this phone)</string>
     <string name="push_remove">Remove</string>
+    <string name="push_reregistered">The server had dropped this phone; it was registered again on %1$s</string>
 </resources>
