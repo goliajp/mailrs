@@ -187,7 +187,7 @@ fn write_caldatetime(out: &mut String, prop_name: &str, dt: &CalDateTime) {
     }
 }
 
-fn write_vtimezone(out: &mut String, tz: &VTimezone) {
+pub(crate) fn write_vtimezone(out: &mut String, tz: &VTimezone) {
     push_line(out, "BEGIN:VTIMEZONE");
     push_line(out, &format!("TZID:{}", tz.tzid));
     for sub in &tz.raw_subs {
@@ -218,7 +218,7 @@ fn format_raw_property(p: &RawProperty) -> String {
     s
 }
 
-fn format_utc(d: &DateTime<Utc>) -> String {
+pub(crate) fn format_utc(d: &DateTime<Utc>) -> String {
     format!(
         "{:04}{:02}{:02}T{:02}{:02}{:02}Z",
         d.year(),
@@ -230,7 +230,7 @@ fn format_utc(d: &DateTime<Utc>) -> String {
     )
 }
 
-fn format_naive(n: &NaiveDateTime) -> String {
+pub(crate) fn format_naive(n: &NaiveDateTime) -> String {
     format!(
         "{:04}{:02}{:02}T{:02}{:02}{:02}",
         n.year(),
@@ -242,7 +242,7 @@ fn format_naive(n: &NaiveDateTime) -> String {
     )
 }
 
-fn format_date(d: &NaiveDate) -> String {
+pub(crate) fn format_date(d: &NaiveDate) -> String {
     format!("{:04}{:02}{:02}", d.year(), d.month(), d.day())
 }
 
@@ -285,7 +285,7 @@ fn format_duration(d: &chrono::Duration) -> String {
     s
 }
 
-fn escape_text(s: &str) -> String {
+pub(crate) fn escape_text(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
         match c {
@@ -301,7 +301,7 @@ fn escape_text(s: &str) -> String {
 
 /// Append `line` to `out` with RFC 5545 §3.1 line folding (75 octets per
 /// physical line) and CRLF terminator.
-fn push_line(out: &mut String, line: &str) {
+pub(crate) fn push_line(out: &mut String, line: &str) {
     let bytes = line.as_bytes();
     if bytes.len() <= 75 {
         out.push_str(line);
