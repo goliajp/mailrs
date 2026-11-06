@@ -26,6 +26,13 @@
 # possible within PERF_GATE_MAX_WAIT seconds of waiting in total, the
 # script exits 75 and says so; that is neither a pass nor a failure.
 #
+# load1 is a one-minute average and misses a burst that takes the fast
+# cores for the two seconds a gate runs (2.216.0 deploy: a game running,
+# load1 under 16, the parse worker's in-process control at twice its
+# quiet figure). A gate that times a control next to what it gates may
+# print a line starting "perf-gate: busy machine"; a failure that printed
+# it is void the same way.
+#
 # Run this before a release, or after touching anything on a hot path.
 #
 # Usage:
@@ -88,7 +95,8 @@ wait_for_quiet() {
 }
 
 # Run one gate binary with load1 sampled around it. Sets `rc` to the
-# binary's exit status and `peak` to the highest load1 seen.
+# binary's exit status, `peak` to the highest load1 seen, and `busy_line`
+# to the binary's own busy-machine report, if it printed one.
 run_sampled() {
     local dir=$1 exe=$2 samples sampler
     samples=$(mktemp -t perf-gate-load.XXXXXX)
@@ -96,7 +104,10 @@ run_sampled() {
     ( while :; do sleep "$SAMPLE"; load1 >> "$samples"; done ) &
     sampler=$!
     rc=0
-    (cd "$dir" && "$exe") || rc=$?
+    out=$(mktemp -t perf-gate-out.XXXXXX)
+    (cd "$dir" && "$exe") 2>&1 | tee "$out" || rc=${PIPESTATUS[0]}
+    busy_line=$(grep -m1 '^perf-gate: busy machine' "$out" || true)
+    rm -f "$out"
     kill "$sampler"
     wait "$sampler" 2>/dev/null || true
     load1 >> "$samples"
@@ -146,16 +157,24 @@ while IFS=$'\t' read -r dir exe <&3; do
         started=$SECONDS
         run_sampled "$dir" "$exe"
         # a pass under load stands: load only makes latency worse
-        if [ "$rc" -ne 0 ] && above "$peak" "$MAX_LOAD"; then
+        if [ "$rc" -ne 0 ] && { above "$peak" "$MAX_LOAD" || [ -n "$busy_line" ]; }; then
             if above "$peak" "$busiest"; then busiest=$peak; fi
             # a void run is time spent waiting too, or a machine that is
             # quiet between runs and busy during them would loop forever
+            if [ -n "$busy_line" ]; then
+                why="the gate's own control reading says the machine was busy"
+                # load1 may already read quiet, so wait_for_quiet would not
+                # pause: wait one poll before trying again
+                sleep "$POLL"
+            else
+                why="failed while load1 reached $peak (> $MAX_LOAD)"
+            fi
             waited=$((waited + SECONDS - started))
             if [ "$waited" -ge "$MAX_WAIT" ]; then
-                echo "!! machine too busy to judge perf (load1 max $busiest > threshold $MAX_LOAD)"
+                echo "!! machine too busy to judge perf: $why (load1 max $busiest, threshold $MAX_LOAD)"
                 exit "$BUSY_EXIT"
             fi
-            echo "    void: failed while load1 reached $peak (> $MAX_LOAD); running again when quiet"
+            echo "    void: $why; running again when quiet"
             continue
         fi
         break
