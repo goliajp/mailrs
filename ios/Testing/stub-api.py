@@ -30,6 +30,7 @@ import stub_restart
 import stub_role
 import stub_login
 import stub_block
+import stub_saved
 
 WIDE = ('<table width="760" style="width:760px"><tr><td>'
         '<div style="width:760px;background:#eef;padding:8px">'
@@ -542,7 +543,7 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
-        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.state(self) or stub_triage.get(self, VERBS) or stub_verdict.get(self, MESSAGES) or stub_compose.get(self) or stub_sections.get(self) or stub_settings.get(self):
+        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.state(self) or stub_triage.get(self, VERBS) or stub_verdict.get(self, MESSAGES) or stub_compose.get(self) or stub_sections.get(self) or stub_settings.get(self) or stub_saved.get(self):
             return
         if self.path.split("?")[0] == "/api/conversations/search":
             query = parse_qs(urlparse(self.path).query)

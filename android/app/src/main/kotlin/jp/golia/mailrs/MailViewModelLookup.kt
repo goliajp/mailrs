@@ -6,6 +6,7 @@ import jp.golia.mailrs.wire.MailSignature
 import jp.golia.mailrs.wire.signatures
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.RecipientAutocomplete
+import jp.golia.mailrs.wire.savedSearches
 import kotlinx.coroutines.launch
 
 /**
@@ -82,13 +83,29 @@ fun MailViewModel.openSearchFromShortcut() {
         draftsOpen = false,
         adminOpen = null,
     ) }
+    loadSavedSearches()
 }
 
 /** Open the search, or close it and forget what was asked. */
 fun MailViewModel.setSearchOpen(open: Boolean) {
     if (_state.value.searchOpen == open) return
     _state.update { it.copy(searchOpen = open) }
+    if (open) loadSavedSearches()
     if (!open) clearSearch()
+}
+
+/**
+ * Fetched each time the search opens, so one saved on the web since
+ * shows up. A failed fetch keeps what was there and says nothing, as the
+ * web's saved-search bar does: the field still searches.
+ */
+internal fun MailViewModel.loadSavedSearches() {
+    viewModelScope.launch {
+        val r = client.savedSearches()
+        if (r is MailrsClient.Outcome.Ok) {
+            _state.update { it.copy(savedSearches = r.value) }
+        }
+    }
 }
 
 fun MailViewModel.clearSearch() {

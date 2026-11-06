@@ -58,6 +58,8 @@ data class UiState(
      */
     val results: List<Wire.Conversation>? = null,
     val searching: Boolean = false,
+    /** The reader's saved searches, offered while the search field is empty. */
+    val savedSearches: List<jp.golia.mailrs.wire.SavedSearch> = emptyList(),
     /**
      * Whether the search is open.
      *
