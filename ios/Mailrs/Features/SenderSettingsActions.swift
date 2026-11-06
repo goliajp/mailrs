@@ -20,9 +20,9 @@ struct SenderSettingsActions: View {
         }
         .accessibilityIdentifier("sender.file")
         Menu {
-            Button("Always notify") { Task { await notify("always") } }
+            Button("Always push") { Task { await notify("always") } }
                 .accessibilityIdentifier("sender.notify.always")
-            Button("Never notify") { Task { await notify("never") } }
+            Button("Never push") { Task { await notify("never") } }
                 .accessibilityIdentifier("sender.notify.never")
             Button("As my notification setting says") { Task { await notify(nil) } }
                 .accessibilityIdentifier("sender.notify.default")

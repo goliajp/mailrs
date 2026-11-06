@@ -1,5 +1,7 @@
 import type { ReasonsKey } from './en'
 
+import { word } from '@/i18n/wording'
+
 export const reasonsZh: Record<ReasonsKey, string> = {
   'fraud.examined': '已检查：有可疑之处',
   'fraud.kept': '保留、不删除：举报滥用时要用它作证据',
@@ -17,7 +19,7 @@ export const reasonsZh: Record<ReasonsKey, string> = {
   'fraud.releasing': '正在放行…',
   'fraud.rules': '规则 {version}',
   'link.warning.confirm': '这个链接可能不是它看上去的地方。\n\n{reasons}\n\n仍然打开吗？',
-  'reason.class.inbox': '收件箱',
+  'reason.class.inbox': word('zh', 'reason.class.inbox'),
   'reason.class.notification': '通知',
   'reason.class.promotion': '推广',
 }

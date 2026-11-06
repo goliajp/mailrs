@@ -1,13 +1,15 @@
 import type { InviteKey } from './en'
 
+import { word } from '@/i18n/wording'
+
 export const inviteZh: Record<InviteKey, string> = {
-  'invite.accept': '接受',
+  'invite.accept': word('zh', 'invite.accept'),
   'invite.badge.cancelled': '已取消',
   'invite.badge.counter': '对方提议了新时间',
   'invite.badge.event': '活动',
-  'invite.badge.new': '新邀请',
+  'invite.badge.new': word('zh', 'invite.badge.new'),
   'invite.badge.reply': '回复',
-  'invite.badge.updated': '邀请已更新',
+  'invite.badge.updated': word('zh', 'invite.badge.updated'),
   'invite.change': '更改',
   'invite.conflictsMany': '和 {n} 个日程冲突',
   'invite.conflictsWith': '和「{what}」冲突',
@@ -24,7 +26,7 @@ export const inviteZh: Record<InviteKey, string> = {
   'invite.day.TH': '四',
   'invite.day.TU': '二',
   'invite.day.WE': '三',
-  'invite.decline': '拒绝',
+  'invite.decline': word('zh', 'invite.decline'),
   'invite.end': '结束',
   'invite.error': '出错：{error}',
   'invite.guest.accepted': '已接受',
@@ -41,7 +43,7 @@ export const inviteZh: Record<InviteKey, string> = {
   'invite.guest.yes': '参加',
   'invite.guest.yesCount': '{n} 位参加',
   'invite.join': '加入会议',
-  'invite.organizer': '组织者：',
+  'invite.organizer': word('zh', 'invite.organizer'),
   'invite.repeat.count': '共 {n} 次',
   'invite.repeat.daily': '每天',
   'invite.repeat.dailyN': '每 {n} 天',
@@ -65,5 +67,5 @@ export const inviteZh: Record<InviteKey, string> = {
   'invite.sent': '已回复',
   'invite.singleOccurrence': '这是重复日程中的一次，回复只对这一次有效。',
   'invite.start': '开始',
-  'invite.tentative': '待定',
+  'invite.tentative': word('zh', 'invite.tentative'),
 }

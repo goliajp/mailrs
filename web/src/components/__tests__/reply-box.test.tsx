@@ -117,7 +117,7 @@ describe('ReplyBox', () => {
     )
 
     expect(screen.getByText('Reply')).toBeDefined()
-    expect(screen.getByText('Reply All')).toBeDefined()
+    expect(screen.getByText('Reply all')).toBeDefined()
     expect(screen.getByText('Forward')).toBeDefined()
   })
 
@@ -140,7 +140,7 @@ describe('ReplyBox', () => {
       </Wrapper>
     )
 
-    fireEvent.click(screen.getByText('Reply All'))
+    fireEvent.click(screen.getByText('Reply all'))
     expect(onModeChange).toHaveBeenCalledWith('reply-all')
   })
 
@@ -241,7 +241,7 @@ describe('ReplyBox', () => {
       </Wrapper>
     )
 
-    const replyAllButton = screen.getByText('Reply All')
+    const replyAllButton = screen.getByText('Reply all')
     expect(replyAllButton.className).not.toContain('bg-blue-100')
 
     const forwardButton = screen.getByText('Forward')

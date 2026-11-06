@@ -105,7 +105,7 @@ struct InviteCard: View {
                 .accessibilityIdentifier("invite.join")
             }
             if let organizer = invite.organizer {
-                Text("From \(organizer.cn ?? organizer.email)")
+                Text("Organizer: \(organizer.cn ?? organizer.email)")
                     .font(.caption2)
                     .foregroundStyle(theme.fgMuted)
                     .accessibilityIdentifier("invite.organizer")

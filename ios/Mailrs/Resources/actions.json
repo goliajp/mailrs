@@ -142,7 +142,7 @@
       "leaves_list": true,
       "label": {
         "web": "action.markNotification",
-        "ios": "Mark as notification",
+        "ios": "Mark as Notification",
         "android": "action_mark_notification"
       },
       "done": {
@@ -168,7 +168,7 @@
       "leaves_list": true,
       "label": {
         "web": "action.markPromotion",
-        "ios": "Mark as promotion",
+        "ios": "Mark as Promotion",
         "android": "action_mark_promotion"
       },
       "done": {

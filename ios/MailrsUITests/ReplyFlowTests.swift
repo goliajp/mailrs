@@ -144,7 +144,7 @@ final class ReplyFlowTests: MailrsUITestCase {
                       "thread never opened")
         app.buttons["Reply"].tap()
 
-        switchReplyMode(app, to: "Reply All")
+        switchReplyMode(app, to: "Reply all")
         let editor = app.textViews.firstMatch
         XCTAssertTrue(editor.waitForExistence(timeout: 5), "no composer")
         editor.tap()

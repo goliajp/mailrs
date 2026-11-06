@@ -1,3 +1,5 @@
+import { word } from '@/i18n/wording'
+
 /** Why a message was judged as it was: the verdict panel and link warnings. */
 export const reasonsEn = {
   'fraud.examined': 'Examined: something looked wrong',
@@ -16,7 +18,7 @@ export const reasonsEn = {
   'fraud.releasing': 'Releasing…',
   'fraud.rules': 'rules {version}',
   'link.warning.confirm': 'This link may not go where it seems.\n\n{reasons}\n\nOpen it anyway?',
-  'reason.class.inbox': 'Inbox',
+  'reason.class.inbox': word('en', 'reason.class.inbox'),
   'reason.class.notification': 'Notifications',
   'reason.class.promotion': 'Promotions',
 } as const
