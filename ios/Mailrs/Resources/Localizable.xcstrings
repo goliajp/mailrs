@@ -588,7 +588,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "账户"
+            "value": "账号"
           }
         }
       }
@@ -604,7 +604,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "账户就是这台服务器托管的邮箱。"
+            "value": "账号就是这台服务器托管的邮箱。"
           }
         }
       }
@@ -668,7 +668,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "添加账户"
+            "value": "添加账号"
           }
         }
       }
@@ -2029,7 +2029,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无法加载账户"
+            "value": "无法加载账号"
           }
         }
       }
@@ -2381,7 +2381,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "删除账户？"
+            "value": "删除账号？"
           }
         }
       }
@@ -2509,7 +2509,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "这个账户暂时不能删除邮件"
+            "value": "这个账号暂时不能删除邮件"
           }
         }
       }
@@ -2829,7 +2829,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "请输入要添加的账户的完整邮箱地址"
+            "value": "请输入要添加的账号的完整邮箱地址"
           }
         }
       }
@@ -4048,7 +4048,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "标为通知"
+            "value": "标记为通知"
           }
         }
       }
@@ -4064,7 +4064,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "标为推广"
+            "value": "标记为推广"
           }
         }
       }
@@ -4080,7 +4080,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "标为垃圾邮件"
+            "value": "标记为垃圾邮件"
           }
         }
       }
@@ -4368,7 +4368,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "移动到"
+            "value": "移至"
           }
         }
       }
@@ -4576,7 +4576,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "新建账户"
+            "value": "新建账号"
           }
         }
       }
@@ -4800,7 +4800,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "没有账户"
+            "value": "没有账号"
           }
         }
       }
@@ -5623,7 +5623,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "这个账户暂时取不到更早的邮件"
+            "value": "这个账号暂时取不到更早的邮件"
           }
         }
       }
@@ -6257,13 +6257,13 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "不在時に自動返信する"
+            "value": "不在通知をオンにする"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "休假期间自动回复"
+            "value": "启用外出回复"
           }
         }
       }
@@ -7095,7 +7095,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "要修改这个账户，请重新登录"
+            "value": "要修改这个账号，请重新登录"
           }
         }
       }
@@ -7111,7 +7111,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "要读取这个账户，请重新登录"
+            "value": "要读取这个账号，请重新登录"
           }
         }
       }
@@ -7127,7 +7127,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "要用这个账户发信，请重新登录"
+            "value": "要用这个账号发信，请重新登录"
           }
         }
       }
@@ -8039,7 +8039,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "服务器拒绝了这个账户的登录（535）"
+            "value": "服务器拒绝了这个账号的登录（535）"
           }
         }
       }
@@ -8199,7 +8199,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "这个账户没有「已删除邮件」文件夹"
+            "value": "这个账号没有「已删除邮件」文件夹"
           }
         }
       }
@@ -8247,7 +8247,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "这台设备上这个账户的邮件已经存满"
+            "value": "这台设备上这个账号的邮件已经存满"
           }
         }
       }
