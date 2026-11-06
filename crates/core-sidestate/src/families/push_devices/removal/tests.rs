@@ -214,3 +214,131 @@ fn ending_every_session_stops_every_push() {
         assert_eq!(c.exists(&[key.as_bytes()]).unwrap(), 0, "{key}");
     }
 }
+
+/// A signed-in session, stored the way the webapi stores one; its ref.
+fn session(c: &mut kevy_client::Connection, token: &str) -> String {
+    use crate::keys::session::{session_key, session_ref};
+    let week = std::time::Duration::from_secs(7 * 24 * 3600);
+    c.set_with_ttl(session_key(token).as_bytes(), b"{}", week)
+        .unwrap();
+    session_ref(token)
+}
+
+fn expire(c: &mut kevy_client::Connection, token: &str) {
+    let key = crate::keys::session::session_key(token);
+    c.del(&[key.as_bytes()]).unwrap();
+}
+
+fn apns(token: &str) -> Registration<'_> {
+    Registration::Apns {
+        token,
+        platform: "ios",
+    }
+}
+
+#[test]
+fn a_device_whose_session_expired_is_dropped_on_every_channel() {
+    let mut c = kevy_client::Connection::connect("mem://push-signed-out").unwrap();
+    let (old, live) = (session(&mut c, "old-token"), session(&mut c, "live-token"));
+    let (sub, d) = (browser(1), phone(1));
+    let web_id = notify::endpoint_field(&sub.endpoint);
+    let up_id = unified_push::id_of(&d.endpoint);
+    file(&mut c, apns("t-old"), by(&old));
+    file(&mut c, Registration::Web(&sub), by(&old));
+    file(&mut c, Registration::UnifiedPush(&d), by(&old));
+    file(&mut c, apns("t-live"), by(&live));
+    super::super::mark_used(&mut c, ME, Channel::Apns, "t-old", 11).unwrap();
+    expire(&mut c, "old-token");
+
+    for (channel, id) in [
+        (Channel::Apns, "t-old"),
+        (Channel::Web, web_id.as_str()),
+        (Channel::UnifiedPush, up_id.as_str()),
+    ] {
+        assert_eq!(
+            drop_signed_out(&mut c, ME, channel).unwrap(),
+            1,
+            "{channel:?}"
+        );
+        assert!(!holds(&mut c, channel, id), "{channel:?} dropped");
+        assert!(
+            removed(&mut c, ME, channel).unwrap().is_empty(),
+            "no record"
+        );
+    }
+    assert!(
+        holds(&mut c, Channel::Apns, "t-live"),
+        "a live session's device stays"
+    );
+    let links = c.hkeys(session_link_key(ME).as_bytes()).unwrap();
+    assert_eq!(links, vec![b"apns:t-live".to_vec()]);
+    let used = c.hkeys(used_key(ME).as_bytes()).unwrap();
+    assert!(used.is_empty(), "its last use went with it: {used:?}");
+    // signing in again registers again
+    let again = session(&mut c, "new-token");
+    assert!(matches!(
+        file(&mut c, apns("t-old"), by(&again)),
+        Filed::Registered(_)
+    ));
+    assert_eq!(drop_signed_out(&mut c, ME, Channel::Apns).unwrap(), 0);
+    assert!(holds(&mut c, Channel::Apns, "t-old"));
+}
+
+#[test]
+fn a_session_that_runs_out_its_ttl_counts_as_ended() {
+    let mut c = kevy_client::Connection::connect("mem://push-signed-out-ttl").unwrap();
+    let key = crate::keys::session::session_key("short-token");
+    let second = std::time::Duration::from_secs(1);
+    c.set_with_ttl(key.as_bytes(), b"{}", second).unwrap();
+    let s = crate::keys::session::session_ref("short-token");
+    file(&mut c, apns("t1"), by(&s));
+    assert_eq!(drop_signed_out(&mut c, ME, Channel::Apns).unwrap(), 0);
+    std::thread::sleep(std::time::Duration::from_millis(1500));
+    assert_eq!(drop_signed_out(&mut c, ME, Channel::Apns).unwrap(), 1);
+    assert!(!holds(&mut c, Channel::Apns, "t1"));
+}
+
+#[test]
+fn a_device_linked_to_no_session_keeps_its_pushes() {
+    let mut c = kevy_client::Connection::connect("mem://push-signed-out-legacy").unwrap();
+    let (sub, d) = (browser(1), phone(1));
+    // registered before devices were linked to sessions, or with an agent key
+    file(&mut c, apns("t1"), Asker::default());
+    file(&mut c, Registration::Web(&sub), Asker::default());
+    file(&mut c, Registration::UnifiedPush(&d), Asker::default());
+    for channel in [Channel::Apns, Channel::Web, Channel::UnifiedPush] {
+        assert_eq!(
+            drop_signed_out(&mut c, ME, channel).unwrap(),
+            0,
+            "{channel:?}"
+        );
+    }
+    assert_eq!(held(&mut c, ME).unwrap().len(), 3);
+}
+
+#[test]
+fn a_removed_device_stays_out_when_its_session_ends() {
+    let mut c = kevy_client::Connection::connect("mem://push-signed-out-removed").unwrap();
+    let s = session(&mut c, "phone-token");
+    let d = phone(1);
+    let id = unified_push::id_of(&d.endpoint);
+    file(&mut c, Registration::UnifiedPush(&d), by(&s));
+    assert!(remove(&mut c, ME, Channel::UnifiedPush, &id, Some("s-laptop"), 20).unwrap());
+    expire(&mut c, "phone-token");
+    assert_eq!(
+        drop_signed_out(&mut c, ME, Channel::UnifiedPush).unwrap(),
+        0
+    );
+    assert!(!holds(&mut c, Channel::UnifiedPush, &id));
+    assert_eq!(removed(&mut c, ME, Channel::UnifiedPush).unwrap(), vec![id]);
+    // no automatic registration brings it back, with a session or without
+    assert_eq!(
+        file(&mut c, Registration::UnifiedPush(&d), Asker::default()),
+        Filed::Removed
+    );
+    let again = session(&mut c, "phone-token-2");
+    assert_eq!(
+        file(&mut c, Registration::UnifiedPush(&d), by(&again)),
+        Filed::Removed
+    );
+}
