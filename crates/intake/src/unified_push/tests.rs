@@ -141,6 +141,51 @@ async fn new_mail_pings_each_phone_with_nothing_of_the_message_and_a_gone_one_is
 }
 
 #[tokio::test]
+async fn a_phone_whose_session_expired_is_not_pinged_and_is_dropped() {
+    use crate::push::tests::{by, expire, session};
+    use push_devices::Registration;
+    let (addr, mut received) = distributor().await;
+    let vapid = vapid();
+    let now = 1_793_500_000;
+    let mut conn = kevy_client::Connection::connect("mem://unified-push-signed-out").unwrap();
+    let (old, live) = (session(&mut conn, "old"), session(&mut conn, "live"));
+    let phones = [
+        (phone(&format!("http://{addr}/upold"), 1).1, Some(&old)),
+        (phone(&format!("http://{addr}/uplive"), 2).1, Some(&live)),
+        // registered before devices were linked to sessions
+        (phone(&format!("http://{addr}/uplegacy"), 3).1, None),
+    ];
+    for (device, s) in &phones {
+        let who = by(s.map(String::as_str));
+        push_devices::register(
+            &mut conn,
+            "me@x.test",
+            Registration::UnifiedPush(device),
+            who,
+            1,
+        )
+        .unwrap();
+    }
+    expire(&mut conn, "old");
+
+    let outcomes = round(devices(&mut conn, "me@x.test").unwrap(), |sub| {
+        let vapid = &vapid;
+        async move { send::post(vapid, &sub, PING, now, "127.0.0.1", addr).await }
+    })
+    .await;
+    assert_eq!(outcomes.len(), 2, "{outcomes:?}");
+    let mut paths = vec![
+        received.recv().await.unwrap().path,
+        received.recv().await.unwrap().path,
+    ];
+    paths.sort();
+    assert_eq!(paths, vec!["/uplegacy", "/uplive"]);
+    let left = unified_push::list(&mut conn, "me@x.test").unwrap();
+    assert_eq!(left.len(), 2, "the expired session's phone is gone");
+    assert!(left.iter().all(|(_, d)| !d.endpoint.ends_with("/upold")));
+}
+
+#[tokio::test]
 async fn the_real_sender_refuses_a_loopback_distributor_without_connecting() {
     let (addr, mut received) = distributor().await;
     let vapid = vapid();

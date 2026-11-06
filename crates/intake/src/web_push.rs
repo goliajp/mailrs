@@ -128,7 +128,16 @@ fn connect() -> std::io::Result<kevy_client::Connection> {
 }
 
 fn load(user: &str) -> std::io::Result<Vec<notify::WebSubscription>> {
-    notify::web_subscriptions(&mut connect()?, user)
+    subscriptions(&mut connect()?, user)
+}
+
+/// The browsers `user` has to be pushed to now.
+fn subscriptions(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+) -> std::io::Result<Vec<notify::WebSubscription>> {
+    crate::push::drop_signed_out(conn, user, Channel::Web)?;
+    notify::web_subscriptions(conn, user)
 }
 
 fn forget(user: &str, endpoint: &str) {
@@ -160,5 +169,41 @@ mod tests {
         assert_eq!(hidden["hidden"], true);
         let text = String::from_utf8(payload("t1", "Boss <b@x>", "Raise", true)).unwrap();
         assert!(!text.contains("Boss") && !text.contains("Raise"));
+    }
+
+    #[test]
+    fn web_push_skips_and_drops_a_browser_whose_session_expired() {
+        use crate::push::tests::{by, expire, session};
+        use mailrs_core_sidestate::families::push_devices::{self, Registration};
+        let mut c = kevy_client::Connection::connect("mem://web-push-signed-out").unwrap();
+        let (old, live) = (session(&mut c, "old"), session(&mut c, "live"));
+        let browser = |n: u32| notify::WebSubscription {
+            endpoint: format!("https://fcm.googleapis.com/fcm/send/{n}"),
+            p256dh: "k".into(),
+            auth: "a".into(),
+            created_at: i64::from(n),
+        };
+        let subs = [browser(1), browser(2), browser(3)];
+        for (sub, s) in subs.iter().zip([Some(&old), Some(&live), None]) {
+            let who = by(s.map(String::as_str));
+            push_devices::register(&mut c, "me@x.test", Registration::Web(sub), who, 1).unwrap();
+        }
+        expire(&mut c, "old");
+        let mut pushed: Vec<String> = subscriptions(&mut c, "me@x.test")
+            .unwrap()
+            .into_iter()
+            .map(|s| s.endpoint)
+            .collect();
+        pushed.sort();
+        assert_eq!(
+            pushed,
+            vec![subs[1].endpoint.clone(), subs[2].endpoint.clone()]
+        );
+        assert_eq!(
+            notify::web_subscriptions(&mut c, "me@x.test")
+                .unwrap()
+                .len(),
+            2
+        );
     }
 }
