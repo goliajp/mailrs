@@ -4,7 +4,7 @@
          files carry the same keys, which scripts/check-android-l10n.sh checks. -->
     <string name="app_name" translatable="false">Mailrs</string>
     <string name="shortcut_compose_short">Compose</string>
-    <string name="shortcut_compose_long">New message</string>
+    <string name="shortcut_compose_long">Compose</string>
     <string name="shortcut_search_short">Search</string>
     <string name="shortcut_search_long">Search mail</string>
     <string name="widget_description">Unread mail at a glance</string>
@@ -95,7 +95,7 @@
     <string name="common_search">Search</string>
     <string name="common_refresh">Refresh</string>
     <string name="draft_saved">Draft saved</string>
-    <string name="compose_new">New message</string>
+    <string name="compose_new">Compose</string>
     <string name="thread_open_failed">Could not open this conversation</string>
     <string name="error_action_unknown">This app does not know that action.</string>
     <string name="error_batch_refused">The server refused %1$s of %2$s.</string>
@@ -457,8 +457,8 @@
     <string name="settings_session_end_failed">The device was not signed out</string>
     <string name="settings_app_passwords_load_failed">The app passwords could not be loaded</string>
     <string name="settings_app_password_revoke_failed">The app password was not revoked</string>
-    <string name="settings_vacation_load_failed">The vacation reply could not be loaded</string>
-    <string name="settings_vacation_save_failed">The vacation reply was not saved</string>
+    <string name="settings_vacation_load_failed">The vacation responder could not be loaded</string>
+    <string name="settings_vacation_save_failed">The vacation responder was not saved</string>
     <string name="settings_masks_load_failed">The masked addresses could not be loaded</string>
     <string name="settings_mask_create_failed">The masked address was not created</string>
     <string name="settings_file_sender_failed">The sender\'s mail was not filed</string>
@@ -468,7 +468,7 @@
     <string name="settings_notifications">Notifications</string>
     <string name="settings_sessions">Signed-in devices</string>
     <string name="settings_app_passwords">App passwords</string>
-    <string name="settings_vacation">Vacation reply</string>
+    <string name="settings_vacation">Vacation responder</string>
     <string name="settings_masked">Masked addresses</string>
     <string name="settings_images_auto">Always load</string>
     <string name="settings_images_click">Ask each time</string>

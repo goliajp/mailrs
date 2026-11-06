@@ -972,7 +972,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "全部邮件"
+            "value": "所有邮件"
           }
         }
       }
@@ -988,7 +988,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "除垃圾邮件和「通知与推广」以外的全部邮件"
+            "value": "除垃圾邮件和「通知与推广」以外的所有邮件"
           }
         }
       }
@@ -1774,6 +1774,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "清除全部抑制？"
+          }
+        }
+      }
+    },
+    "Compose": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "作成"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "写邮件"
           }
         }
       }
@@ -4080,7 +4096,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "标为已读"
+            "value": "标记为已读"
           }
         }
       }
@@ -4096,7 +4112,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "标为未读"
+            "value": "标记为未读"
           }
         }
       }
@@ -4112,7 +4128,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "标为已读或未读"
+            "value": "标记为已读或未读"
           }
         }
       }
@@ -4368,7 +4384,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "移到收件箱"
+            "value": "移至收件箱"
           }
         }
       }
@@ -4384,7 +4400,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "移到废纸篓"
+            "value": "移至「已删除邮件」"
           }
         }
       }
@@ -4400,7 +4416,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已移到废纸篓"
+            "value": "已移至「已删除邮件」"
           }
         }
       }
@@ -4641,22 +4657,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "新建掩码地址"
-          }
-        }
-      }
-    },
-    "New message": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "作成"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "写邮件"
           }
         }
       }
@@ -5447,7 +5447,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "没有稍后处理的会话"
+            "value": "没有已延后的会话"
           }
         }
       }
@@ -5463,7 +5463,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "没有加星的邮件"
+            "value": "没有已加星标的邮件"
           }
         }
       }
@@ -6103,7 +6103,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "标为已读"
+            "value": "标记为已读"
           }
         }
       }
@@ -6839,7 +6839,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已发送"
+            "value": "已发邮件"
           }
         }
       }
@@ -7287,7 +7287,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "稍后处理"
+            "value": "延后"
           }
         }
       }
@@ -7303,7 +7303,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "稍后处理"
+            "value": "已延后"
           }
         }
       }
@@ -7335,7 +7335,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已加星"
+            "value": "已加星标"
           }
         }
       }
@@ -7463,7 +7463,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "滑动会话"
+            "value": "滑动会话时"
           }
         }
       }
@@ -7879,7 +7879,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "网页和 Android 应用也用这个设置。在废纸篓里，往哪边滑都是把会话恢复"
+            "value": "网页和 Android 应用也用这个设置。在「已删除邮件」里，往哪边滑都是把会话恢复"
           }
         }
       }
@@ -8124,12 +8124,12 @@
         }
       }
     },
-    "The vacation reply could not be loaded": {
+    "The vacation responder could not be loaded": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "不在時の自動返信を読み込めませんでした"
+            "value": "不在通知を読み込めませんでした"
           }
         },
         "zh-Hans": {
@@ -8140,12 +8140,12 @@
         }
       }
     },
-    "The vacation reply was not saved": {
+    "The vacation responder was not saved": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "不在時の自動返信を保存できませんでした"
+            "value": "不在通知を保存できませんでした"
           }
         },
         "zh-Hans": {
@@ -8199,7 +8199,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "这个账户没有废纸篓文件夹"
+            "value": "这个账户没有「已删除邮件」文件夹"
           }
         }
       }
@@ -8615,7 +8615,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "废纸篓"
+            "value": "已删除邮件"
           }
         }
       }
@@ -8631,7 +8631,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "废纸篓是空的"
+            "value": "「已删除邮件」是空的"
           }
         }
       }
@@ -8956,12 +8956,12 @@
         }
       }
     },
-    "Vacation reply": {
+    "Vacation responder": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "不在時の自動返信"
+            "value": "不在通知"
           }
         },
         "zh-Hans": {

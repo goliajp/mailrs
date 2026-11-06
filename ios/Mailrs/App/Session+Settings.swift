@@ -58,11 +58,11 @@ extension Session {
     }
 
     func vacation() async -> SettingsWire.Vacation? {
-        await settingsCall("The vacation reply could not be loaded") { try await $0.vacation() }
+        await settingsCall("The vacation responder could not be loaded") { try await $0.vacation() }
     }
 
     func saveVacation(_ v: SettingsWire.Vacation) async -> SettingsWire.Vacation? {
-        await settingsCall("The vacation reply was not saved") { try await $0.saveVacation(v) }
+        await settingsCall("The vacation responder was not saved") { try await $0.saveVacation(v) }
     }
 
     func masks() async -> [SettingsWire.Mask]? {

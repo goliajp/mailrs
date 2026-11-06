@@ -57,12 +57,12 @@
       "source": {
         "en": "gmail",
         "ja": "gmail",
-        "zh": "ours"
+        "zh": "gmail"
       },
       "text": {
         "en": "Starred",
         "ja": "スター付き",
-        "zh": "已加星"
+        "zh": "已加星标"
       },
       "web": ["list.starred"],
       "ios": ["Starred"],
@@ -91,12 +91,12 @@
       "source": {
         "en": "gmail",
         "ja": "gmail",
-        "zh": "ours"
+        "zh": "gmail"
       },
       "text": {
         "en": "Snoozed",
         "ja": "スヌーズ中",
-        "zh": "稍后处理"
+        "zh": "已延后"
       },
       "web": ["list.snoozed"],
       "ios": ["Snoozed"],
@@ -142,12 +142,12 @@
       "source": {
         "en": "gmail",
         "ja": "gmail",
-        "zh": "ours"
+        "zh": "gmail"
       },
       "text": {
         "en": "Sent",
         "ja": "送信済み",
-        "zh": "已发送"
+        "zh": "已发邮件"
       },
       "web": ["list.send"],
       "ios": ["Sent"],
@@ -176,12 +176,12 @@
       "source": {
         "en": "gmail",
         "ja": "gmail",
-        "zh": "ours"
+        "zh": "gmail"
       },
       "text": {
         "en": "All mail",
         "ja": "すべてのメール",
-        "zh": "全部邮件"
+        "zh": "所有邮件"
       },
       "web": ["list.all"],
       "ios": ["All mail"],
@@ -244,12 +244,12 @@
       "source": {
         "en": "gmail",
         "ja": "gmail",
-        "zh": "ours"
+        "zh": "gmail"
       },
       "text": {
         "en": "Trash",
         "ja": "ゴミ箱",
-        "zh": "废纸篓"
+        "zh": "已删除邮件"
       },
       "web": ["list.trash"],
       "ios": ["Trash"],
@@ -385,9 +385,9 @@
       "text": {
         "en": "Move to Trash",
         "ja": "ゴミ箱に移動",
-        "zh": "移到废纸篓"
+        "zh": "移至「已删除邮件」"
       },
-      "web": ["action.trash"],
+      "web": ["action.trash", "settings.rules.action.trash"],
       "ios": ["Move to Trash"],
       "android": ["action_trash"]
     },
@@ -516,12 +516,12 @@
       "source": {
         "en": "gmail",
         "ja": "gmail",
-        "zh": "ours"
+        "zh": "gmail"
       },
       "text": {
         "en": "Move to Inbox",
         "ja": "受信トレイに移動",
-        "zh": "移到收件箱"
+        "zh": "移至收件箱"
       },
       "web": ["action.moveToInbox"],
       "ios": ["Move to Inbox"],
@@ -567,12 +567,12 @@
       "source": {
         "en": "gmail",
         "ja": "gmail",
-        "zh": "ours"
+        "zh": "gmail"
       },
       "text": {
         "en": "Mark as read",
         "ja": "既読にする",
-        "zh": "标为已读"
+        "zh": "标记为已读"
       },
       "web": ["action.read"],
       "ios": ["Mark as read"],
@@ -584,12 +584,12 @@
       "source": {
         "en": "gmail",
         "ja": "gmail",
-        "zh": "ours"
+        "zh": "gmail"
       },
       "text": {
         "en": "Mark as unread",
         "ja": "未読にする",
-        "zh": "标为未读"
+        "zh": "标记为未读"
       },
       "web": ["action.unread"],
       "ios": ["Mark as unread"],
@@ -601,12 +601,12 @@
       "source": {
         "en": "gmail",
         "ja": "gmail",
-        "zh": "ours"
+        "zh": "gmail"
       },
       "text": {
         "en": "Snooze",
         "ja": "スヌーズ",
-        "zh": "稍后处理"
+        "zh": "延后"
       },
       "web": ["action.snooze"],
       "ios": ["Snooze"],
@@ -642,7 +642,7 @@
         "ja": "スターを付ける",
         "zh": "加注星标"
       },
-      "web": ["action.star"],
+      "web": ["action.star", "settings.rules.action.star"],
       "ios": ["Star"],
       "android": ["action_star"]
     },
@@ -718,17 +718,17 @@
       "id": "compose.title",
       "about": "the compose screen's title",
       "source": {
-        "en": "ours",
+        "en": "gmail",
         "ja": "gmail",
         "zh": "gmail"
       },
       "text": {
-        "en": "New message",
+        "en": "Compose",
         "ja": "作成",
         "zh": "写邮件"
       },
       "web": ["compose.newHeader"],
-      "ios": ["New message"],
+      "ios": ["Compose"],
       "android": ["compose_new", "shortcut_compose_long"]
     },
     {
@@ -990,17 +990,17 @@
       "id": "settings.vacation",
       "about": "settings: the vacation reply",
       "source": {
-        "en": "ours",
-        "ja": "ours",
+        "en": "gmail",
+        "ja": "gmail",
         "zh": "gmail"
       },
       "text": {
-        "en": "Vacation reply",
-        "ja": "不在時の自動返信",
+        "en": "Vacation responder",
+        "ja": "不在通知",
         "zh": "外出回复"
       },
       "web": ["settings.vacation.title"],
-      "ios": ["Vacation reply"],
+      "ios": ["Vacation responder"],
       "android": ["settings_vacation"]
     },
     {
@@ -1133,10 +1133,10 @@
       "text": {
         "en": "Swiping a conversation",
         "ja": "会話のスワイプ",
-        "zh": "滑动会话"
+        "zh": "滑动会话时"
       },
       "web": ["settings.appearance.swipe"],
-      "ios": [],
+      "ios": ["Swiping a conversation"],
       "android": ["swipe_title"]
     },
     {
@@ -1167,7 +1167,7 @@
       "text": {
         "en": "All mail except Junk, notifications and promotions",
         "ja": "迷惑メールと通知・宣伝以外のすべて",
-        "zh": "除垃圾邮件和「通知与推广」以外的全部邮件"
+        "zh": "除垃圾邮件和「通知与推广」以外的所有邮件"
       },
       "web": ["settings.notify.mode.all"],
       "ios": ["All mail except Junk, notifications and promotions"],
