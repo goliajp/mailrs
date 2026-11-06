@@ -1,11 +1,16 @@
 // The sectioned inbox's bar: shown only for the Inbox with the setting on,
 // switches the section, and accepts the senders of New.
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createStore, Provider } from 'jotai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/wire/endpoints/senders', () => ({ wireAcceptSenders: vi.fn() }))
+vi.mock('@/wire/endpoints/mail-settings', () => ({
+  wireGetSectionedInbox: vi.fn(),
+  wireSetSectionedInbox: vi.fn(),
+}))
 vi.mock('@/lib/mail-cache', () => ({ invalidateMail: vi.fn() }))
 vi.mock('@/hooks/use-current-list', () => ({
   useConversationRows: () => ({ rows: [{ participants: ['Eve <eve@far.test>'] }] }),
@@ -16,8 +21,10 @@ const openList = vi.fn()
 
 import { InboxSectionBar } from '@/components/inbox-section-bar'
 import { invalidateMail } from '@/lib/mail-cache'
-import { inboxSectionAtom, sectionedInboxAtom } from '@/store/inbox-sections'
+import { sectionedInboxKey } from '@/lib/sectioned-inbox'
+import { inboxSectionAtom } from '@/store/inbox-sections'
 import { activeListAtom } from '@/store/ui'
+import { wireGetSectionedInbox } from '@/wire/endpoints/mail-settings'
 import { wireAcceptSenders } from '@/wire/endpoints/senders'
 
 afterEach(() => {
@@ -28,12 +35,16 @@ afterEach(() => {
 
 function show(sectioned: boolean, list: 'inbox' | 'unread' = 'inbox') {
   const store = createStore()
-  store.set(sectionedInboxAtom, sectioned)
   store.set(activeListAtom, list)
+  vi.mocked(wireGetSectionedInbox).mockResolvedValue({ enabled: sectioned })
+  const client = new QueryClient()
+  client.setQueryData(sectionedInboxKey, { enabled: sectioned })
   render(
-    <Provider store={store}>
-      <InboxSectionBar />
-    </Provider>
+    <QueryClientProvider client={client}>
+      <Provider store={store}>
+        <InboxSectionBar />
+      </Provider>
+    </QueryClientProvider>
   )
   return store
 }

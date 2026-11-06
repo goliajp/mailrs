@@ -46,6 +46,7 @@ pub mod reports;
 pub mod rules;
 pub mod saved_searches;
 pub mod screening;
+pub mod sectioned_inbox;
 pub mod send;
 pub mod send_as;
 pub mod send_read;

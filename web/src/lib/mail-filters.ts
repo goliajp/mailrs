@@ -1,13 +1,15 @@
 import type { MailListFilters } from '@/lib/query-keys'
+import type { WireSectionedInbox } from '@/wire/schemas/mail-settings'
 import type { getDefaultStore } from 'jotai'
 
 import { type MailListId, threadAxesOf, type ThreadListAxes } from '@/lib/mail-lists'
+import { queryClient } from '@/lib/query-client'
+import { sectionedInboxKey, sectionedOf } from '@/lib/sectioned-inbox'
 import {
   followupDaysAtom,
   followupDueBy,
   type InboxSection,
   inboxSectionAtom,
-  sectionedInboxAtom,
 } from '@/store/inbox-sections'
 import { hideSuspectedFraudAtom } from '@/store/settings'
 import {
@@ -35,7 +37,10 @@ export type MailFilterInputs = {
 
 type Store = ReturnType<typeof getDefaultStore>
 
-/** The inputs as `store` holds them now, the search as typed. */
+/**
+ * The inputs as `store` holds them now, the search as typed, and the
+ * sectioned inbox setting as the query cache holds it.
+ */
 export function mailFilterInputsIn(store: Store): MailFilterInputs {
   return {
     accounts: store.get(selectedAccountsAtom),
@@ -47,7 +52,7 @@ export function mailFilterInputsIn(store: Store): MailFilterInputs {
     label: store.get(activeLabelAtom),
     list: store.get(activeListAtom),
     search: store.get(searchQueryAtom),
-    sectioned: store.get(sectionedInboxAtom),
+    sectioned: sectionedOf(queryClient.getQueryData<WireSectionedInbox>(sectionedInboxKey)),
   }
 }
 

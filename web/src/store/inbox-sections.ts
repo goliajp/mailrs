@@ -1,12 +1,12 @@
 import { atom } from 'jotai'
 
 /**
- * The sectioned inbox's settings, per browser like the other display
- * settings: whether the Inbox is shown by section, and after how many days
- * a conversation waiting on a reply is due a follow-up.
+ * The sectioned inbox's settings kept per browser: after how many days a
+ * conversation waiting on a reply is due a follow-up. Whether the Inbox is
+ * shown by section is the user's setting on the server
+ * (`lib/sectioned-inbox.ts`).
  */
 
-const SECTIONED_KEY = 'mailrs_sectioned_inbox'
 const FOLLOWUP_DAYS_KEY = 'mailrs_followup_days'
 
 /** Days before a follow-up is due: 3 unless the reader chose otherwise. */
@@ -18,16 +18,6 @@ function loadFollowupDays(): number {
   if (Number.isInteger(n) && n >= 1 && n <= 30) return n
   return DEFAULT_FOLLOWUP_DAYS
 }
-
-const baseSectionedAtom = atom<boolean>(localStorage.getItem(SECTIONED_KEY) === 'true')
-
-export const sectionedInboxAtom = atom(
-  (get) => get(baseSectionedAtom),
-  (_get, set, value: boolean) => {
-    localStorage.setItem(SECTIONED_KEY, String(value))
-    set(baseSectionedAtom, value)
-  }
-)
 
 const baseFollowupDaysAtom = atom<number>(loadFollowupDays())
 

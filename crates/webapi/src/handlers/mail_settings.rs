@@ -1,6 +1,7 @@
 //! Forwarding to an address elsewhere and the vacation reply, set by the
 //! signed-in user. Both act on mail as it arrives, in either core's drain.
-//! Also what a swipe on a row does, which every client reads.
+//! Also what a swipe on a row does and whether the Inbox is split into
+//! sections, which every client reads.
 //!
 //! Pointing mail at a new address needs the password again (a stolen
 //! session must not be able to send itself someone's mail) and the code
@@ -13,6 +14,7 @@ use axum::extract::{Extension, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use mailrs_core_sidestate::families::forwarding::{self, Forwarding, Verified};
+use mailrs_core_sidestate::families::sectioned_inbox::{self, SectionedInbox};
 use mailrs_core_sidestate::families::swipe::{self, Swipe};
 use mailrs_core_sidestate::families::vacation::{self, Vacation};
 
@@ -67,6 +69,24 @@ pub async fn put_swipe(
     Json(s): Json<Swipe>,
 ) -> Result<Json<Swipe>, StatusCode> {
     Ok(Json(with_kevy(move |c| swipe::set(c, &user, s))?))
+}
+
+/// GET /api/settings/sectioned-inbox — on when never set.
+pub async fn get_sectioned_inbox(
+    State(_state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+) -> Result<Json<SectionedInbox>, StatusCode> {
+    Ok(Json(with_kevy(move |c| sectioned_inbox::get(c, &user))?))
+}
+
+/// PUT /api/settings/sectioned-inbox `{enabled}`; a body without a boolean
+/// `enabled` is refused before it reaches here.
+pub async fn put_sectioned_inbox(
+    State(_state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Json(s): Json<SectionedInbox>,
+) -> Result<Json<SectionedInbox>, StatusCode> {
+    Ok(Json(with_kevy(move |c| sectioned_inbox::set(c, &user, s))?))
 }
 
 /// What the settings page shows: never the code.
