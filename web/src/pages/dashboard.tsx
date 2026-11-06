@@ -70,10 +70,6 @@ export function Dashboard() {
         // cache line. Any mutation on `/mail` invalidates this key via
         // the bridge in `use-mail-mutations.ts::invalidateMail`, so
         // the home unread badge refreshes without a manual reload.
-        // The queryFn shape stays `ConversationSummary[]` during the
-        // migration; Phase 3 moves the fetch to
-        // `wire/endpoints/conversations::fetchConversationList` and
-        // switches downstream reads to the domain shape.
         queryKey: conversationKeys.list({ folder: 'INBOX', limit: 200 }),
         refetchInterval: REFRESH_INTERVAL,
         queryFn: ({ signal }: { signal: AbortSignal }) =>

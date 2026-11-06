@@ -1,6 +1,7 @@
 //! Request fixtures for `/api/mock/*`: the same contract as
-//! `request_contract.rs`, whose `every_fixture_has_a_test` lists these
-//! fixtures too, so one cannot land here unread.
+//! `request_contract.rs`; `every_fixture_has_a_test` in
+//! `request_contract_registry.rs` lists these fixtures too, so one cannot
+//! land here unread.
 
 mod common;
 use common::parse;

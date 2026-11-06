@@ -23,8 +23,7 @@ export const conversationKeys = {
   all: () => ['conversation'] as const,
 
   // Non-paginated list — single-page reads (dashboard, mobile inbox
-  // preview, sidebar aggregates). `useConversationList(filter)` keys
-  // on this.
+  // preview, sidebar aggregates).
   list: (filter?: ConversationFilter) =>
     [...conversationKeys.lists(), canonicaliseFilter(filter)] as const,
   lists: () => [...conversationKeys.all(), 'list'] as const,

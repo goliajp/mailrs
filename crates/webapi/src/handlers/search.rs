@@ -71,13 +71,12 @@ pub async fn semantic_search(
     // embedded store.
     let search_req = mailrs_core_api::method::conversation::SearchConversationsRequest {
         query: q.q.clone(),
-        category: None,
-        limit,
         // Semantic search is a "find it anywhere" surface, not a tab.
-        folder: None,
-        unread: None,
-        starred: None,
-        archived: false,
+        filter: mailrs_core_api::types::ConversationFilter {
+            limit,
+            ..Default::default()
+        },
+        quarantined: false,
     };
     match state.core.search_conversations(&user, &search_req).await {
         // The index is maintained with the writes, so an empty result is

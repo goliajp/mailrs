@@ -68,12 +68,11 @@ async fn row(c: &Cores, d: &mut Diffs, user: &str) -> [(String, String); 2] {
 async fn found(c: &Cores, user: &str, q: &str) -> [usize; 2] {
     let req = SearchConversationsRequest {
         query: q.into(),
-        category: None,
-        limit: 20,
-        folder: None,
-        unread: None,
-        starred: None,
-        archived: false,
+        filter: ConversationFilter {
+            limit: 20,
+            ..Default::default()
+        },
+        quarantined: false,
     };
     let fc = c.fastcore.search_conversations(user, &req).await;
     let pg = c.pg_core.search_conversations(user, &req).await;

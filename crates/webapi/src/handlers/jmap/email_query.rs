@@ -139,12 +139,11 @@ async fn conversations(
     if let Some(q) = &f.search {
         let req = SearchConversationsRequest {
             query: q.clone(),
-            category: None,
-            limit: SCAN_LIMIT,
-            folder: None,
-            unread: None,
-            starred: None,
-            archived: false,
+            filter: ConversationFilter {
+                limit: SCAN_LIMIT,
+                ..Default::default()
+            },
+            quarantined: false,
         };
         let mut rows = core
             .search_conversations(&ctx.user, &req)

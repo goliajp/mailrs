@@ -1,0 +1,16 @@
+{
+  "trashed": "true",
+  "label": "3",
+  "category": "notification",
+  "archived": "true",
+  "include_quarantined": "true",
+  "folder": "Inbox",
+  "unread": "true",
+  "starred": "true",
+  "pinned": "true",
+  "snoozed": "true",
+  "section": "awaiting",
+  "followup_due_by": "1700000650",
+  "assigned_to_me": "true",
+  "accounts": ",ext_a"
+}

@@ -310,6 +310,40 @@ pub struct DeliverMessageResponse {
     pub message_id: String,
 }
 
+/// Request body for [`PATH_MARK_LIST_READ`]: the list to mark, asked the
+/// way the list itself is asked.
+///
+/// Wire-compatible with the [`ListConversationsRequest`] body this route
+/// took before `quarantined` was added, so an older client marks what it
+/// marked before.
+///
+/// Every conversation the list shows is marked, not one page: `limit`,
+/// `before_ts` and `after_cursor` are not read.
+///
+/// [`ListConversationsRequest`]: crate::method::conversation::ListConversationsRequest
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct MarkListReadRequest {
+    #[serde(flatten)]
+    pub filter: crate::types::ConversationFilter,
+    /// Mark the Review list — what is held as suspected fraud — which is
+    /// its own route rather than an axis of the filter; `filter` is then
+    /// not read.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub quarantined: bool,
+}
+
+impl MarkListReadRequest {
+    /// The filter of the whole list: no page boundary, no page size.
+    pub fn whole_list(&self) -> crate::types::ConversationFilter {
+        crate::types::ConversationFilter {
+            limit: 0,
+            before_ts: None,
+            after_cursor: None,
+            ..self.filter.clone()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -322,6 +356,19 @@ mod tests {
         let s = serde_json::to_string(&req).unwrap();
         let back: SnoozeRequest = serde_json::from_str(&s).unwrap();
         assert_eq!(req, back);
+    }
+
+    /// The body this route took before Review could be named reads as the
+    /// same list.
+    #[test]
+    fn an_old_mark_list_body_reads_as_the_same_list() {
+        let old = r#"{"folder":"NP","unread":true,"limit":50,"archived":false}"#;
+        let req: MarkListReadRequest = serde_json::from_str(old).unwrap();
+        assert_eq!(req.filter.folder.as_deref(), Some("NP"));
+        assert_eq!(req.filter.unread, Some(true));
+        assert!(!req.quarantined);
+        let v = serde_json::to_value(&req).unwrap();
+        assert!(v.get("quarantined").is_none());
     }
 
     #[test]

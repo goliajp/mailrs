@@ -91,27 +91,27 @@ pub async fn spam_feedback(
 
 // ── Search ────────────────────────────────────────────────────────
 
+/// What `/api/conversations/search` takes beside the list's own
+/// parameters, which it reads as [`ListQuery`](crate::handlers::conversations::ListQuery).
 #[derive(Debug, serde::Deserialize)]
 pub struct SearchQuery {
     pub q: String,
-    #[serde(default = "default_search_limit")]
-    pub limit: u32,
-    /// The tab the search was issued from. Absent = every folder,
-    /// which is what this endpoint used to do unconditionally.
-    pub folder: Option<String>,
-    pub category: Option<String>,
-    pub unread: Option<bool>,
-    pub starred: Option<bool>,
+    /// The Review list, which the client reads from `/api/quarantine`
+    /// rather than through the list's parameters.
     #[serde(default)]
-    pub archived: bool,
-}
-
-fn default_search_limit() -> u32 {
-    50
+    pub quarantined: bool,
 }
 
 /// GET /api/conversations/search?q=&limit= — full-text search across
 /// the user's threads.
+///
+/// Scoped to the list it was typed into: it takes every parameter
+/// `/api/conversations` takes and reads them the same way, so a search
+/// from Pinned, Snoozed, a section, the Trash or a label finds only that
+/// list's conversations. No list parameter is every folder, Junk
+/// included, with archived, held and trashed conversations left out, as
+/// before. `cursor` and `before_ts` are not read: search answers in one
+/// page.
 ///
 /// Ranked by the kevy text index that fastcore maintains inside the
 /// same store as the rows, then hydrated through the by-thread-ids RPC
@@ -123,15 +123,12 @@ pub async fn search_conversations(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Query(q): Query<SearchQuery>,
+    Query(list): Query<crate::handlers::conversations::ListQuery>,
 ) -> Result<Json<Vec<crate::handlers::conversations::ConversationResponse>>, StatusCode> {
     let req = mailrs_core_api::method::conversation::SearchConversationsRequest {
         query: q.q,
-        category: q.category,
-        limit: q.limit,
-        folder: q.folder,
-        unread: q.unread,
-        starred: q.starred,
-        archived: q.archived,
+        filter: list.filter(),
+        quarantined: q.quarantined,
     };
     let hits = state
         .core
