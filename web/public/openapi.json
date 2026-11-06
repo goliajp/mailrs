@@ -6155,7 +6155,7 @@
     "/api/push/tokens": {
       "post": {
         "summary": "Register a device token for push notifications",
-        "description": "The iOS app registers its APNs token after sign-in. Fastcore reads the same store when a message lands and prunes tokens Apple reports dead.",
+        "description": "The iOS app registers its APNs token after sign-in. Fastcore reads the same store when a message lands and prunes tokens Apple reports dead. An account keeps at most 10 push devices, iOS, browsers and Android together; registering another removes the one that least recently received a push (one never pushed to counts from when it registered). Registering the same token again does not count twice.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -14576,7 +14576,7 @@
       },
       "post": {
         "summary": "Register a phone's UnifiedPush endpoint",
-        "description": "Sent by the Android app when its distributor gives it an endpoint. The endpoint must be https on port 443 and name a host whose addresses are all public; p256dh must be a P-256 public key and auth a 16-byte secret (the distributor connector's key set); name is at most 64 characters. New mail is then announced with a push that carries no sender, subject or count, and the app fetches what arrived. The same endpoint replaces its old keys. A device whose distributor answers 404 or 410 is dropped.",
+        "description": "Sent by the Android app when its distributor gives it an endpoint. The endpoint must be https on port 443 and name a host whose addresses are all public; p256dh must be a P-256 public key and auth a 16-byte secret (the distributor connector's key set); name is at most 64 characters. New mail is then announced with a push that carries no sender, subject or count, and the app fetches what arrived. The same endpoint replaces its old keys. A device whose distributor answers 404 or 410 is dropped. An account is pushed at most once every 5 seconds; mail arriving in that time is announced by one more push when it ends. An account keeps at most 10 push devices, iOS, browsers and Android together; registering another removes the one that least recently received a push (one never pushed to counts from when it registered). The same endpoint registering again does not count twice.",
         "tags": [
           "Notifications"
         ],
@@ -14922,7 +14922,7 @@
     "/api/push/web-subscriptions": {
       "post": {
         "summary": "Subscribe this browser to Web Push",
-        "description": "The body is PushSubscription.toJSON(). The endpoint must be a known browser push service (FCM, Mozilla, Apple, Windows) over https; p256dh must be a P-256 public key and auth a 16-byte secret.",
+        "description": "The body is PushSubscription.toJSON(). The endpoint must be a known browser push service (FCM, Mozilla, Apple, Windows) over https; p256dh must be a P-256 public key and auth a 16-byte secret. An account keeps at most 10 push devices, iOS, browsers and Android together; subscribing another removes the one that least recently received a push (one never pushed to counts from when it subscribed). The same endpoint subscribing again does not count twice.",
         "tags": [
           "Notifications"
         ],

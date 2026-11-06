@@ -202,6 +202,11 @@ fn spawn_apns(apns: Arc<ApnsClient>, addr: &str, title: String, body: String, ta
                     // identically — and the only way to tell them
                     // apart was to hold the phone.
                     tracing::info!(%user, "apns: delivered to Apple");
+                    let who = user.clone();
+                    let _ = tokio::task::spawn_blocking(move || {
+                        mark_used(&who, push_devices::Channel::Apns, &token, now)
+                    })
+                    .await;
                 }
                 Ok(Outcome::Unregistered) => {
                     tracing::info!(%user, "apns: pruning dead token");
@@ -242,6 +247,20 @@ pub(crate) fn count(user: &str, channel: &str, outcome: &str, now: i64) {
         return;
     };
     let _ = mailrs_core_sidestate::families::notify::count(&mut conn, user, channel, outcome, now);
+}
+
+use mailrs_core_sidestate::families::push_devices;
+
+/// Record a push that got through, for the device cap's least-recently-used
+/// order.
+pub(crate) fn mark_used(user: &str, channel: push_devices::Channel, id: &str, now: i64) {
+    let Ok(url) = std::env::var("MAILRS_KEVY_URL") else {
+        return;
+    };
+    let Ok(mut conn) = kevy_client::Connection::connect(&url) else {
+        return;
+    };
+    let _ = push_devices::mark_used(&mut conn, user, channel, id, now);
 }
 
 fn prune_token(user: &str, token: &str) {

@@ -129,6 +129,15 @@ async fn new_mail_pings_each_phone_with_nothing_of_the_message_and_a_gone_one_is
     let stats = notify::stats(&mut conn, "me@x.test", 1, now).unwrap();
     assert_eq!(stats[0].counts[CHANNEL]["sent"], 1);
     assert_eq!(stats[0].counts[CHANNEL]["failed"], 1);
+    let used = conn
+        .hgetall(mailrs_core_sidestate::keys::push::used_key("me@x.test").as_bytes())
+        .unwrap();
+    let live_field = format!("{CHANNEL}:{}", unified_push::id_of(&live.endpoint));
+    assert_eq!(
+        used,
+        vec![live_field.into_bytes(), now.to_string().into_bytes()],
+        "only the push that got through is recorded as a use"
+    );
 }
 
 #[tokio::test]

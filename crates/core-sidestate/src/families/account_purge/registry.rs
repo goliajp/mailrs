@@ -146,6 +146,9 @@ pub const OWNED: &[Owned] = &[
     net("push:tokens:{user}", Shape::Key(push::tokens_key)),
     net("push:web:{user}", Shape::Key(push::web_subscriptions_key)),
     net("push:unifiedpush:{user}", Shape::Key(push::unified_push_key)),
+    net("push:used:{user}", Shape::Key(push::used_key)),
+    net("push:upwindow:{user}", Shape::Key(push::unified_push_window_key)),
+    net("push:uptrailing:{user}", Shape::Key(push::unified_push_trailing_key)),
     net("push:stats:{user}:*", Shape::Globs(|a| under("push:stats:", &a.to_lowercase(), ":"))),
     net("mailrs:events:notify:*:{user}", Shape::Globs(|a| vec![format!("mailrs:events:notify:*:{}", glob_escape(&a.to_ascii_lowercase()))])),
     // what the user's account is allowed and counted

@@ -6,6 +6,7 @@
 use std::sync::{Arc, OnceLock};
 
 use mailrs_core_sidestate::families::notify;
+use mailrs_core_sidestate::families::push_devices::Channel;
 use mailrs_webpush::send::{self, Outcome, Subscription};
 use mailrs_webpush::vapid::Vapid;
 
@@ -98,7 +99,15 @@ pub fn spawn(vapid: Arc<Vapid>, addr: &str, payload: Vec<u8>, now: i64) {
             })
             .await;
             match outcome {
-                Outcome::Sent => tracing::info!(%user, "web push: delivered to the push service"),
+                Outcome::Sent => {
+                    tracing::info!(%user, "web push: delivered to the push service");
+                    let who = user.clone();
+                    let id = notify::endpoint_field(&stored.endpoint);
+                    let _ = tokio::task::spawn_blocking(move || {
+                        crate::push::mark_used(&who, Channel::Web, &id, now)
+                    })
+                    .await;
+                }
                 Outcome::Gone => {
                     tracing::info!(%user, "web push: dropping a subscription the service no longer knows");
                     let who = user.clone();
