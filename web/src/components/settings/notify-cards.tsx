@@ -150,9 +150,20 @@ const CHOICE_LABEL: Record<string, Key> = {
 export function OverridesCard() {
   const t = useT()
   const { data } = useQuery({ queryFn: wireNotifyOverrides, queryKey: OVERRIDES_KEY })
+  const subjects = new Map((data?.thread_details ?? []).map((d) => [d.thread_id, d.subject]))
   const rows = [
-    ...(data?.senders ?? []).map(([field, value]) => ({ field, kind: 'sender' as const, value })),
-    ...(data?.threads ?? []).map(([field, value]) => ({ field, kind: 'thread' as const, value })),
+    ...(data?.senders ?? []).map(([field, value]) => ({
+      field,
+      kind: 'sender' as const,
+      name: field,
+      value,
+    })),
+    ...(data?.threads ?? []).map(([field, value]) => ({
+      field,
+      kind: 'thread' as const,
+      name: threadName(field, subjects, t),
+      value,
+    })),
   ]
 
   const clear = async (kind: 'sender' | 'thread', field: string) => {
@@ -175,7 +186,7 @@ export function OverridesCard() {
         {rows.map((r) => (
           <li className="flex items-center justify-between gap-2 py-2" key={`${r.kind}:${r.field}`}>
             <span className="min-w-0 text-sm">
-              <span className="text-fg block truncate">{r.field}</span>
+              <span className="text-fg block truncate">{r.name}</span>
               <span className="text-fg-muted block text-xs">{t(CHOICE_LABEL[r.value])}</span>
             </span>
             <button
@@ -189,4 +200,19 @@ export function OverridesCard() {
       </ul>
     </section>
   )
+}
+
+/// What the reader knows a conversation by: its subject. Its id only when
+/// the server sent no subjects (one older than them); a reader who no
+/// longer has the conversation is told so.
+function threadName(
+  id: string,
+  subjects: Map<string, null | string>,
+  t: ReturnType<typeof useT>
+): string {
+  const subject = subjects.get(id)
+  if (subject === undefined) return id
+  if (subject === null) return t('settings.notify.threadGone')
+  if (subject.trim() === '') return t('settings.notify.noSubject')
+  return subject
 }

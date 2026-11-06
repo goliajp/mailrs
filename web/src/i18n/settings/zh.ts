@@ -285,6 +285,7 @@ export const settingsZh: Record<SettingsKey, string> = {
   'settings.notify.mode.off': '关闭',
   'settings.notify.mute': '已静音',
   'settings.notify.never': '从不推送',
+  'settings.notify.noSubject': '（无主题）',
   'settings.notify.overrides': '按人和按会话的设置',
   'settings.notify.overridesNone': '还没有',
   'settings.notify.quiet': '勿扰时段',
@@ -297,6 +298,7 @@ export const settingsZh: Record<SettingsKey, string> = {
   'settings.notify.stats': '最近 7 天',
   'settings.notify.statsLine':
     '推送 {sent} 次，点开 {clicked} 次，按设置省掉 {policy} 次，勿扰时段压下 {quiet} 次，失败 {failed} 次',
+  'settings.notify.threadGone': '已不在你邮箱里的会话',
   'settings.notify.web': '本浏览器的通知',
   'settings.notify.webDenied': '浏览器拒绝了这个网站的通知权限',
   'settings.notify.webDisable': '关闭',

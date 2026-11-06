@@ -170,12 +170,38 @@ fn an_rsvp_result_says_nothing_rather_than_saying_null() {
     );
 }
 
+/// The push choices, each conversation's with its subject. The old
+/// `threads` pairs stay beside `thread_details` for the phones that read
+/// them, and a subject the reader cannot see is null, not "".
+#[test]
+fn notify_overrides_keys_match() {
+    use handlers::notify::{Overrides, ThreadOverride};
+    let sample = Overrides {
+        senders: vec![("a@b.example".into(), "never".into())],
+        threads: vec![("t1".into(), "mute".into())],
+        thread_details: vec![ThreadOverride {
+            subject: None,
+            thread_id: "t1".into(),
+            value: "mute".into(),
+        }],
+    };
+    let serialized = serde_json::to_value(&sample).expect("serialize");
+    let from_prod = fixture("notify-overrides");
+    assert_eq!(keys(&serialized), keys(&from_prod));
+    assert_eq!(
+        keys(&serialized["thread_details"]),
+        keys(&from_prod["thread_details"])
+    );
+    assert!(serialized["thread_details"][0]["subject"].is_null());
+}
+
 /// Every fixture is checked by a test above.
 #[test]
 fn every_response_fixture_has_a_test() {
     const CHECKED: &[&str] = &[
         "conversation-categories",
         "conversation-list",
+        "notify-overrides",
         "rsvp-result",
         "send-list",
     ];
