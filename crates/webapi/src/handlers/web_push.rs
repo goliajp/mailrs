@@ -18,7 +18,7 @@ use crate::handlers::conversations::AuthedUser;
 use crate::handlers::kevy_util::with_kevy;
 
 /// The configured key, read once; `None` means Web Push is off.
-fn vapid() -> Option<&'static Vapid> {
+pub(crate) fn vapid() -> Option<&'static Vapid> {
     static VAPID: OnceLock<Option<Vapid>> = OnceLock::new();
     VAPID
         .get_or_init(|| match Vapid::from_env() {

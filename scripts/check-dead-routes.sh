@@ -53,7 +53,9 @@ GENERATED = {"web/src/lib/types.openapi.ts"}
 called = set()
 web = [f for ext in ("ts", "tsx") for f in glob.glob(f"web/src/**/*.{ext}", recursive=True)]
 web = [f for f in web if f.replace("\\", "/") not in GENERATED]
-for path in web + glob.glob("ios/Mailrs/**/*.swift", recursive=True):
+# the Android app is a client too: a route only it calls is not dead
+android = glob.glob("android/app/src/main/**/*.kt", recursive=True)
+for path in web + glob.glob("ios/Mailrs/**/*.swift", recursive=True) + android:
     text = open(path).read()
     # Interpolations collapse *before* the scan, not after: a TS
     # `${encodeURIComponent(key)}` carries brackets that no path

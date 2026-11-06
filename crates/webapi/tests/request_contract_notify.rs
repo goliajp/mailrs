@@ -52,3 +52,13 @@ fn web_push_bodies_match() {
     let u: handlers::web_push::UnsubscribeBody = parse("web-push-unsubscribe");
     assert_eq!(u.endpoint, v.endpoint);
 }
+
+#[test]
+fn unified_push_register_body_matches() {
+    let v: handlers::unified_push::RegisterBody = parse("unified-push-register");
+    assert!(
+        handlers::unified_push::well_formed(&v),
+        "the fixture is a registration the server stores"
+    );
+    assert_eq!(v.name, "Pixel 8");
+}

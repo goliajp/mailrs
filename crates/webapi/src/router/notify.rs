@@ -69,4 +69,12 @@ pub(super) fn sender_and_notify_routes() -> axum::Router<Arc<WebState>> {
             "/api/push/clicked",
             post(crate::handlers::web_push::clicked),
         )
+        .route(
+            "/api/push/unifiedpush",
+            get(crate::handlers::unified_push::state).post(crate::handlers::unified_push::register),
+        )
+        .route(
+            "/api/push/unifiedpush/{id}",
+            axum::routing::delete(crate::handlers::unified_push::unregister),
+        )
 }

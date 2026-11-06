@@ -6237,6 +6237,144 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/push/unifiedpush": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * This reader's phones on UnifiedPush
+         * @description enabled is false when the server has no VAPID key configured: UnifiedPush pushes are signed with the Web Push key. vapid_public_key is the key a phone registers with its distributor. Devices are listed by id, name and the distributor's host, never by endpoint.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            enabled: boolean;
+                            /** @description base64url P-256 public key, present when enabled */
+                            vapid_public_key?: string;
+                            devices: {
+                                id: string;
+                                name: string;
+                                host: string;
+                                created_at: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Register a phone's UnifiedPush endpoint
+         * @description Sent by the Android app when its distributor gives it an endpoint. The endpoint must be https on port 443 and name a host whose addresses are all public; p256dh must be a P-256 public key and auth a 16-byte secret (the distributor connector's key set); name is at most 64 characters. New mail is then announced with a push that carries no sender, subject or count, and the app fetches what arrived. The same endpoint replaces its old keys. A device whose distributor answers 404 or 410 is dropped.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        endpoint: string;
+                        keys: {
+                            p256dh: string;
+                            auth: string;
+                        };
+                        name?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Saved */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                        };
+                    };
+                };
+                /** @description Not https on 443, not a host name, a host that resolves to a non-public address, or bad keys */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Push is not enabled on this server (no VAPID key) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/push/unifiedpush/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Unregister a phone from UnifiedPush
+         * @description Idempotent: an id that is not there also answers 204.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Removed */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/push/web": {
         parameters: {
             query?: never;
@@ -6289,7 +6427,7 @@ export interface paths {
         };
         /**
          * Push counters
-         * @description The last days (default 7, at most 90), newest first: per channel (apns, web) the counts of sent, suppressed_policy, suppressed_quiet, failed and clicked. Zero counts are left out; only counts are kept, never which message.
+         * @description The last days (default 7, at most 90), newest first: per channel (apns, web, unifiedpush) the counts of sent, suppressed_policy, suppressed_quiet, failed and clicked. Zero counts are left out; only counts are kept, never which message.
          */
         get: {
             parameters: {

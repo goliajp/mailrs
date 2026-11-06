@@ -1,6 +1,6 @@
 //! Whether one delivered message should ring the reader's devices.
 //!
-//! One decision for every channel (APNs now, Web Push and FCM later), made
+//! One decision for every channel (APNs, Web Push, UnifiedPush), made
 //! where both cores finish a delivery. By default only mail to answer and
 //! mail from important contacts rings; the reader can change that per
 //! sender, per conversation and overall, and set quiet hours.

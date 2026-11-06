@@ -50,6 +50,7 @@ pub mod sent;
 pub mod sieve;
 pub mod sieve_policy;
 pub mod spool;
+pub mod unified_push;
 pub mod web_push;
 pub mod webhook_delivery;
 pub mod why;
