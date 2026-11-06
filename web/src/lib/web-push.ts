@@ -32,7 +32,7 @@ export async function enableWebPush(publicKey: string): Promise<EnableResult> {
   const permission = await Notification.requestPermission()
   if (permission !== 'granted') return 'denied'
   const reg = await navigator.serviceWorker.register(PUSH_SW_URL, { scope: PUSH_SW_SCOPE })
-  await navigator.serviceWorker.ready
+  await activated(reg)
   const sub = await reg.pushManager.subscribe({
     applicationServerKey: keyBytes(publicKey),
     userVisibleOnly: true,
@@ -86,6 +86,22 @@ export async function pushHere(removed: string[]): Promise<PushHere> {
 /** Whether this browser can take Web Push at all. */
 export function webPushSupported(): boolean {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+}
+
+/**
+ * Once `reg` has an active worker, which subscribing needs. Not
+ * `navigator.serviceWorker.ready`: that waits for a worker controlling this
+ * page, and the push worker's scope never covers a page, so it never settles.
+ */
+async function activated(reg: ServiceWorkerRegistration): Promise<void> {
+  if (reg.active) return
+  const worker = reg.installing ?? reg.waiting
+  if (!worker) return
+  await new Promise<void>((done) => {
+    worker.addEventListener('statechange', () => {
+      if (worker.state === 'activated') done()
+    })
+  })
 }
 
 async function registration(): Promise<ServiceWorkerRegistration | undefined> {
