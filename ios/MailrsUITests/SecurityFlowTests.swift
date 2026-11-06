@@ -26,8 +26,7 @@ final class SecurityFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 15), "inbox never listed")
 
-        app.buttons["Lists"].tap()
-        app.buttons["Settings"].tap()
+        tapInListsMenu(app, "Settings")
         // Scrolled to, not asserted where it happens to sit: the
         // settings form scrolls, and this row's position moves every
         // time a section is added above it.
@@ -85,8 +84,7 @@ final class SecurityFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 15), "inbox never listed")
 
-        app.buttons["Lists"].tap()
-        app.buttons["Settings"].tap()
+        tapInListsMenu(app, "Settings")
         // Scrolled to, not asserted where it happens to sit: the
         // settings form scrolls, and every row below moves each
         // time a section is added above it.

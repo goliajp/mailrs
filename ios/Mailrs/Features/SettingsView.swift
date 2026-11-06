@@ -258,7 +258,7 @@ struct SettingsView: View {
                 }
                 Task {
                     let passed = await BiometricLock.authenticate(
-                        reason: String(localized: "Turn on locking"))
+                        reason: AppText.string("Turn on locking"))
                     preferences.requiresBiometrics = passed
                 }
             })

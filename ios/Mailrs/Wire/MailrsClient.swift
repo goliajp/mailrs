@@ -37,24 +37,28 @@ enum MailrsError: Error, LocalizedError, Equatable {
         }
     }
 
+    /// In the app's language: this is shown as a `String`, which `Text`
+    /// never looks up again.
     var errorDescription: String? {
         switch self {
-        case .badCredentials: "That address and password did not match."
-        case .needsTotp: "Enter the six-digit code from your authenticator."
-        case let .server(status): "The server answered \(status)."
-        case let .decoding(what): "The server sent something unexpected: \(what)"
-        case let .transport(what): what
-        case .restarting: "The server is restarting. Try again in a moment."
-        case .confirmRequired: "Enter your password to continue."
+        case .badCredentials: AppText.string("That address and password did not match")
+        case .needsTotp: AppText.string("Enter the six-digit code from your authenticator")
+        case let .server(status): AppText.string("The server answered \(status)")
+        case let .decoding(what): AppText.string("The server sent something unexpected: \(what)")
+        // Mostly the server's own words, which pass through as they are;
+        // the few written here ("No HTTP response") are catalog keys.
+        case let .transport(what): AppText.string(String.LocalizationValue(what))
+        case .restarting: AppText.string("The server is restarting. Try again in a moment")
+        case .confirmRequired: AppText.string("Enter your password to continue")
         case let .confirmFailed(remaining) where remaining == 1:
-            "Wrong password or code. 1 try left before you are signed out."
+            AppText.string("Wrong password or code. 1 try left before you are signed out")
         case let .confirmFailed(remaining):
-            "Wrong password or code. \(remaining) tries left before you are signed out."
-        case .totpRequired: "Enter the code from your authenticator app."
-        case .sessionEnded: "Signed out after too many wrong passwords."
-        case .passwordCleared: "Your password was reset by an administrator."
+            AppText.string("Wrong password or code. \(remaining) tries left before you are signed out")
+        case .totpRequired: AppText.string("Enter the code from your authenticator app")
+        case .sessionEnded: AppText.string("Signed out after too many wrong passwords")
+        case .passwordCleared: AppText.string("Your password was reset by an administrator")
         case .invalidResetCode:
-            "That code does not work: it may be mistyped, used up, or replaced by a newer one."
+            AppText.string("That code does not work: it may be mistyped, used up, or replaced by a newer one")
         }
     }
 }
@@ -105,7 +109,7 @@ actor MailrsClient {
             "POST", "/api/auth/login", body: try JSONEncoder().encode(body), authorized: false
         )
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         if http.statusCode == 401 {
             if let cleared = try? JSONDecoder().decode(Wire.PasswordCleared.self, from: data),
@@ -137,7 +141,7 @@ actor MailrsClient {
     func getJSON<T: Decodable>(_ path: String) async throws -> T {
         let (data, response) = try await send("GET", path, body: nil, authorized: true)
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)
@@ -184,7 +188,7 @@ actor MailrsClient {
     func verb(_ method: String, _ path: String) async throws {
         let (_, response) = try await send(method, path, body: nil, authorized: true)
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)

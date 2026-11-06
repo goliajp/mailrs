@@ -4,6 +4,9 @@ import SwiftUI
 /// who wrote, and the senders and conversations set apart from the rule.
 struct NotifySettingsView: View {
     @Environment(Session.self) private var session
+    /// The zone chosen in the app, which the time pickers show: the quiet
+    /// hours are read and stamped in it, not in the phone's.
+    @Environment(\.timeZone) private var timeZone
     @State private var prefs: SettingsWire.NotifyPrefs?
     @State private var overrides: SettingsWire.Overrides?
 
@@ -90,10 +93,10 @@ struct NotifySettingsView: View {
 
     private func quietTime(_ path: WritableKeyPath<SettingsWire.NotifyPrefs, Int?>) -> Binding<Date> {
         Binding(
-            get: { QuietHours.date(minutes: prefs?[keyPath: path] ?? 0) },
+            get: { QuietHours.date(minutes: prefs?[keyPath: path] ?? 0, in: timeZone) },
             set: { date in
                 guard var next = prefs else { return }
-                next[keyPath: path] = QuietHours.minutesAfterMidnight(of: date)
+                next[keyPath: path] = QuietHours.minutesAfterMidnight(of: date, in: timeZone)
                 save(next)
             })
     }
@@ -101,7 +104,7 @@ struct NotifySettingsView: View {
     /// Shown at once, saved behind; a refusal puts the old value back.
     private func save(_ next: SettingsWire.NotifyPrefs) {
         var stamped = next
-        stamped.utcOffsetMinutes = TimeZone.current.secondsFromGMT() / 60
+        stamped.utcOffsetMinutes = timeZone.secondsFromGMT() / 60
         let before = prefs
         prefs = stamped
         Task {
@@ -158,12 +161,18 @@ enum QuietHours {
         return nil
     }
 
-    static func date(minutes: Int) -> Date {
-        Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: Date()) ?? Date()
+    static func date(minutes: Int, in zone: TimeZone) -> Date {
+        calendar(zone).date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: Date()) ?? Date()
     }
 
-    static func minutesAfterMidnight(of date: Date) -> Int {
-        let c = Calendar.current.dateComponents([.hour, .minute], from: date)
+    static func minutesAfterMidnight(of date: Date, in zone: TimeZone) -> Int {
+        let c = calendar(zone).dateComponents([.hour, .minute], from: date)
         return (c.hour ?? 0) * 60 + (c.minute ?? 0)
+    }
+
+    private static func calendar(_ zone: TimeZone) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = zone
+        return calendar
     }
 }

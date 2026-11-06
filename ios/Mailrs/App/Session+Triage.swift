@@ -387,9 +387,10 @@ extension Session {
             case .blocked: senderLists?.block(address.lowercased())
             case .allowed: senderLists?.allow(address.lowercased())
             }
-            banner = kind == .blocked
-                ? String(localized: "Blocked \(address)")
-                : String(localized: "Always allowing \(address)")
+            switch kind {
+            case .blocked: banner = AppText.string("Blocked \(address)")
+            case .allowed: banner = AppText.string("Always allowing \(address)")
+            }
         } catch {
             banner = error.localizedDescription
         }
@@ -412,9 +413,8 @@ extension Session {
         guard let client else { return }
         do {
             let flipped = try await client.markListRead(axes: axes)
-            banner = flipped == 0
-                ? String(localized: "Nothing was unread")
-                : String(localized: "Marked \(flipped) as read")
+            banner = AppText.string("Marked \(flipped) as read")
+            if flipped == 0 { banner = AppText.string("Nothing was unread") }
             await loadConversations()
             await refreshBadge()
         } catch {

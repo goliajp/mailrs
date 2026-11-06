@@ -8,10 +8,7 @@ import XCTest
 /// an empty screen, and that leaving it comes back to Settings.
 final class MergedMailFlowTests: MailrsUITestCase {
     private func openMergedMail(_ app: XCUIApplication) {
-        XCTAssertTrue(app.buttons["Lists"].waitForExistence(timeout: 15), "no Lists button")
-        app.buttons["Lists"].tap()
-        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 10), "no Settings row")
-        app.buttons["Settings"].tap()
+        tapInListsMenu(app, "Settings")
         scrollTo(app, button: "Other mail")
         app.buttons["Other mail"].tap()
     }

@@ -74,8 +74,31 @@ struct InviteTests {
         ]}
         """
         let invite = try JSONDecoder().decode(Wire.Invite.self, from: Data(json.utf8))
-        #expect(InviteGuests.summary(invite.attendees) == "3 guests · 1 yes, 2 awaiting")
-        #expect(InviteGuests.answered("ACCEPTED") == "You accepted")
+        let english = Locale(identifier: "en")
+        #expect(InviteGuests.summary(invite.attendees, locale: english) == "3 guests · 1 yes, 2 awaiting")
+        #expect(InviteGuests.answered("ACCEPTED", locale: english) == "You accepted")
+    }
+
+    /// In the app's language, whatever the phone's is: the test process
+    /// runs in English, as a phone set to English with the app set to
+    /// Japanese does.
+    @Test func theGuestLineIsInTheAppsLanguage() throws {
+        let json = """
+        {"uid": "u3", "sequence": 0, "summary": "s", "attendees": [
+          {"email": "a@x.com", "partstat": "ACCEPTED"},
+          {"email": "b@x.com", "partstat": "DECLINED"},
+          {"email": "c@x.com", "partstat": "NEEDS-ACTION"}
+        ]}
+        """
+        let invite = try JSONDecoder().decode(Wire.Invite.self, from: Data(json.utf8))
+        let japanese = Locale(identifier: "ja")
+        let chinese = Locale(identifier: "zh-Hans")
+        #expect(InviteGuests.summary(invite.attendees, locale: japanese) == "ゲスト 3 人 · 参加 1、不参加 1、未回答 1")
+        #expect(InviteGuests.summary(invite.attendees, locale: chinese) == "3 位来宾 · 参加 1，不参加 1，未回复 1")
+        #expect(InviteGuests.answered("DECLINED", locale: japanese) == "不参加と回答しました")
+        #expect(InviteGuests.answered("TENTATIVE", locale: chinese) == "你回复了待定")
+        let one = Array(invite.attendees.prefix(1))
+        #expect(InviteGuests.summary(one, locale: chinese) == "1 位来宾 · 参加 1")
     }
 
     /// Mail with no calendar part must not claim to carry one — the

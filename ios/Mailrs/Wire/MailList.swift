@@ -30,6 +30,8 @@ struct MailListAxes: Equatable, Sendable {
     /// One section of the sectioned inbox (`reply`, `awaiting`, `new`);
     /// nil is the whole inbox.
     var section: String?
+    /// The team conversations a teammate assigned to the reader.
+    var assignedToMe: Bool = false
 }
 
 extension MailListAxes {
@@ -58,6 +60,7 @@ extension MailListAxes {
         if snoozed { items.append(URLQueryItem(name: "snoozed", value: "true")) }
         if let label { items.append(URLQueryItem(name: "label", value: label)) }
         if let section { items.append(URLQueryItem(name: "section", value: section)) }
+        if assignedToMe { items.append(URLQueryItem(name: "assigned_to_me", value: "true")) }
         // Sent whenever the filter is narrowed — including to nothing,
         // which is the parameter present and empty. The server reads an
         // absent one as every account, so the two cannot be collapsed.
@@ -76,11 +79,12 @@ extension MailListAxes {
 
 /// The lists this app shows, and what each one is.
 ///
-/// The same set the web client declares in `lib/mail-lists.ts`, minus
-/// Send and Draft — those read different endpoints entirely and are not
-/// a folder. Keeping the axes here rather than at the call sites is what
-/// stops "which threads is Starred" from being answered differently by
-/// the list, the search and the unread count.
+/// The same set, in the same order, as the web client's `MAIL_LIST_TABS`
+/// in `lib/mail-lists.ts`. Keeping the axes here rather than at the call
+/// sites is what stops "which threads is Starred" from being answered
+/// differently by the list, the search and the unread count.
+///
+/// Declared in the web's order: `shown` is `allCases` without `label`.
 enum MailList: String, CaseIterable, Identifiable, Sendable {
     case inbox
     case np
@@ -88,6 +92,19 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
     case starred
     case pinned
     case snoozed
+    /// Across the Inbox and Sent: the reader wrote last and nobody has
+    /// answered since (`section=awaiting` with no folder).
+    case awaiting
+    /// Team conversations a teammate assigned to the reader.
+    case assigned
+    /// Not a thread list: two endpoints joined by `SendJoin`. Titled
+    /// "Sent" like the folder in every other client; each row's status
+    /// badge says when a message failed or is still going out. The
+    /// title must not share the compose button's "Send" key.
+    case send
+    /// Not a thread list either: choosing it opens the drafts sheet, as a
+    /// draft on the web opens the composer rather than a reading pane.
+    case draft
     /// Everything but Junk and the Trash, archived included.
     case all
     case archived
@@ -98,16 +115,11 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
     /// One of the reader's labels; which one is `Session.activeLabel`.
     /// Not drawn with the fixed lists: each label is a row of its own.
     case label
-    /// Not a thread list: two endpoints joined by `SendJoin`. Titled
-    /// "Sent" like the folder in every other client; each row's status
-    /// badge says when a message failed or is still going out. The
-    /// title must not share the compose button's "Send" key.
-    case send
 
     var id: String { rawValue }
 
-    /// The lists drawn in the sidebar, in the web's order. Labels follow
-    /// them, one row each.
+    /// The lists drawn in the menu and the sidebar, in the web's order.
+    /// Labels follow them, one row each.
     static let shown: [MailList] = allCases.filter { $0 != .label }
 
     /// The catalog key. Kept as a `String` alongside the view-facing
@@ -128,6 +140,9 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
         case .trash: "Trash"
         case .label: "Label"
         case .send: "Sent"
+        case .awaiting: "Waiting for a reply"
+        case .assigned: "Assigned to me"
+        case .draft: "Drafts"
         }
     }
 
@@ -152,6 +167,9 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
         case .trash: "trash"
         case .label: "tag"
         case .send: "paperplane"
+        case .awaiting: "hourglass"
+        case .assigned: "person.crop.circle.badge.checkmark"
+        case .draft: "doc.text"
         }
     }
 
@@ -172,6 +190,9 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
         case .trash: "Trash is empty"
         case .label: "No conversations with this label"
         case .send: "Nothing sent yet"
+        case .awaiting: "Nothing is waiting for a reply"
+        case .assigned: "Nothing is assigned to you"
+        case .draft: "No drafts"
         }
     }
 
@@ -206,6 +227,11 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
         // Unused: Send never queries /api/conversations. The axes exist
         // so the type stays total; `Session` branches on the case.
         case .send: MailListAxes()
+        // no folder: the server reads the wait across the Inbox and Sent
+        case .awaiting: MailListAxes(section: "awaiting")
+        case .assigned: MailListAxes(assignedToMe: true)
+        // Unused: drafts open in their own sheet, from `/api/drafts`.
+        case .draft: MailListAxes()
         }
     }
 }

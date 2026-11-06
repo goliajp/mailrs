@@ -40,21 +40,79 @@ for path in glob.glob("Mailrs/**/*.swift", recursive=True):
 # missing a translation; it is simply absent, and shows in English.
 # Twenty-six were.
 CATALOG = json.load(open("Mailrs/Resources/Localizable.xcstrings"))["strings"]
+# The first version of this skipped any literal with an interpolation in
+# it, and "From \(organizer)" on the invitation card showed in English
+# in every language for that reason: the catalog had "From", not
+# "From %@". An interpolation is a placeholder in the key, so the literal
+# is matched against the catalog with each `\(…)` standing for one.
+# `AppText.string` is listed because a string resolved in code is the
+# other way a key reaches the screen. Scanned over the whole file, so a
+# key on the line after its `ContentUnavailableView(` is still seen.
 KEYED = re.compile(
-    r'(?:Text|Label|Button|Section|Toggle|Picker|LabeledContent|ContentUnavailableView)\(\s*"([^"\\]{2,})"'
-    r'|title:\s*"([^"\\]{2,})"'
-    r'|navigationTitle\(\s*"([^"\\]{2,})"'
-    r'|placeholder:\s*"([^"\\]{2,})"'
+    r'(?:\b(?:Text|Label|Button|Section|Toggle|Picker|LabeledContent|ContentUnavailableView'
+    r'|TextField|SecureField|navigationTitle|accessibilityLabel|accessibilityHint|alert'
+    r'|confirmationDialog|AppText\.string)\(\s*'
+    r'|\btitle:\s*|\bplaceholder:\s*|\bprompt:\s*)"'
 )
-absent = []
-for path in glob.glob("Mailrs/**/*.swift", recursive=True):
-    for line_no, line in enumerate(open(path), 1):
-        if "verbatim:" in line:
+PLACEHOLDER = r"%(?:\d+\$)?(?:@|lld|ld|d|lf|f|\.\d+f)"
+
+
+def literal_parts(source, i):
+    """The text pieces of the string literal opening at `i`, split where
+    each interpolation stands; an interpolation may hold strings of its own."""
+    parts, piece = [], ""
+    while source[i] != '"':
+        if source[i] == "\\" and source[i + 1] == "(":
+            depth, i = 1, i + 2
+            while depth:
+                if source[i] == '"':
+                    i += 1
+                    while source[i] != '"':
+                        i += 1 + (source[i] == "\\")
+                elif source[i] == "(":
+                    depth += 1
+                elif source[i] == ")":
+                    depth -= 1
+                i += 1
+            parts.append(piece)
+            piece = ""
             continue
-        for m in KEYED.finditer(line):
-            key = next(g for g in m.groups() if g)
-            if key not in CATALOG:
-                absent.append((path, line_no, key))
+        if source[i] == "\\":
+            piece += {"n": "\n", '"': '"', "\\": "\\", "t": "\t"}.get(source[i + 1], source[i + 1])
+            i += 2
+            continue
+        piece += source[i]
+        i += 1
+    parts.append(piece)
+    return parts
+
+
+def in_catalog(parts):
+    if len(parts) == 1:
+        return parts[0] in CATALOG
+    pattern = re.compile("^" + PLACEHOLDER.join(re.escape(p) for p in parts) + "$", re.S)
+    return any(pattern.match(key) for key in CATALOG)
+
+
+absent = []
+for path in glob.glob("Mailrs/**/*.swift", recursive=True) + glob.glob("MailrsMac/**/*.swift", recursive=True):
+    source = open(path).read()
+    for m in KEYED.finditer(source):
+        parts = literal_parts(source, m.end())
+        words = " ".join(parts)
+        # data or a lone interpolation, not words; an example address,
+        # host or URL in a placeholder is data too
+        if not re.search(r"[A-Za-z]{2,}", words):
+            continue
+        if len(parts) == 1 and re.fullmatch(r"\S+", words) and re.search(r"@|://|\w\.\w", words):
+            continue
+        literal = "\\(…)".join(parts)
+        line_no = source.count("\n", 0, m.start()) + 1
+        line = source.splitlines()[line_no - 1]
+        if "verbatim:" in line or line.lstrip().startswith("//"):
+            continue
+        if not in_catalog(parts):
+            absent.append((path, line_no, literal))
 
 # And the half it did ask about: an entry with no value for a language
 # the app ships. "Mailrs" is the app's name and has none on purpose.

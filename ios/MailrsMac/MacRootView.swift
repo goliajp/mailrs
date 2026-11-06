@@ -184,7 +184,7 @@ struct MacRootView: View {
             Button("Mark all as read") { Task { await session.markListRead() } }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Every conversation in \(listTitle) will be marked read.")
+            Text("Every conversation in \(listTitle) will be marked read")
         }
         .task {
             await session.loadConversations()
@@ -317,7 +317,8 @@ struct MacSidebar: View {
     var body: some View {
         List(selection: selectionBinding) {
             Section("Mailboxes") {
-                ForEach(MailList.shown) { list in
+                // the Mac has no drafts screen yet
+                ForEach(MailList.shown.filter { $0 != .draft }) { list in
                     SidebarMailboxRow(
                         list: list,
                         unread: list.badgeCount(

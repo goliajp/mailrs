@@ -25,7 +25,7 @@ extension MailrsClient {
             resolvingAgainstBaseURL: false
         )
         components?.queryItems = [URLQueryItem(name: "format", value: "png")]
-        guard let url = components?.url else { throw MailrsError.transport("Bad icon URL.") }
+        guard let url = components?.url else { throw MailrsError.transport("Bad icon URL") }
         return url
     }
 }

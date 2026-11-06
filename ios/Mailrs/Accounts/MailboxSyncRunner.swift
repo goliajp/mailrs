@@ -45,7 +45,7 @@ enum MailboxSyncRunner {
         guard let secret = AccountStore.secret(for: account.id) else {
             return Outcome(
                 accountId: account.id, fetched: 0,
-                failure: "Sign in again to read this account")
+                failure: AppText.string("Sign in again to read this account"))
         }
         if account.incoming == .pop3 { return await runPop3(account, secret: secret) }
         if account.incoming == .jmap { return await runJmap(account, secret: secret) }
@@ -98,7 +98,7 @@ enum MailboxSyncRunner {
                 failure: AccountConnection.readable(detail(e)))
         } catch {
             await session.close()
-            return Outcome(accountId: account.id, fetched: 0, failure: "Could not reach the server")
+            return Outcome(accountId: account.id, fetched: 0, failure: AppText.string("Could not reach the server"))
         }
     }
 
@@ -107,8 +107,8 @@ enum MailboxSyncRunner {
         case let .refused(d): return d
         case let .server(d): return d
         case let .unreachable(d): return d
-        case .closed: return "the server closed the connection"
-        case .timedOut: return "the server did not answer"
+        case .closed: return AppText.string("the server closed the connection")
+        case .timedOut: return AppText.string("the server did not answer")
         }
     }
 
@@ -168,7 +168,7 @@ enum MailboxSyncRunner {
         } catch {
             await session.close()
             return Outcome(
-                accountId: account.id, fetched: 0, failure: "Could not read this mailbox")
+                accountId: account.id, fetched: 0, failure: AppText.string("Could not read this mailbox"))
         }
     }
 
@@ -201,7 +201,7 @@ enum MailboxSyncRunner {
             return Outcome(accountId: account.id, fetched: 0, failure: explain(e))
         } catch {
             return Outcome(
-                accountId: account.id, fetched: 0, failure: "Could not reach the server")
+                accountId: account.id, fetched: 0, failure: AppText.string("Could not reach the server"))
         }
     }
 
@@ -233,23 +233,23 @@ enum MailboxSyncRunner {
         guard account.incoming == .imap else {
             return Outcome(
                 accountId: account.id, fetched: 0,
-                failure: "Older mail is not available for this account yet")
+                failure: AppText.string("Older mail is not available for this account yet"))
         }
         guard let secret = AccountStore.secret(for: account.id) else {
             return Outcome(
                 accountId: account.id, fetched: 0,
-                failure: "Sign in again to read this account")
+                failure: AppText.string("Sign in again to read this account"))
         }
         guard let mark = AccountStore.marks(for: account.id)[folder] else {
             return Outcome(
-                accountId: account.id, fetched: 0, failure: "Fetch this mailbox first")
+                accountId: account.id, fetched: 0, failure: AppText.string("Fetch this mailbox first"))
         }
         // Asked before the fetch, not after: at the ceiling the cap
         // would drop exactly what this pass went to get.
         guard !EarlierPlan.atCeiling(held: AccountStore.count(account.id)) else {
             return Outcome(
                 accountId: account.id, fetched: 0,
-                failure: "This device is holding as much of this account as it can")
+                failure: AppText.string("This device is holding as much of this account as it can"))
         }
         // A mark from before this was recorded: anchor from what is
         // actually held rather than refusing, so an account that has
@@ -261,7 +261,7 @@ enum MailboxSyncRunner {
                 .map(\.uid)
             guard let lowest = held.min() else {
                 return Outcome(
-                    accountId: account.id, fetched: 0, failure: "Fetch this mailbox first")
+                    accountId: account.id, fetched: 0, failure: AppText.string("Fetch this mailbox first"))
             }
             anchor = lowest
         }
@@ -288,7 +288,7 @@ enum MailboxSyncRunner {
                 await session.close()
                 return Outcome(
                     accountId: account.id, fetched: 0,
-                    failure: "This mailbox was rebuilt — fetch it again")
+                    failure: AppText.string("This mailbox was rebuilt — fetch it again"))
             }
             let fetched = try await session.fetchHeaders(range: range)
             await session.close()
@@ -319,7 +319,7 @@ enum MailboxSyncRunner {
         } catch {
             await session.close()
             return Outcome(
-                accountId: account.id, fetched: 0, failure: "Could not reach the server")
+                accountId: account.id, fetched: 0, failure: AppText.string("Could not reach the server"))
         }
     }
 }
