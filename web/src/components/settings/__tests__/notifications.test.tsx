@@ -67,10 +67,54 @@ describe('push settings', () => {
   })
 
   it('without a VAPID key the card says Web Push is not enabled', async () => {
-    vi.mocked(wireWebPushState).mockResolvedValue({ enabled: false })
+    vi.mocked(wireWebPushState).mockResolvedValue({ enabled: false, removed: [] })
     wrap(<WebPushCard />)
     expect(await screen.findByText('Web Push is not enabled on this server')).toBeDefined()
     expect(screen.queryByText('Turn on in this browser')).toBeNull()
+  })
+
+  describe('a browser removed from another device', () => {
+    const endpoint = 'https://fcm.googleapis.com/fcm/send/c1d2e3'
+    // sha256 of the endpoint, as the server files it (shasum -a 256)
+    const id = 'cbbdb8ce49e30d56eaebe6cfd0ee35a847f725e08bfb98abb36aff0c324f1b17'
+
+    function subscribed() {
+      const getSubscription = () => Promise.resolve({ endpoint })
+      vi.stubGlobal('PushManager', class {})
+      vi.stubGlobal('Notification', class {})
+      Object.defineProperty(navigator, 'serviceWorker', {
+        configurable: true,
+        value: { getRegistration: () => Promise.resolve({ pushManager: { getSubscription } }) },
+      })
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      Reflect.deleteProperty(navigator, 'serviceWorker')
+    })
+
+    it('shows as off, says why, and offers to turn on again', async () => {
+      subscribed()
+      vi.mocked(wireWebPushState).mockResolvedValue({
+        enabled: true,
+        public_key: 'k',
+        removed: [id],
+      })
+      wrap(<WebPushCard />)
+      expect(
+        await screen.findByText('Removed from another device; turn on again to receive pushes')
+      ).toBeDefined()
+      expect(screen.getByText('Turn on in this browser')).toBeDefined()
+      expect(screen.queryByText('On in this browser')).toBeNull()
+    })
+
+    it('one still listed is on, without the line', async () => {
+      subscribed()
+      vi.mocked(wireWebPushState).mockResolvedValue({ enabled: true, public_key: 'k', removed: [] })
+      wrap(<WebPushCard />)
+      expect(await screen.findByText('On in this browser')).toBeDefined()
+      expect(screen.queryByTestId('web-push-removed')).toBeNull()
+    })
   })
 
   it('saves a sender rule and says how much it let go of', async () => {

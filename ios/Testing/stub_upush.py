@@ -1,12 +1,15 @@
 """A reader's phones on UnifiedPush, answered the way `handlers/unified_push.rs` does.
 
-- `GET /api/push/unifiedpush`: `{enabled, vapid_public_key, devices}`; a
-  device is `{id, name, host, created_at}`, never its endpoint. One phone
-  is already registered, an old one on another distributor, so a list is
-  never only the device under test.
-- `POST /api/push/unifiedpush {endpoint, keys: {p256dh, auth}, name}`: 400
-  for an endpoint that is not https or a key that is not there, as the
-  server refuses; the same endpoint keeps its id. Answers `{id}`.
+- `GET /api/push/unifiedpush`: `{enabled, vapid_public_key, devices,
+  removed}`; a device is `{id, name, host, created_at}`, never its endpoint.
+  One phone is already registered, an old one on another distributor, so a
+  list is never only the device under test; and one phone removed from
+  another device is already in `removed`.
+- `POST /api/push/unifiedpush {endpoint, keys: {p256dh, auth}, name,
+  resume}`: 400 for an endpoint that is not https or a key that is not
+  there, as the server refuses; 410 `{"error":"removed"}` for a removed
+  phone unless `resume`, which clears the removal; the same endpoint keeps
+  its id. Answers `{id}`.
 - `DELETE /api/push/unifiedpush/{id}`: 204 whether or not it was there.
 
 `GET /debug/unifiedpush` reads back every write, endpoints and keys
@@ -17,6 +20,8 @@ key: `enabled: false`, and registration refused with 409.
 per-account cap does, without the phone being told and without counting as
 one of its writes. `GET /debug/unifiedpush-reads` is how many times the list
 was read, so a test can tell "checked and found it there" from "never asked".
+`POST /debug/unifiedpush-remove/{id}` removes a device the way a person does
+from another device: gone from the list, and kept out until it resumes.
 """
 
 import copy
@@ -36,6 +41,7 @@ FRESH = {
         "d-old": {"endpoint": "https://push.example.net/upOLDPHONE", "name": "Old Moto",
                   "created_at": BASE_TS - 86400 * 40},
     },
+    "removed": ["d-lost"],
 }
 STATE = copy.deepcopy(FRESH)
 
@@ -70,7 +76,7 @@ def get(handler):
     path = urlparse(handler.path).path
     if path == "/api/push/unifiedpush":
         READS["list"] += 1
-        answer = {"enabled": STATE["enabled"], "devices": _listed()}
+        answer = {"enabled": STATE["enabled"], "devices": _listed(), "removed": list(STATE["removed"])}
         if STATE["enabled"]:
             answer["vapid_public_key"] = VAPID
         handler._send(answer)
@@ -94,6 +100,14 @@ def post(handler):
     if path.startswith(evict):
         handler._send({"evicted": STATE["devices"].pop(unquote(path[len(evict):]), None) is not None})
         return True
+    remove = "/debug/unifiedpush-remove/"
+    if path.startswith(remove):
+        device_id = unquote(path[len(remove):])
+        gone = STATE["devices"].pop(device_id, None) is not None
+        if gone:
+            STATE["removed"].append(device_id)
+        handler._send({"removed": gone})
+        return True
     if path != "/api/push/unifiedpush":
         return False
     body = _body(handler)
@@ -107,6 +121,11 @@ def post(handler):
         _empty(handler, 400)
         return True
     device_id = hashlib.sha256(endpoint.encode()).hexdigest()
+    if device_id in STATE["removed"]:
+        if body.get("resume") is not True:
+            handler._send({"error": "removed"}, 410)
+            return True
+        STATE["removed"].remove(device_id)
     STATE["devices"][device_id] = {"endpoint": endpoint, "name": body.get("name", ""),
                                    "created_at": BASE_TS + len(WRITES)}
     handler._send({"id": device_id})

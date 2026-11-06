@@ -152,6 +152,14 @@ device that least recently received a push; a device that has never
 received one counts from when it was registered. The same device
 registering again does not count twice.
 
+A phone removed from another device's push settings stays removed for 30
+days: it does not register itself back, shows that it was removed, and
+pushes resume only when they are turned on again on that phone. Removing a
+phone does not sign it out; to sign out a lost phone, end its session under
+signed-in devices, which also stops its pushes. Signing out, and changing
+or resetting the password, stop pushes to the devices those sessions
+registered.
+
 The distributor's endpoint must be `https` on port 443, and every address
 its host resolves to must be public; endpoints on private or loopback
 addresses are refused.

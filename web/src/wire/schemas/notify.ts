@@ -28,6 +28,7 @@ export const importantSchema = z.array(z.string())
 export const webPushStateSchema = z.object({
   enabled: z.boolean(),
   public_key: z.string().optional(),
+  removed: z.array(z.string()),
 })
 
 export type WireNotifyPrefs = z.infer<typeof notifyPrefsSchema>

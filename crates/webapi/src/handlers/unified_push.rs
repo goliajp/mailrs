@@ -1,23 +1,29 @@
 //! A reader's Android phones on UnifiedPush.
 //!
-//! - `GET /api/push/unifiedpush` — `{enabled, vapid_public_key, devices}`;
-//!   `enabled: false` when no VAPID key is configured, since the pushes are
-//!   signed with it. A device is listed by id, name and its distributor's
-//!   host, never by its endpoint: whoever holds that can push to the phone
-//! - `POST /api/push/unifiedpush` — `{endpoint, keys: {p256dh, auth}, name}`
-//!   from the phone; answers the device's `id`
+//! - `GET /api/push/unifiedpush` — `{enabled, vapid_public_key, devices,
+//!   removed}`; `enabled: false` when no VAPID key is configured, since the
+//!   pushes are signed with it. A device is listed by id, name and its
+//!   distributor's host, never by its endpoint: whoever holds that can push
+//!   to the phone. `removed` is the ids a person removed from another
+//!   device, so a phone can tell it was one of them
+//! - `POST /api/push/unifiedpush` — `{endpoint, keys: {p256dh, auth}, name,
+//!   resume}` from the phone; answers the device's `id`, or `410
+//!   {"error":"removed"}` for a removed phone that does not say its person
+//!   turned pushes on just now (`resume`)
 //! - `DELETE /api/push/unifiedpush/{id}`
 //!
 //! What a push says, and when one is sent, is `mailrs_intake::unified_push`.
 
 use axum::Json;
 use axum::extract::{Extension, Path};
-use axum::http::StatusCode;
-use mailrs_core_sidestate::families::push_devices;
+use axum::http::{HeaderMap, StatusCode};
+use axum::response::{IntoResponse, Response};
+use mailrs_core_sidestate::families::push_devices::{self, Channel, Filed, Registration};
 use mailrs_core_sidestate::families::unified_push::{self, Device};
 
 use crate::handlers::conversations::AuthedUser;
 use crate::handlers::kevy_util::with_kevy;
+use crate::handlers::push;
 use crate::handlers::web_push::{Keys, vapid};
 
 #[derive(Debug, serde::Serialize)]
@@ -36,6 +42,7 @@ pub struct State {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vapid_public_key: Option<String>,
     pub devices: Vec<ListedDevice>,
+    pub removed: Vec<String>,
 }
 
 fn listed((id, d): (String, Device)) -> ListedDevice {
@@ -55,12 +62,18 @@ fn listed((id, d): (String, Device)) -> ListedDevice {
 pub async fn state(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<State>, StatusCode> {
-    let devices = with_kevy(move |c| unified_push::list(c, &user))?;
+    let (devices, removed) = with_kevy(move |c| {
+        Ok((
+            unified_push::list(c, &user)?,
+            push_devices::removed(c, &user, Channel::UnifiedPush)?,
+        ))
+    })?;
     let vapid_public_key = vapid().map(|v| v.public_key());
     Ok(Json(State {
         enabled: vapid_public_key.is_some(),
         vapid_public_key,
         devices: devices.into_iter().map(listed).collect(),
+        removed,
     }))
 }
 
@@ -70,6 +83,9 @@ pub struct RegisterBody {
     pub keys: Keys,
     #[serde(default)]
     pub name: String,
+    /// The person turned pushes on on this phone just now.
+    #[serde(default)]
+    pub resume: bool,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -114,8 +130,9 @@ async fn public(endpoint: &str) -> bool {
 /// POST /api/push/unifiedpush
 pub async fn register(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
+    headers: HeaderMap,
     Json(body): Json<RegisterBody>,
-) -> Result<Json<Registered>, StatusCode> {
+) -> Result<Response, StatusCode> {
     if vapid().is_none() {
         return Err(StatusCode::CONFLICT);
     }
@@ -130,21 +147,29 @@ pub async fn register(
         name: body.name,
         created_at: now,
     };
-    let id = with_kevy(move |c| {
-        let reg = push_devices::Registration::UnifiedPush(&device);
-        let done = push_devices::register(c, &user, reg, now)?;
-        crate::handlers::push::log_evicted(&user, &done.evicted);
-        Ok(done.id)
+    let session = push::session_of(&headers);
+    let filed = with_kevy(move |c| {
+        let reg = Registration::UnifiedPush(&device);
+        push::file(c, &user, reg, session.as_deref(), body.resume, now)
     })?;
-    Ok(Json(Registered { id }))
+    match filed {
+        Filed::Registered(done) => Ok(Json(Registered { id: done.id }).into_response()),
+        Filed::Removed => Ok(push::removed_answer()),
+    }
 }
 
-/// DELETE /api/push/unifiedpush/{id}
+/// DELETE /api/push/unifiedpush/{id} — stop pushes to that phone. From
+/// another device's session, the phone is kept from registering back.
 pub async fn unregister(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
-    with_kevy(move |c| unified_push::remove(c, &user, &id))?;
+    let session = push::session_of(&headers);
+    let now = chrono::Utc::now().timestamp();
+    with_kevy(move |c| {
+        push_devices::remove(c, &user, Channel::UnifiedPush, &id, session.as_deref(), now)
+    })?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -162,6 +187,7 @@ mod tests {
                 auth: mailrs_webpush::b64url(&[1u8; 16]),
             },
             name: "Pixel 8".into(),
+            resume: false,
         }
     }
 

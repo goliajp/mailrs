@@ -549,4 +549,6 @@
     <string name="push_this_phone">%1$s（这台手机）</string>
     <string name="push_remove">移除</string>
     <string name="push_reregistered">服务器曾移除这台手机，已于 %1$s 重新登记</string>
+    <string name="push_removed_elsewhere">已在另一台设备上移除；重新开启才能收到推送</string>
+    <string name="push_remove_is_not_sign_out">移除只停止向那台手机推送，它仍然保持登录。要让丢失的手机退出登录，请到「已登录的设备」</string>
 </resources>

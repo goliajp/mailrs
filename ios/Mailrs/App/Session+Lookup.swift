@@ -24,8 +24,13 @@ extension Session {
 
 
     /// Upload this device's APNs token, so the server can reach it.
+    /// Not while a person's removal from another device stands, unless the
+    /// reader here turned pushes on again.
     func registerPushToken(_ token: String) async {
         guard let client else { return }
-        try? await client.registerPushToken(token)
+        let removal = PushRemoval.shared
+        guard let resume = removal.registration() else { return }
+        guard let outcome = try? await client.registerPushToken(token, resume: resume) else { return }
+        removal.answered(outcome)
     }
 }

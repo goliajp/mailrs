@@ -5,12 +5,7 @@ import { useState } from 'react'
 import { type Key, useT } from '@/i18n'
 import { errorText } from '@/lib/error-text'
 import { queryClient } from '@/lib/query-client'
-import {
-  currentSubscription,
-  disableWebPush,
-  enableWebPush,
-  webPushSupported,
-} from '@/lib/web-push'
+import { disableWebPush, enableWebPush, pushHere, webPushSupported } from '@/lib/web-push'
 import {
   wireImportantContacts,
   wireNotifyOverrides,
@@ -26,6 +21,7 @@ import { WEB_PUSH_KEY } from './notify-shared'
 const SUBSCRIBED_KEY = ['settings', 'web-push-here'] as const
 const IMPORTANT_KEY = ['settings', 'important'] as const
 const OVERRIDES_KEY = ['settings', 'notify-overrides'] as const
+const NONE: string[] = []
 
 /** The contacts whose mail always rings. */
 export function ImportantCard() {
@@ -85,11 +81,12 @@ export function WebPushCard() {
   const t = useT()
   const { data: server } = useQuery({ queryFn: wireWebPushState, queryKey: WEB_PUSH_KEY })
   const supported = webPushSupported()
-  const { data: here = null } = useQuery({
+  const { data } = useQuery({
     enabled: supported && server?.enabled === true,
-    queryFn: currentSubscription,
-    queryKey: SUBSCRIBED_KEY,
+    queryKey: [...SUBSCRIBED_KEY, server?.removed ?? NONE],
+    queryFn: () => pushHere(server?.removed ?? NONE),
   })
+  const here = data ?? 'off'
   const [busy, setBusy] = useState(false)
   if (!server) return null
 
@@ -118,7 +115,7 @@ export function WebPushCard() {
       {server.enabled && !supported && (
         <p className="text-fg-muted text-sm">{t('settings.notify.webUnsupported')}</p>
       )}
-      {server.enabled && supported && here && (
+      {server.enabled && supported && here === 'on' && (
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm">{t('settings.notify.webOn')}</span>
           <button className={btnSecondary} disabled={busy} onClick={() => void run(disableWebPush)}>
@@ -126,7 +123,12 @@ export function WebPushCard() {
           </button>
         </div>
       )}
-      {server.enabled && supported && !here && (
+      {server.enabled && supported && here === 'removed' && (
+        <p className="text-fg-muted mb-2 text-sm" data-testid="web-push-removed">
+          {t('settings.notify.webRemoved')}
+        </p>
+      )}
+      {server.enabled && supported && here !== 'on' && (
         <button className={btnPrimary} disabled={busy} onClick={() => void enable()}>
           {t('settings.notify.webEnable')}
         </button>

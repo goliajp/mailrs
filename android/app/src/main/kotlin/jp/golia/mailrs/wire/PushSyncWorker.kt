@@ -31,17 +31,31 @@ class PushSyncWorker(
         val checking = inputData.getBoolean(CHECK, false)
         val steps = if (checking) checked(client, reg.snapshot()) else PushSync.steps(reg.snapshot())
         for (step in steps) {
-            val failed = when (step) {
+            val outcome = when (step) {
                 is PushSync.Step.Drop -> drop(client, reg, step)
                 is PushSync.Step.Register -> register(client, reg, step)
+                PushSync.Step.TurnOff -> Done.RemovedElsewhere
             }
-            if (failed != null) {
-                reg.failure = failed
-                return again()
+            when (outcome) {
+                Done.Ok -> Unit
+                Done.RemovedElsewhere -> {
+                    PushDistributor.removedElsewhere(applicationContext)
+                    return Result.success()
+                }
+                is Done.Failed -> {
+                    reg.failure = outcome.reason
+                    return again()
+                }
             }
         }
-        if (checking && steps.isNotEmpty()) reg.reregistered(System.currentTimeMillis())
+        if (checking && steps.any { it is PushSync.Step.Register }) reg.reregistered(System.currentTimeMillis())
         return Result.success()
+    }
+
+    private sealed interface Done {
+        data object Ok : Done
+        data object RemovedElsewhere : Done
+        data class Failed(val reason: String) : Done
     }
 
     private suspend fun checked(client: MailrsClient, have: PushSync.Snapshot): List<PushSync.Step> {
@@ -54,23 +68,31 @@ class PushSyncWorker(
         return PushSync.recheck(have, listed)
     }
 
-    private suspend fun drop(client: MailrsClient, reg: PushRegistration, step: PushSync.Step.Drop): String? =
+    private suspend fun drop(client: MailrsClient, reg: PushRegistration, step: PushSync.Step.Drop): Done =
         when (val r = client.unregisterUnifiedPush(step.id)) {
             is MailrsClient.Outcome.Ok -> {
                 reg.dropped()
-                null
+                Done.Ok
             }
-            is MailrsClient.Outcome.Err -> r.message
+            is MailrsClient.Outcome.Err -> Done.Failed(r.message)
         }
 
-    private suspend fun register(client: MailrsClient, reg: PushRegistration, step: PushSync.Step.Register): String? {
-        val body = UnifiedPushWire.Register(step.endpoint, UnifiedPushWire.Keys(step.p256dh, step.auth), deviceName())
+    private suspend fun register(client: MailrsClient, reg: PushRegistration, step: PushSync.Step.Register): Done {
+        val body = UnifiedPushWire.Register(
+            step.endpoint,
+            UnifiedPushWire.Keys(step.p256dh, step.auth),
+            deviceName(),
+            resume = reg.turnedOn,
+        )
         return when (val r = client.registerUnifiedPush(body)) {
             is MailrsClient.Outcome.Ok -> {
                 reg.registered(r.value.id, step.endpoint, PushSync.sent(step.endpoint, step.p256dh, step.auth))
-                null
+                reg.turnedOn = false
+                Done.Ok
             }
-            is MailrsClient.Outcome.Err -> r.message
+            // asking again would be refused the same way, and is what put it back before
+            is MailrsClient.Outcome.Err if r.code == UnifiedPushWire.REMOVED -> Done.RemovedElsewhere
+            is MailrsClient.Outcome.Err -> Done.Failed(r.message)
         }
     }
 

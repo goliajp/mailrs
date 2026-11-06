@@ -49,6 +49,7 @@ fn web_push_bodies_match() {
         handlers::web_push::acceptable(&v),
         "the fixture is a subscription the server stores"
     );
+    assert!(v.resume);
     let u: handlers::web_push::UnsubscribeBody = parse("web-push-unsubscribe");
     assert_eq!(u.endpoint, v.endpoint);
 }
@@ -61,4 +62,5 @@ fn unified_push_register_body_matches() {
         "the fixture is a registration the server stores"
     );
     assert_eq!(v.name, "Pixel 8");
+    assert!(v.resume);
 }

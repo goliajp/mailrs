@@ -91,9 +91,22 @@ fn keys_of_entry(entry: &[u8]) -> [String; 3] {
     ]
 }
 
-/// Delete every session `address` holds. Returns how many tokens the
-/// per-address index listed.
+/// Delete every session `address` holds, and with them every push
+/// registration. Returns how many tokens the per-address index listed.
 pub fn revoke_sessions(c: &mut kevy_client::Connection, address: &str) -> std::io::Result<usize> {
+    let n = end_every_session(c, address)?;
+    // every device signed out, so none of them is pushed to; those
+    // registered before devices were linked to a session go too
+    crate::families::push_devices::drop_all(c, address)?;
+    Ok(n)
+}
+
+/// [`revoke_sessions`] leaving push registrations alone: for the account
+/// purge, which deletes them as families of their own.
+pub(crate) fn end_every_session(
+    c: &mut kevy_client::Connection,
+    address: &str,
+) -> std::io::Result<usize> {
     let idx = by_addr_key(address);
     let entries = c.smembers(idx.as_bytes())?;
     for entry in &entries {
@@ -168,6 +181,8 @@ pub fn end_session_by_ref(
             confirm_failures_key(reference).as_bytes(),
         ])?;
         c.srem(idx.as_bytes(), &[entry.as_slice()])?;
+        // a phone signed out from elsewhere must stop showing this mail
+        crate::families::push_devices::drop_for_session(c, address, reference)?;
         return Ok(true);
     }
     Ok(false)
@@ -209,6 +224,34 @@ mod tests {
         assert_eq!(c.get(session_key(&a).as_bytes()).unwrap(), None);
         assert!(c.get(session_key(&b).as_bytes()).unwrap().is_some());
         assert_eq!(list_sessions(&mut c, "u@x.test").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn ending_sessions_ends_the_pushes_they_registered() {
+        use crate::families::push_devices::{self, Asker, Registration};
+        let mut c = kevy_client::Connection::connect("mem://session-push").unwrap();
+        let (a, b) = ("aa".repeat(32), "bb".repeat(32));
+        for (t, token) in [(&a, "ta"), (&b, "tb")] {
+            c.set(session_key(t).as_bytes(), b"{}").unwrap();
+            index_session(&mut c, "u@x.test", t).unwrap();
+            let reg = Registration::Apns {
+                token,
+                platform: "ios",
+            };
+            let by = Asker {
+                session: Some(&session_ref(t)),
+                resume: false,
+            };
+            push_devices::register(&mut c, "u@x.test", reg, by, 1).unwrap();
+        }
+        let tokens = |c: &mut kevy_client::Connection| -> Vec<Vec<u8>> {
+            c.hkeys(crate::keys::push::tokens_key("u@x.test").as_bytes())
+                .unwrap()
+        };
+        assert!(end_session_by_ref(&mut c, "u@x.test", &session_ref(&a)).unwrap());
+        assert_eq!(tokens(&mut c), vec![b"tb".to_vec()]);
+        revoke_sessions(&mut c, "u@x.test").unwrap();
+        assert!(tokens(&mut c).is_empty());
     }
 
     #[test]
