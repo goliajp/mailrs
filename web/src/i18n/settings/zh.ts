@@ -335,7 +335,7 @@ export const settingsZh: Record<SettingsKey, string> = {
   'settings.resetCodes.validUntil': '有效期到 {at}',
   'settings.resetCodes.wrongTries': '输错次数：{count} / 5',
   'settings.rules.action.archive': '归档',
-  'settings.rules.action.junk': '移到垃圾邮件',
+  'settings.rules.action.junk': '移至垃圾邮件',
   'settings.rules.action.read': '标记为已读',
   'settings.rules.action.star': word('zh', 'settings.rules.action.star'),
   'settings.rules.action.trash': word('zh', 'settings.rules.action.trash'),
@@ -405,7 +405,7 @@ export const settingsZh: Record<SettingsKey, string> = {
   'settings.senders.addTo': '要加入「{list}」的地址',
   'settings.senders.allowed': '始终允许',
   'settings.senders.allowedBlurb':
-    '把会话标为「不是垃圾邮件」时，发件人会加到这里。来自这些地址的邮件不经过垃圾邮件过滤。',
+    '把会话标记为非垃圾邮件时，发件人会加到这里。来自这些地址的邮件不经过垃圾邮件过滤。',
   'settings.senders.blocked': '始终拦截',
   'settings.senders.blockedBlurb': '来自这些地址的邮件一到就当作垃圾邮件。',
   'settings.senders.empty': '没有地址',
