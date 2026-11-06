@@ -227,7 +227,12 @@ use mailrs_core_sidestate::keys::push::tokens_key;
 fn load_tokens(user: &str) -> std::io::Result<Vec<String>> {
     let url = std::env::var("MAILRS_KEVY_URL")
         .map_err(|_| std::io::Error::other("MAILRS_KEVY_URL unset"))?;
-    let mut conn = kevy_client::Connection::connect(&url)?;
+    tokens(&mut kevy_client::Connection::connect(&url)?, user)
+}
+
+/// The APNs tokens `user` has to be pushed to now.
+fn tokens(conn: &mut kevy_client::Connection, user: &str) -> std::io::Result<Vec<String>> {
+    drop_signed_out(conn, user, push_devices::Channel::Apns)?;
     let pairs = conn.hgetall(tokens_key(user).as_bytes())?;
     // hgetall answers [field, value, field, value, …]; the fields are the
     // tokens and the values metadata this side does not read.
@@ -250,6 +255,24 @@ pub(crate) fn count(user: &str, channel: &str, outcome: &str, now: i64) {
 }
 
 use mailrs_core_sidestate::families::push_devices;
+
+/// Before a push on `channel`, drop the devices whose session has expired
+/// since they registered; the devices left are the ones to push to.
+pub(crate) fn drop_signed_out(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+    channel: push_devices::Channel,
+) -> std::io::Result<()> {
+    let gone = push_devices::drop_signed_out(conn, user, channel)?;
+    if gone > 0 {
+        tracing::info!(
+            channel = channel.as_str(),
+            gone,
+            "push: dropped devices whose session expired"
+        );
+    }
+    Ok(())
+}
 
 /// Record a push that got through, for the device cap's least-recently-used
 /// order.
@@ -281,7 +304,7 @@ pub(crate) fn truncated(text: &str, max_chars: usize) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     #[test]
@@ -289,5 +312,49 @@ mod tests {
         let cjk = "件名".repeat(300);
         let cut = truncated(&cjk, 10);
         assert_eq!(cut.chars().count(), 10);
+    }
+
+    /// A signed-in session as the webapi stores it; its ref.
+    pub(crate) fn session(c: &mut kevy_client::Connection, token: &str) -> String {
+        use mailrs_core_sidestate::keys::session::{session_key, session_ref};
+        c.set(session_key(token).as_bytes(), b"{}").unwrap();
+        session_ref(token)
+    }
+
+    /// What a session's seven days running out leaves behind.
+    pub(crate) fn expire(c: &mut kevy_client::Connection, token: &str) {
+        let key = mailrs_core_sidestate::keys::session::session_key(token);
+        c.del(&[key.as_bytes()]).unwrap();
+    }
+
+    pub(crate) fn by(session: Option<&str>) -> push_devices::Asker<'_> {
+        push_devices::Asker {
+            session,
+            resume: false,
+        }
+    }
+
+    #[test]
+    fn apns_skips_and_drops_a_phone_whose_session_expired() {
+        use push_devices::Registration;
+        let mut c = kevy_client::Connection::connect("mem://apns-signed-out").unwrap();
+        let (old, live) = (session(&mut c, "old"), session(&mut c, "live"));
+        for (token, s) in [
+            ("t-old", Some(&old)),
+            ("t-live", Some(&live)),
+            ("t-legacy", None),
+        ] {
+            let reg = Registration::Apns {
+                token,
+                platform: "ios",
+            };
+            push_devices::register(&mut c, "me@x.test", reg, by(s.map(String::as_str)), 1).unwrap();
+        }
+        expire(&mut c, "old");
+        let mut pushed = tokens(&mut c, "me@x.test").unwrap();
+        pushed.sort();
+        assert_eq!(pushed, vec!["t-legacy", "t-live"]);
+        let held = c.hkeys(tokens_key("me@x.test").as_bytes()).unwrap();
+        assert_eq!(held.len(), 2, "the expired session's phone is gone");
     }
 }
