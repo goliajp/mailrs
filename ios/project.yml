@@ -183,6 +183,7 @@ targets:
       - path: Mailrs/Features/ComposeExtras.swift
       - path: Mailrs/Features/FailureBanner.swift
       - path: Mailrs/Features/ConversationRowMenu.swift
+      - path: Mailrs/Features/SwipeActions.swift
       - path: Mailrs/Features/ThreadView.swift
       - path: Mailrs/Features/ThreadHeader.swift
       - path: Mailrs/Features/TeamViews.swift

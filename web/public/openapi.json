@@ -12653,6 +12653,59 @@
         }
       }
     },
+    "/api/settings/swipe": {
+      "get": {
+        "operationId": "getSwipe",
+        "summary": "What a swipe on a conversation row does; right archive, left trash when never set",
+        "tags": [
+          "Settings"
+        ],
+        "responses": {
+          "200": {
+            "description": "Swipe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Swipe"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setSwipe",
+        "summary": "Set what a swipe on a conversation row does, on the web and both phone apps",
+        "tags": [
+          "Settings"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Swipe"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Swipe"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A direction names an action that is not one of the choices"
+          }
+        }
+      }
+    },
     "/api/settings/forwarding": {
       "get": {
         "operationId": "getForwarding",
@@ -20013,6 +20066,35 @@
         "required": [
           "address"
         ]
+      },
+      "Swipe": {
+        "type": "object",
+        "required": [
+          "left",
+          "right"
+        ],
+        "properties": {
+          "left": {
+            "type": "string",
+            "enum": [
+              "archive",
+              "trash",
+              "read",
+              "none"
+            ],
+            "description": "A finger moving right to left"
+          },
+          "right": {
+            "type": "string",
+            "enum": [
+              "archive",
+              "trash",
+              "read",
+              "none"
+            ],
+            "description": "A finger moving left to right"
+          }
+        }
       }
     }
   }

@@ -6,10 +6,13 @@
  * that address; forwarding starts once the code is entered.
  */
 
+import type { SwipeSetting } from '@/lib/swipe'
+
 import { wireFetch } from '../client'
 import {
   forwardingSchema,
   forwardingVerifiedSchema,
+  swipeSchema,
   vacationSchema,
   type WireVacation,
 } from '../schemas/mail-settings'
@@ -17,6 +20,10 @@ import { emptyResponseSchema } from '../schemas/mutations'
 
 export function wireGetForwarding(signal?: AbortSignal) {
   return wireFetch(forwardingSchema, { path: '/settings/forwarding', signal })
+}
+
+export function wireGetSwipe(signal?: AbortSignal) {
+  return wireFetch(swipeSchema, { path: '/settings/swipe', signal })
 }
 
 export function wireGetVacation(signal?: AbortSignal) {
@@ -30,6 +37,10 @@ export async function wireRequestForwarding(address: string, keepCopy: boolean):
     method: 'POST',
     path: '/settings/forwarding',
   })
+}
+
+export function wireSetSwipe(s: SwipeSetting) {
+  return wireFetch(swipeSchema, { body: s, method: 'PUT', path: '/settings/swipe' })
 }
 
 export function wireSetVacation(v: Omit<WireVacation, 'version'>) {

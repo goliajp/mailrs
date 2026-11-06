@@ -12,6 +12,9 @@
 - `GET/PUT /api/settings/vacation`: refused with `invalid_body` when
   turned on with no text, as `families/vacation.rs` refuses; each save
   raises `version`. The reply here has text, so it can be turned on.
+- `GET/PUT /api/settings/swipe {left, right}`: right archive, left trash
+  until saved; a direction that is not `archive`, `trash`, `read` or
+  `none` is a 422, as serde refuses it in `families/swipe.rs`.
 - `GET/POST /api/masked-emails`, camelCase as `families/masked_email`.
 - `POST /api/senders/reclassify {sender, bucket}` answers `{moved}`.
 
@@ -43,6 +46,7 @@ FRESH = {
     ],
     "vacation": {"enabled": False, "subject": "Away", "body": "Back on Monday.", "start": None,
                  "end": None, "days": 7, "version": 2},
+    "swipe": {"left": "trash", "right": "archive"},
     "masks": [
         {"id": "m1", "email": "quiet.otter@golia.jp", "owner": "me@golia.jp", "state": "enabled",
          "forDomain": "shop.test", "description": "Shop account", "url": None,
@@ -82,6 +86,7 @@ def get(handler):
         "/api/auth/sessions": lambda: STATE["sessions"],
         "/api/auth/app-passwords": lambda: STATE["app_passwords"],
         "/api/settings/vacation": lambda: STATE["vacation"],
+        "/api/settings/swipe": lambda: STATE["swipe"],
         "/api/masked-emails": lambda: STATE["masks"],
         "/debug/settings": lambda: WRITES,
     }
@@ -140,6 +145,16 @@ def put(handler):
         body["version"] = STATE["vacation"]["version"] + 1
         STATE["vacation"] = body
         handler._send(body)
+        return True
+    if path == "/api/settings/swipe":
+        body = _body(handler)
+        _write("PUT", path, body)
+        choices = ("archive", "trash", "read", "none")
+        if body.get("left") not in choices or body.get("right") not in choices:
+            _empty(handler, 422)
+            return True
+        STATE["swipe"] = {"left": body["left"], "right": body["right"]}
+        handler._send(STATE["swipe"])
         return True
     return False
 

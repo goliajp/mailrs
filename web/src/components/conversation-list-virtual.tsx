@@ -1,4 +1,6 @@
 import type { SingleAction } from '@/components/conversation-actions'
+import type { SwipeSide } from '@/components/swipeable-row'
+import type { SwipeChoice } from '@/lib/swipe'
 import type { ConversationSummary } from '@/lib/types'
 
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -9,10 +11,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ConversationItem } from '@/components/conversation-item'
 import { SwipeableRow } from '@/components/swipeable-row'
 import { useHoverPrefetch } from '@/hooks/use-prefetch-threads'
+import { useSwipeSetting } from '@/hooks/use-swipe-setting'
 import { type Key, useT } from '@/i18n'
-import { toggle } from '@/lib/actions'
 import { nearEnd } from '@/lib/list-paging'
 import { MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
+import { swipeAction } from '@/lib/swipe'
 import {
   followupDaysAtom,
   type InboxSection,
@@ -122,6 +125,7 @@ export function VirtualConversationList({
 
   const parentRef = useRef<HTMLDivElement>(null)
   const hover = useHoverPrefetch()
+  const swipe = useSwipeSetting()
 
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -336,18 +340,8 @@ export function VirtualConversationList({
               {item.type === 'divider' && <DateDivider label={item.label} />}
               {item.type === 'conversation' && (
                 <SwipeableRow
-                  onSwipeLeft={() =>
-                    onContextAction(
-                      item.convo.thread_id,
-                      toggle((item.convo.trashed_at ?? 0) > 0, 'delete-forever', 'trash')
-                    )
-                  }
-                  onSwipeRight={() =>
-                    onContextAction(
-                      item.convo.thread_id,
-                      item.convo.archived ? 'unarchive' : 'archive'
-                    )
-                  }
+                  left={swipeSide(swipe.left, item.convo, onContextAction)}
+                  right={swipeSide(swipe.right, item.convo, onContextAction)}
                 >
                   <ConversationItem
                     batchMode={batchMode}
@@ -432,4 +426,15 @@ function listErrorMessage(error: unknown, noAnswer: string): string {
 function sectionShown(sectioned: boolean, section: InboxSection): InboxSection | null {
   if (!sectioned) return null
   return section
+}
+
+/** One direction of a row's swipe, or none when the setting says nothing. */
+function swipeSide(
+  choice: SwipeChoice,
+  convo: ConversationSummary,
+  onContextAction: (threadId: string, action: SingleAction) => void
+): null | SwipeSide {
+  const action = swipeAction(choice, convo)
+  if (action === null) return null
+  return { action, run: () => onContextAction(convo.thread_id, action) }
 }

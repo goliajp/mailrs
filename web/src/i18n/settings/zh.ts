@@ -132,6 +132,13 @@ export const settingsZh: Record<SettingsKey, string> = {
   'settings.appearance.notifyDenied': '浏览器通知被拒绝了。',
   'settings.appearance.notifyUnsupported': '这台设备不支持浏览器通知。',
   'settings.appearance.sound': '通知声音',
+  'settings.appearance.swipe': '滑动会话',
+  'settings.appearance.swipe.help':
+    '手机浏览器和 iOS、Android 应用都用这个设置。在废纸篓里，往哪边滑都是把会话恢复',
+  'settings.appearance.swipe.left': '向左滑',
+  'settings.appearance.swipe.none': '不做什么',
+  'settings.appearance.swipe.read': '标为已读或未读',
+  'settings.appearance.swipe.right': '向右滑',
   'settings.appearance.theme': '主题',
   'settings.appearance.theme.dark': '深色',
   'settings.appearance.theme.light': '浅色',

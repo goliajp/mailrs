@@ -141,6 +141,13 @@ export const settingsEn = {
   'settings.appearance.notifyUnsupported':
     'Browser notifications are not supported on this device.',
   'settings.appearance.sound': 'Notification sound',
+  'settings.appearance.swipe': 'Swiping a conversation',
+  'settings.appearance.swipe.help':
+    'Used on a phone, here and in the iOS and Android apps. In the Trash either swipe restores the conversation',
+  'settings.appearance.swipe.left': 'Swipe left',
+  'settings.appearance.swipe.none': 'Nothing',
+  'settings.appearance.swipe.read': 'Mark read or unread',
+  'settings.appearance.swipe.right': 'Swipe right',
   'settings.appearance.theme': 'Theme',
   'settings.appearance.theme.dark': 'Dark',
   'settings.appearance.theme.light': 'Light',

@@ -20,7 +20,7 @@ use crate::families::{
     calendar_events, calendar_feeds, contact_cards, contact_sent, contacts, devices, email_groups,
     forwarding, local_forward, masked_email, notify, outbound::pause, permission_groups, prefs,
     recall_notices, rules, saved_searches, send, sender_lists, sender_rules, shared_inbox,
-    submitted, vacation,
+    submitted, swipe, vacation,
 };
 use crate::keys::{credentials, push, quota, reset, session};
 
@@ -92,6 +92,7 @@ pub const OWNED: &[Owned] = &[
     net("mailrs:forward:local:{user}", Shape::Key(local_forward::key)),
     net("mailrs:forward:local:*", Shape::Members { keys: || local_forward::key("*"), sep: None }),
     net("vacation:{user}", Shape::Key(vacation::key)),
+    net("swipe:{user}", Shape::Key(swipe::key)),
     net("mailrs:vacation:{user}:*", Shape::Globs(|a| under("mailrs:vacation:", a, ":"))),
     net("spam:{user}:whitelist", Shape::Key(sender_lists::whitelist_key)),
     net("spam:{user}:blacklist", Shape::Key(sender_lists::blacklist_key)),

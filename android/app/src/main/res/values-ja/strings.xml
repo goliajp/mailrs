@@ -468,6 +468,13 @@
     <string name="settings_images_auto">常に読み込む</string>
     <string name="settings_images_click">毎回たずねる</string>
     <string name="settings_images_never">読み込まない</string>
+    <string name="swipe_title">会話のスワイプ</string>
+    <string name="swipe_right">右にスワイプ</string>
+    <string name="swipe_left">左にスワイプ</string>
+    <string name="swipe_read">既読・未読を切り替え</string>
+    <string name="swipe_none">何もしない</string>
+    <string name="swipe_help">Web と iOS アプリでも同じ設定が使われます。ゴミ箱ではどちらにスワイプしても会話を元に戻します</string>
+    <string name="swipe_save_failed">スワイプの設定を保存できませんでした</string>
     <string name="notify_mode_default">返信が必要なメールと重要な人</string>
     <string name="notify_mode_all">すべてのメール</string>
     <string name="notify_mode_important">重要な人だけ</string>
