@@ -141,6 +141,13 @@ export const settingsJa: Record<SettingsKey, string> = {
   'settings.appearance.notifyDenied': 'ブラウザ通知が拒否されました。',
   'settings.appearance.notifyUnsupported': 'このデバイスはブラウザ通知に対応していません。',
   'settings.appearance.sound': '通知音',
+  'settings.appearance.swipe': '会話のスワイプ',
+  'settings.appearance.swipe.help':
+    'スマートフォンのブラウザと iOS・Android アプリで使われます。ゴミ箱ではどちらにスワイプしても会話を元に戻します',
+  'settings.appearance.swipe.left': '左にスワイプ',
+  'settings.appearance.swipe.none': '何もしない',
+  'settings.appearance.swipe.read': '既読・未読を切り替え',
+  'settings.appearance.swipe.right': '右にスワイプ',
   'settings.appearance.theme': 'テーマ',
   'settings.appearance.theme.dark': 'ダーク',
   'settings.appearance.theme.light': 'ライト',

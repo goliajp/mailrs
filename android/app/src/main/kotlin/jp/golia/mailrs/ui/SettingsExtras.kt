@@ -23,6 +23,7 @@ import jp.golia.mailrs.R
 import jp.golia.mailrs.SettingsPage
 import jp.golia.mailrs.wire.Prefs
 import jp.golia.mailrs.wire.RemoteImages
+import jp.golia.mailrs.wire.SwipeSetting
 import jp.golia.mailrs.wire.Texts
 
 /**
@@ -31,7 +32,7 @@ import jp.golia.mailrs.wire.Texts
  * `SettingsScreen`, which is the list.
  */
 @Composable
-fun SettingsExtras(onPage: (SettingsPage) -> Unit) {
+fun SettingsExtras(swipe: SwipeSetting, onSwipe: (SwipeSetting) -> Unit, onPage: (SettingsPage) -> Unit) {
     val theme = LocalTheme.current
     HorizontalDivider(color = theme.border, thickness = 0.5.dp)
     Heading(Texts.get(R.string.settings_mail_privacy))
@@ -47,6 +48,8 @@ fun SettingsExtras(onPage: (SettingsPage) -> Unit) {
     }
     Heading(Texts.get(R.string.settings_images))
     ImagesChoice()
+    Heading(Texts.get(R.string.swipe_title))
+    SwipeSettings(swipe, onSwipe)
 }
 
 /** The page's title, for its row and its top bar. */

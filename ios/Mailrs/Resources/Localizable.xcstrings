@@ -2226,6 +2226,22 @@
         }
       }
     },
+    "Do nothing": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "何もしない"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不做什么"
+          }
+        }
+      }
+    },
     "Does it read like the fraud it is?": {
       "localizations": {
         "ja": {
@@ -3537,6 +3553,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "标为未读"
+          }
+        }
+      }
+    },
+    "Mark read or unread": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "既読・未読を切り替え"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标为已读或未读"
           }
         }
       }
@@ -6502,6 +6534,54 @@
         }
       }
     },
+    "Swipe left": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左にスワイプ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "向左滑"
+          }
+        }
+      }
+    },
+    "Swipe right": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右にスワイプ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "向右滑"
+          }
+        }
+      }
+    },
+    "Swiping a conversation": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会話のスワイプ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "滑动会话"
+          }
+        }
+      }
+    },
     "System": {
       "localizations": {
         "ja": {
@@ -6726,6 +6806,22 @@
         }
       }
     },
+    "The same setting is used on the web and in the Android app. In the Trash either swipe restores the conversation": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Web と Android アプリでも同じ設定が使われます。ゴミ箱ではどちらにスワイプしても会話を元に戻します"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "网页和 Android 应用也用这个设置。在废纸篓里，往哪边滑都是把会话恢复"
+          }
+        }
+      }
+    },
     "The sender's list did not accept it. Their link is above.": {
       "localizations": {
         "ja": {
@@ -6786,6 +6882,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法加载已登录的设备"
+          }
+        }
+      }
+    },
+    "The swipe setting was not saved": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スワイプの設定を保存できませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "滑动设置没有保存"
           }
         }
       }

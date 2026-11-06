@@ -9,7 +9,9 @@
 #   2. each surface's code declares exactly the actions the table lists for
 #      it in `surfaces` — the web's ActionId union, iOS's `RowAction` cases,
 #      Android's `RowAction` entries;
-#   3. every `undo` names an action the table has.
+#   3. every `undo` names an action the table has;
+#   4. the swipe choices and defaults (`swipe`) are the server's SwipeAction
+#      and Swipe::default (crates/core-sidestate/src/families/swipe.rs).
 # An action added on one surface and not the table, or dropped from one, fails
 # here rather than as a menu item one phone lacks.
 #
@@ -81,6 +83,23 @@ for surface, found in (("web", web_ids()), ("ios", ios_ids()), ("android", andro
         problems.append(f"{surface} offers {a}, which actions.json does not list for it")
     for a in sorted(listed - found):
         problems.append(f"actions.json lists {a} for {surface}, which {surface} does not offer")
+
+swipe = json.loads(text)["swipe"]
+for c in swipe["choices"]:
+    if c != "none" and c not in ids:
+        problems.append(f"swipe choice {c} is not an action in the table")
+for side, c in swipe["default"].items():
+    if c not in swipe["choices"]:
+        problems.append(f"the default {side} swipe {c} is not a swipe choice")
+rust = read("crates/core-sidestate/src/families/swipe.rs")
+variants = re.search(r"pub enum SwipeAction \{(.*?)\}", rust, re.S).group(1)
+if [v.lower() for v in re.findall(r"(\w+),", variants)] != swipe["choices"]:
+    problems.append("the server's SwipeAction is not the table's swipe choices, in order")
+default = re.search(r"impl Default for Swipe \{.*?\n\}", rust, re.S).group(0)
+for side, c in swipe["default"].items():
+    m = re.search(side + r": SwipeAction::(\w+)", default)
+    if m is None or m.group(1).lower() != c:
+        problems.append(f"the server's default {side} swipe is not the table's {c}")
 
 if problems:
     print("!! the three surfaces' actions disagree:")

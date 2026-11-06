@@ -18,6 +18,17 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Swiping a conversation does the same thing on every device
+
+- On the web, iOS and Android, swiping a conversation right archives it
+  and swiping left moves it to the Trash. Both show Undo. On iOS, swiping
+  right used to mark the conversation read, and on Android swiping left
+  did; you can set it back in Settings, which now has a choice for each
+  direction (archive, move to Trash, mark read or unread, nothing) that
+  follows you across devices.
+- In the Trash, a swipe in either direction restores the conversation.
+  A swipe never deletes anything for good.
+
 ### An archive whose file names cannot be read scores 3
 
 - The new rule `archive-names-unreadable` scores an attachment that is an
