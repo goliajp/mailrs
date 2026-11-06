@@ -13,7 +13,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use mailrs_core_api::error::CoreApiError;
 use mailrs_core_api::method::conversation::SearchConversationsRequest;
-use mailrs_core_api::types::ConversationSummaryWire;
+use mailrs_core_api::types::{ConversationFilter, ConversationSummaryWire};
 use mailrs_core_sidestate::families::rules::{self as stored, Before, Run};
 use mailrs_mailbox::rules::{Action, check};
 use mailrs_mailbox::scope::{Bucket, bucket_of};
@@ -38,12 +38,12 @@ async fn matching(
     for archived in [false, true] {
         let req = SearchConversationsRequest {
             query: query.to_string(),
-            category: None,
-            limit: RUN_MAX,
-            folder: None,
-            unread: None,
-            starred: None,
-            archived,
+            filter: ConversationFilter {
+                limit: RUN_MAX,
+                archived,
+                ..Default::default()
+            },
+            quarantined: false,
         };
         let found = state.core.search_conversations(user, &req).await?;
         out.extend(found.items);

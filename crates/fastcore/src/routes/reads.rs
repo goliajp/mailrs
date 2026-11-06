@@ -97,12 +97,31 @@ fn fetch_page(
     f: &mailrs_core_api::types::ConversationFilter,
     limit: usize,
 ) -> Vec<mailrs_core_api::types::ConversationSummaryWire> {
-    let filter = threads_filter(f);
     // An error here reads as an empty mailbox, which is the one answer
     // the caller cannot tell from a real one — so say it happened. The
     // dispatcher returns Err when a query names a column its index does
     // not store, and that is a wiring mistake, not an empty page.
-    let listed = match f.label.as_deref() {
+    let rows = list_rows(state, user, f, limit).unwrap_or_else(|e| {
+        tracing::warn!(%user, error = %e, "conversation list failed; serving empty");
+        Vec::new()
+    });
+    let items = rows.into_iter().map(row_to_wire).collect();
+    let items = crate::routes::labels::with_labels(state, user, items);
+    let items = crate::sections::with_sections(state, user, items);
+    crate::shared::with_shared(state, user, items)
+}
+
+/// The rows of the list `f` describes, newest first, at most `limit`;
+/// each list read off its own index. Search scopes to a list by asking
+/// this same question.
+pub(crate) fn list_rows(
+    state: &FastcoreState,
+    user: &str,
+    f: &mailrs_core_api::types::ConversationFilter,
+    limit: usize,
+) -> std::io::Result<Vec<mailrs_mailbox_kevy::ThreadRow>> {
+    let filter = threads_filter(f);
+    match f.label.as_deref() {
         Some(id) => crate::routes::labels::rows_with_label(state, user, id, &filter, limit),
         None if f.snoozed == Some(true) => snoozed_page(state, user, &filter, f.before_ts, limit),
         None if f.assigned_to_me => crate::shared::assigned_page(state, user, f, limit),
@@ -119,15 +138,7 @@ fn fetch_page(
                 .list_threads_by_activity(user, &filter, 0, limit)
                 .map(|(rows, _)| rows),
         },
-    };
-    let rows = listed.unwrap_or_else(|e| {
-        tracing::warn!(%user, error = %e, "conversation list failed; serving empty");
-        Vec::new()
-    });
-    let items = rows.into_iter().map(row_to_wire).collect();
-    let items = crate::routes::labels::with_labels(state, user, items);
-    let items = crate::sections::with_sections(state, user, items);
-    crate::shared::with_shared(state, user, items)
+    }
 }
 
 /// The Snoozed list, paged the way every list is: by `before_ts`, then `limit`.

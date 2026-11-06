@@ -68,6 +68,9 @@ data class MailListAxes(
         // which is the parameter present and empty. The server reads an
         // absent one as every account, so the two cannot be collapsed.
         accounts?.let { items += "accounts=" + it.joinToString(",") }
+        // Review is listed from its own endpoint; a search typed into it
+        // names it with this flag, or it would search every other list
+        if (held) items += "quarantined=true"
         return items.joinToString("&")
     }
 }
