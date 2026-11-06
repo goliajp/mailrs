@@ -138,12 +138,12 @@ impl MailrsMcpService {
         let limit = params.limit.unwrap_or(20).min(100);
         let req = mailrs_core_api::method::conversation::SearchConversationsRequest {
             query: params.q,
-            category: None,
-            limit,
-            folder: None,
-            unread: None,
-            starred: None,
-            archived: false,
+            // no list to scope to: an agent names the place with `in:`
+            filter: mailrs_core_api::types::ConversationFilter {
+                limit,
+                ..Default::default()
+            },
+            quarantined: false,
         };
         let resp = self
             .state

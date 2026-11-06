@@ -1,5 +1,6 @@
 //! The swipe setting's request fixture: the same contract as
-//! `request_contract.rs`, whose `every_fixture_has_a_test` lists it too.
+//! `request_contract.rs`; `every_fixture_has_a_test` in
+//! `request_contract_registry.rs` lists it too.
 
 mod common;
 use common::parse;

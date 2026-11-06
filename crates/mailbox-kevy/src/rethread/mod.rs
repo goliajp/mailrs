@@ -185,9 +185,7 @@ impl KevyMailboxStore {
         let sender = wire["sender"].as_str().unwrap_or("").to_string();
         // Read or not is this reader's, off their own row: the shared blob
         // is every holder's and its `flags` is not anyone's.
-        let seen = self
-            .user_message_facts(user, mid)?
-            .is_some_and(|f| f.flags & 1 != 0);
+        let flags = self.user_message_facts(user, mid)?.map_or(0, |f| f.flags);
         wire["thread_id"] = serde_json::Value::String(new_tid.clone());
         if let Ok(payload) = serde_json::to_vec(&wire) {
             store.set(blob_key.as_bytes(), &payload)?;
@@ -247,6 +245,7 @@ impl KevyMailboxStore {
         }
         // create the new thread's aggregate
         let is_own = crate::thread_row::senders_csv_contains_user(&sender, user);
+        let state = crate::messages::State::of(flags, is_own);
         // Which mailbox this conversation arrived at follows the thread
         // it was split from: rethreading moves messages between
         // conversations, never between accounts.
@@ -260,7 +259,7 @@ impl KevyMailboxStore {
             subject,
             senders_csv: sender,
             count: 1,
-            unread_count: if !is_own && !seen { 1 } else { 0 },
+            unread_count: i64::from(state.unread()),
             latest_date: date,
             latest_preview: String::new(),
             category: "inbox".to_string(),
@@ -271,7 +270,7 @@ impl KevyMailboxStore {
             archived: false,
             quarantined: false,
             has_action: false,
-            sent_count: if is_own { 1 } else { 0 },
+            sent_count: i64::from(state.sent()),
             starred: false,
             snoozed_until: 0,
             trashed_at: 0,
@@ -344,14 +343,11 @@ impl KevyMailboxStore {
                 continue;
             };
             count += 1;
-            let seen = facts.flags & 1 != 0;
             let sender = w["sender"].as_str().unwrap_or("");
             let is_own = crate::thread_row::senders_csv_contains_user(sender, user);
-            if is_own {
-                sent += 1;
-            } else if !seen {
-                unread += 1;
-            }
+            let state = crate::messages::State::of(facts.flags, is_own);
+            sent += i64::from(state.sent());
+            unread += i64::from(state.unread());
         }
         Ok(Some((count, unread, sent)))
     }

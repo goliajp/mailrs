@@ -519,7 +519,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Search conversations, with operators */
+        /**
+         * Search conversations, with operators
+         * @description Scoped to the list the search is typed into: takes every parameter GET /api/conversations takes (except before and cursor; search answers in one page) and reads them the same way, so a search from Pinned, Snoozed, a section, Assigned to me, the Trash or a label finds only that list's conversations. An in: operator names the place instead. With no list parameter: every folder, Junk included, with archived, held and trashed conversations left out.
+         */
         get: operations["searchConversations"];
         put?: never;
         post?: never;
@@ -4576,8 +4579,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Mark every unread conversation read, mailbox-wide or for one list
-         * @description With none of `folder`, `unread`, `starred` set and `archived` false, marks the whole mailbox. With any of them, marks exactly the list `GET /api/conversations` would show for the same query (`category`, `section` and `include_quarantined` then also narrow it). Takes the conversation list's query string; `limit`, `before` and `accounts` are parsed but ignored.
+         * Mark read every conversation of one list, or of the whole mailbox
+         * @description Takes the query string GET /api/conversations takes and marks read every conversation that list shows, all pages of it. `quarantined=true` marks the Review list instead. With no list named (none of `folder`, `archived`, `trashed`, `label`, `unread`, `starred`, `pinned`, `snoozed`, `section`, `assigned_to_me`) it marks the whole mailbox, held conversations left alone; `category`, `include_quarantined`, `accounts` and `followup_due_by` refine a list and do not name one. `limit`, `before` and `cursor` are not read.
          */
         post: operations["markAllConversationsRead"];
         delete?: never;
@@ -9759,8 +9762,36 @@ export interface operations {
                 /** @description Search query (max 500 chars). Words are matched in subjects, senders, bodies and attachment text. Operators: from:, to:, subject:, has:attachment, after:YYYY-MM-DD, before:YYYY-MM-DD, label:<name>, is:unread|read|starred|pinned, in:inbox|archive|junk|trash|sent|starred|anywhere (in: replaces the folder the search was made from). A leading - negates an operator; quotes keep a value with spaces together. Anything else is searched as text. */
                 q: string;
                 limit?: number;
+                /** @description Filter by category (personal, notification, promotion, spam, scam, general) */
                 category?: string;
+                /** @description Comma-separated domain filter */
                 domains?: string;
+                /** @description If true, show archived conversations */
+                archived?: boolean;
+                /** @description List the Trash instead; archived and folder are ignored */
+                trashed?: boolean;
+                /** @description One label's conversations, archived ones included; folder and archived are ignored */
+                label?: string;
+                /** @description Filter by folder name */
+                folder?: string;
+                /** @description Show conversations held as suspected fraud in place, marked. Default false; the exclusion lives in the query shape, so held conversations are out of the totals too. */
+                include_quarantined?: boolean;
+                /** @description Only conversations with unread mail */
+                unread?: boolean;
+                /** @description Only starred conversations */
+                starred?: boolean;
+                /** @description Only pinned conversations, across folders */
+                pinned?: boolean;
+                /** @description Only conversations snoozed until a time still to come, across folders */
+                snoozed?: boolean;
+                /** @description One section of the sectioned inbox. awaiting spans the Inbox and Sent, is ordered by awaiting_since and pages by before against it; the others are the live list in that section, newest first. */
+                section?: "reply" | "awaiting" | "new" | "feed" | "other";
+                /** @description With section=awaiting: only conversations waiting since this epoch second or earlier. */
+                followup_due_by?: number;
+                /** @description Only the reader's team conversations assigned to the reader, newest first. */
+                assigned_to_me?: boolean;
+                /** @description Search the conversations held for review (the Review list, GET /api/quarantine) instead; the list parameters are not read. */
+                quarantined?: boolean;
             };
             header?: never;
             path?: never;
@@ -13302,20 +13333,36 @@ export interface operations {
     markAllConversationsRead: {
         parameters: {
             query?: {
-                /** @description Folder of the list to mark */
-                folder?: string;
-                /** @description Unread filter of the list to mark */
-                unread?: boolean;
-                /** @description Starred filter of the list to mark */
-                starred?: boolean;
-                /** @description Mark the archived list */
-                archived?: boolean;
-                /** @description Category filter; applies only when the request is scoped */
+                /** @description Filter by category (personal, notification, promotion, spam, scam, general) */
                 category?: string;
-                /** @description Section filter; applies only when the request is scoped */
-                section?: string;
-                /** @description Include conversations held as suspected fraud; applies only when the request is scoped */
+                /** @description Comma-separated domain filter */
+                domains?: string;
+                /** @description If true, show archived conversations */
+                archived?: boolean;
+                /** @description List the Trash instead; archived and folder are ignored */
+                trashed?: boolean;
+                /** @description One label's conversations, archived ones included; folder and archived are ignored */
+                label?: string;
+                /** @description Filter by folder name */
+                folder?: string;
+                /** @description Show conversations held as suspected fraud in place, marked. Default false; the exclusion lives in the query shape, so held conversations are out of the totals too. */
                 include_quarantined?: boolean;
+                /** @description Only conversations with unread mail */
+                unread?: boolean;
+                /** @description Only starred conversations */
+                starred?: boolean;
+                /** @description Only pinned conversations, across folders */
+                pinned?: boolean;
+                /** @description Only conversations snoozed until a time still to come, across folders */
+                snoozed?: boolean;
+                /** @description One section of the sectioned inbox. awaiting spans the Inbox and Sent, is ordered by awaiting_since and pages by before against it; the others are the live list in that section, newest first. */
+                section?: "reply" | "awaiting" | "new" | "feed" | "other";
+                /** @description With section=awaiting: only conversations waiting since this epoch second or earlier. */
+                followup_due_by?: number;
+                /** @description Only the reader's team conversations assigned to the reader, newest first. */
+                assigned_to_me?: boolean;
+                /** @description Mark the conversations held for review (the Review list, GET /api/quarantine) instead; the list parameters are not read. */
+                quarantined?: boolean;
             };
             header?: never;
             path?: never;

@@ -17,52 +17,75 @@
 //! forced by the engine, and this is the single function that produces one, so a row's group can
 //! never disagree with the row.
 //!
-//! **Why three states and not two flags.** From `message_arrival.rs`, the
-//! three counters are not three independent sums:
+//! **Why one state and not two flags.** The three counters are not three
+//! independent sums:
 //!
 //! ```text
-//!   count        += 1                       always
+//!   count        += 1  always
 //!   sent_count   += 1  if is_own
-//!   unread_count += 1  if unread && !is_own
+//!   unread_count += 1  if not seen
 //! ```
 //!
-//! A message you sent is **never unread for you**. Encoding seen-ness and
-//! ownership as two independent flags would make four groups and leave that
-//! rule to be re-applied at every read; one three-valued state makes three
-//! groups and keeps the rule here.
+//! and one state per row, with a group for each combination a reader asks
+//! about, keeps the rule in this file instead of at every read.
+//!
+//! **Your own message counts as unread only when you marked it so.** A copy
+//! of what you sent arrives seen (ingest writes `\Seen` on it), so it lights
+//! no badge. Marking it unread afterwards is the reader's own statement, and
+//! as in Gmail any conversation can be marked unread, including one holding
+//! only your own mail: the row then counts one unread message, as the SQL
+//! core counts every unseen one. It used to count an own message as never
+//! unread, so a conversation of only your own mail marked unread sat in the
+//! Unread list with nothing unread in it.
 
 use mailrs_mailbox::types::FLAG_SEEN;
 
-/// Which of the three the row counts toward.
+/// Which group the row counts toward.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum State {
-    /// Not seen, and not the user's own send — the only thing `unread_count`
-    /// counts.
+    /// Not seen, and not the user's own send.
     Unread,
     /// Seen, and not the user's own send.
     Read,
-    /// Sent by this user. Counts toward `sent_count`, and never toward
-    /// `unread_count` however the `\Seen` bit reads.
+    /// Sent by this user, and seen. Counts toward `sent_count` only.
     Own,
+    /// Sent by this user, and marked unread since. Counts toward both
+    /// `sent_count` and `unread_count`.
+    OwnUnread,
 }
 
 impl State {
+    /// Every state, for a reader adding up a thread's groups.
+    pub(crate) const ALL: [State; 4] = [State::Unread, State::Read, State::Own, State::OwnUnread];
+
     /// The one place the rule lives.
     pub(crate) fn of(flags: u32, own: bool) -> State {
         match (own, flags & FLAG_SEEN != 0) {
-            (true, _) => State::Own,
+            (true, true) => State::Own,
+            (true, false) => State::OwnUnread,
             (false, true) => State::Read,
             (false, false) => State::Unread,
         }
     }
 
-    /// The byte that goes in the key. Short because it is stored on every
+    /// Whether `unread_count` counts the row.
+    pub(crate) fn unread(self) -> bool {
+        matches!(self, State::Unread | State::OwnUnread)
+    }
+
+    /// Whether `sent_count` counts the row.
+    pub(crate) fn sent(self) -> bool {
+        matches!(self, State::Own | State::OwnUnread)
+    }
+
+    /// The bytes that go in the key. Short because they are stored on every
     /// per-user message row and repeated in every group name.
     pub(crate) fn tag(self) -> &'static str {
         match self {
             State::Unread => "u",
             State::Read => "r",
             State::Own => "o",
+            State::OwnUnread => "ou",
         }
     }
 }
@@ -100,39 +123,35 @@ pub(crate) fn group_key(user: &str, tid: &str, flags: u32, own: bool) -> String 
 
 /// One thread's group name for a given state — what a reader asks for.
 ///
-/// `unread_count = count(Unread)`, `sent_count = count(Own)`,
-/// `count = count(Unread) + count(Read) + count(Own)`.
+/// `unread_count` adds the states [`State::unread`] holds for,
+/// `sent_count` those [`State::sent`] holds for, `count` all four.
 pub(crate) fn group_name(user: &str, tid: &str, state: State) -> String {
     format!("{user}\0{tid}\0{}", state.tag())
 }
 
-/// All three, for a test that asserts a writer can only produce these.
+/// All four, for a test that asserts a writer can only produce these.
 #[cfg(test)]
-pub(crate) fn group_names(user: &str, tid: &str) -> [String; 3] {
-    [
-        group_name(user, tid, State::Unread),
-        group_name(user, tid, State::Read),
-        group_name(user, tid, State::Own),
-    ]
+pub(crate) fn group_names(user: &str, tid: &str) -> [String; 4] {
+    State::ALL.map(|st| group_name(user, tid, st))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// The rule this module exists to hold: your own message is not unread,
-    /// whatever its `\Seen` bit says.
-    ///
-    /// Both directions matter. An unread-looking own message is the case
-    /// that inflates a badge nobody can clear — the user cannot "read" a
-    /// message they sent — and it is exactly what `message_arrival` guards
-    /// with `unread && !is_own`.
+    /// The `\Seen` bit decides whether a row is unread, yours or not, and
+    /// ownership whether it is sent. An own message is unread only once the
+    /// reader cleared the bit: ingest files it seen.
     #[test]
-    fn your_own_message_is_never_unread() {
-        assert_eq!(State::of(0, true), State::Own);
+    fn your_own_message_is_unread_once_marked_so() {
         assert_eq!(State::of(FLAG_SEEN, true), State::Own);
+        assert_eq!(State::of(0, true), State::OwnUnread);
         assert_eq!(State::of(0, false), State::Unread);
         assert_eq!(State::of(FLAG_SEEN, false), State::Read);
+        let unread: Vec<State> = State::ALL.into_iter().filter(|s| s.unread()).collect();
+        let sent: Vec<State> = State::ALL.into_iter().filter(|s| s.sent()).collect();
+        assert_eq!(unread, [State::Unread, State::OwnUnread]);
+        assert_eq!(sent, [State::Own, State::OwnUnread]);
     }
 
     /// Flags other than `\Seen` do not move a row between groups. A starred
@@ -144,12 +163,12 @@ mod tests {
         assert_eq!(State::of(other | FLAG_SEEN, false), State::Read);
     }
 
-    /// The three names a reader asks for are the three a writer can produce,
+    /// The four names a reader asks for are the four a writer can produce,
     /// or a counter silently reads zero from a group nothing writes.
     #[test]
     fn every_state_has_a_name_a_reader_asks_for() {
         let names = group_names("u@x.com", "t1");
-        for (flags, own) in [(0, false), (FLAG_SEEN, false), (0, true)] {
+        for (flags, own) in [(0, false), (FLAG_SEEN, false), (FLAG_SEEN, true), (0, true)] {
             let key = group_key("u@x.com", "t1", flags, own);
             assert!(names.contains(&key), "{key:?} is not one of {names:?}");
         }
@@ -210,16 +229,26 @@ mod engine_tests {
                 .map(|s| s.count)
                 .unwrap_or(0)
         };
-        let (u, r, o) = (g(State::Unread), g(State::Read), g(State::Own));
-        (u + r + o, u, o)
+        let (mut total, mut unread, mut sent) = (0, 0, 0);
+        for st in State::ALL {
+            let n = g(st);
+            total += n;
+            if st.unread() {
+                unread += n;
+            }
+            if st.sent() {
+                sent += n;
+            }
+        }
+        (total, unread, sent)
     }
 
     /// The engine's three counts are the three the hand-maintained row
     /// carries — that agreement is the whole case for the change.
     ///
-    /// Deliberately uneven: two unread, one read, one the user's own, and
-    /// the own one left *unseen* so a rule that forgot "your own message is
-    /// never unread" would show up as an unread count of three.
+    /// Deliberately uneven: two unread, one read, one own send filed seen
+    /// and one the reader marked unread, which counts as both sent and
+    /// unread.
     #[test]
     fn the_engine_counts_what_the_row_says_it_should() {
         let s = store();
@@ -242,13 +271,17 @@ mod engine_tests {
         put(&s, u, tid, "m1", 0, "other@z.com");
         put(&s, u, tid, "m2", 0, "other@z.com");
         put(&s, u, tid, "m3", FLAG_SEEN, "other@z.com");
-        put(&s, u, tid, "m4", 0, "u@x.com");
+        put(&s, u, tid, "m4", FLAG_SEEN, "u@x.com");
+        put(&s, u, tid, "m5", 0, "u@x.com");
 
-        assert_eq!(counted(&s, u, tid), (4, 2, 1));
+        assert_eq!(counted(&s, u, tid), (5, 3, 2));
 
         // Reading one moves it between groups, and the total does not move.
         s.mark_user_message_seen(u, "m1").unwrap();
-        assert_eq!(counted(&s, u, tid), (4, 1, 1));
+        assert_eq!(counted(&s, u, tid), (5, 2, 2));
+        // reading your own stays sent
+        s.mark_user_message_seen(u, "m5").unwrap();
+        assert_eq!(counted(&s, u, tid), (5, 1, 2));
 
         // Deleting the thread takes its rows, so its groups empty out.
         assert!(

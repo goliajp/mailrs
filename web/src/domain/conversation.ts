@@ -34,8 +34,7 @@ export type Category =
 
 /**
  * The list-query filter — canonical shape shared by every conversation
- * list read. `useConversationList(filter)` keys its cache on this
- * object after canonicalization.
+ * list read. The list caches key on this object after canonicalization.
  */
 export type ConversationFilter = {
   /**
@@ -176,6 +175,10 @@ export const FLAG_FLAGGED = 1 << 7
  * Turn a partial filter into the stable object used as a React-Query
  * key. Ordering + defaults matter — two callers with equivalent
  * intent MUST produce the same key. See RFC §2.4.
+ *
+ * Every axis a list is scoped by is here: two lists that differ only in a
+ * field left out share one cache line, and `axesOfCacheKey` reads a line's
+ * axes back off this object to decide which rows a cache update keeps.
  */
 export function canonicaliseFilter(f: ConversationFilter | undefined): {
   /** `null` = every account; a list (even empty) = narrowed to it. */
@@ -186,11 +189,15 @@ export function canonicaliseFilter(f: ConversationFilter | undefined): {
   readonly category: Category | null
   readonly domains: readonly string[]
   readonly folder: Folder | null
+  readonly followupDueBy: null | number
   readonly includeQuarantined: boolean
   readonly label: null | string
   readonly limit: number
+  readonly pinned: boolean | null
   readonly quarantined: boolean
   readonly query: null | string
+  readonly section: null | string
+  readonly snoozed: boolean
   readonly starred: boolean | null
   readonly trashed: boolean
   readonly unread: boolean | null
@@ -207,11 +214,15 @@ export function canonicaliseFilter(f: ConversationFilter | undefined): {
     category: f?.category ?? null,
     domains,
     folder: f?.folder ?? null,
+    followupDueBy: f?.followupDueBy ?? null,
     includeQuarantined: f?.includeQuarantined ?? false,
     label: f?.label ?? null,
     limit: f?.limit ?? 50,
+    pinned: f?.pinned ?? null,
     quarantined: f?.quarantined ?? false,
     query: f?.query ?? null,
+    section: f?.section ?? null,
+    snoozed: f?.snoozed ?? false,
     starred: f?.starred ?? null,
     trashed: f?.trashed ?? false,
     unread: f?.unread ?? null,

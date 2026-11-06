@@ -32,15 +32,24 @@ impl KevyMailboxStore {
                 .ok()
                 .map(|s| s.count)
         };
-        let (unread, read, own) = (g(State::Unread)?, g(State::Read)?, g(State::Own)?);
-        let total = unread + read + own;
-        // A thread the index has never seen answers zero on all three, and
+        let (mut total, mut unread, mut sent) = (0u64, 0u64, 0u64);
+        for st in State::ALL {
+            let n = g(st)?;
+            total += n;
+            if st.unread() {
+                unread += n;
+            }
+            if st.sent() {
+                sent += n;
+            }
+        }
+        // A thread the index has never seen answers zero on every group, and
         // zero is also what an empty thread answers. Refusing to speak for
         // a thread with no indexed rows is what keeps a page from showing
         // an un-backfilled conversation as empty.
         match total {
             0 => None,
-            _ => Some((total as i64, unread as i64, own as i64)),
+            _ => Some((total as i64, unread as i64, sent as i64)),
         }
     }
 }
@@ -76,18 +85,21 @@ mod read_tests {
         assert_eq!(s.counts_from_index(u, "never-existed"), None);
     }
 
-    /// Own sends count toward sent and never toward unread.
+    /// Own sends count toward sent, and toward unread only once the reader
+    /// marked them unread.
     #[test]
     fn the_three_numbers_are_the_three_the_row_carries() {
         let s = store();
         let u = "u@x.com";
-        for _ in 0..3 {
+        for _ in 0..4 {
             arrive(&s, "t1", u, true, false);
         }
         put(&s, u, "t1", "m1", 0, "other@z.com");
         put(&s, u, "t1", "m2", 1, "other@z.com");
-        put(&s, u, "t1", "m3", 0, "u@x.com");
+        put(&s, u, "t1", "m3", 1, "u@x.com");
         assert_eq!(s.counts_from_index(u, "t1"), Some((3, 1, 1)));
+        put(&s, u, "t1", "m4", 0, "u@x.com");
+        assert_eq!(s.counts_from_index(u, "t1"), Some((4, 2, 2)));
     }
 }
 

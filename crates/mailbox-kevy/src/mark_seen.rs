@@ -141,7 +141,7 @@ impl KevyMailboxStore {
     /// Three call sites used to hset `flags` directly. They are the whole
     /// reason this is a function rather than three lines repeated: every
     /// writer maintains the row.
-    fn write_flags(
+    pub(crate) fn write_flags(
         &self,
         user: &str,
         message_id: &str,
@@ -343,7 +343,7 @@ mod tests {
         s.set_user_message_uid_if_unset(u, "m2", 9).unwrap();
         check("m2", "set_user_message_uid_if_unset");
 
-        // The user's own send: never unread, whatever the seen bit says.
+        // The user's own send, marked unread: own, and unread.
         s.upsert_user_message(
             u,
             "t1",
@@ -364,8 +364,14 @@ mod tests {
             "a message whose sender is the user is that user's own"
         );
         assert!(
+            group_on_row(&s, u, "m3").unwrap().ends_with("\0ou"),
+            "an unseen own send counts as sent and as unread"
+        );
+        s.mark_user_message_seen(u, "m3").unwrap();
+        check("m3", "mark_user_message_seen of an own send");
+        assert!(
             group_on_row(&s, u, "m3").unwrap().ends_with("\0o"),
-            "an own send belongs to the own group even while unseen"
+            "a seen own send counts as sent only"
         );
     }
 

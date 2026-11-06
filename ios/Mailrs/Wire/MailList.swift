@@ -32,6 +32,8 @@ struct MailListAxes: Equatable, Sendable {
     var section: String?
     /// The team conversations a teammate assigned to the reader.
     var assignedToMe: Bool = false
+    /// Review: listed from `/api/quarantine`, so only its search reads this.
+    var held: Bool = false
 }
 
 extension MailListAxes {
@@ -67,6 +69,8 @@ extension MailListAxes {
         if let accounts {
             items.append(URLQueryItem(name: "accounts", value: accounts.joined(separator: ",")))
         }
+        // a search typed into Review names it, or it searches every other list
+        if held { items.append(URLQueryItem(name: "quarantined", value: "true")) }
         return items
     }
 
@@ -220,8 +224,9 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
         case .snoozed: MailListAxes(snoozed: true)
         case .all: MailListAxes(folder: "all")
         case .trash: MailListAxes(trashed: true)
-        // Unused: Review reads `/api/quarantine`, see `Session`.
-        case .review: MailListAxes()
+        // The list reads `/api/quarantine`, see `Session`; only its search
+        // reads these axes.
+        case .review: MailListAxes(held: true)
         // Unused: the label's id is `Session.activeLabel`'s.
         case .label: MailListAxes()
         // Unused: Send never queries /api/conversations. The axes exist
