@@ -20,6 +20,10 @@ use crate::config::Config;
 /// Said wherever the state is shown when no external channel is set.
 pub const NO_EXTERNAL_WARNING: &str = "no external notification channel is configured: if mailrs itself is down, nobody is alerted, and a whole-host failure goes unnoticed";
 
+/// The notification log's result for an own-path message the sender's
+/// heartbeat lists; the admin page recognises it by this exact text.
+pub const ACCEPTED_250: &str = "accepted by the receiving server (250), per the sender's heartbeat";
+
 /// Rules whose alert is about the own path itself.
 const SENDING_PATH: &[&str] = &[
     "outbound_stuck",
@@ -138,13 +142,7 @@ impl Dispatcher {
             .partition(|p| ids.contains(&p.msg.id));
         self.pending = left;
         for p in done {
-            self.log(
-                &p.msg.id,
-                "own",
-                "accepted by the receiving server (250), per the sender's heartbeat".into(),
-                &p.msg.summary(),
-                now,
-            );
+            self.log(&p.msg.id, "own", ACCEPTED_250.into(), &p.msg.summary(), now);
         }
     }
 

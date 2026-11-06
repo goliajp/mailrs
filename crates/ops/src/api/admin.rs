@@ -166,7 +166,11 @@ pub(super) async fn maintenance(
             app.store
                 .maintenance_event("end", m.until, &req.reason, &by, now)
                 .map_err(internal)?;
-            app.dispatcher.lock().await.maintenance_ended(now).await;
+            app.dispatcher
+                .lock()
+                .await
+                .maintenance_ended(m.started_at, now)
+                .await;
         }
         (other, _) => {
             return Err(bad(format!(

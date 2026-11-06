@@ -11,6 +11,7 @@
 
 mod alerts;
 mod control;
+mod held;
 mod log;
 mod reports;
 
@@ -19,6 +20,7 @@ use std::sync::{Mutex, MutexGuard};
 
 pub use alerts::Transition;
 pub use control::{Maintenance, Silence};
+pub use held::HeldRow;
 pub use log::{CycleRow, NotificationRow};
 pub use reports::{StartRow, StoredReport};
 
@@ -70,6 +72,18 @@ CREATE TABLE IF NOT EXISTS maintenance_state_events (
     by TEXT NOT NULL,
     at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS maintenance_held_events (
+    id INTEGER PRIMARY KEY,
+    rule TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    object TEXT NOT NULL,
+    value TEXT NOT NULL,
+    threshold TEXT NOT NULL,
+    since INTEGER NOT NULL,
+    at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS maintenance_held_at ON maintenance_held_events (at);
 CREATE TABLE IF NOT EXISTS cycle_log (
     id INTEGER PRIMARY KEY,
     started_at INTEGER NOT NULL,
