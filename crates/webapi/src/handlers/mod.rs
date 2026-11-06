@@ -11,6 +11,7 @@ pub mod admin_ops_daemon;
 pub mod admin_outbound_pause;
 pub mod admin_ownerless;
 pub mod admin_password_clear;
+pub mod admin_push_stats;
 pub mod ai;
 pub mod app_passwords;
 pub mod apps_keys;
