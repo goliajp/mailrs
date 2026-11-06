@@ -504,7 +504,7 @@
     <string name="app_passwords_web_hint">新しいパスワードは Web で一度だけ表示されます。メールソフトにコピーしてください</string>
     <string name="app_passwords_never_used">未使用</string>
     <string name="app_passwords_last_used">最終使用 %1$s</string>
-    <string name="vacation_enabled">不在時に自動返信する</string>
+    <string name="vacation_enabled">不在通知をオンにする</string>
     <string name="vacation_needs_text">先に Web で返信文を書いてください</string>
     <string name="vacation_interval">同じ差出人には %1$d 日に 1 回だけ返信します</string>
     <string name="masked_for_site">どのサイト用か</string>
