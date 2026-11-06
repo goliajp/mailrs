@@ -79,3 +79,4 @@ GET /v1/admin/maintenance:sieve-survey | read-only: which stored Sieve scripts r
 GET /v1/admin/maintenance:usage-drift | read-only: each account's usage counter against the bytes its maildir takes, the accounts that differ and those the backfill would raise; numbers and account names only
 GET /v1/admin/maintenance:template-footprint | read-only: how many report fingerprints and findable index rows are stored, the bytes their fields hold, and that per ten thousand messages; for sizing on a copy
 POST /v1/admin/debug:run-periodic | test-build-only (measure-hooks feature, not in release images): starts one round of a periodic task on demand to measure its effect on serving latency
+POST /v1/admin/maintenance:settle-own-unseen | operator, run by hand before a group rewrite: sets own sent mail without \Seen to seen (dry run by default), keeping the newest own message unseen where the reader marked a sent-only conversation unread; counts only

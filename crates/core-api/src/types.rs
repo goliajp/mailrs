@@ -261,10 +261,11 @@ impl From<mailrs_mailbox::types::ConversationSummary> for ConversationSummaryWir
 ///
 /// Mirrors the 10-arg signature in
 /// `crates/mailbox/src/pg/thread_ops/query.rs:18`. All filters are
-/// optional except `limit`; `user` is implicit in the path.
+/// optional; `user` is implicit in the path.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ConversationFilter {
-    /// Max items to return.
+    /// Max items to return; 0, or absent, is each endpoint's own default.
+    #[serde(default)]
     pub limit: u32,
     /// Page cursor: epoch-seconds, returns threads with `last_date < before_ts`.
     ///

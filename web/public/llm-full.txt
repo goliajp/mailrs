@@ -842,6 +842,17 @@ curl "https://mail.golia.ai/api/conversations/search?q=invoice&limit=10" \
 
 Same response format as list conversations. `GET /api/conversations` itself does not search: it has no `q` parameter and ignores one.
 
+The search is scoped to a list by the same parameters `GET /api/conversations` takes, read the same way: `?pinned=true&q=invoice` finds the pinned conversations that match, and so on for `folder`, `category`, `archived`, `trashed`, `label`, `snoozed`, `section`, `assigned_to_me`, `unread`, `starred`, `include_quarantined` and `accounts` (`before` and `cursor` are not read: a search answers in one page). `quarantined=true` searches the conversations held for review instead. With none of them it searches every folder, Junk included, with archived conversations, held ones and the Trash left out. An `in:` operator in `q` replaces the list. The MCP `search_conversations` tool takes no list: an agent names the place with `in:`.
+
+### Mark a List Read
+
+```
+curl -X POST "https://mail.golia.ai/api/conversations/mark-all-read?pinned=true" \
+  -H "Authorization: Bearer mlrs_..."
+```
+
+Marks read every conversation the list named by the query string shows — the same parameters `GET /api/conversations` takes, read the same way, all pages of it — and answers `{"success": true, "flipped": n}`. `quarantined=true` marks the conversations held for review instead. With no list named (none of `folder`, `archived`, `trashed`, `label`, `unread`, `starred`, `pinned`, `snoozed`, `section`, `assigned_to_me`) it marks the whole mailbox, held mail left alone. The MCP `mark_all_read` tool takes no list and marks the whole mailbox.
+
 `q` takes operators besides words, and a query can be operators only:
 
 - `from:alice`, `to:bob`, `subject:"q3 plan"` -- a sender, a To recipient, or the subject contains the value

@@ -60,43 +60,75 @@ pub struct ConversationsByIdsResponse {
 
 // ── search_conversations (Rock 4) ───────────────────────────────────
 
-/// Request body for `GET /v1/users/{user}/conversations:search?q=...`.
+/// Request body for `POST /v1/users/{user}/conversations:search`.
 ///
 /// Served by the kevy text index since 2026-07-20; the Meili sentence
 /// this used to carry described a service that no longer exists.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SearchConversationsRequest {
     /// Free-text query string.
     pub query: String,
-    /// Optional category filter.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub category: Option<String>,
-    /// Max items to return.
-    #[serde(default = "default_search_limit")]
-    pub limit: u32,
-    /// The tab the user is looking at, in the same vocabulary
-    /// [`ConversationFilter::folder`] uses.
+    /// The list the search was issued from, in the type the list itself
+    /// is asked with, so the two cannot be told different things.
     ///
-    /// Search used to ignore it, so searching from Inbox returned Junk
-    /// and Sent threads the Inbox itself would never show. A result you
-    /// cannot reach from where you are standing is the same defect as
-    /// an unread count with no view behind it.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub folder: Option<String>,
-    /// Restrict to unread threads, as the Unread tab does.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub unread: Option<bool>,
-    /// Restrict to starred threads, as the Starred tab does.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub starred: Option<bool>,
-    /// `true` searches archived threads instead of hiding them, the
-    /// same way the Archived tab reads the list.
-    #[serde(default)]
-    pub archived: bool,
+    /// Search used to take five of these axes and drop the rest, so a
+    /// search typed into Pinned, Snoozed, the Trash or a label answered
+    /// from every list. Unless the query names a place with `in:`, a
+    /// result is a conversation that list shows. `limit` caps the
+    /// results (0 is [`DEFAULT_SEARCH_LIMIT`]); search answers in one
+    /// page, so `before_ts` and `after_cursor` are not read.
+    #[serde(flatten)]
+    pub filter: ConversationFilter,
+    /// Search the conversations held for review: the Review list, which
+    /// is its own route rather than an axis of the filter.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub quarantined: bool,
 }
 
-fn default_search_limit() -> u32 {
-    50
+/// How many results a search returns when the request leaves it open.
+pub const DEFAULT_SEARCH_LIMIT: usize = 50;
+
+/// How many conversations of a list of its own a search reads.
+///
+/// Such a list is read whole to scope the search, so a conversation past
+/// this many in it is not found from it.
+pub const LIST_SCOPE_CAP: usize = 10_000;
+
+impl SearchConversationsRequest {
+    /// The most results to return.
+    pub fn limit(&self) -> usize {
+        match self.filter.limit {
+            0 => DEFAULT_SEARCH_LIMIT,
+            n => n as usize,
+        }
+    }
+
+    /// Whether the list searched is one read off an index of its own —
+    /// Review, a label, Pinned, Snoozed, the Trash, Assigned to me or a
+    /// section — rather than a folder's list.
+    ///
+    /// Such a list is usually a small part of the mailbox, so the best
+    /// text matches of the whole mailbox can all fall outside it.
+    pub fn reads_a_list_of_its_own(&self) -> bool {
+        let f = &self.filter;
+        self.quarantined
+            || f.label.is_some()
+            || f.pinned == Some(true)
+            || f.snoozed == Some(true)
+            || f.trashed
+            || f.assigned_to_me
+            || f.section.is_some()
+    }
+
+    /// How many text matches to ask the index for before the list's scope
+    /// drops some: eight pages for a folder's list, which most matches
+    /// are in, and as many as the scope reads for a list of its own.
+    pub fn text_hits_wanted(&self) -> usize {
+        match self.reads_a_list_of_its_own() {
+            true => LIST_SCOPE_CAP,
+            false => self.limit().saturating_mul(8),
+        }
+    }
 }
 
 /// Response body.
@@ -166,7 +198,50 @@ mod tests {
     fn search_limit_defaults_to_50() {
         let s = r#"{"query":"hello"}"#;
         let req: SearchConversationsRequest = serde_json::from_str(s).unwrap();
-        assert_eq!(req.limit, 50);
+        assert_eq!(req.limit(), 50);
+    }
+
+    /// A body written before the list's axes were added asks the same
+    /// question it always did.
+    #[test]
+    fn an_old_search_body_reads_as_the_same_scope() {
+        let s = r#"{"query":"hi","category":"bulk","limit":7,"folder":"Inbox","unread":true,"starred":true,"archived":true}"#;
+        let req: SearchConversationsRequest = serde_json::from_str(s).unwrap();
+        assert_eq!(req.limit(), 7);
+        assert_eq!(req.filter.folder.as_deref(), Some("Inbox"));
+        assert_eq!(req.filter.category.as_deref(), Some("bulk"));
+        assert_eq!(req.filter.unread, Some(true));
+        assert_eq!(req.filter.starred, Some(true));
+        assert!(req.filter.archived);
+        assert!(!req.filter.trashed && !req.filter.assigned_to_me && !req.quarantined);
+        assert!(req.filter.label.is_none() && req.filter.section.is_none());
+        assert!(req.filter.pinned.is_none() && req.filter.snoozed.is_none());
+    }
+
+    #[test]
+    fn the_list_axes_travel_at_the_top_level() {
+        let req = SearchConversationsRequest {
+            query: "hi".into(),
+            filter: ConversationFilter {
+                pinned: Some(true),
+                label: Some("3".into()),
+                section: Some("awaiting".into()),
+                assigned_to_me: true,
+                trashed: true,
+                ..Default::default()
+            },
+            quarantined: false,
+        };
+        let v = serde_json::to_value(&req).unwrap();
+        assert_eq!(v["pinned"], true);
+        assert_eq!(v["label"], "3");
+        assert_eq!(v["section"], "awaiting");
+        assert_eq!(v["assigned_to_me"], true);
+        assert_eq!(v["trashed"], true);
+        assert!(v.get("quarantined").is_none());
+        let back: SearchConversationsRequest = serde_json::from_value(v).unwrap();
+        assert_eq!(back.filter.label.as_deref(), Some("3"));
+        assert!(back.filter.assigned_to_me && back.filter.trashed);
     }
 
     #[test]

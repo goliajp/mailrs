@@ -14,9 +14,9 @@ use super::intake::{Spools, envelope};
 use super::{ALICE, BOB, DOMAIN};
 
 const MINTED: &[&str] = &["id", "mailbox_id", "created_at", "modseq"];
-const GID: i64 = 2;
+pub(super) const GID: i64 = 2;
 
-const ORDER: &[u8] = b"From: Carol <carol@outside.example>\r\n\
+pub(super) const ORDER: &[u8] = b"From: Carol <carol@outside.example>\r\n\
 To: support@example.test\r\n\
 Subject: Where is my order\r\n\
 Message-ID: <order1@outside.example>\r\n\
@@ -24,7 +24,7 @@ Date: Tue, 5 Aug 2025 09:00:00 +0900\r\n\
 \r\n\
 It has not arrived.\r\n";
 
-fn team_group(kevy: &str) {
+pub(super) fn team_group(kevy: &str) {
     use mailrs_core_sidestate::families::email_groups::{GROUPS_KEY, members_key, set_shared};
     let mut conn = kevy_client::Connection::connect(kevy).expect("kevy");
     let row =

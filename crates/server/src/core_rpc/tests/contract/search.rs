@@ -1,6 +1,7 @@
 //! Search, words and operators: the two cores find the same conversations.
 
 use mailrs_core_api::method::conversation::SearchConversationsRequest;
+use mailrs_core_api::types::ConversationFilter;
 
 use super::ALICE;
 use super::harness::{Cores, Diffs};
@@ -40,12 +41,11 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
     {
         let req = SearchConversationsRequest {
             query: q.into(),
-            category: None,
-            limit: 20,
-            folder: None,
-            unread: None,
-            starred: None,
-            archived: false,
+            filter: ConversationFilter {
+                limit: 20,
+                ..Default::default()
+            },
+            quarantined: false,
         };
         // Which conversations a search finds must agree; their order is each
         // store's own ranking, and a text index and Postgres rank differently.
@@ -73,12 +73,11 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
     ] {
         let req = SearchConversationsRequest {
             query: q.into(),
-            category: None,
-            limit: 20,
-            folder: None,
-            unread: None,
-            starred: None,
-            archived: false,
+            filter: ConversationFilter {
+                limit: 20,
+                ..Default::default()
+            },
+            quarantined: false,
         };
         for (core, got) in [
             ("fastcore", fc.search_conversations(ALICE, &req).await),

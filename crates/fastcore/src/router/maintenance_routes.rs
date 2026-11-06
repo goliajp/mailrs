@@ -309,6 +309,12 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:group-backfill",
             post(group_backfill_route),
         )
+        // Own mail stored without `\Seen`, set seen once so that counting
+        // own unseen mail as unread turns nothing unread on its own.
+        .route(
+            "/v1/admin/maintenance:settle-own-unseen",
+            post(crate::maintenance::settle_own_unseen_route),
+        )
         // The two declared columns that decide which list a thread lands
         // in, against the engine's per-user counts. Read-only.
         .route("/v1/admin/maintenance:axis-shadow", post(axis_shadow_route))

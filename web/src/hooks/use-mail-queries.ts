@@ -2,6 +2,7 @@ import type { CategoryCount, ConversationSummary, ThreadMessage } from '@/lib/ty
 
 import { queryOptions, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 
+import { conversationListKey, LIST_PAGE_SIZE, listPath } from '@/lib/list-axes'
 import { mailKeys, type MailListFilters } from '@/lib/query-keys'
 import { conversationKeys } from '@/store/query-keys-v21'
 import { wireFetch } from '@/wire/client'
@@ -10,8 +11,6 @@ import {
   wireThreadDetailResponseSchema,
   wireThreadListResponseSchema,
 } from '@/wire/schemas/conversation'
-
-const PAGE_SIZE = 50
 
 /**
  * The thread query without its `enabled` gate, so a prefetch fills the
@@ -109,31 +108,9 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
   >({
     enabled,
     initialPageParam: undefined,
-    queryKey: conversationKeys.infinite({
-      accounts: filters.accounts,
-      archived: filters.archived,
-      assignedToMe: filters.assignedToMe,
-      category: filters.category as never,
-      domains: filters.domains,
-      folder: filters.folder as never,
-      includeQuarantined: filters.includeQuarantined,
-      quarantined: filters.quarantined,
-      // `query` MUST be in the key: listPath() switches to the
-      // /conversations/search endpoint when filters.query is set, but
-      // without query in the key a search reuses the non-search inbox
-      // cache and never refetches — search silently shows the inbox.
-      followupDueBy: filters.followupDueBy,
-      label: filters.label,
-      pinned: filters.pinned,
-      query: filters.query,
-      section: filters.section,
-      snoozed: filters.snoozed,
-      starred: filters.starred,
-      trashed: filters.trashed,
-      unread: filters.unread,
-    }),
+    queryKey: conversationListKey(filters),
     getNextPageParam: (lastPage) => {
-      if (lastPage.length < PAGE_SIZE) return undefined
+      if (lastPage.length < LIST_PAGE_SIZE) return undefined
       // search answers in one page; asking it again appends the same rows
       if (filters.query) return undefined
       // the server's place after the last row: the time it is ordered by
@@ -179,69 +156,4 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
 
 export function useThreadQuery(threadId: null | string, domains: string[]) {
   return useQuery({ enabled: !!threadId, ...threadQueryOptions(threadId, domains) })
-}
-
-/**
- * The `accounts=` parameter, or nothing.
- *
- * Sent whenever the filter is narrowed — including when it is narrowed
- * to nothing, which is `accounts=` with an empty value. The server
- * reads an absent parameter as every account and an empty one as none,
- * so the two cannot be collapsed here.
- */
-function accountsParam(filters: MailListFilters): string {
-  if (!filters.accounts) return ''
-  return `&accounts=${encodeURIComponent(filters.accounts.join(','))}`
-}
-
-// Build the API path for a paginated conversation list. Mirrors the old
-// chat.tsx `buildPath` but pure — no React state.
-function listPath(filters: MailListFilters, cursor?: string): string {
-  // The review list is its own endpoint — held mail is not a
-  // predicate over the ordinary lists, it is the thing they exclude.
-  // Paged like the rest: the client appends pages, so a route that
-  // ignored the cursor would show every held conversation twice.
-  if (filters.quarantined) {
-    let p = `/quarantine?limit=${PAGE_SIZE}`
-    if (cursor) p += `&cursor=${encodeURIComponent(cursor)}`
-    return p
-  }
-  if (filters.query) {
-    // Search carries the same axes the list does. It used to carry only
-    // `q`, so searching from Inbox returned Junk and Sent threads that
-    // tab would never show — a result you cannot reach from where you
-    // are standing.
-    let p = `/conversations/search?q=${encodeURIComponent(filters.query)}&limit=${PAGE_SIZE}`
-    if (filters.category) p += `&category=${encodeURIComponent(filters.category)}`
-    if (filters.domains && filters.domains.length > 0) {
-      p += `&domains=${encodeURIComponent(filters.domains.join(','))}`
-    }
-    if (filters.folder) p += `&folder=${encodeURIComponent(filters.folder)}`
-    if (filters.unread) p += '&unread=true'
-    if (filters.starred) p += '&starred=true'
-    if (filters.archived) p += '&archived=true'
-    if (filters.assignedToMe) p += '&assigned_to_me=true'
-    if (filters.includeQuarantined) p += '&include_quarantined=1'
-    p += accountsParam(filters)
-    return p
-  }
-  let p = `/conversations?limit=${PAGE_SIZE}`
-  if (cursor) p += `&cursor=${encodeURIComponent(cursor)}`
-  if (filters.trashed) p += '&trashed=true'
-  if (filters.label) p += `&label=${encodeURIComponent(filters.label)}`
-  if (filters.category) p += `&category=${encodeURIComponent(filters.category)}`
-  if (filters.domains && filters.domains.length > 0) {
-    p += `&domains=${encodeURIComponent(filters.domains.join(','))}`
-  }
-  if (filters.archived) p += '&archived=true'
-  if (filters.includeQuarantined) p += '&include_quarantined=1'
-  if (filters.folder) p += `&folder=${encodeURIComponent(filters.folder)}`
-  if (filters.unread) p += '&unread=true'
-  if (filters.starred) p += '&starred=true'
-  if (filters.pinned) p += '&pinned=true'
-  if (filters.snoozed) p += '&snoozed=true'
-  if (filters.section) p += `&section=${encodeURIComponent(filters.section)}`
-  if (filters.followupDueBy) p += `&followup_due_by=${filters.followupDueBy}`
-  p += accountsParam(filters)
-  return p
 }
