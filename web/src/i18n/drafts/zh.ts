@@ -1,7 +1,7 @@
 import type { DraftsKey } from './en'
 
 export const draftsZh: Record<DraftsKey, string> = {
-  'drafts.attachmentsNotIncluded': '附件没有带上，原信在「已发送」里：{names}',
+  'drafts.attachmentsNotIncluded': '附件没有带上，原信在「已发邮件」里：{names}',
   'drafts.delete': '删除草稿',
   'drafts.deleteFailed': '草稿删除失败',
   'drafts.loading': '正在加载草稿…',

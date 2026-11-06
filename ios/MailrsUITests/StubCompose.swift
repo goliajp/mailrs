@@ -51,7 +51,7 @@ extension MailrsUITestCase {
     func openComposer(_ app: XCUIApplication, to address: String) {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 15), "inbox never listed")
-        app.buttons["New message"].tap()
+        app.buttons["Compose"].tap()
         let to = app.textFields["someone@example.com"]
         XCTAssertTrue(to.waitForExistence(timeout: 5), "compose never opened")
         to.tap()

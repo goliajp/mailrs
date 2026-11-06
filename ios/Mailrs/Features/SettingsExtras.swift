@@ -13,7 +13,7 @@ struct SettingsExtras: View {
             }
             .accessibilityIdentifier("settings.notifications")
             NavigationLink { VacationView() } label: {
-                Label("Vacation reply", systemImage: "airplane")
+                Label("Vacation responder", systemImage: "airplane")
             }
             .accessibilityIdentifier("settings.vacation")
             NavigationLink { MaskedAddressesView() } label: {

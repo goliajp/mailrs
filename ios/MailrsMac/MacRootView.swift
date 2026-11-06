@@ -68,9 +68,9 @@ struct MacRootView: View {
                 Button {
                     composing = true
                 } label: {
-                    Label("New message", systemImage: "square.and.pencil")
+                    Label("Compose", systemImage: "square.and.pencil")
                 }
-                .help("New message (⌘N)")
+                .help("Compose (⌘N)")
 
                 Button {
                     Task { await session.loadConversations() }

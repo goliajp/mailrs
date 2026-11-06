@@ -24,7 +24,7 @@ struct VacationView: View {
                 }
             }
         }
-        .navigationTitle("Vacation reply")
+        .navigationTitle("Vacation responder")
         .task { vacation = await session.vacation() }
     }
 
