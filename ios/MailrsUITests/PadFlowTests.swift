@@ -239,7 +239,7 @@ final class PadFlowTests: MailrsUITestCase {
         XCTAssertTrue(
             rows.element(boundBy: 0).waitForExistence(timeout: 20), "no conversations")
         rows.element(boundBy: 0).press(forDuration: 1.0)
-        let promotion = app.buttons["Mark as promotion"].firstMatch
+        let promotion = app.buttons["Mark as Promotion"].firstMatch
         XCTAssertTrue(promotion.waitForExistence(timeout: 5),
                       "the row menu offered no destinations")
         promotion.tap()

@@ -1,11 +1,13 @@
 import type { TeamKey } from './en'
 
+import { word } from '@/i18n/wording'
+
 export const teamZh: Record<TeamKey, string> = {
   'admin.emailGroups.shared': '团队收件箱',
   'admin.emailGroups.sharedHelp': '成员可以分配会话、写内部评论，并看到谁正在回复',
   'admin.emailGroups.sharedOff': '已不再是团队收件箱',
   'admin.emailGroups.sharedOn': '已设为团队收件箱',
-  'list.assigned': '分给我的',
+  'list.assigned': word('zh', 'list.assigned'),
   'list.assigned.empty': '没有分给你的会话',
   'team.assign': '分配',
   'team.assignee': '负责人',

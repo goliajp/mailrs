@@ -58,12 +58,12 @@ describe('PagePane', () => {
           </PagePane>
         </QueryClientProvider>
       )
-      await screen.findAllByText('Important contacts only')
+      await screen.findAllByText('Important people only')
       const radios = document.querySelectorAll<HTMLInputElement>('input[name="notify-mode"]')
       expect(radios).toHaveLength(4)
       const checked = [...radios].filter((r) => r.checked)
       expect(checked).toHaveLength(1)
-      expect(checked[0].closest('label')?.textContent).toBe('Important contacts only')
+      expect(checked[0].closest('label')?.textContent).toBe('Important people only')
       expect(wireNotifyPrefs).toHaveBeenCalledTimes(1)
     })
   }

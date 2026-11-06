@@ -25,8 +25,8 @@ enum MailBucket: String, CaseIterable, Identifiable {
     var label: LocalizedStringKey {
         switch self {
         case .inbox: return "Move to Inbox"
-        case .notification: return "Mark as notification"
-        case .promotion: return "Mark as promotion"
+        case .notification: return "Mark as Notification"
+        case .promotion: return "Mark as Promotion"
         }
     }
 

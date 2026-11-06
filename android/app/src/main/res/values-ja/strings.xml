@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcut_compose_short">作成</string>
-    <string name="shortcut_compose_long">新規メッセージ</string>
+    <string name="shortcut_compose_long">作成</string>
     <string name="shortcut_search_short">検索</string>
     <string name="shortcut_search_long">メールを検索</string>
     <string name="widget_description">未読メールをひと目で</string>
@@ -10,7 +10,7 @@
     <string name="widget_preview_subject_two">証明書を更新しました</string>
     <string name="list_inbox">受信トレイ</string>
     <string name="list_inbox_empty">すべて確認済みです</string>
-    <string name="list_np">通知・プロモーション</string>
+    <string name="list_np">通知・宣伝</string>
     <string name="list_np_empty">ここには何もありません</string>
     <string name="list_unread">未読</string>
     <string name="list_unread_empty">すべて確認済みです</string>
@@ -90,7 +90,7 @@
     <string name="common_search">検索</string>
     <string name="common_refresh">更新</string>
     <string name="draft_saved">下書きを保存しました</string>
-    <string name="compose_new">新規メッセージ</string>
+    <string name="compose_new">作成</string>
     <string name="thread_open_failed">この会話を開けませんでした</string>
     <string name="error_action_unknown">このアプリはその操作に対応していません</string>
     <string name="error_batch_refused">サーバーが %2$s 件中 %1$s 件を拒否しました</string>
@@ -158,9 +158,9 @@
     <string name="group_members">メンバー</string>
     <string name="group_remove_member">%1$s を外す</string>
     <string name="invite_join">会議に参加</string>
-    <string name="invite_yes">参加</string>
+    <string name="invite_yes">はい</string>
     <string name="invite_maybe">未定</string>
-    <string name="invite_no">不参加</string>
+    <string name="invite_no">いいえ</string>
     <string name="mailboxes_connected">接続済み</string>
     <string name="mailboxes_none">ほかのメールボックスはまだありません</string>
     <string name="mailboxes_add">メールボックスを追加</string>
@@ -177,7 +177,7 @@
     <string name="mailboxes_no_preset_hint">違う場合は下の設定を開いてください</string>
     <string name="mailboxes_get_one">取得する</string>
     <string name="common_delete">削除</string>
-    <string name="merged_title">その他のメール</string>
+    <string name="merged_title">ほかのメール</string>
     <string name="merged_new">新規</string>
     <string name="merged_fetch">取得</string>
     <string name="merged_no_mailboxes">メールボックスはまだありません。設定で追加すると、ここで読めます</string>
@@ -479,20 +479,20 @@
     <string name="sections_toggle">区分付き受信トレイ</string>
     <string name="sections_help">受信トレイの上に、返信が必要なメール、返事を待っている会話、新しい差出人のタブを表示します。Web と iPhone でも同じ設定が使われます</string>
     <string name="sections_save_failed">区分付き受信トレイの設定を保存できませんでした</string>
-    <string name="notify_mode_default">返信が必要なメールと重要な人</string>
+    <string name="notify_mode_default">返信が必要なメールと重要な人（推奨）</string>
     <string name="notify_mode_all">すべてのメール</string>
     <string name="notify_mode_important">重要な人だけ</string>
-    <string name="notify_mode_off">通知しない</string>
+    <string name="notify_mode_off">なし</string>
     <string name="notify_hide_content">差出人と件名を表示しない</string>
-    <string name="notify_quiet_hours">通知を止める時間</string>
+    <string name="notify_quiet_hours">おやすみ時間</string>
     <string name="notify_quiet_window">%1$s〜%2$s（この端末のタイムゾーン）</string>
-    <string name="notify_senders">差出人</string>
+    <string name="notify_senders">送信者</string>
     <string name="notify_threads">会話</string>
     <string name="notify_remove">削除</string>
-    <string name="notify_always">常に通知する</string>
+    <string name="notify_always">常に通知</string>
     <string name="notify_never">通知しない</string>
     <string name="notify_follow">返信ごと</string>
-    <string name="notify_muted">ミュート中</string>
+    <string name="notify_muted">ミュート</string>
     <string name="sessions_unknown_device">不明な端末</string>
     <string name="sessions_sign_out">ログアウト</string>
     <string name="sessions_end_others">ほかの端末をすべてログアウト</string>

@@ -167,6 +167,10 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     # table (web/src/lib/actions.json), the same bytes in both apps, and
     # each surface's code declaring exactly what the table lists for it.
     ./scripts/check-action-parity.sh
+    # And call things by the same words: one wording table
+    # (web/src/lib/wording.json), the same bytes in both apps, each app's
+    # catalog equal to it.
+    ./scripts/check-wording.sh
     # The phones' markdown and tracker rules match the web's samples, every copy the same bytes.
     ./scripts/check-markdown-samples.sh
     ./scripts/check-tracker-parity.sh
