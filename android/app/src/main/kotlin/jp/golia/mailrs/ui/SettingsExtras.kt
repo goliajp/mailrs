@@ -1,11 +1,14 @@
 package jp.golia.mailrs.ui
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -13,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -32,7 +36,13 @@ import jp.golia.mailrs.wire.Texts
  * `SettingsScreen`, which is the list.
  */
 @Composable
-fun SettingsExtras(swipe: SwipeSetting, onSwipe: (SwipeSetting) -> Unit, onPage: (SettingsPage) -> Unit) {
+fun SettingsExtras(
+    swipe: SwipeSetting,
+    onSwipe: (SwipeSetting) -> Unit,
+    sectioned: Boolean,
+    onSectioned: (Boolean) -> Unit,
+    onPage: (SettingsPage) -> Unit,
+) {
     val theme = LocalTheme.current
     HorizontalDivider(color = theme.border, thickness = 0.5.dp)
     Heading(Texts.get(R.string.settings_mail_privacy))
@@ -48,8 +58,26 @@ fun SettingsExtras(swipe: SwipeSetting, onSwipe: (SwipeSetting) -> Unit, onPage:
     }
     Heading(Texts.get(R.string.settings_images))
     ImagesChoice()
+    Heading(Texts.get(R.string.sections_title))
+    SectionedInboxRow(sectioned, onSectioned)
     Heading(Texts.get(R.string.swipe_title))
     SwipeSettings(swipe, onSwipe)
+}
+
+/** Whether the Inbox shows its section tabs; saved on the server, so the web and the iPhone follow it. */
+@Composable
+private fun SectionedInboxRow(on: Boolean, onChange: (Boolean) -> Unit) {
+    val theme = LocalTheme.current
+    Row(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(Texts.get(R.string.sections_toggle), color = theme.fg, fontSize = 14.sp)
+            Text(Texts.get(R.string.sections_help), color = theme.fgMuted, fontSize = 12.sp)
+        }
+        Switch(checked = on, onCheckedChange = onChange, modifier = Modifier.testTag("switch.sectionedInbox"))
+    }
 }
 
 /** The page's title, for its row and its top bar. */

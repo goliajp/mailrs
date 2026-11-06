@@ -17,6 +17,8 @@
 - `GET/PUT /api/settings/swipe {left, right}`: right archive, left trash
   until saved; a direction that is not `archive`, `trash`, `read` or
   `none` is a 422, as serde refuses it in `families/swipe.rs`.
+- `GET/PUT /api/settings/sectioned-inbox {enabled}`: on until saved; a body
+  without a boolean `enabled` is a 422, as in `families/sectioned_inbox.rs`.
 - `GET/POST /api/masked-emails`, camelCase as `families/masked_email`.
 - `POST /api/senders/reclassify {sender, bucket}` answers `{moved}`.
 
@@ -49,6 +51,7 @@ FRESH = {
     "vacation": {"enabled": False, "subject": "Away", "body": "Back on Monday.", "start": None,
                  "end": None, "days": 7, "version": 2},
     "swipe": {"left": "trash", "right": "archive"},
+    "sectioned_inbox": {"enabled": True},
     "masks": [
         {"id": "m1", "email": "quiet.otter@golia.jp", "owner": "me@golia.jp", "state": "enabled",
          "forDomain": "shop.test", "description": "Shop account", "url": None,
@@ -93,6 +96,7 @@ def get(handler):
         "/api/auth/app-passwords": lambda: STATE["app_passwords"],
         "/api/settings/vacation": lambda: STATE["vacation"],
         "/api/settings/swipe": lambda: STATE["swipe"],
+        "/api/settings/sectioned-inbox": lambda: STATE["sectioned_inbox"],
         "/api/masked-emails": lambda: STATE["masks"],
         "/debug/settings": lambda: WRITES,
     }
@@ -170,6 +174,15 @@ def put(handler):
             return True
         STATE["swipe"] = {"left": body["left"], "right": body["right"]}
         handler._send(STATE["swipe"])
+        return True
+    if path == "/api/settings/sectioned-inbox":
+        body = _body(handler)
+        _write("PUT", path, body)
+        if not isinstance(body.get("enabled"), bool):
+            _empty(handler, 422)
+            return True
+        STATE["sectioned_inbox"] = {"enabled": body["enabled"]}
+        handler._send(STATE["sectioned_inbox"])
         return True
     return False
 

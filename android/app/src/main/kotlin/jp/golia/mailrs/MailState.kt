@@ -89,6 +89,8 @@ data class UiState(
     val labels: List<jp.golia.mailrs.wire.WireTriage.Label> = emptyList(),
     /** What a swipe on a row does, the reader's setting on the server. */
     val swipe: jp.golia.mailrs.wire.SwipeSetting = jp.golia.mailrs.wire.SwipeSetting.Standard,
+    /** Whether the Inbox shows its section tabs, the reader's setting on the server. */
+    val sectionedInbox: Boolean = jp.golia.mailrs.wire.SectionedInboxSetting.Standard.enabled,
     /** Deleting for good was asked for, and waits for the reader to say yes. */
     val confirmForever: List<String> = emptyList(),
     /** Both sender lists, for a message menu's Block / Unblock; null until read. */

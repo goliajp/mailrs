@@ -31,6 +31,13 @@ describe('mail list route preload', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
+        // the sectioned inbox setting the list reads beside its page
+        if (String(url).includes('/settings/sectioned-inbox')) {
+          return new Response(JSON.stringify({ enabled: true }), {
+            headers: { 'content-type': 'application/json' },
+            status: 200,
+          })
+        }
         urls.push(String(url))
         return new Response(JSON.stringify({ items: [] }), {
           headers: { 'content-type': 'application/json' },

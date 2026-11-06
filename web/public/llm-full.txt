@@ -887,6 +887,7 @@ curl -X PUT https://mail.golia.ai/api/settings/vacation -H "Authorization: Beare
 - `POST /api/settings/forwarding {address, keep_copy}` mails a code to `address`; forwarding starts after `POST /api/settings/forwarding/verify {code}`. The POST needs a recent password confirmation (403 `confirm_required`), so an agent key cannot set it
 - `DELETE /api/settings/forwarding` stops it; mail in Junk or held is never forwarded
 - `GET/PUT /api/settings/swipe {left, right}`: what a swipe on a conversation row does in the web and the phone apps, each `archive`, `trash`, `read` (toggles read) or `none`; right `archive`, left `trash` when never set. In the Trash either swipe restores; nothing is deleted by a swipe
+- `GET/PUT /api/settings/sectioned-inbox {enabled}`: whether the web and the phone apps show the Inbox by section (all, to reply, waiting, new senders); on when never set. A body without a boolean `enabled` is a 422
 
 ### Rules
 
