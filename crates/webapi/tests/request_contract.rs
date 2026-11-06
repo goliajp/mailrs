@@ -422,6 +422,7 @@ fn every_fixture_has_a_test() {
         "rule-create",
         "rule-preview",
         "saved-search-create",
+        "conversation-search",
         "screening-hash",
         "screening-observation",
         "app-password-create",

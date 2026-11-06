@@ -14,31 +14,24 @@ use mailrs_core_api::method::thread as wire;
 use mailrs_core_api::types::ConversationSummaryWire;
 use mailrs_mailbox::pg::{Held, ThreadQuery};
 use mailrs_mailbox::query::{Cond, Place, Query, ThreadFacts};
-use mailrs_mailbox::scope::{Bucket, bucket_of, is_sent_folder, scope};
+use mailrs_mailbox::scope::{Bucket, bucket_of};
 use mailrs_mailbox::types::ConversationSummary;
 use std::collections::HashMap;
 
 use crate::core_rpc::CoreRpcState;
-use crate::core_rpc::handlers::conversation::thread_query;
+use crate::core_rpc::handlers::conversation::{labelled_query, thread_query};
 use crate::core_rpc::handlers::failed;
 
-/// How many more matches than the page to ask the text search for, so the
-/// page is still full after the view's scope has dropped some.
-const OVERFETCH: i64 = 8;
-
-/// POST /v1/users/{user}/conversations:search — the matches in the view
-/// the search was made from, or in the place its `in:` names; best match
-/// first when there are words, newest first when there are only
-/// operators. Held mail is out of search as it is out of every list.
+/// POST /v1/users/{user}/conversations:search — the matches in the list
+/// the search was made from, selected by the list's own [`thread_query`],
+/// or in the place its `in:` names; best match first when there are
+/// words, newest first when there are only operators.
 pub async fn search_conversations(
     State(state): State<Arc<CoreRpcState>>,
     Path(user): Path<String>,
     Json(req): Json<conv::SearchConversationsRequest>,
 ) -> Result<Json<conv::SearchConversationsResponse>, StatusCode> {
-    let limit = match req.limit {
-        0 => 20,
-        n => n as usize,
-    };
+    let limit = req.limit();
     let query = Query::parse(&req.query);
     if query.text.is_empty() && !query.has_operators() {
         return Ok(Json(conv::SearchConversationsResponse {
@@ -50,37 +43,24 @@ pub async fn search_conversations(
         false => Some(
             state
                 .mailbox
-                .search_thread_ids(&user, &query.text, limit as i64 * OVERFETCH)
+                .search_thread_ids(&user, &query.text, req.text_hits_wanted() as i64)
                 .await
                 .map_err(failed("search", &user))?,
         ),
     };
-    let folder = req.folder.as_deref();
-    let q = match query.within {
-        // the view the search was made from
-        None => ThreadQuery {
-            scope: scope(folder, req.category.as_deref()),
-            sent: is_sent_folder(folder),
-            archived: Some(req.archived),
-            unread: req.unread.unwrap_or(false),
-            starred: req.starred.unwrap_or(false),
-            thread_ids: ids.as_deref(),
-            ..ThreadQuery::all(&user)
-        },
-        // everywhere, narrowed below to the place `in:` names
-        Some(_) => ThreadQuery {
-            archived: None,
-            trashed: None,
-            thread_ids: ids.as_deref(),
-            ..ThreadQuery::all(&user)
-        },
+    // a label is a set of ids, so its list is the matches among them
+    let label = match (query.within, req.quarantined) {
+        (None, false) => req.filter.label.as_deref(),
+        _ => None,
     };
+    let narrowed = match label {
+        Some(id) => Some(labelled_matches(&state, &user, id, ids.as_deref()).await?),
+        None => ids.clone(),
+    };
+    let q = scoped_query(&user, &req, query.within.is_some(), narrowed.as_deref());
     let mut rows = state
         .mailbox
-        .thread_rows(&ThreadQuery {
-            held: Held::Hide,
-            ..q
-        })
+        .thread_rows(&q)
         .await
         .map_err(failed("search", &user))?;
     match &ids {
@@ -128,6 +108,73 @@ pub async fn search_conversations(
     let items: Vec<ConversationSummaryWire> = kept.iter().map(Into::into).collect();
     let items = super::labels::with_labels(&state, &user, items).await;
     Ok(Json(conv::SearchConversationsResponse { items }))
+}
+
+/// The conversations carrying label `id`, among the text matches when
+/// there are words.
+async fn labelled_matches(
+    state: &CoreRpcState,
+    user: &str,
+    id: &str,
+    matches: Option<&[String]>,
+) -> Result<Vec<String>, StatusCode> {
+    let labelled = state
+        .mailbox
+        .threads_with_label(user, id)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, %user, "search: threads_with_label failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    Ok(match matches {
+        Some(ids) => ids
+            .iter()
+            .filter(|i| labelled.contains(i))
+            .cloned()
+            .collect(),
+        None => labelled,
+    })
+}
+
+/// The rows a search looks among: the list it was made from, read as the
+/// list reads it but in one page; Review; or, with `in:`, everywhere, to
+/// be narrowed to the place it names. `ids` are the candidates — the text
+/// matches, or a label's conversations — when there are any.
+fn scoped_query<'a>(
+    user: &'a str,
+    req: &'a conv::SearchConversationsRequest,
+    within: bool,
+    ids: Option<&'a [String]>,
+) -> ThreadQuery<'a> {
+    if within {
+        return ThreadQuery {
+            archived: None,
+            trashed: None,
+            thread_ids: ids,
+            ..ThreadQuery::all(user)
+        };
+    }
+    // the Review list, as `list_quarantined` reads it
+    if req.quarantined {
+        return ThreadQuery {
+            held: Held::Only,
+            thread_ids: ids,
+            ..ThreadQuery::all(user)
+        };
+    }
+    let listed = thread_query(user, &req.filter);
+    let listed = match (ids, req.filter.label.is_some()) {
+        (Some(ids), true) => labelled_query(listed, ids),
+        (ids, _) => ThreadQuery {
+            thread_ids: ids,
+            ..listed
+        },
+    };
+    ThreadQuery {
+        before_ts: None,
+        limit: None,
+        ..listed
+    }
 }
 
 fn place_of(r: &ConversationSummary) -> Place {

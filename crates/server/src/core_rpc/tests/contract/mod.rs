@@ -40,6 +40,7 @@ mod quota_limits;
 mod rejudge;
 mod reports;
 mod search;
+mod search_scope;
 mod sections;
 mod sender_rules;
 mod sent;

@@ -87,6 +87,35 @@ fn default_limit() -> u32 {
     50
 }
 
+impl ListQuery {
+    /// The list these parameters name, as the core is asked for it.
+    ///
+    /// One reading for the list and for the search inside it, so the two
+    /// cannot scope to different conversations.
+    pub fn filter(self) -> ConversationFilter {
+        ConversationFilter {
+            label: self.label,
+            accounts: parse_accounts(self.accounts.as_deref()),
+            limit: self.limit,
+            before_ts: self.before_ts,
+            after_cursor: self.cursor,
+            category: self.category,
+            domains: None,
+            archived: self.archived,
+            trashed: self.trashed,
+            include_quarantined: self.include_quarantined,
+            folder: self.folder,
+            unread: self.unread,
+            starred: self.starred,
+            pinned: self.pinned,
+            snoozed: self.snoozed,
+            section: self.section,
+            followup_due_by: self.followup_due_by,
+            assigned_to_me: self.assigned_to_me,
+        }
+    }
+}
+
 /// The `accounts=` parameter, as the core reads it.
 ///
 /// Absent is every account. Present and empty is a filter nothing
@@ -278,28 +307,7 @@ pub async fn get_conversations(
     if q.before_ts.is_some() && q.cursor.is_some() {
         return Err(StatusCode::BAD_REQUEST);
     }
-    let req = wire::ListConversationsRequest {
-        filter: ConversationFilter {
-            label: q.label,
-            accounts: parse_accounts(q.accounts.as_deref()),
-            limit: q.limit,
-            before_ts: q.before_ts,
-            after_cursor: q.cursor,
-            category: q.category,
-            domains: None,
-            archived: q.archived,
-            trashed: q.trashed,
-            include_quarantined: q.include_quarantined,
-            folder: q.folder,
-            unread: q.unread,
-            starred: q.starred,
-            pinned: q.pinned,
-            snoozed: q.snoozed,
-            section: q.section,
-            followup_due_by: q.followup_due_by,
-            assigned_to_me: q.assigned_to_me,
-        },
-    };
+    let req = wire::ListConversationsRequest { filter: q.filter() };
     let resp = state
         .core
         .list_conversations(&user, &req)

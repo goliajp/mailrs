@@ -20,17 +20,18 @@ pub(crate) async fn search_conversations(
     Path(user): Path<String>,
     Json(req): Json<conv::SearchConversationsRequest>,
 ) -> Json<conv::SearchConversationsResponse> {
-    let limit = if req.limit == 0 {
-        20
-    } else {
-        req.limit as usize
-    };
+    let limit = req.limit();
     let query = Query::parse(&req.query);
-    let rows = candidates(&state, &user, &query, limit);
+    let listed = match query.within {
+        None => listed(&state, &user, &req),
+        // `in:` names the place, whatever list the search came from
+        Some(_) => Listed::Folder,
+    };
+    let rows = candidates(&state, &user, &query, req.text_hits_wanted(), &listed);
     let names = label_names(&state, &user, &query);
     let items = rows
         .into_iter()
-        .filter(|row| in_place(row, &req, query.within))
+        .filter(|row| in_place(row, &req, query.within, &listed))
         .filter(|row| {
             let labels = names.get(&row.thread_id).cloned().unwrap_or_default();
             query.admits(&thread_facts(row, &labels), || {
@@ -42,23 +43,75 @@ pub(crate) async fn search_conversations(
         .collect();
     let items = crate::routes::labels::with_labels(&state, &user, items);
     let items = crate::sections::with_sections(&state, &user, items);
+    let items = crate::shared::with_shared(&state, &user, items);
     Json(conv::SearchConversationsResponse { items })
+}
+
+/// The conversations the list a search was issued from shows.
+enum Listed {
+    /// A list read off an index of its own, read whole: exactly these.
+    Ids(std::collections::HashSet<String>),
+    /// A folder's list — every conversation the folder holds, too many to
+    /// read for one search — judged row by row by [`in_folder_list`].
+    Folder,
+}
+
+/// The list `req` was issued from, asked the question the list itself
+/// asks, so the search inside it cannot select different conversations.
+fn listed(state: &FastcoreState, user: &str, req: &conv::SearchConversationsRequest) -> Listed {
+    use mailrs_core_api::method::conversation::LIST_SCOPE_CAP;
+    if !req.reads_a_list_of_its_own() {
+        return Listed::Folder;
+    }
+    let rows = match req.quarantined {
+        // the Review list, as `list_quarantined` reads it
+        true => {
+            let filter = ListThreadsFilter {
+                quarantine: QuarantineScope::Only,
+                ..Default::default()
+            };
+            state
+                .mailbox
+                .list_threads_by_activity(user, &filter, 0, LIST_SCOPE_CAP)
+                .map(|(rows, _)| rows)
+        }
+        false => {
+            let whole = mailrs_core_api::types::ConversationFilter {
+                before_ts: None,
+                after_cursor: None,
+                ..req.filter.clone()
+            };
+            crate::routes::list_rows(state, user, &whole, LIST_SCOPE_CAP)
+        }
+    };
+    let rows = rows.unwrap_or_else(|e| {
+        tracing::warn!(%user, error = %e, "search: the list it scopes to failed; finding nothing");
+        Vec::new()
+    });
+    Listed::Ids(rows.into_iter().map(|r| r.thread_id).collect())
 }
 
 /// The searcher's own rows to judge, best first.
 ///
 /// With words, the text indexes choose them; with operators only, every
 /// conversation the user has, newest first, since nothing narrower can
-/// answer `to:` or `has:attachment`.
+/// answer `to:` or `has:attachment`. Ids outside a list read whole are
+/// dropped before their rows are read.
 fn candidates(
     state: &FastcoreState,
     user: &str,
     query: &Query,
-    limit: usize,
+    want: usize,
+    listed: &Listed,
 ) -> Vec<mailrs_mailbox_kevy::ThreadRow> {
+    let in_list = |tid: &String| match listed {
+        Listed::Ids(ids) => ids.contains(tid),
+        Listed::Folder => true,
+    };
     if !query.text.is_empty() {
-        return text_hits(state, user, &query.text, limit)
+        return text_hits(state, user, &query.text, want)
             .into_iter()
+            .filter(in_list)
             .filter_map(|tid| state.mailbox.get_thread_for_user(user, &tid).ok().flatten())
             .collect();
     }
@@ -70,6 +123,7 @@ fn candidates(
         .all_thread_ids_for_user(user)
         .unwrap_or_default()
         .into_iter()
+        .filter(in_list)
         .filter_map(|tid| state.mailbox.get_thread_for_user(user, &tid).ok().flatten())
         .collect();
     rows.sort_by(|a, b| {
@@ -80,8 +134,11 @@ fn candidates(
     rows
 }
 
-/// Thread ids matching `text`, best first.
-fn text_hits(state: &FastcoreState, user: &str, text: &str, limit: usize) -> Vec<String> {
+/// Thread ids matching `text`, best first, at most `want` from each stage.
+///
+/// The scope runs after the index has chosen, so `want` is more than a
+/// page: see [`conv::SearchConversationsRequest::text_hits_wanted`].
+fn text_hits(state: &FastcoreState, user: &str, text: &str, want: usize) -> Vec<String> {
     // Four stages, in the order a person would look: the words you
     // typed, then those words inside a message, then inside one of its
     // PDF attachments, then anything merely containing them. Each stage skips what the ones before it already
@@ -95,12 +152,6 @@ fn text_hits(state: &FastcoreState, user: &str, text: &str, limit: usize) -> Vec
                 tids.push(tid);
             }
         };
-
-    // Overfetch: the scope filter runs after the index has chosen its
-    // page, so a query whose matches are mostly in other folders needs
-    // more than `limit` candidates to fill one.
-    const SCOPE_OVERFETCH: usize = 8;
-    let want = limit.saturating_mul(SCOPE_OVERFETCH);
 
     for (tid, _) in state
         .mailbox
@@ -196,19 +247,23 @@ pub(crate) fn message_facts(
 }
 
 /// Whether a conversation is where the search looks: the place `in:`
-/// names, or else the tab the search was made from. Held mail is in
-/// neither.
+/// names, where held mail never is, or else the list the search was
+/// issued from.
 fn in_place(
     row: &mailrs_mailbox_kevy::ThreadRow,
     req: &conv::SearchConversationsRequest,
     within: Option<Within>,
+    listed: &Listed,
 ) -> bool {
+    let Some(within) = within else {
+        return match listed {
+            Listed::Ids(ids) => ids.contains(&row.thread_id),
+            Listed::Folder => in_folder_list(row, &req.filter),
+        };
+    };
     if row.quarantined {
         return false;
     }
-    let Some(within) = within else {
-        return in_search_scope(row, req);
-    };
     within.admits(Place {
         archived: row.archived,
         trashed: row.trashed_at > 0,
@@ -220,39 +275,52 @@ fn in_place(
     })
 }
 
-/// Whether a hit belongs to the tab the search was issued from.
+/// Whether a folder's list `f` shows this row, predicate for predicate
+/// what [`threads_filter`] asks the index.
 ///
 /// Deliberately the row's own fields: the membership row is where every
 /// per-user fact lives, and reading the tab's predicates from anywhere
 /// else is how the list and its counters came apart before.
-fn in_search_scope(
+fn in_folder_list(
     row: &mailrs_mailbox_kevy::ThreadRow,
-    req: &conv::SearchConversationsRequest,
+    f: &mailrs_core_api::types::ConversationFilter,
 ) -> bool {
-    use mailrs_mailbox_kevy::scope::{ThreadFacts, is_sent_folder, scope};
-    if row.archived != req.archived || row.trashed_at > 0 {
+    use mailrs_mailbox_kevy::scope::{Scope, ThreadFacts, is_sent_folder, scope};
+    // Archived is a tab across folders, not a predicate inside one
+    let folder = match f.archived {
+        true => None,
+        false => f.folder.as_deref(),
+    };
+    let scope = scope(folder, f.category.as_deref());
+    // All Mail reads both sides of the archive
+    if scope != Scope::AllMail && row.archived != f.archived {
         return false;
     }
-    // Search is a list, and held mail is out of every list. Without
-    // this a reader could reach a conversation by searching that the
-    // Inbox, Junk and every other tab agree not to show — and the
-    // one thing a hold has to be is consistent, or it reads as mail
-    // that comes and goes.
-    if row.quarantined {
+    if row.trashed_at > 0 {
         return false;
     }
-    if req.unread == Some(true) && row.unread_count == 0 {
+    // Held mail is out of every list unless the reader shows it in place;
+    // without this a search could reach a conversation the list it was
+    // typed into agrees not to show.
+    if row.quarantined && !f.include_quarantined {
         return false;
     }
-    if req.starred == Some(true) && !row.starred {
+    if f.unread == Some(true) && row.unread_count == 0 {
         return false;
     }
-    let folder = req.folder.as_deref();
+    if f.starred == Some(true) && !row.starred {
+        return false;
+    }
+    if f.accounts
+        .as_ref()
+        .is_some_and(|ids| !ids.contains(&row.account_id))
+    {
+        return false;
+    }
     if is_sent_folder(folder) && row.sent_count == 0 {
         return false;
     }
-    // The same scope the list answers for this folder and category.
-    scope(folder, req.category.as_deref()).admits(ThreadFacts {
+    scope.admits(ThreadFacts {
         category: &row.category,
         sent_only: row.count > 0 && row.sent_count >= row.count,
     })
