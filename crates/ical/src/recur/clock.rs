@@ -34,7 +34,7 @@ pub(super) fn moment_at(local: NaiveDateTime, zone: &Zone) -> Option<Moment> {
 
 /// A wall-clock time in a zone as an instant, gaps and repeats read as
 /// [`local_to_utc_offset_seconds`] reads them.
-fn local_to_utc(rt: &ResolvedTz, local: NaiveDateTime) -> Option<DateTime<Utc>> {
+pub(super) fn local_to_utc(rt: &ResolvedTz, local: NaiveDateTime) -> Option<DateTime<Utc>> {
     let offset = local_to_utc_offset_seconds(rt, local)?;
     Some((local - Duration::seconds(offset as i64)).and_utc())
 }
