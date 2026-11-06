@@ -148,6 +148,7 @@ where
             // a literal outside an APPEND
             ImapInput::LiteralData(_) => continue,
         };
+        let since = std::time::Instant::now();
         let line = line.trim_end();
         let tag = line.split_once(' ').map_or("", |(t, _)| t).to_string();
         let command = match auth::early(line, &tag, starttls, framed).await {
@@ -187,9 +188,9 @@ where
         )
         .await;
         if signed_in.is_none()
-            && let (Some(signins), Some(account)) = (dir.signins(), session.account())
+            && let Some(account) = session.account()
         {
-            signed_in = Some(signins.enter(account.user()));
+            signed_in = crate::guard::register(dir, account.user(), since).await;
         }
         if !send_all(framed, responses).await || is_logout {
             return false;

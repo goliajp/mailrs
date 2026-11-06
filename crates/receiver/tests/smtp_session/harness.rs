@@ -136,6 +136,7 @@ pub struct Receiver {
     pub port: u16,
     pub counts: Arc<Counts>,
     pub spool: std::path::PathBuf,
+    pub ctx: Arc<ConnectionContext>,
 }
 
 impl Drop for Receiver {
@@ -152,6 +153,20 @@ pub async fn receiver(name: &str, kevy: Option<&str>) -> Receiver {
 
 /// [`receiver`], with the inbound scan (`run_antispam`) on or off.
 pub async fn receiver_with(name: &str, kevy: Option<&str>, antispam: bool) -> Receiver {
+    build(name, kevy, antispam, Arc::new(OneMask)).await
+}
+
+/// [`receiver`], asking `credentials` for password hashes.
+pub async fn receiver_asking(name: &str, credentials: Arc<dyn CredentialStore>) -> Receiver {
+    build(name, None, false, credentials).await
+}
+
+async fn build(
+    name: &str,
+    kevy: Option<&str>,
+    antispam: bool,
+    credentials: Arc<dyn CredentialStore>,
+) -> Receiver {
     let spool = std::env::temp_dir().join(format!("{name}-{}", std::process::id()));
     std::fs::create_dir_all(&spool).unwrap();
     let counts = Arc::new(Counts::default());
@@ -180,7 +195,7 @@ pub async fn receiver_with(name: &str, kevy: Option<&str>, antispam: bool) -> Re
         submission_from_check: mailrs_receiver::config::SubmissionFromCheck::Enforce,
         auth_guard: Arc::new(MemoryLoginGuard::default()),
         account_store: None,
-        credential_store: Some(Arc::new(OneMask)),
+        credential_store: Some(credentials),
         recipient_check: Some(RecipientCheck::new(spawn_core().await, "secret".into())),
         ldap_config: None,
         inbound_pipeline: mailrs_inbound::Pipeline::builder().build(),
@@ -192,16 +207,18 @@ pub async fn receiver_with(name: &str, kevy: Option<&str>, antispam: bool) -> Re
     });
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
+    let serving = ctx.clone();
     tokio::spawn(async move {
         loop {
             let (stream, peer) = listener.accept().await.unwrap();
-            tokio::spawn(handle_plain_connection(stream, peer, ctx.clone()));
+            tokio::spawn(handle_plain_connection(stream, peer, serving.clone()));
         }
     });
     Receiver {
         port,
         counts,
         spool,
+        ctx,
     }
 }
 
@@ -250,11 +267,16 @@ impl Client {
     }
 
     pub async fn say(&mut self, cmd: &str) -> String {
+        self.send(cmd).await;
+        self.reply().await
+    }
+
+    /// Send `cmd` without waiting for the reply.
+    pub async fn send(&mut self, cmd: &str) {
         self.w
             .write_all(format!("{cmd}\r\n").as_bytes())
             .await
             .unwrap();
-        self.reply().await
     }
 }
 

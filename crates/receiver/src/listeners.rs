@@ -40,7 +40,7 @@ impl Receiver {
     /// been cleared; what runs each time the sign-out subscription is
     /// (re)made.
     pub async fn end_cleared(&self) {
-        crate::run::end_cleared(&self.ctx).await;
+        crate::smtp_session::end_cleared(&self.ctx).await;
     }
 }
 
