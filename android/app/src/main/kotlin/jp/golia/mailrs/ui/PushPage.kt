@@ -34,9 +34,15 @@ import jp.golia.mailrs.removePushDevice
 import jp.golia.mailrs.wire.PushDistributor
 import jp.golia.mailrs.wire.PushRegistration
 import jp.golia.mailrs.wire.PushStatus
+import jp.golia.mailrs.wire.PushSync
+import jp.golia.mailrs.wire.PushSyncWorker
 import jp.golia.mailrs.wire.Texts
 import jp.golia.mailrs.wire.UnifiedPushWire
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 /**
  * Instant notifications through a UnifiedPush distributor: which one, on
@@ -56,7 +62,14 @@ internal fun PushPage(vm: MailViewModel) {
     }
     val have = remember(changes) { reg.snapshot() }
     var server by remember { mutableStateOf<UnifiedPushWire.State?>(null) }
-    LaunchedEffect(have.serverId) { server = vm.loadUnifiedPush() }
+    val reregisteredAt = remember(changes) { reg.reregisteredAt }
+    // registering again keeps the same id: the trace is what says to read the list again
+    LaunchedEffect(have.serverId, reregisteredAt) {
+        val listed = vm.loadUnifiedPush()
+        server = listed
+        // only a phone the server no longer lists is registered again
+        if (PushSync.recheck(have, listed).isNotEmpty()) PushSyncWorker.check(context)
+    }
     val installed = remember(changes) { PushDistributor.installed(context) }
     val chosen = remember(changes) { PushDistributor.chosen(context) }
     val s = server ?: return
@@ -71,6 +84,7 @@ internal fun PushPage(vm: MailViewModel) {
         }
         else -> Control(status, installed, s.vapidPublicKey.orEmpty())
     }
+    if (status is PushStatus.On && reregisteredAt != null) Note(Texts.get(R.string.push_reregistered, day(reregisteredAt)), "push.reregistered")
     Devices(s.devices, have.serverId) { id ->
         scope.launch { if (vm.removePushDevice(id)) server = vm.loadUnifiedPush() }
     }
@@ -157,6 +171,9 @@ private fun Devices(devices: List<UnifiedPushWire.Device>, thisPhone: String?, r
         }
     }
 }
+
+private fun day(millis: Long): String =
+    DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
 
 private fun deviceName(d: UnifiedPushWire.Device, mine: Boolean): String {
     if (mine) return Texts.get(R.string.push_this_phone, d.name)
