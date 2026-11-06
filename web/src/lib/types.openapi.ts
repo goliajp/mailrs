@@ -6616,7 +6616,7 @@ export interface paths {
         };
         /**
          * Per-sender and per-conversation push choices
-         * @description senders: [address, always|never]; threads: [thread id, follow|mute]. A conversation's choice comes before a sender's, which comes before the mode.
+         * @description senders: [address, always|never]; threads: [thread id, follow|mute]; thread_details: the same conversation choices, each with the subject on the reader's own row (null when the reader no longer has the conversation). A conversation's choice comes before a sender's, which comes before the mode.
          */
         get: {
             parameters: {
@@ -6636,6 +6636,12 @@ export interface paths {
                         "application/json": {
                             senders?: string[][];
                             threads?: string[][];
+                            thread_details?: {
+                                thread_id: string;
+                                /** @enum {string} */
+                                value: "follow" | "mute";
+                                subject: string | null;
+                            }[];
                         };
                     };
                 };
