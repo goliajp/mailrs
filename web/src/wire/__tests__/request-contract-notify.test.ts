@@ -56,6 +56,7 @@ describe('sender rule and push request bodies match the shared contract', () => 
     const sub = fixture('web-push-subscribe') as {
       endpoint: string
       keys: { auth: string; p256dh: string }
+      resume: true
     }
     expect(await bodyOf(() => wireWebPushSubscribe(sub))).toEqual(sub)
     expect(await bodyOf(() => wireWebPushUnsubscribe(sub.endpoint))).toEqual(

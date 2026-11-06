@@ -11,6 +11,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.work.WorkManager
 import jp.golia.mailrs.wire.PushDistributor
+import jp.golia.mailrs.wire.PushRegistration
 import jp.golia.mailrs.wire.PushSyncWorker
 import org.json.JSONArray
 import org.json.JSONObject
@@ -123,6 +124,57 @@ class UnifiedPushRecheckTest : MailrsUiTest() {
         waitOutside("the forgotten phone did not register again") { registrations().size == 2 }
         assertEquals(endpoint, registrations().last().getJSONObject("body").getString("endpoint"))
         assertTrue("the server still does not list it", readStub("/api/push/unifiedpush").contains(idOf(endpoint)))
+    }
+
+    /** Removed by a person from another device: the stub keeps it out until it resumes. */
+    private fun removeElsewhere(id: String) {
+        val c = java.net.URL(StubServer.base() + "/debug/unifiedpush-remove/$id").openConnection() as java.net.HttpURLConnection
+        c.requestMethod = "POST"
+        val said = c.inputStream.use { String(it.readBytes()) }
+        assertEquals("the stub did not have this phone to remove", true, JSONObject(said).getBoolean("removed"))
+    }
+
+    private fun shown(tag: String) =
+        compose.onAllNodes(hasTestTag(tag), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+
+    @Test
+    fun a_phone_removed_from_another_device_turns_off_on_launch_instead_of_registering_again() {
+        val endpoint = turnedOn()
+        removeElsewhere(idOf(endpoint))
+
+        launchAgain()
+
+        waitOutside("the launch did not turn pushes off here") { PushRegistration(app).removedElsewhere }
+        assertEquals("registered again although a person removed it", 1, registrations().size)
+        assertTrue("pushes are still on here", PushRegistration(app).snapshot().endpoint == null)
+    }
+
+    @Test
+    fun a_phone_removed_from_another_device_says_so_and_comes_back_only_when_turned_on() {
+        val endpoint = turnedOn()
+        assertTrue("turning on did not say so", registrations().single().getJSONObject("body").getBoolean("resume"))
+        assertTrue("the page does not say removing is not signing out", shown("push.removeIsNotSignOut"))
+        assertTrue("the page says removed before anything was", !shown("push.removedElsewhere"))
+        removeElsewhere(idOf(endpoint))
+
+        compose.onNodeWithTag("button.closeSettingsPage").performClick()
+        scrollToTag("settings.page.Push", "closing the page did not return to settings")
+        compose.onNodeWithTag("settings.page.Push").performClick()
+        waitFor("the page did not say the phone was removed elsewhere") { shown("push.removedElsewhere") }
+        assertTrue("the page does not offer to turn on again", shown("push.turnOn"))
+        assertEquals("opening the page registered it again", 1, registrations().size)
+
+        // the reader turning it on again is what brings it back
+        compose.onNodeWithTag("push.turnOn").performClick()
+        waitFor("turning on again did not register") { registrations().size == 2 }
+        assertTrue("turning on again did not say so", registrations().last().getJSONObject("body").getBoolean("resume"))
+        waitFor("the removed line stayed after turning on again") { !shown("push.removedElsewhere") }
+        val listed = JSONObject(readStub("/api/push/unifiedpush"))
+        val devices = listed.getJSONArray("devices")
+        // the distributor may hand out a new endpoint once unregistered: the phone is listed under that one
+        val now = registrations().last().getJSONObject("body").getString("endpoint")
+        assertTrue("the server does not list it again", (0 until devices.length()).any { devices.getJSONObject(it).getString("id") == idOf(now) })
+        assertTrue("the server still has it as removed", !listed.getJSONArray("removed").toString().contains(idOf(now)))
     }
 
     @Test

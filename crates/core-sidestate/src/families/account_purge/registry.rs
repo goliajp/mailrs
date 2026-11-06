@@ -147,6 +147,8 @@ pub const OWNED: &[Owned] = &[
     net("push:web:{user}", Shape::Key(push::web_subscriptions_key)),
     net("push:unifiedpush:{user}", Shape::Key(push::unified_push_key)),
     net("push:used:{user}", Shape::Key(push::used_key)),
+    net("push:removed:{user}", Shape::Key(push::removed_key)),
+    net("push:session:{user}", Shape::Key(push::session_link_key)),
     net("push:upwindow:{user}", Shape::Key(push::unified_push_window_key)),
     net("push:uptrailing:{user}", Shape::Key(push::unified_push_trailing_key)),
     net("push:stats:{user}:*", Shape::Globs(|a| under("push:stats:", &a.to_lowercase(), ":"))),

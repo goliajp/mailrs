@@ -402,6 +402,12 @@ pub(crate) fn end_session(c: &mut kevy_client::Connection, token: &str) -> std::
             by_addr_key(&owner).as_bytes(),
             &[session_ref(token).as_bytes(), token.as_bytes()],
         )?;
+        // the server's half of signing out, whatever the app did first
+        mailrs_core_sidestate::families::push_devices::drop_for_session(
+            c,
+            &owner,
+            &session_ref(token),
+        )?;
     }
     Ok(())
 }
@@ -421,4 +427,34 @@ fn password_cleared_response() -> Response {
         })),
     )
         .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use mailrs_core_sidestate::families::push_devices::{self, Asker, Registration};
+    use mailrs_core_sidestate::keys::push::tokens_key;
+    use mailrs_core_sidestate::keys::session::{index_session, session_key, session_ref};
+
+    #[test]
+    fn signing_out_stops_pushes_to_the_devices_that_session_registered() {
+        let mut c = kevy_client::Connection::connect("mem://logout-push").unwrap();
+        let (phone, laptop) = ("a".repeat(64), "b".repeat(64));
+        for (t, token) in [(&phone, "t-phone"), (&laptop, "t-laptop")] {
+            c.set(session_key(t).as_bytes(), br#"{"address":"a@x.test"}"#)
+                .unwrap();
+            index_session(&mut c, "a@x.test", t).unwrap();
+            let by = Asker {
+                session: Some(&session_ref(t)),
+                resume: false,
+            };
+            let reg = Registration::Apns {
+                token,
+                platform: "ios",
+            };
+            push_devices::register(&mut c, "a@x.test", reg, by, 1).unwrap();
+        }
+        super::end_session(&mut c, &phone).unwrap();
+        let left = c.hkeys(tokens_key("a@x.test").as_bytes()).unwrap();
+        assert_eq!(left, vec![b"t-laptop".to_vec()]);
+    }
 }
