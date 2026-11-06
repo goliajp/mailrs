@@ -57,6 +57,14 @@ struct MailListTests {
         #expect(!MailList.inbox.axes.queryItems.contains { $0.name == "assigned_to_me" })
     }
 
+    /// Pinned asks what the web and Android ask: the reader's pins
+    /// outside Junk, so a pinned spam thread does not show here.
+    @Test func pinnedAsksWhatTheOtherClientsAsk() {
+        let pinned = MailList.pinned.axes.queryItems
+        #expect(pinned.contains(URLQueryItem(name: "folder", value: "NonJunk")))
+        #expect(pinned.contains(URLQueryItem(name: "pinned", value: "true")))
+    }
+
     /// Archived is cross-folder on purpose: the server drops the folder
     /// when `archived` is set, so naming one would be a contradiction
     /// rather than a refinement.
