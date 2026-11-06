@@ -291,8 +291,14 @@ fn in_folder_list(
         true => None,
         false => f.folder.as_deref(),
     };
-    let scope = list_scope(folder, f.category.as_deref(), f.unread == Some(true));
-    // All Mail reads both sides of the archive
+    let flagged = f.starred == Some(true) || f.pinned == Some(true);
+    let scope = list_scope(
+        folder,
+        f.category.as_deref(),
+        f.unread == Some(true),
+        flagged,
+    );
+    // All Mail and the lists narrowed from it read both sides of the archive
     if scope != Scope::AllMail && row.archived != f.archived {
         return false;
     }

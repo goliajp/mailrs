@@ -55,7 +55,11 @@ export function belongsTo(axes: ListAxes, row: ConversationSummary): boolean {
   // so an archived thread is in it and in nothing else but All Mail,
   // which takes both sides of the archive.
   const allMail = axes.folder?.toLowerCase() === 'all'
-  if (!allMail && row.archived !== axes.archived) return false
+  // Starred and Pinned are All Mail narrowed to the flag, as the server
+  // reads them (`list_scope`): what was archived stays in them.
+  const flagList =
+    axes.folder?.toLowerCase() === 'nonjunk' && (axes.starred === true || axes.pinned === true)
+  if (!allMail && !flagList && row.archived !== axes.archived) return false
   if (axes.starred === true && !row.flagged) return false
   if (axes.pinned === true && !row.pinned) return false
 

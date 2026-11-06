@@ -115,6 +115,19 @@ describe('belongsTo', () => {
     expect(belongsTo(axes({ starred: true }), row({ flagged: true }))).toBe(true)
   })
 
+  it('Starred and Pinned keep what was archived, and no Junk or Trash', () => {
+    const starred = axes({ folder: 'NonJunk', starred: true })
+    const pinned = axes({ folder: 'NonJunk', pinned: true })
+    expect(belongsTo(starred, row({ archived: true, flagged: true }))).toBe(true)
+    expect(belongsTo(pinned, row({ archived: true, pinned: true }))).toBe(true)
+    expect(belongsTo(starred, row({ archived: true }))).toBe(false)
+    expect(belongsTo(starred, row({ category: 'spam', flagged: true }))).toBe(false)
+    expect(belongsTo(starred, row({ flagged: true, trashed_at: 1 }))).toBe(false)
+    // starred within one folder is still that folder's live list
+    const inInbox = axes({ folder: 'Inbox', starred: true })
+    expect(belongsTo(inInbox, row({ archived: true, flagged: true }))).toBe(false)
+  })
+
   /**
    * Unread is not a membership axis here on purpose: a thread marked
    * read while the Unread list is open stays visible until you leave it,
