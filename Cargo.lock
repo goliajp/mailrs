@@ -4346,6 +4346,7 @@ dependencies = [
 name = "mailrs-intake"
 version = "0.0.0"
 dependencies = [
+ "aws-lc-rs",
  "base64 0.22.1",
  "chrono",
  "kevy-client",
