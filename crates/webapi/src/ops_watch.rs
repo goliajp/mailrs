@@ -76,9 +76,7 @@ pub fn spawn() {
         );
         return;
     };
-    let limit: i64 = var("MAILRS_OPS_SILENT_SECS")
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(600);
+    let limit = crate::handlers::admin_ops_daemon::silent_after_secs();
     let state_url = format!("{}/v1/state", url.trim_end_matches('/'));
     tokio::spawn(async move {
         let http = reqwest::Client::new();

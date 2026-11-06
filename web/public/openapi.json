@@ -11029,6 +11029,634 @@
         }
       }
     },
+    "/api/admin/ops/state": {
+      "get": {
+        "operationId": "getOpsState",
+        "summary": "The ops daemon's state, or why webapi cannot see it",
+        "tags": [
+          "Admin"
+        ],
+        "description": "webapi asks the ops daemon (MAILRS_OPS_URL, with the shared admin secret). `reach` is `ok`, `not_configured`, `unreachable` or `refused`; only with `ok` are `stale` (the last completed check is older than MAILRS_OPS_SILENT_SECS), `silent_after_secs` and the daemon's `state` present. Super administrators only.",
+        "responses": {
+          "200": {
+            "description": "The state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "reach"
+                  ],
+                  "properties": {
+                    "reach": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "not_configured",
+                        "unreachable",
+                        "refused"
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "With `unreachable`: why"
+                    },
+                    "silent_after_secs": {
+                      "type": "integer"
+                    },
+                    "stale": {
+                      "type": "boolean"
+                    },
+                    "state": {
+                      "type": "object",
+                      "properties": {
+                        "now": {
+                          "type": "integer"
+                        },
+                        "last_cycle": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "properties": {
+                            "started_at": {
+                              "type": "integer"
+                            },
+                            "duration_ms": {
+                              "type": "integer"
+                            }
+                          }
+                        },
+                        "unmonitored": {
+                          "type": "boolean",
+                          "description": "No MAILRS_OPS_HEARTBEAT_URL: nothing outside watches the daemon"
+                        },
+                        "external_channel": {
+                          "type": "boolean",
+                          "description": "Whether any external notification channel is configured"
+                        },
+                        "maintenance": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "started_at": {
+                                  "type": "integer"
+                                },
+                                "until": {
+                                  "type": "integer"
+                                },
+                                "reason": {
+                                  "type": "string"
+                                },
+                                "by": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "silences": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "rule": {
+                                "type": "string"
+                              },
+                              "object": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "null: every object of the rule"
+                              },
+                              "until": {
+                                "type": "integer",
+                                "description": "Unix seconds"
+                              },
+                              "reason": {
+                                "type": "string"
+                              },
+                              "by": {
+                                "type": "string",
+                                "description": "`webapi:<administrator>` or `cli:<name>`"
+                              },
+                              "set_at": {
+                                "type": "integer",
+                                "description": "Unix seconds"
+                              }
+                            }
+                          }
+                        },
+                        "alerts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "rule": {
+                                "type": "string"
+                              },
+                              "object": {
+                                "type": "string"
+                              },
+                              "phase": {
+                                "type": "string",
+                                "enum": [
+                                  "ok",
+                                  "pending",
+                                  "firing",
+                                  "recovering",
+                                  "unknown"
+                                ]
+                              },
+                              "severity": {
+                                "type": "string",
+                                "enum": [
+                                  "warning",
+                                  "critical"
+                                ]
+                              },
+                              "since": {
+                                "type": "integer",
+                                "description": "Unix seconds"
+                              },
+                              "value": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "threshold": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "why": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Why it is unknown"
+                              },
+                              "title_en": {
+                                "type": "string"
+                              },
+                              "title_zh": {
+                                "type": "string"
+                              },
+                              "title_ja": {
+                                "type": "string"
+                              },
+                              "step_en": {
+                                "type": "string",
+                                "description": "The first thing to do"
+                              },
+                              "step_zh": {
+                                "type": "string"
+                              },
+                              "step_ja": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "rules": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "title_en": {
+                                "type": "string"
+                              },
+                              "title_zh": {
+                                "type": "string"
+                              },
+                              "title_ja": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "notifications": {
+                          "type": "object",
+                          "properties": {
+                            "held_for_maintenance": {
+                              "type": "integer"
+                            },
+                            "own_path_awaiting_acceptance_250": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "Own-path messages not yet accepted by the receiving server (250)"
+                            }
+                          }
+                        },
+                        "warnings": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator"
+          }
+        }
+      }
+    },
+    "/api/admin/ops/history": {
+      "get": {
+        "operationId": "getOpsHistory",
+        "summary": "The ops daemon's alert transitions, notifications and control events",
+        "tags": [
+          "Admin"
+        ],
+        "description": "Since `since` (unix seconds; the last day by default). Super administrators only.",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Default 200, at most 1000"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "since": {
+                      "type": "integer"
+                    },
+                    "transitions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rule": {
+                            "type": "string"
+                          },
+                          "object": {
+                            "type": "string"
+                          },
+                          "from": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "integer"
+                          },
+                          "value": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "reason": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "notifications": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "group_id": {
+                            "type": "string"
+                          },
+                          "channel": {
+                            "type": "string"
+                          },
+                          "attempt": {
+                            "type": "integer"
+                          },
+                          "result": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "integer"
+                          },
+                          "summary": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "controls": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "description": "A silence or maintenance event: `kind`, `action`, `at`, `by`, `reason`, `until`, and for a silence `id`, `rule`, `object`"
+                      }
+                    },
+                    "starts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator"
+          },
+          "502": {
+            "description": "`{\"error\": <reason>}`: the request was refused (400), nothing matched (404), it conflicts with the current state (409), or webapi could not ask the ops daemon (502)"
+          }
+        }
+      }
+    },
+    "/api/admin/ops/silences": {
+      "post": {
+        "operationId": "setOpsSilence",
+        "summary": "Silence an ops rule, or one object of it, for a while",
+        "tags": [
+          "Admin"
+        ],
+        "description": "`for_secs` and `reason` are required; the daemon records the administrator. Super administrators only, with a recent confirmation. Audited as ops.silence.set.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "rule",
+                  "for_secs",
+                  "reason"
+                ],
+                "properties": {
+                  "rule": {
+                    "type": "string"
+                  },
+                  "object": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "for_secs": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The silence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "rule": {
+                      "type": "string"
+                    },
+                    "object": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "null: every object of the rule"
+                    },
+                    "until": {
+                      "type": "integer",
+                      "description": "Unix seconds"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "by": {
+                      "type": "string",
+                      "description": "`webapi:<administrator>` or `cli:<name>`"
+                    },
+                    "set_at": {
+                      "type": "integer",
+                      "description": "Unix seconds"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`{\"error\": <reason>}`: the request was refused (400), nothing matched (404), it conflicts with the current state (409), or webapi could not ask the ops daemon (502)"
+          },
+          "403": {
+            "description": "Not a super administrator, or `confirm_required`"
+          },
+          "502": {
+            "description": "`{\"error\": <reason>}`: the request was refused (400), nothing matched (404), it conflicts with the current state (409), or webapi could not ask the ops daemon (502)"
+          }
+        }
+      }
+    },
+    "/api/admin/ops/silences/{id}/end": {
+      "post": {
+        "operationId": "endOpsSilence",
+        "summary": "End an ops silence before its time",
+        "tags": [
+          "Admin"
+        ],
+        "description": "Super administrators only, with a recent confirmation. Audited as ops.silence.end.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "removed": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`{\"error\": <reason>}`: the request was refused (400), nothing matched (404), it conflicts with the current state (409), or webapi could not ask the ops daemon (502)"
+          },
+          "403": {
+            "description": "Not a super administrator, or `confirm_required`"
+          },
+          "404": {
+            "description": "No such silence in force"
+          },
+          "502": {
+            "description": "`{\"error\": <reason>}`: the request was refused (400), nothing matched (404), it conflicts with the current state (409), or webapi could not ask the ops daemon (502)"
+          }
+        }
+      }
+    },
+    "/api/admin/ops/maintenance": {
+      "post": {
+        "operationId": "setOpsMaintenance",
+        "summary": "Start, extend or end the ops daemon's maintenance state",
+        "tags": [
+          "Admin"
+        ],
+        "description": "While it is on, alerts are checked but notifications are held and summed up when it ends. `start` and `extend` need `for_secs`. Super administrators only, with a recent confirmation. Audited as ops.maintenance.<action>.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action",
+                  "reason"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "start",
+                      "extend",
+                      "end"
+                    ]
+                  },
+                  "for_secs": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The maintenance state now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "maintenance": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "started_at": {
+                              "type": "integer"
+                            },
+                            "until": {
+                              "type": "integer"
+                            },
+                            "reason": {
+                              "type": "string"
+                            },
+                            "by": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`{\"error\": <reason>}`: the request was refused (400), nothing matched (404), it conflicts with the current state (409), or webapi could not ask the ops daemon (502)"
+          },
+          "403": {
+            "description": "Not a super administrator, or `confirm_required`"
+          },
+          "409": {
+            "description": "`{\"error\": <reason>}`: the request was refused (400), nothing matched (404), it conflicts with the current state (409), or webapi could not ask the ops daemon (502)"
+          },
+          "502": {
+            "description": "`{\"error\": <reason>}`: the request was refused (400), nothing matched (404), it conflicts with the current state (409), or webapi could not ask the ops daemon (502)"
+          }
+        }
+      }
+    },
     "/api/mail/image/{name}": {
       "get": {
         "operationId": "getMailImage",

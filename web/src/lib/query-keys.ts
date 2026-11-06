@@ -125,6 +125,8 @@ export const adminKeys = {
   mailAuditThread: (address: string, threadId: string) =>
     [...adminKeys.all(), 'mail-audit-thread', address, threadId] as const,
   mock: () => [...adminKeys.all(), 'mock'] as const,
+  opsHistory: () => [...adminKeys.all(), 'ops-history'] as const,
+  opsState: () => [...adminKeys.all(), 'ops-state'] as const,
   outboundPaused: () => [...adminKeys.all(), 'outbound-paused'] as const,
   overviewAuditLog: () => [...adminKeys.all(), 'overview-audit-log'] as const,
   overviewFlow: () => [...adminKeys.all(), 'overview-flow'] as const,

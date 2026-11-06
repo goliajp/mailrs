@@ -10,6 +10,8 @@ use crate::*;
 
 #[path = "directory.rs"]
 mod directory;
+#[path = "ops.rs"]
+mod ops;
 #[path = "rejudge.rs"]
 mod rejudge;
 
@@ -94,6 +96,7 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
     axum::Router::new()
         .merge(directory::directory_routes())
         .merge(rejudge::rejudge_routes())
+        .merge(ops::ops_routes())
         .route(
             "/api/admin/screening/observations",
             get(handlers::screening_admin::list).post(handlers::screening_admin::add),
