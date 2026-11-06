@@ -1,3 +1,5 @@
+import { word } from '@/i18n/wording'
+
 /** Team inboxes, spread into `en`; kept apart to keep each file small. */
 export const teamEn = {
   'admin.emailGroups.shared': 'Team inbox',
@@ -5,7 +7,7 @@ export const teamEn = {
     'Members can assign conversations, leave internal notes and see who is replying',
   'admin.emailGroups.sharedOff': 'No longer a team inbox',
   'admin.emailGroups.sharedOn': 'Now a team inbox',
-  'list.assigned': 'Assigned to me',
+  'list.assigned': word('en', 'list.assigned'),
   'list.assigned.empty': 'Nothing is assigned to you',
   'team.assign': 'Assign',
   'team.assignee': 'Assigned to',

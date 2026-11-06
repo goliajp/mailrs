@@ -1,12 +1,14 @@
+import { word } from '@/i18n/wording'
+
 /** Invitation card entries, spread into `en`; kept apart to keep each file small. */
 export const inviteEn = {
-  'invite.accept': 'Accept',
+  'invite.accept': word('en', 'invite.accept'),
   'invite.badge.cancelled': 'Cancelled',
   'invite.badge.counter': 'Counter-proposed',
   'invite.badge.event': 'Event',
-  'invite.badge.new': 'New invite',
+  'invite.badge.new': word('en', 'invite.badge.new'),
   'invite.badge.reply': 'Reply',
-  'invite.badge.updated': 'Updated invite',
+  'invite.badge.updated': word('en', 'invite.badge.updated'),
   'invite.change': 'Change',
   'invite.conflictsMany': 'Conflicts with {n} events',
   'invite.conflictsWith': 'Conflicts with {what}',
@@ -23,7 +25,7 @@ export const inviteEn = {
   'invite.day.TH': 'Thursday',
   'invite.day.TU': 'Tuesday',
   'invite.day.WE': 'Wednesday',
-  'invite.decline': 'Decline',
+  'invite.decline': word('en', 'invite.decline'),
   'invite.end': 'End',
   'invite.error': 'error: {error}',
   'invite.guest.accepted': 'Accepted',
@@ -40,7 +42,7 @@ export const inviteEn = {
   'invite.guest.yes': 'yes',
   'invite.guest.yesCount': '{n} yes',
   'invite.join': 'Join the meeting',
-  'invite.organizer': 'Organizer:',
+  'invite.organizer': word('en', 'invite.organizer'),
   'invite.repeat.count': '{n} times',
   'invite.repeat.daily': 'Every day',
   'invite.repeat.dailyN': 'Every {n} days',
@@ -65,7 +67,7 @@ export const inviteEn = {
   'invite.singleOccurrence':
     'This occurrence of a recurring event — RSVP applies only to this instance.',
   'invite.start': 'Start',
-  'invite.tentative': 'Tentative',
+  'invite.tentative': word('en', 'invite.tentative'),
 } as const
 
 export type InviteKey = keyof typeof inviteEn

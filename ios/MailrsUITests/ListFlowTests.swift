@@ -282,15 +282,15 @@ final class ListFlowTests: MailrsUITestCase {
             .waitForExistence(timeout: 15), "inbox never listed")
 
         // from Junk, where the Inbox's section tabs (one of them also
-        // "Waiting for a reply") are not on screen
+        // "Waiting") are not on screen
         app.buttons["Lists"].tap()
         app.buttons["Junk"].tap()
         XCTAssertTrue(app.staticTexts["You have won"].waitForExistence(timeout: 10), "Junk did not load")
 
         app.buttons["Lists"].tap()
-        app.buttons["Waiting for a reply"].tap()
+        app.buttons["Waiting"].tap()
         XCTAssertTrue(app.staticTexts["Contract draft sent"].waitForExistence(timeout: 10),
-                      "Waiting for a reply did not ask for the awaiting section")
+                      "Waiting did not ask for the awaiting section")
         XCTAssertFalse(app.staticTexts["You have won"].exists, "the previous list's rows stayed")
 
         app.buttons["Lists"].tap()
