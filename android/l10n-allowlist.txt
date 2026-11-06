@@ -252,6 +252,7 @@ wire/MailList.kt	starred=$it
 wire/MailList.kt	pinned=$it
 wire/MailList.kt	snoozed=$it
 wire/MailList.kt	trashed=true
+wire/MailList.kt	quarantined=true
 wire/MailList.kt	label=$it
 wire/MailList.kt	accounts=
 wire/MailList.kt	Inbox
