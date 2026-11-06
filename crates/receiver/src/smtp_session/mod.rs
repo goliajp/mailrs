@@ -94,28 +94,15 @@ mod drive;
 mod events;
 mod headers;
 pub mod probe_guard;
+mod signed_in;
 pub mod spool_sink;
 mod trace_line;
 
+pub use signed_in::end_cleared;
 pub use spool_sink::SpoolSink;
 
 use drive::drive_session;
-
-/// Register the connection once its AUTH has succeeded.
-/// `since` is taken before the command that signed in was read, so an end
-/// that lands after the client was told it signed in still closes it.
-fn note_signin(
-    ctx: &ConnectionContext,
-    session: &mailrs_smtp_proto::session::Session,
-    signed_in: &mut Option<mailrs_auth_guard::signins::SignedIn>,
-    since: std::time::Instant,
-) {
-    if signed_in.is_none()
-        && let mailrs_smtp_proto::session::State::Authenticated { username, .. } = &session.state
-    {
-        *signed_in = Some(ctx.signins.enter_since(username, since));
-    }
-}
+use signed_in::note_signin;
 
 /// Answer a connection the connect checks refused, in place of the
 /// greeting, and close it.
@@ -188,7 +175,7 @@ pub async fn handle_plain_connection(
         let since = std::time::Instant::now();
         let action =
             drive_session(&mut framed, &mut session, addr, &ctx, conn_id, &signed_in).await;
-        note_signin(&ctx, &session, &mut signed_in, since);
+        note_signin(&ctx, &session, &mut signed_in, since).await;
         match action {
             SessionAction::Continue => continue,
             SessionAction::Close => {
@@ -240,7 +227,7 @@ pub async fn handle_plain_connection(
                         &signed_in,
                     )
                     .await;
-                    note_signin(&ctx, &session, &mut signed_in, since);
+                    note_signin(&ctx, &session, &mut signed_in, since).await;
                     match action {
                         SessionAction::Continue => continue,
                         SessionAction::Close => {
@@ -334,7 +321,7 @@ pub async fn handle_tls_connection(
         let since = std::time::Instant::now();
         let action =
             drive_session(&mut framed, &mut session, addr, &ctx, conn_id, &signed_in).await;
-        note_signin(&ctx, &session, &mut signed_in, since);
+        note_signin(&ctx, &session, &mut signed_in, since).await;
         match action {
             SessionAction::Continue => continue,
             SessionAction::Close | SessionAction::UpgradeTls => {

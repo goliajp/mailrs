@@ -13,3 +13,4 @@ mod masked;
 mod parse_failed;
 mod probing;
 mod rar_and_7z;
+mod signout;

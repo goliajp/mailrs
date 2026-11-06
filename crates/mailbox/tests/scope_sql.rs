@@ -81,6 +81,7 @@ async fn the_sql_scope_selects_what_the_shared_rule_admits() {
     let scopes = [
         Scope::All,
         Scope::NotJunk,
+        Scope::Unread,
         Scope::Bucket(Bucket::Inbox),
         Scope::Bucket(Bucket::Notifications),
         Scope::Bucket(Bucket::Promotions),

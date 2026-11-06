@@ -219,8 +219,9 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
         // folder when this is set, because "archived within Inbox" is not
         // what the tab means.
         case .archived: MailListAxes(archived: true)
-        // across folders, as Starred is
-        case .pinned: MailListAxes(pinned: true)
+        // what the reader pinned wherever it lives, but not Junk, Trash or
+        // Review: the same request the web and Android send
+        case .pinned: MailListAxes(folder: "NonJunk", pinned: true)
         case .snoozed: MailListAxes(snoozed: true)
         case .all: MailListAxes(folder: "all")
         case .trash: MailListAxes(trashed: true)

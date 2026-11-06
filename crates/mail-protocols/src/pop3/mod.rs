@@ -153,8 +153,9 @@ where
             }
             "PASS" => match &user {
                 Some(username) => {
+                    let since = std::time::Instant::now();
                     if let Some(opened) = pass(dir, username, arg, tx).await? {
-                        signed_in = dir.signins().map(|s| s.enter(opened.user()));
+                        signed_in = crate::guard::register(dir, opened.user(), since).await;
                         maildrop = Some(opened);
                     }
                 }
