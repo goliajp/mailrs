@@ -105,16 +105,25 @@ fn measure(op: &Op, raw: &[u8]) -> (Duration, Duration, Duration) {
     )
 }
 
-fn gate(name: &str, op: Op, total: Duration, overhead: Duration) {
+fn gate(name: &str, op: Op, total: Duration, overhead: Duration, usual: Duration) {
     let raw = newsletter();
     let (worker, in_process, extra) = measure(&op, &raw);
-    // in process far above its usual figure (BUDGETS.md) means the
-    // machine was busy, not that the code got slower
     eprintln!(
         "{name}: {} bytes, worker p95 {worker:?}, in process p95 {in_process:?}, \
 overhead per call (median) {extra:?}",
         raw.len()
     );
+    // the in-process parse is the control: the code under it did not
+    // change, so a reading far above its quiet figure means the machine
+    // was busy during this run, which load1 (a one-minute average) can
+    // miss for a run this short. perf-gates.sh voids a failure that
+    // printed this line.
+    if in_process > usual * 3 / 2 {
+        eprintln!(
+            "perf-gate: busy machine ({name}: in process p95 {in_process:?}, \
+usually about {usual:?})"
+        );
+    }
     assert!(
         worker < total,
         "{name}: worker p95 {worker:?} (budget {total:?}; in process p95 {in_process:?})"
@@ -136,6 +145,7 @@ fn the_receivers_scan_through_the_worker_stays_within_budget() {
         }),
         Duration::from_micros(BUDGET_SCAN_US),
         Duration::from_micros(BUDGET_SCAN_OVERHEAD_US),
+        Duration::from_micros(USUAL_SCAN_IN_PROCESS_US),
     );
 }
 
@@ -149,6 +159,7 @@ fn the_drains_search_text_through_the_worker_stays_within_budget() {
         }),
         Duration::from_micros(BUDGET_BODY_US),
         Duration::from_micros(BUDGET_BODY_OVERHEAD_US),
+        Duration::from_micros(USUAL_BODY_IN_PROCESS_US),
     );
 }
 
@@ -156,3 +167,6 @@ const BUDGET_SCAN_US: u64 = 1_700;
 const BUDGET_SCAN_OVERHEAD_US: u64 = 210;
 const BUDGET_BODY_US: u64 = 650;
 const BUDGET_BODY_OVERHEAD_US: u64 = 170;
+// in-process P95 on a quiet studio, the control for the two gates above
+const USUAL_SCAN_IN_PROCESS_US: u64 = 500;
+const USUAL_BODY_IN_PROCESS_US: u64 = 160;
