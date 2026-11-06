@@ -64,6 +64,7 @@ fun SettingsScreen(
     onMergedMail: () -> Unit,
     onPage: (SettingsPage) -> Unit,
     onSwipe: (jp.golia.mailrs.wire.SwipeSetting) -> Unit,
+    onSectioned: (Boolean) -> Unit,
     onSignOut: () -> Unit,
 ) {
     val theme = LocalTheme.current
@@ -172,7 +173,7 @@ fun SettingsScreen(
                 )
             }
 
-            SettingsExtras(state.swipe, onSwipe, onPage)
+            SettingsExtras(state.swipe, onSwipe, state.sectionedInbox, onSectioned, onPage)
 
             HorizontalDivider(color = theme.border, thickness = 0.5.dp)
             SectionHeading(Texts.get(R.string.settings_admin))

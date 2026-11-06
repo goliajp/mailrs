@@ -6,18 +6,14 @@ import { useState } from 'react'
 
 import { useConversationRows } from '@/hooks/use-current-list'
 import { useOpenList } from '@/hooks/use-open-list'
+import { useSectionedInbox } from '@/hooks/use-sectioned-inbox'
 import { useT } from '@/i18n'
 import { errorText } from '@/lib/error-text'
 import { latestSenders } from '@/lib/latest-senders'
 import { invalidateMail } from '@/lib/mail-cache'
 import { rovingKeyDown } from '@/lib/roving'
 import { authAtom } from '@/store/auth'
-import {
-  INBOX_SECTIONS,
-  type InboxSection,
-  inboxSectionAtom,
-  sectionedInboxAtom,
-} from '@/store/inbox-sections'
+import { INBOX_SECTIONS, type InboxSection, inboxSectionAtom } from '@/store/inbox-sections'
 import { activeListAtom } from '@/store/ui'
 import { wireAcceptSenders } from '@/wire/endpoints/senders'
 
@@ -36,7 +32,7 @@ const LABELS: Record<InboxSection, Key> = {
 export function InboxSectionBar() {
   const t = useT()
   const activeList = useAtomValue(activeListAtom)
-  const sectioned = useAtomValue(sectionedInboxAtom)
+  const sectioned = useSectionedInbox()
   const [section, setSection] = useAtom(inboxSectionAtom)
   const openList = useOpenList()
   if (activeList !== 'inbox' || !sectioned) return null

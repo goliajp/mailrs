@@ -31,3 +31,9 @@ export const forwardingVerifiedSchema = z.object({ address: z.string() })
 const swipeChoice = z.enum(['archive', 'none', 'read', 'trash'])
 
 export const swipeSchema = z.object({ left: swipeChoice, right: swipeChoice })
+
+// Backend: crates/webapi/src/handlers/mail_settings.rs — fn get_sectioned_inbox / fn put_sectioned_inbox
+// (the type is crates/core-sidestate/src/families/sectioned_inbox.rs `SectionedInbox`)
+export const sectionedInboxSchema = z.object({ enabled: z.boolean() })
+
+export type WireSectionedInbox = z.infer<typeof sectionedInboxSchema>

@@ -12,14 +12,20 @@ import { wireFetch } from '../client'
 import {
   forwardingSchema,
   forwardingVerifiedSchema,
+  sectionedInboxSchema,
   swipeSchema,
   vacationSchema,
+  type WireSectionedInbox,
   type WireVacation,
 } from '../schemas/mail-settings'
 import { emptyResponseSchema } from '../schemas/mutations'
 
 export function wireGetForwarding(signal?: AbortSignal) {
   return wireFetch(forwardingSchema, { path: '/settings/forwarding', signal })
+}
+
+export function wireGetSectionedInbox(signal?: AbortSignal) {
+  return wireFetch(sectionedInboxSchema, { path: '/settings/sectioned-inbox', signal })
 }
 
 export function wireGetSwipe(signal?: AbortSignal) {
@@ -36,6 +42,14 @@ export async function wireRequestForwarding(address: string, keepCopy: boolean):
     body: { address, keep_copy: keepCopy },
     method: 'POST',
     path: '/settings/forwarding',
+  })
+}
+
+export function wireSetSectionedInbox(s: WireSectionedInbox) {
+  return wireFetch(sectionedInboxSchema, {
+    body: s,
+    method: 'PUT',
+    path: '/settings/sectioned-inbox',
   })
 }
 

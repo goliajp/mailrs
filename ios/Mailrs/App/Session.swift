@@ -177,6 +177,8 @@ final class Session {
     var activeLabel: Wire.LabelItem?
     /// What a swipe on a row does, the reader's setting on the server.
     var swipe: SwipeSetting = .standard
+    /// Whether the Inbox shows its section tabs, the reader's setting on the server.
+    var sectionedInbox = true
     /// Both sender lists, for the message menu's Block / Unblock; nil until read.
     var senderLists: SenderLists?
     var pendingUndo: PendingUndo?

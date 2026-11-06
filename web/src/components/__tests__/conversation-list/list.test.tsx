@@ -73,6 +73,8 @@ const filtersStub: { current: Record<string, unknown> } = { current: {} }
 vi.mock('@/hooks/use-current-mail-filters', () => ({
   useCurrentMailFilters: () => filtersStub.current,
 }))
+// the whole Inbox, not one of its sections, whose empty states differ
+vi.mock('@/hooks/use-sectioned-inbox', () => ({ useSectionedInbox: () => false }))
 vi.mock('@/hooks/use-flat-conversations', () => ({
   useFlatConversations: () => flatStub,
 }))
@@ -224,8 +226,6 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
 })
-
-// domain selector tests removed — domains moved to sidebar
 
 describe('ConversationList empty states', () => {
   let store: ReturnType<typeof createStore>

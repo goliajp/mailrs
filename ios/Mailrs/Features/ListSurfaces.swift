@@ -13,7 +13,7 @@ struct ListSurfaces: ViewModifier {
     func body(content: Content) -> some View {
         content
             .safeAreaInset(edge: .top) {
-                if session.activeList == .inbox { InboxSectionBar() }
+                if session.activeList == .inbox, session.sectionedInbox { InboxSectionBar() }
             }
             .overlay(alignment: .top) { FailureBanner() }
             .animation(.easeOut(duration: 0.2), value: session.banner)

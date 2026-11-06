@@ -5949,6 +5949,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/sectioned-inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether the Inbox is split into sections; on when never set */
+        get: operations["getSectionedInbox"];
+        /** Turn the sectioned Inbox on or off, on the web and both phone apps */
+        put: operations["setSectionedInbox"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/forwarding": {
         parameters: {
             query?: never;
@@ -8936,6 +8954,10 @@ export interface components {
              * @enum {string}
              */
             right: "archive" | "trash" | "read" | "none";
+        };
+        SectionedInbox: {
+            /** @description Show the Inbox by section (all, to reply, waiting, new senders) */
+            enabled: boolean;
         };
     };
     responses: never;
@@ -17027,6 +17049,57 @@ export interface operations {
                 };
             };
             /** @description A direction names an action that is not one of the choices */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getSectionedInbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SectionedInbox */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SectionedInbox"];
+                };
+            };
+        };
+    };
+    setSectionedInbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SectionedInbox"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SectionedInbox"];
+                };
+            };
+            /** @description The body has no boolean enabled */
             422: {
                 headers: {
                     [name: string]: unknown;

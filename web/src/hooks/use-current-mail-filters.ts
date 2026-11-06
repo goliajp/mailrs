@@ -16,11 +16,12 @@ import { useQuery } from '@tanstack/react-query'
 import { useAtomValue } from 'jotai'
 import { useMemo } from 'react'
 
+import { useSectionedInbox } from '@/hooks/use-sectioned-inbox'
 import { useThrottledValue } from '@/hooks/use-throttled-value'
 import { mailFiltersOf } from '@/lib/mail-filters'
 import { type MailListFilters } from '@/lib/query-keys'
 import { z } from '@/lib/zod'
-import { followupDaysAtom, inboxSectionAtom, sectionedInboxAtom } from '@/store/inbox-sections'
+import { followupDaysAtom, inboxSectionAtom } from '@/store/inbox-sections'
 import { conversationKeys } from '@/store/query-keys-v21'
 import { hideSuspectedFraudAtom } from '@/store/settings'
 import {
@@ -46,7 +47,7 @@ export function useCurrentMailFilters(): MailListFilters | null {
   const selectedDomains = useAtomValue(selectedDomainsAtom)
   const selectedAccounts = useAtomValue(selectedAccountsAtom)
   const searchQuery = useAtomValue(searchQueryAtom)
-  const sectioned = useAtomValue(sectionedInboxAtom)
+  const sectioned = useSectionedInbox()
   const inboxSection = useAtomValue(inboxSectionAtom)
   const followupDays = useAtomValue(followupDaysAtom)
   const hideSuspectedFraud = useAtomValue(hideSuspectedFraudAtom)

@@ -27,6 +27,7 @@ struct SettingsExtras: View {
             }
             .accessibilityIdentifier("settings.images")
         }
+        SectionedInboxSettingsSection()
         SwipeSettingsSection()
         Section("Security") {
             NavigationLink { SessionsView() } label: {

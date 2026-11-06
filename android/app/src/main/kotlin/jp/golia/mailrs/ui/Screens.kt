@@ -76,6 +76,7 @@ import jp.golia.mailrs.wire.MailList
 import jp.golia.mailrs.compose
 import jp.golia.mailrs.draftNoticeShown
 import jp.golia.mailrs.loadLabels
+import jp.golia.mailrs.loadSectionedInbox
 import jp.golia.mailrs.loadSwipe
 import jp.golia.mailrs.R
 import jp.golia.mailrs.wire.RowAction
@@ -147,8 +148,12 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
     // The labels are the reader's own and change on the web; asked for
     // whenever the drawer opens, so the list there is the current one.
     LaunchedEffect(drawer.isOpen) { if (drawer.isOpen) vm.loadLabels() }
-    // what a swipe does is the reader's setting, which can change on the web
-    LaunchedEffect(Unit) { vm.loadSwipe() }
+    // what a swipe does and whether the Inbox has section tabs are the
+    // reader's settings, which can change on the web or another phone
+    LaunchedEffect(Unit) {
+        vm.loadSwipe()
+        vm.loadSectionedInbox()
+    }
 
     ModalNavigationDrawer(
         drawerState = drawer,
@@ -246,7 +251,7 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                     }
                 },
             )
-            if (state.list == MailList.Inbox && state.label == null && state.selected.isEmpty()) {
+            if (state.list == MailList.Inbox && state.label == null && state.selected.isEmpty() && state.sectionedInbox) {
                 InboxSectionBar(state, vm)
             }
         } },

@@ -6630,6 +6630,22 @@
         }
       }
     },
+    "Sectioned inbox": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "区分付き受信トレイ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分区收件箱"
+          }
+        }
+      }
+    },
     "Security": {
       "localizations": {
         "ja": {
@@ -7494,6 +7510,22 @@
         }
       }
     },
+    "Tabs over the Inbox for mail to reply to, conversations waiting on an answer and new senders. The same setting is used on the web and in the Android app": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "受信トレイの上に、返信が必要なメール、返事を待っている会話、新しい差出人のタブを表示します。Web と Android アプリでも同じ設定が使われます"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在收件箱上方显示「我要回复」「等待回复」「新发件人」几个标签。网页和 Android 应用用的是同一个设置"
+          }
+        }
+      }
+    },
     "Team": {
       "localizations": {
         "ja": {
@@ -7858,6 +7890,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "网页和 Android 应用也用这个设置。在废纸篓里，往哪边滑都是把会话恢复"
+          }
+        }
+      }
+    },
+    "The sectioned inbox setting was not saved": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "区分付き受信トレイの設定を保存できませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分区收件箱的设置没有保存"
           }
         }
       }
