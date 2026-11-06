@@ -60,6 +60,7 @@ pub(crate) async fn backfill_invites_route(
     let mut by_method: std::collections::BTreeMap<String, u64> = Default::default();
     let mut samples: Vec<serde_json::Value> = Vec::new();
     let mut refiled = 0u64;
+    let mut missing_row = 0u64;
 
     for user in &users {
         let mut to_refile: Vec<(crate::invites::FoundInvite, String)> = Vec::new();
@@ -187,6 +188,20 @@ pub(crate) async fn backfill_invites_route(
         // a series before the occurrences that change it
         to_refile.sort_by_key(|(found, _)| is_one_occurrence(found));
         for (found, message_id) in to_refile {
+            // refiling only rewrites rows that are there: a row that is
+            // gone may have been deleted (a CalDAV DELETE leaves no trace),
+            // and filing it again would bring the meeting back
+            match has_row(&state, user, &found.uid) {
+                Some(true) => {}
+                Some(false) => {
+                    missing_row += 1;
+                    continue;
+                }
+                None => {
+                    errors += 1;
+                    continue;
+                }
+            }
             refiled += 1;
             if !q.dry_run {
                 crate::invites::file_event(&state, user, &found, &message_id);
@@ -205,6 +220,8 @@ pub(crate) async fn backfill_invites_route(
         "already_recorded": already,
         "changed": changed,
         "refiled": refiled,
+        // invitations whose calendar row is gone, left alone
+        "refile_missing_row": missing_row,
         "not_an_invitation": not_an_invite,
         "no_file": no_file,
         "errors": errors,
@@ -212,6 +229,15 @@ pub(crate) async fn backfill_invites_route(
         "store": motion.finish(&state),
     }))
     .into_response()
+}
+
+/// Whether `user` has a calendar row for `uid`; `None` when network kevy
+/// cannot be read.
+fn has_row(state: &Arc<FastcoreState>, user: &str, uid: &str) -> Option<bool> {
+    let mut conn = state.net_conn()?;
+    mailrs_core_sidestate::families::calendar_events::get(&mut conn, user, uid)
+        .ok()
+        .map(|row| row.is_some())
 }
 
 /// An invitation for one occurrence of a series (it has a `RECURRENCE-ID`).

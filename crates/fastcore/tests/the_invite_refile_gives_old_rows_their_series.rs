@@ -22,6 +22,9 @@ const SERIES: &[u8] =
 const MOVED: &[u8] =
     include_bytes!("../../ical/tests/fixtures/itip/outlook/recurring-instance-override.eml");
 const UID: &str = "outlook-standup-mwf@contoso.com";
+// an invitation whose row is gone (deleted over CalDAV, say)
+const GONE: &[u8] = include_bytes!("../../ical/tests/fixtures/itip/outlook/request.eml");
+const GONE_UID: &str = "outlook-roadmap-2026-q2@contoso.com";
 
 /// One test per binary: the route reads `MAILRS_MAILDIR` and the state
 /// reads `MAILRS_KEVY_URL` from the process environment.
@@ -37,6 +40,7 @@ async fn an_old_row_gets_its_series_and_the_moved_occurrence() {
     // the moved occurrence first, as a mailbox may list it
     let moved_ref = md.deliver(MOVED).expect("deliver").0;
     let series_ref = md.deliver(SERIES).expect("deliver").0;
+    let gone_ref = md.deliver(GONE).expect("deliver").0;
     // SAFETY: own process, set before the state and router are built
     unsafe {
         std::env::set_var("MAILRS_MAILDIR", &root);
@@ -54,6 +58,7 @@ async fn an_old_row_gets_its_series_and_the_moved_occurrence() {
     for (mid, blob_ref) in [
         ("outlook-rec-inst-001@contoso.com", moved_ref.as_str()),
         ("outlook-rec-001@contoso.com", series_ref.as_str()),
+        ("outlook-req-001@contoso.com", gone_ref.as_str()),
     ] {
         mailbox
             .record_message_arrival(&mailrs_mailbox_kevy::MessageArrival {
@@ -107,7 +112,7 @@ async fn an_old_row_gets_its_series_and_the_moved_occurrence() {
 
     let state = Arc::new(mailrs_fastcore::FastcoreState::new(mailbox));
     let plain = backfill(&state, "").await;
-    assert_eq!(plain["already_recorded"], 2, "{plain}");
+    assert_eq!(plain["already_recorded"], 3, "{plain}");
     assert_eq!(
         plain["refiled"], 0,
         "the plain run leaves recorded ones alone: {plain}"
@@ -122,6 +127,7 @@ async fn an_old_row_gets_its_series_and_the_moved_occurrence() {
 
     let dry = backfill(&state, "?refile=true&dry_run=true").await;
     assert_eq!(dry["refiled"], 2, "{dry}");
+    assert_eq!(dry["refile_missing_row"], 1, "{dry}");
     assert!(
         ev::get(&mut kv, USER, UID)
             .unwrap()
@@ -132,7 +138,12 @@ async fn an_old_row_gets_its_series_and_the_moved_occurrence() {
 
     let run = backfill(&state, "?refile=true").await;
     assert_eq!(run["refiled"], 2, "{run}");
+    assert_eq!(run["refile_missing_row"], 1, "{run}");
     assert_eq!(run["changed"], 0, "{run}");
+    assert!(
+        ev::get(&mut kv, USER, GONE_UID).unwrap().is_none(),
+        "a meeting whose row is gone is not brought back"
+    );
     let row = ev::get(&mut kv, USER, UID).unwrap().unwrap();
     assert_eq!(
         row.partstat.as_deref(),
