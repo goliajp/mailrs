@@ -74,12 +74,16 @@ fn there_are_seventeen_phase_one_rules_and_each_has_text() {
     assert_eq!(symptoms.len(), 17, "{symptoms:?}");
     for r in all() {
         assert!(
-            !r.text.title_en.is_empty() && !r.text.title_zh.is_empty(),
+            [r.text.title_en, r.text.title_zh, r.text.title_ja]
+                .iter()
+                .all(|t| !t.is_empty()),
             "{}",
             r.name
         );
         assert!(
-            !r.text.step_en.is_empty() && !r.text.step_zh.is_empty(),
+            [r.text.step_en, r.text.step_zh, r.text.step_ja]
+                .iter()
+                .all(|t| !t.is_empty()),
             "{}",
             r.name
         );

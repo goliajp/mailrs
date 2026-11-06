@@ -208,7 +208,8 @@
     <string name="reset_back_to_sign_in">サインインに戻る</string>
     <string name="search_placeholder">メールを検索</string>
     <string name="common_clear">クリア</string>
-    <string name="search_hint">件名と本文を検索します</string>
+    <string name="search_hint">検索、または from: to: subject: has:attachment in: is: label:</string>
+    <string name="search_saved">保存した検索</string>
     <string name="search_no_match">「%1$s」に一致するメールはありません</string>
     <string name="search_first_n">最初の %1$s 件です。もっと見るには検索を絞り込んでください</string>
     <string name="sent_empty">まだ何も送信していません</string>

@@ -1,0 +1,620 @@
+{
+  "admin_refusals": [],
+  "alerts": [
+    {
+      "object": "ops",
+      "phase": "firing",
+      "rule": "daemon_unwatched",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "Configure an external \"alert when silent\" check URL.",
+      "step_ja": "外部の「一定時間届かなければ通知する」チェックの URL を設定します",
+      "step_zh": "配一个外部的「到时间没收到就报警」的检查地址。",
+      "threshold": "a heartbeat URL",
+      "title_en": "Nothing outside watches the ops daemon",
+      "title_ja": "運用デーモンを外部から見守るものがない",
+      "title_zh": "运维进程没有外部看护",
+      "value": "MAILRS_OPS_HEARTBEAT_URL unset",
+      "why": null
+    },
+    {
+      "object": "reports",
+      "phase": "pending",
+      "rule": "no_reports",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "Check the ops container's network and that MAILRS_OPS_BIND is reachable from the other containers.",
+      "step_ja": "ops コンテナのネットワークと、ほかのコンテナから MAILRS_OPS_BIND に接続できるかを確認します",
+      "step_zh": "查 ops 容器的网络，以及别的容器能不能连到 MAILRS_OPS_BIND。",
+      "threshold": "at least one",
+      "title_en": "No process reports arrive",
+      "title_ja": "どのプロセスからもレポートが届かない",
+      "title_zh": "收不到任何进程的报告",
+      "value": "0 of 4 pushing processes heard",
+      "why": null
+    },
+    {
+      "object": "backup",
+      "phase": "pending",
+      "rule": "source_unreadable.backup",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "Check whether the process is running and reachable from the ops container; for a process that pushes reports, check its MAILRS_OPS_URL and key.",
+      "step_ja": "そのプロセスが動いていて ops コンテナから接続できるかを確認します。レポートを送るプロセスなら MAILRS_OPS_URL と鍵を確認します",
+      "step_zh": "看这个进程是否在运行、从 ops 容器能不能连到；对推报告的进程，查它的 MAILRS_OPS_URL 和报告密钥。",
+      "threshold": "a fresh heartbeat",
+      "title_en": "Cannot read a source",
+      "title_ja": "情報源を読み取れない",
+      "title_zh": "读不到一个来源",
+      "value": "never reported",
+      "why": null
+    },
+    {
+      "object": "fastcore",
+      "phase": "pending",
+      "rule": "source_unreadable.fastcore",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "Check whether the process is running and reachable from the ops container; for a process that pushes reports, check its MAILRS_OPS_URL and key.",
+      "step_ja": "そのプロセスが動いていて ops コンテナから接続できるかを確認します。レポートを送るプロセスなら MAILRS_OPS_URL と鍵を確認します",
+      "step_zh": "看这个进程是否在运行、从 ops 容器能不能连到；对推报告的进程，查它的 MAILRS_OPS_URL 和报告密钥。",
+      "threshold": "readable",
+      "title_en": "Cannot read a source",
+      "title_ja": "情報源を読み取れない",
+      "title_zh": "读不到一个来源",
+      "value": "cannot read: core unavailable: healthz transport: error sending request for url (http://127.0.0.1:9/v1/healthz): client error (Connect): tcp connect error: Connection refused (os error 61)",
+      "why": null
+    },
+    {
+      "object": "fetch",
+      "phase": "pending",
+      "rule": "source_unreadable.fetch",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "Check whether the process is running and reachable from the ops container; for a process that pushes reports, check its MAILRS_OPS_URL and key.",
+      "step_ja": "そのプロセスが動いていて ops コンテナから接続できるかを確認します。レポートを送るプロセスなら MAILRS_OPS_URL と鍵を確認します",
+      "step_zh": "看这个进程是否在运行、从 ops 容器能不能连到；对推报告的进程，查它的 MAILRS_OPS_URL 和报告密钥。",
+      "threshold": "a fresh heartbeat",
+      "title_en": "Cannot read a source",
+      "title_ja": "情報源を読み取れない",
+      "title_zh": "读不到一个来源",
+      "value": "never reported",
+      "why": null
+    },
+    {
+      "object": "receiver",
+      "phase": "pending",
+      "rule": "source_unreadable.receiver",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "Check whether the process is running and reachable from the ops container; for a process that pushes reports, check its MAILRS_OPS_URL and key.",
+      "step_ja": "そのプロセスが動いていて ops コンテナから接続できるかを確認します。レポートを送るプロセスなら MAILRS_OPS_URL と鍵を確認します",
+      "step_zh": "看这个进程是否在运行、从 ops 容器能不能连到；对推报告的进程，查它的 MAILRS_OPS_URL 和报告密钥。",
+      "threshold": "a fresh heartbeat",
+      "title_en": "Cannot read a source",
+      "title_ja": "情報源を読み取れない",
+      "title_zh": "读不到一个来源",
+      "value": "never reported",
+      "why": null
+    },
+    {
+      "object": "sender",
+      "phase": "pending",
+      "rule": "source_unreadable.sender",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "Check whether the process is running and reachable from the ops container; for a process that pushes reports, check its MAILRS_OPS_URL and key.",
+      "step_ja": "そのプロセスが動いていて ops コンテナから接続できるかを確認します。レポートを送るプロセスなら MAILRS_OPS_URL と鍵を確認します",
+      "step_zh": "看这个进程是否在运行、从 ops 容器能不能连到；对推报告的进程，查它的 MAILRS_OPS_URL 和报告密钥。",
+      "threshold": "a fresh heartbeat",
+      "title_en": "Cannot read a source",
+      "title_ja": "情報源を読み取れない",
+      "title_zh": "读不到一个来源",
+      "value": "never reported",
+      "why": null
+    },
+    {
+      "object": "webapi",
+      "phase": "pending",
+      "rule": "source_unreadable.webapi",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "Check whether the process is running and reachable from the ops container; for a process that pushes reports, check its MAILRS_OPS_URL and key.",
+      "step_ja": "そのプロセスが動いていて ops コンテナから接続できるかを確認します。レポートを送るプロセスなら MAILRS_OPS_URL と鍵を確認します",
+      "step_zh": "看这个进程是否在运行、从 ops 容器能不能连到；对推报告的进程，查它的 MAILRS_OPS_URL 和报告密钥。",
+      "threshold": "readable",
+      "title_en": "Cannot read a source",
+      "title_ja": "情報源を読み取れない",
+      "title_zh": "读不到一个来源",
+      "value": "cannot read: error sending request for url (http://127.0.0.1:9/api/health)",
+      "why": null
+    },
+    {
+      "object": "accounts",
+      "phase": "ok",
+      "rule": "accounts_over_80_percent",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "Tell the user to clean up, or raise the limit.",
+      "step_ja": "利用者に整理を依頼するか、容量制限を引き上げます",
+      "step_zh": "通知用户清理，或者调高限额。",
+      "threshold": null,
+      "title_en": "Accounts over 80% of their quota",
+      "title_ja": "容量の 80% を超えたアカウントがある",
+      "title_zh": "账号用量超过 80%",
+      "value": null,
+      "why": "webapi: error sending request for url (http://127.0.0.1:9/api/health)"
+    },
+    {
+      "object": "accounts",
+      "phase": "ok",
+      "rule": "accounts_without_quota",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "Set a limit on these accounts.",
+      "step_ja": "これらのアカウントに容量制限を設定します",
+      "step_zh": "给这些账号设限额。",
+      "threshold": null,
+      "title_en": "Accounts without a quota",
+      "title_ja": "容量制限のないアカウントがある",
+      "title_zh": "有账号没设限额",
+      "value": null,
+      "why": "webapi: error sending request for url (http://127.0.0.1:9/api/health)"
+    },
+    {
+      "object": "fastcore",
+      "phase": "ok",
+      "rule": "core_memory_high",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "Check whether a re-judge or backfill is running. If it keeps rising, plan a restart in a quiet hour and review mem_limit.",
+      "step_ja": "再判定やバックフィルが走っていないか確認します。上がり続ける場合は空いている時間帯の再起動を計画し、mem_limit を見直します",
+      "step_zh": "看是不是在跑重判或回填；持续上涨时准备在安静时段重启，并检查 mem_limit。",
+      "threshold": null,
+      "title_en": "Core memory is high",
+      "title_ja": "コアのメモリ使用量が高い",
+      "title_zh": "核心内存高",
+      "value": null,
+      "why": "fastcore: core unavailable: healthz transport: error sending request for url (http://127.0.0.1:9/v1/healthz): client error (Connect): tcp connect error: Connection refused (os error 61)"
+    },
+    {
+      "object": "fastcore",
+      "phase": "ok",
+      "rule": "core_store_damaged",
+      "severity": "critical",
+      "since": 1793926075,
+      "step_en": "Do NOT restart it. Recover by hand following the kevy AOF damage procedure.",
+      "step_ja": "再起動しないでください。kevy AOF 破損の復旧手順に従って人が対応します",
+      "step_zh": "不要重启。按 kevy AOF 损坏的恢复步骤由人处理。",
+      "threshold": null,
+      "title_en": "The core's store came up damaged",
+      "title_ja": "コアの内蔵ストアが破損と報告",
+      "title_zh": "内嵌库启动报告损坏",
+      "value": null,
+      "why": "fastcore readyz: core unavailable: readyz transport: error sending request for url (http://127.0.0.1:9/v1/readyz): client error (Connect): tcp connect error: Connection refused (os error 61)"
+    },
+    {
+      "object": "mailrs-data",
+      "phase": "ok",
+      "rule": "data_volume_low",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "Find whether maildir, kevy or the spool is growing. Before the space runs out the receiver should start refusing mail temporarily.",
+      "step_ja": "maildir、kevy、spool のどれが増えているかを調べます。容量が尽きる前に receiver は一時的に受信を拒否し始めるはずです",
+      "step_zh": "看 maildir、kevy、spool 哪个在涨；空间耗尽前 receiver 应开始临时拒收。",
+      "threshold": null,
+      "title_en": "Data volume is running out of space",
+      "title_ja": "データボリュームの空き容量が少ない",
+      "title_zh": "数据卷剩余空间少",
+      "value": null,
+      "why": "webapi: error sending request for url (http://127.0.0.1:9/api/health)"
+    },
+    {
+      "object": "kevy-server",
+      "phase": "ok",
+      "rule": "kevy_server_memory_high",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "Find which key family is growing. Do not restart kevy-server on a whim: read the BGREWRITEAOF note above it in the compose file first.",
+      "step_ja": "どのキー群が増えているかを調べます。kevy-server を安易に再起動しないでください（先に compose ファイルの BGREWRITEAOF に関する注記を読みます）",
+      "step_zh": "看哪一族键在涨；不要直接重启 kevy-server（先读 compose 里它上方关于 BGREWRITEAOF 的注释）。",
+      "threshold": null,
+      "title_en": "kevy-server memory is high",
+      "title_ja": "kevy-server のメモリ使用量が高い",
+      "title_zh": "kevy-server 内存高",
+      "value": null,
+      "why": "webapi: error sending request for url (http://127.0.0.1:9/api/health)"
+    },
+    {
+      "object": "kevy-server",
+      "phase": "ok",
+      "rule": "kevy_server_unavailable",
+      "severity": "critical",
+      "since": 1793926075,
+      "step_en": "Check the kevy-server container and its log. Do not restart it before reading the BGREWRITEAOF note in the compose file.",
+      "step_ja": "kevy-server のコンテナとログを確認します。compose ファイルの BGREWRITEAOF に関する注記を読むまでは再起動しないでください",
+      "step_zh": "看 kevy-server 容器和它的日志。读过 compose 里关于 BGREWRITEAOF 的注释之前不要重启它。",
+      "threshold": null,
+      "title_en": "kevy-server is unavailable",
+      "title_ja": "kevy-server が使えない",
+      "title_zh": "kevy-server 不可用",
+      "value": null,
+      "why": "neither webapi nor a receiver or sender heartbeat says"
+    },
+    {
+      "object": "maintenance",
+      "phase": "ok",
+      "rule": "maintenance_too_long",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "Confirm someone is still working on it; if not, end maintenance.",
+      "step_ja": "まだ誰かが作業しているか確認し、いなければメンテナンスを終了します",
+      "step_zh": "确认还有没有人在处理；没有就结束维护状态。",
+      "threshold": null,
+      "title_en": "Maintenance has been on too long",
+      "title_ja": "メンテナンス状態が長く続いている",
+      "title_zh": "维护状态开得太久",
+      "value": "off",
+      "why": null
+    },
+    {
+      "object": "domains",
+      "phase": "ok",
+      "rule": "new_domains_burst",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "Check for a batch of look-alike domains.",
+      "step_ja": "なりすましドメインがまとめて現れていないか確認します",
+      "step_zh": "看是否有成批的仿冒域名。",
+      "threshold": null,
+      "title_en": "Burst of newly seen sender domains",
+      "title_ja": "初めて見る送信ドメインが急増",
+      "title_zh": "新域名突增",
+      "value": null,
+      "why": "webapi: error sending request for url (http://127.0.0.1:9/api/health)"
+    },
+    {
+      "object": "sender",
+      "phase": "ok",
+      "rule": "outbound_stuck",
+      "severity": "critical",
+      "since": 1793926075,
+      "step_en": "Check whether the sender is alive and whether every job is in backoff; read the remote refusals.",
+      "step_ja": "sender が動いているか、すべてのジョブが待機中でないかを確認し、相手サーバーの拒否応答を読みます",
+      "step_zh": "看 sender 是否活着、是否所有任务都在退避；看对方拒收的回复。",
+      "threshold": null,
+      "title_en": "Outbound mail is stuck",
+      "title_ja": "送信が止まっている",
+      "title_zh": "出站卡住",
+      "value": null,
+      "why": "no fresh sender heartbeat"
+    },
+    {
+      "object": "core",
+      "phase": "ok",
+      "rule": "parse_failures",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "See in `failures` which parser and which way it died. If one message keeps failing, find that message.",
+      "step_ja": "failures でどのパーサーがどのように落ちたかを確認します。同じメールで繰り返し失敗する場合はそのメールを特定します",
+      "step_zh": "看 failures 里是哪个解析器、哪种死法；同一封信反复失败时找出这封信。",
+      "threshold": null,
+      "title_en": "Parse failures are rising",
+      "title_ja": "解析の失敗が増えている",
+      "title_zh": "解析失败增多",
+      "value": null,
+      "why": "fastcore: core unavailable: healthz transport: error sending request for url (http://127.0.0.1:9/v1/healthz): client error (Connect): tcp connect error: Connection refused (os error 61)"
+    },
+    {
+      "object": "receiver",
+      "phase": "ok",
+      "rule": "parse_failures",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "See in `failures` which parser and which way it died. If one message keeps failing, find that message.",
+      "step_ja": "failures でどのパーサーがどのように落ちたかを確認します。同じメールで繰り返し失敗する場合はそのメールを特定します",
+      "step_zh": "看 failures 里是哪个解析器、哪种死法；同一封信反复失败时找出这封信。",
+      "threshold": null,
+      "title_en": "Parse failures are rising",
+      "title_ja": "解析の失敗が増えている",
+      "title_zh": "解析失败增多",
+      "value": null,
+      "why": "no fresh receiver heartbeat"
+    },
+    {
+      "object": "spool",
+      "phase": "ok",
+      "rule": "spool_quarantined",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "Read the quarantine record (envelope only). Confirm the build that crashed on it is fixed, then move the file back to incoming/new/ by hand. Do not retry it on an unfixed build.",
+      "step_ja": "隔離記録（エンベロープ情報のみ）を確認します。クラッシュの原因となったビルドが修正済みであることを確かめてから、人の手でファイルを incoming/new/ に戻します。修正前のビルドで再投入しないでください",
+      "step_zh": "看隔离记录（只有信封信息）。确认引起崩溃的版本已修好，再由人把文件挪回 incoming/new/。不要在没修好的版本上重投。",
+      "threshold": null,
+      "title_en": "Mail was quarantined",
+      "title_ja": "メールが隔離されました",
+      "title_zh": "有信被隔离",
+      "value": null,
+      "why": "fastcore: core unavailable: healthz transport: error sending request for url (http://127.0.0.1:9/v1/healthz): client error (Connect): tcp connect error: Connection refused (os error 61)"
+    },
+    {
+      "object": "spool",
+      "phase": "ok",
+      "rule": "spool_stalled",
+      "severity": "critical",
+      "since": 1793926075,
+      "step_en": "Look in fastcore's log for the file the drain stopped at, and whether the quarantine count is rising.",
+      "step_ja": "fastcore のログで drain がどのファイルで止まっているか、隔離数が増えていないかを確認します",
+      "step_zh": "看 fastcore 日志里 drain 停在哪封信、隔离数是否在涨。",
+      "threshold": null,
+      "title_en": "The spool is not moving",
+      "title_ja": "spool が進んでいない",
+      "title_zh": "spool 不再推进",
+      "value": null,
+      "why": "fastcore: core unavailable: healthz transport: error sending request for url (http://127.0.0.1:9/v1/healthz): client error (Connect): tcp connect error: Connection refused (os error 61)"
+    },
+    {
+      "object": "deployment",
+      "phase": "ok",
+      "rule": "versions_differ",
+      "severity": "critical",
+      "since": 1793926075,
+      "step_en": "Check the binary each container actually runs. Image tags are not proof (2026-07-15).",
+      "step_ja": "各コンテナが実際に動かしているバイナリを確認します。イメージのタグは当てになりません（2026-07-15 の事故）",
+      "step_zh": "核对每个容器实际跑的二进制；镜像 tag 不可信（2026-07-15 事故）。",
+      "threshold": null,
+      "title_en": "Processes run different builds",
+      "title_ja": "プロセスごとにビルドが異なる",
+      "title_zh": "各进程版本不一致",
+      "value": null,
+      "why": "no process reported its build"
+    },
+    {
+      "object": "attachment_text",
+      "phase": "ok",
+      "rule": "work_set_aside",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "Follow the notes of the feature named in the object (attachment text, fraud backfill or the sender).",
+      "step_ja": "対象に書かれた機能（添付ファイルの文字、詐欺の再判定、送信）の説明に従って対応します",
+      "step_zh": "按对象里写的功能（附件文字、诈骗回填或发信）的说明处理。",
+      "threshold": null,
+      "title_en": "Work was set aside",
+      "title_ja": "保留された作業がある",
+      "title_zh": "有被搁置的工作",
+      "value": null,
+      "why": "fastcore: core unavailable: healthz transport: error sending request for url (http://127.0.0.1:9/v1/healthz): client error (Connect): tcp connect error: Connection refused (os error 61)"
+    },
+    {
+      "object": "fraud_backfill",
+      "phase": "ok",
+      "rule": "work_set_aside",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "Follow the notes of the feature named in the object (attachment text, fraud backfill or the sender).",
+      "step_ja": "対象に書かれた機能（添付ファイルの文字、詐欺の再判定、送信）の説明に従って対応します",
+      "step_zh": "按对象里写的功能（附件文字、诈骗回填或发信）的说明处理。",
+      "threshold": null,
+      "title_en": "Work was set aside",
+      "title_ja": "保留された作業がある",
+      "title_zh": "有被搁置的工作",
+      "value": null,
+      "why": "fastcore: core unavailable: healthz transport: error sending request for url (http://127.0.0.1:9/v1/healthz): client error (Connect): tcp connect error: Connection refused (os error 61)"
+    },
+    {
+      "object": "sender",
+      "phase": "ok",
+      "rule": "work_set_aside",
+      "severity": "warning",
+      "since": 1793926075,
+      "step_en": "Follow the notes of the feature named in the object (attachment text, fraud backfill or the sender).",
+      "step_ja": "対象に書かれた機能（添付ファイルの文字、詐欺の再判定、送信）の説明に従って対応します",
+      "step_zh": "按对象里写的功能（附件文字、诈骗回填或发信）的说明处理。",
+      "threshold": null,
+      "title_en": "Work was set aside",
+      "title_ja": "保留された作業がある",
+      "title_zh": "有被搁置的工作",
+      "value": null,
+      "why": "webapi: error sending request for url (http://127.0.0.1:9/api/health)"
+    }
+  ],
+  "build": {
+    "commit": null,
+    "started_at": 1793926075,
+    "version": "0.0.0"
+  },
+  "external_channel": false,
+  "last_cycle": {
+    "duration_ms": 3,
+    "sources": {
+      "fastcore": false,
+      "reports": [],
+      "webapi": false
+    },
+    "started_at": 1793926075
+  },
+  "maintenance": null,
+  "notifications": {
+    "channels": [],
+    "held_for_maintenance": 0,
+    "own_path_awaiting_acceptance_250": [],
+    "push_minimal": true,
+    "queued": 1
+  },
+  "now": 1793926076,
+  "ops_status_polls": {
+    "calls": 1,
+    "last_failure": "core unavailable: ops_status transport: error sending request for url (http://127.0.0.1:9/v1/ops/status): client error (Connect): tcp connect error: Connection refused (os error 61)",
+    "last_failure_at": 1793926075,
+    "last_success_at": null
+  },
+  "processes": [],
+  "report_rejections": [],
+  "rules": [
+    {
+      "name": "spool_quarantined",
+      "title_en": "Mail was quarantined",
+      "title_ja": "メールが隔離されました",
+      "title_zh": "有信被隔离"
+    },
+    {
+      "name": "core_memory_high",
+      "title_en": "Core memory is high",
+      "title_ja": "コアのメモリ使用量が高い",
+      "title_zh": "核心内存高"
+    },
+    {
+      "name": "spool_stalled",
+      "title_en": "The spool is not moving",
+      "title_ja": "spool が進んでいない",
+      "title_zh": "spool 不再推进"
+    },
+    {
+      "name": "work_set_aside",
+      "title_en": "Work was set aside",
+      "title_ja": "保留された作業がある",
+      "title_zh": "有被搁置的工作"
+    },
+    {
+      "name": "parse_failures",
+      "title_en": "Parse failures are rising",
+      "title_ja": "解析の失敗が増えている",
+      "title_zh": "解析失败增多"
+    },
+    {
+      "name": "core_store_damaged",
+      "title_en": "The core's store came up damaged",
+      "title_ja": "コアの内蔵ストアが破損と報告",
+      "title_zh": "内嵌库启动报告损坏"
+    },
+    {
+      "name": "kevy_server_memory_high",
+      "title_en": "kevy-server memory is high",
+      "title_ja": "kevy-server のメモリ使用量が高い",
+      "title_zh": "kevy-server 内存高"
+    },
+    {
+      "name": "accounts_without_quota",
+      "title_en": "Accounts without a quota",
+      "title_ja": "容量制限のないアカウントがある",
+      "title_zh": "有账号没设限额"
+    },
+    {
+      "name": "accounts_over_80_percent",
+      "title_en": "Accounts over 80% of their quota",
+      "title_ja": "容量の 80% を超えたアカウントがある",
+      "title_zh": "账号用量超过 80%"
+    },
+    {
+      "name": "new_domains_burst",
+      "title_en": "Burst of newly seen sender domains",
+      "title_ja": "初めて見る送信ドメインが急増",
+      "title_zh": "新域名突增"
+    },
+    {
+      "name": "data_volume_low",
+      "title_en": "Data volume is running out of space",
+      "title_ja": "データボリュームの空き容量が少ない",
+      "title_zh": "数据卷剩余空间少"
+    },
+    {
+      "name": "crash_loop",
+      "title_en": "A process is restarting in a loop",
+      "title_ja": "プロセスが再起動を繰り返している",
+      "title_zh": "进程循环崩溃"
+    },
+    {
+      "name": "versions_differ",
+      "title_en": "Processes run different builds",
+      "title_ja": "プロセスごとにビルドが異なる",
+      "title_zh": "各进程版本不一致"
+    },
+    {
+      "name": "outbound_stuck",
+      "title_en": "Outbound mail is stuck",
+      "title_ja": "送信が止まっている",
+      "title_zh": "出站卡住"
+    },
+    {
+      "name": "channel_failing",
+      "title_en": "A notification channel is failing",
+      "title_ja": "通知チャネルが失敗している",
+      "title_zh": "通知渠道失败"
+    },
+    {
+      "name": "daemon_unwatched",
+      "title_en": "Nothing outside watches the ops daemon",
+      "title_ja": "運用デーモンを外部から見守るものがない",
+      "title_zh": "运维进程没有外部看护"
+    },
+    {
+      "name": "maintenance_too_long",
+      "title_en": "Maintenance has been on too long",
+      "title_ja": "メンテナンス状態が長く続いている",
+      "title_zh": "维护状态开得太久"
+    },
+    {
+      "name": "kevy_server_unavailable",
+      "title_en": "kevy-server is unavailable",
+      "title_ja": "kevy-server が使えない",
+      "title_zh": "kevy-server 不可用"
+    },
+    {
+      "name": "no_reports",
+      "title_en": "No process reports arrive",
+      "title_ja": "どのプロセスからもレポートが届かない",
+      "title_zh": "收不到任何进程的报告"
+    },
+    {
+      "name": "source_unreadable.fastcore",
+      "title_en": "Cannot read a source",
+      "title_ja": "情報源を読み取れない",
+      "title_zh": "读不到一个来源"
+    },
+    {
+      "name": "source_unreadable.webapi",
+      "title_en": "Cannot read a source",
+      "title_ja": "情報源を読み取れない",
+      "title_zh": "读不到一个来源"
+    },
+    {
+      "name": "source_unreadable.receiver",
+      "title_en": "Cannot read a source",
+      "title_ja": "情報源を読み取れない",
+      "title_zh": "读不到一个来源"
+    },
+    {
+      "name": "source_unreadable.sender",
+      "title_en": "Cannot read a source",
+      "title_ja": "情報源を読み取れない",
+      "title_zh": "读不到一个来源"
+    },
+    {
+      "name": "source_unreadable.fetch",
+      "title_en": "Cannot read a source",
+      "title_ja": "情報源を読み取れない",
+      "title_zh": "读不到一个来源"
+    },
+    {
+      "name": "source_unreadable.backup",
+      "title_en": "Cannot read a source",
+      "title_ja": "情報源を読み取れない",
+      "title_zh": "读不到一个来源"
+    }
+  ],
+  "silences": [
+    {
+      "by": "cli:capture",
+      "id": "455d53ce4cca",
+      "object": "spool",
+      "reason": "known file",
+      "rule": "spool_quarantined",
+      "set_at": 1793926076,
+      "until": 1793929676
+    }
+  ],
+  "unmonitored": true,
+  "warnings": [
+    "no external notification channel is configured: if mailrs itself is down, nobody is alerted, and a whole-host failure goes unnoticed"
+  ]
+}

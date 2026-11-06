@@ -1,5 +1,6 @@
 import type { Key } from './en'
 
+import { adminMonitorJa } from './admin-monitor/ja'
 import { adminOpsJa } from './admin-ops/ja'
 import { adminJa } from './admin/ja'
 import { appJa } from './app/ja'
@@ -22,6 +23,7 @@ export const ja: Record<Key, string> = {
   ...mockJa,
   ...adminJa,
   ...adminOpsJa,
+  ...adminMonitorJa,
   'lang.name.en': 'English',
   'lang.name.ja': '日本語',
   'lang.name.zh': '简体中文',

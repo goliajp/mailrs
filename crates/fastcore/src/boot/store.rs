@@ -69,20 +69,27 @@ fn kevy_config(kevy_dir: &str) -> Config {
     // MAILRS_KEVY_TIER_MB=<n> sets an explicit budget; `auto` takes
     // 70% of the detected cgroup limit. Cold values move to a vlog on
     // disk and read back transparently, so this changes footprint and
-    // tail latency, never answers.
-    if let Ok(spec) = std::env::var("MAILRS_KEVY_TIER_MB") {
-        cfg = match spec.as_str() {
-            "auto" => cfg.with_tier_budget_auto(),
-            n => match n.parse::<u64>() {
-                Ok(mb) => cfg.with_tier_budget(mb * 1024 * 1024),
-                Err(_) => {
-                    tracing::warn!(%spec, "MAILRS_KEVY_TIER_MB unparseable — tiering stays off");
-                    cfg
-                }
-            },
-        };
-        tracing::info!(%spec, "kevy transparent tiering enabled");
-    }
+    // tail latency, never answers. Empty counts as unset: compose
+    // passes `${MAILRS_KEVY_TIER_MB:-}`, so the variable always exists.
+    let spec = std::env::var("MAILRS_KEVY_TIER_MB").unwrap_or_default();
+    cfg = match tier_budget(&spec) {
+        Ok(None) => {
+            tracing::info!("kevy transparent tiering off (MAILRS_KEVY_TIER_MB empty or unset)");
+            cfg
+        }
+        Ok(Some(TierBudget::Auto)) => {
+            tracing::info!(%spec, "kevy transparent tiering enabled");
+            cfg.with_tier_budget_auto()
+        }
+        Ok(Some(TierBudget::Mb(mb))) => {
+            tracing::info!(%spec, "kevy transparent tiering enabled");
+            cfg.with_tier_budget(mb * 1024 * 1024)
+        }
+        Err(()) => {
+            tracing::warn!(%spec, "MAILRS_KEVY_TIER_MB unparseable — tiering stays off");
+            cfg
+        }
+    };
     // kevy 4.0 canary window. The AOF record format is new in 4.0
     // (KEVYAOF2, length-prefixed + CRC32C), and the upgrade happens on
     // the first rewrite — one-way, per kevy's UPGRADING. Appends to an
@@ -100,6 +107,24 @@ fn kevy_config(kevy_dir: &str) -> Config {
         );
     }
     cfg
+}
+
+#[derive(Debug, PartialEq)]
+enum TierBudget {
+    Auto,
+    Mb(u64),
+}
+
+/// What `MAILRS_KEVY_TIER_MB` asks for: `Ok(None)` is off.
+fn tier_budget(spec: &str) -> Result<Option<TierBudget>, ()> {
+    match spec.trim() {
+        "" => Ok(None),
+        "auto" => Ok(Some(TierBudget::Auto)),
+        n => n
+            .parse::<u64>()
+            .map(|mb| Some(TierBudget::Mb(mb)))
+            .map_err(|_| ()),
+    }
 }
 
 /// The alias store this process reads and writes, chosen by the environment.
@@ -205,4 +230,17 @@ fn report_boot(store: &Store) -> bool {
         );
     }
     intact
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TierBudget, tier_budget};
+
+    #[test]
+    fn empty_tier_spec_is_off_not_an_error() {
+        assert_eq!(tier_budget(""), Ok(None));
+        assert_eq!(tier_budget("auto"), Ok(Some(TierBudget::Auto)));
+        assert_eq!(tier_budget("512"), Ok(Some(TierBudget::Mb(512))));
+        assert_eq!(tier_budget("512MB"), Err(()));
+    }
 }

@@ -200,7 +200,16 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     # first run after a clean target/ pays for a full fat-LTO build. They
     # were measured on this machine and fail on the runner's slower cores,
     # so they stay here — and nothing else builds here while they run.
-    ./scripts/perf-gates.sh
+    # Exit 75 means the machine stayed too busy to measure: not a pass,
+    # so nothing ships, and not a regression either.
+    PERF_RC=0
+    ./scripts/perf-gates.sh || PERF_RC=$?
+    if [ "$PERF_RC" = 75 ]; then
+        echo "!! stopped: machine too busy to judge perf (see the load1 lines above); nothing was published"
+        exit 75
+    elif [ "$PERF_RC" != 0 ]; then
+        exit "$PERF_RC"
+    fi
 elif [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" = 1 ]; then
     echo "==> [0/6] Rust gate skipped: WEB_ONLY ships no binary (step 5 runs the web check and tests)"
 else

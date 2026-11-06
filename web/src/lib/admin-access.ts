@@ -19,6 +19,7 @@ export const PAGE_NEED: Record<string, Need> = {
   '/admin/groups': 'admin.groups',
   '/admin/mail-audit': 'super',
   '/admin/mock': 'admin.system_config',
+  '/admin/monitor': 'super',
   '/admin/overview': 'any-admin',
   '/admin/password-clear': 'super',
   '/admin/protocol-sign-ins': 'super',

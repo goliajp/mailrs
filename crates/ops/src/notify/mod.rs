@@ -2,13 +2,14 @@
 //! budget per channel, and the record of every send.
 
 mod channels;
+mod held;
 mod render;
 mod route;
 
 use std::sync::Arc;
 
 pub use channels::{Channel, mail_bytes, relay_refusal};
-pub use route::{NO_EXTERNAL_WARNING, via_own_path};
+pub use route::{ACCEPTED_250, NO_EXTERNAL_WARNING, via_own_path};
 
 use crate::config::Config;
 use crate::engine::Notice;
@@ -100,7 +101,6 @@ pub struct Dispatcher {
     http: reqwest::Client,
     outbox: Vec<Sent>,
     outbox_since: Option<i64>,
-    held: Vec<Sent>,
     store: Arc<Store>,
     group_secs: i64,
     max_per_hour: u32,
@@ -166,7 +166,6 @@ impl Dispatcher {
             http: reqwest::Client::new(),
             outbox: Vec::new(),
             outbox_since: None,
-            held: Vec::new(),
             store,
             group_secs: cfg.group_secs,
             max_per_hour: cfg.max_per_hour,
@@ -216,7 +215,9 @@ impl Dispatcher {
                 }
                 (None, None, true) => {
                     self.log("-", "-", "held for maintenance".into(), &line, now);
-                    self.held.push(sent);
+                    if let Err(e) = self.store.record_held(&sent.held_row(now)) {
+                        tracing::error!(error = %e, "held notice not recorded");
+                    }
                 }
                 (None, None, false) => {
                     self.outbox_since.get_or_insert(now);
@@ -263,17 +264,6 @@ impl Dispatcher {
             let msg = self.message(MessageKind::Alerts, notices, now);
             self.route(msg, now).await;
         }
-    }
-
-    /// End of maintenance: one message summing up what was held.
-    pub async fn maintenance_ended(&mut self, now: i64) {
-        let held = std::mem::take(&mut self.held);
-        let msg = self.message(
-            MessageKind::MaintenanceEnded { held: held.len() },
-            held,
-            now,
-        );
-        self.route(msg, now).await;
     }
 
     /// What the channels are configured to reach, as a hash: a test goes out
@@ -399,7 +389,6 @@ impl Dispatcher {
             "channels": channels,
             "queued": self.outbox.len(),
             "own_path_awaiting_acceptance_250": self.pending_ids(),
-            "held_for_maintenance": self.held.len(),
             "push_minimal": self.minimal,
         })
     }

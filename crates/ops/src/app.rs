@@ -184,7 +184,13 @@ impl App {
 
     async fn close_expired(&self, now: i64) {
         match self.store.expire_controls(now) {
-            Ok(Some(_)) => self.dispatcher.lock().await.maintenance_ended(now).await,
+            Ok(Some(m)) => {
+                self.dispatcher
+                    .lock()
+                    .await
+                    .maintenance_ended(m.started_at, now)
+                    .await
+            }
             Ok(None) => {}
             Err(e) => tracing::error!(error = %e, "expired silences and maintenance not closed"),
         }
@@ -252,15 +258,35 @@ impl App {
                 })
             })
             .collect();
+        let maintenance = self.store.maintenance(now).map_err(|e| e.0)?;
+        let held = match &maintenance {
+            Some(m) => self.store.held_since(m.started_at).map_err(|e| e.0)?.len(),
+            None => 0,
+        };
+        let mut notifications = self.dispatcher.lock().await.status();
+        notifications["held_for_maintenance"] = held.into();
+        let rules: Vec<_> = crate::rules::all()
+            .into_iter()
+            .map(|r| {
+                serde_json::json!({
+                    "name": r.name,
+                    "title_en": r.text.title_en,
+                    "title_zh": r.text.title_zh,
+                    "title_ja": r.text.title_ja,
+                })
+            })
+            .collect();
         Ok(serde_json::json!({
             "now": now,
             "build": mailrs_ops_report::build::build(),
             "last_cycle": self.store.last_cycle().map_err(|e| e.0)?,
             "unmonitored": self.cfg.heartbeat_url.is_none(),
-            "maintenance": self.store.maintenance(now).map_err(|e| e.0)?,
+            "external_channel": self.dispatcher.lock().await.has_external(),
+            "maintenance": maintenance,
             "silences": self.store.silences(now).map_err(|e| e.0)?,
             "alerts": alerts,
-            "notifications": self.dispatcher.lock().await.status(),
+            "rules": rules,
+            "notifications": notifications,
             "warnings": self.warnings().await,
             "report_rejections": self.store.rejection_counts().map_err(|e| e.0)?,
             "admin_refusals": self.store.denial_counts().map_err(|e| e.0)?,

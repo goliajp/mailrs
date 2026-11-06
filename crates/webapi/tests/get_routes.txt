@@ -46,6 +46,8 @@
 /api/admin/masked-submissions	read only
 /api/admin/mock	read only
 /api/admin/oauth-clients	read only
+/api/admin/ops/history	read only (asks the ops daemon)
+/api/admin/ops/state	read only (asks the ops daemon)
 /api/admin/outbound/paused	read only
 /api/admin/ownerless-threads	read only
 /api/admin/permissions	read only
