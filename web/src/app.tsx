@@ -1,5 +1,3 @@
-import type React from 'react'
-
 import {
   AppShell,
   themeAtom,
@@ -31,7 +29,7 @@ import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useMailEvents } from '@/hooks/use-mail-events'
 import { useReloadOnNewBuild } from '@/hooks/use-reload-on-new-build'
 import { syncDocumentLang, useT } from '@/i18n'
-import { MPane } from '@/layouts/pane'
+import { PagePane } from '@/layouts/page-pane'
 import { http } from '@/lib/http'
 import { dashboardLoader, mailListLoader } from '@/lib/route-loaders'
 import { Login } from '@/pages/login'
@@ -254,17 +252,6 @@ function PageMock() {
         <MockMail />
       </Suspense>
     </PagePane>
-  )
-}
-
-function PagePane({ children }: { children: React.ReactNode }) {
-  return (
-    <>
-      {/* desktop: MPane with padding and rounded corners */}
-      <MPane className="hidden p-1 md:flex">{children}</MPane>
-      {/* mobile: plain full-height container */}
-      <div className="h-full overflow-y-auto md:hidden">{children}</div>
-    </>
   )
 }
 
