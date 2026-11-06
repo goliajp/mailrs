@@ -128,7 +128,7 @@ struct ComposeView: View {
                 }
             }
             .padding(.top, 8)
-            .navigationTitle("New message")
+            .navigationTitle("Compose")
             .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

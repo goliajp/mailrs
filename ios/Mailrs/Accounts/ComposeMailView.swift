@@ -93,7 +93,7 @@ struct ComposeMailView: View {
                     }
                 }
             }
-            .navigationTitle("New message")
+            .navigationTitle("Compose")
             .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

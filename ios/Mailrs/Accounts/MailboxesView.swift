@@ -62,7 +62,7 @@ struct MailboxesView: View {
                         } label: {
                             Image(systemName: "square.and.pencil")
                         }
-                        .accessibilityLabel("New message")
+                        .accessibilityLabel("Compose")
                         .accessibilityIdentifier("mail.compose")
                     }
                 }

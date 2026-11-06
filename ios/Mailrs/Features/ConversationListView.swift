@@ -317,7 +317,7 @@ struct ConversationListView: View {
                     Button {
                         composing = true
                     } label: {
-                        Label("New message", systemImage: "square.and.pencil")
+                        Label("Compose", systemImage: "square.and.pencil")
                     }
                     .accessibilityIdentifier("new-message")
                 }

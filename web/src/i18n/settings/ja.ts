@@ -210,7 +210,7 @@ export const settingsJa: Record<SettingsKey, string> = {
   'settings.forwarding.sendCode': 'コードを送信',
   'settings.forwarding.stop': '停止',
   'settings.forwarding.stopped': '転送を停止しました',
-  'settings.forwarding.title': '転送と不在時の自動返信',
+  'settings.forwarding.title': '転送と不在通知',
   'settings.forwarding.to': '{address} に転送中',
   'settings.group.account': 'アカウントとセキュリティ',
   'settings.group.appearance': '表示と通知',
@@ -353,8 +353,8 @@ export const settingsJa: Record<SettingsKey, string> = {
   'settings.rules.action.archive': 'アーカイブ',
   'settings.rules.action.junk': '迷惑メールに移動',
   'settings.rules.action.read': '既読にする',
-  'settings.rules.action.star': 'スターを付ける',
-  'settings.rules.action.trash': 'ゴミ箱に移動',
+  'settings.rules.action.star': word('ja', 'settings.rules.action.star'),
+  'settings.rules.action.trash': word('ja', 'settings.rules.action.trash'),
   'settings.rules.alsoApply': 'これらにも適用する',
   'settings.rules.applyConfirm':
     '「{name}」を、現在一致する {count} 件の会話に適用しますか？あとで元に戻せます。',
@@ -468,7 +468,7 @@ export const settingsJa: Record<SettingsKey, string> = {
   'settings.vacation.message': '本文',
   'settings.vacation.note':
     '迷惑メール、保留中のメール、メーリングリスト、自動送信のメールには返信しません。',
-  'settings.vacation.saved': '不在時の自動返信を保存しました',
+  'settings.vacation.saved': '不在通知を保存しました',
   'settings.vacation.subject': '件名',
   'settings.vacation.title': word('ja', 'settings.vacation.title'),
   'settings.vacation.until': '終了（UTC）',
