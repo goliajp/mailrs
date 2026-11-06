@@ -232,7 +232,7 @@ final class MacFlowTests: XCTestCase {
         // toolbar opens an NSMenu, and a query naming the wrong type
         // reports "Move offered no destinations" when what it means is
         // "I looked in the wrong kind of element".
-        let promotion = app.menuItems["Mark as promotion"].firstMatch
+        let promotion = app.menuItems["Mark as Promotion"].firstMatch
         XCTAssertTrue(
             promotion.waitForExistence(timeout: 5),
             "Move opened no menu: \(app.debugDescription.prefix(2000))")

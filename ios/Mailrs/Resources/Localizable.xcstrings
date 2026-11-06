@@ -572,7 +572,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "账户"
+            "value": "账号"
           }
         }
       }
@@ -977,6 +977,22 @@
         }
       }
     },
+    "All mail except Junk, notifications and promotions": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "迷惑メールと通知・宣伝以外のすべて"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "除垃圾邮件和「通知与推广」以外的全部邮件"
+          }
+        }
+      }
+    },
     "Always allow": {
       "localizations": {
         "ja": {
@@ -1073,18 +1089,18 @@
         }
       }
     },
-    "Always notify": {
+    "Always push": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "常に通知する"
+            "value": "常に通知"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "总是通知"
+            "value": "总是推送"
           }
         }
       }
@@ -1126,7 +1142,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "外観"
+            "value": "表示"
           }
         },
         "zh-Hans": {
@@ -2914,38 +2930,6 @@
         }
       }
     },
-    "Every message": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "すべてのメール"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "所有邮件"
-          }
-        }
-      }
-    },
-    "Every reply": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "返信ごと"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "每次回复"
-          }
-        }
-      }
-    },
     "Every suppressed address becomes deliverable again.": {
       "localizations": {
         "ja": {
@@ -3154,6 +3138,22 @@
         }
       }
     },
+    "Following": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返信ごと"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟踪"
+          }
+        }
+      }
+    },
     "For which site": {
       "localizations": {
         "ja": {
@@ -3198,22 +3198,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "发件人"
-          }
-        }
-      }
-    },
-    "From %@": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "主催者：%@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "组织者：%@"
           }
         }
       }
@@ -3405,7 +3389,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "只通知重要联系人"
+            "value": "只推重要联系人"
           }
         }
       }
@@ -3431,7 +3415,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "受信"
+            "value": "受信トレイ"
           }
         },
         "zh-Hans": {
@@ -3853,7 +3837,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "邮件账号"
+            "value": "邮箱账号"
           }
         }
       }
@@ -3906,18 +3890,18 @@
         }
       }
     },
-    "Mail to answer and important people": {
+    "Mail to answer and important people (recommended)": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "返信が必要なメールと重要な人"
+            "value": "返信が必要なメールと重要な人（推奨）"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "需要回复的邮件和重要联系人"
+            "value": "需要回复的邮件和重要联系人（推荐）"
           }
         }
       }
@@ -4037,6 +4021,38 @@
         }
       }
     },
+    "Mark as Notification": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知にする"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标为通知"
+          }
+        }
+      }
+    },
+    "Mark as Promotion": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プロモーションにする"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标为推广"
+          }
+        }
+      }
+    },
     "Mark as junk": {
       "localizations": {
         "ja": {
@@ -4049,38 +4065,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "标为垃圾邮件"
-          }
-        }
-      }
-    },
-    "Mark as notification": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "通知として分類"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "标为通知"
-          }
-        }
-      }
-    },
-    "Mark as promotion": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "プロモーションとして分類"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "标为推广"
           }
         }
       }
@@ -4192,7 +4176,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "待定"
+            "value": "不确定"
           }
         }
       }
@@ -4442,7 +4426,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ミュート中"
+            "value": "ミュート"
           }
         },
         "zh-Hans": {
@@ -4517,7 +4501,7 @@
         }
       }
     },
-    "Never notify": {
+    "Never push": {
       "localizations": {
         "ja": {
           "stringUnit": {
@@ -4528,7 +4512,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "从不通知"
+            "value": "从不推送"
           }
         }
       }
@@ -4666,7 +4650,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "新規メッセージ"
+            "value": "作成"
           }
         },
         "zh-Hans": {
@@ -4762,7 +4746,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "不参加"
+            "value": "いいえ"
           }
         },
         "zh-Hans": {
@@ -5233,7 +5217,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "不是垃圾邮件"
+            "value": "这不是垃圾邮件"
           }
         }
       }
@@ -5275,13 +5259,19 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "通知しない"
+            "value": "なし"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "不通知"
+            "value": "无"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None"
           }
         }
       }
@@ -5718,6 +5708,22 @@
         }
       }
     },
+    "Organizer: %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主催者：%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "组织者：%@"
+          }
+        }
+      }
+    },
     "Other mail": {
       "localizations": {
         "ja": {
@@ -5729,7 +5735,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "其它邮件"
+            "value": "其他邮件"
           }
         }
       }
@@ -5915,7 +5921,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ピン留め済み"
+            "value": "ピン留め"
           }
         },
         "zh-Hans": {
@@ -6075,13 +6081,13 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "通知を止める時間"
+            "value": "おやすみ時間"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "免打扰时段"
+            "value": "勿扰时段"
           }
         }
       }
@@ -6230,22 +6236,6 @@
         }
       }
     },
-    "Reply All": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "全員に返信"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "全部回复"
-          }
-        }
-      }
-    },
     "Reply all": {
       "localizations": {
         "ja": {
@@ -6257,7 +6247,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "全部回复"
+            "value": "回复全部"
           }
         }
       }
@@ -6779,7 +6769,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "差出人"
+            "value": "送信者"
           }
         },
         "zh-Hans": {
@@ -7329,7 +7319,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "加星"
+            "value": "加注星标"
           }
         }
       }
@@ -8145,7 +8135,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无法加载休假自动回复"
+            "value": "无法加载外出回复"
           }
         }
       }
@@ -8161,7 +8151,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "休假自动回复没有保存"
+            "value": "外出回复没有保存"
           }
         }
       }
@@ -8731,7 +8721,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "取り消す"
+            "value": "元に戻す"
           }
         },
         "zh-Hans": {
@@ -8849,7 +8839,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "取消加星"
+            "value": "取消星标"
           }
         }
       }
@@ -8945,7 +8935,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "更新后的邀请"
+            "value": "邀请已更新"
           }
         }
       }
@@ -8977,7 +8967,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "休假自动回复"
+            "value": "外出回复"
           }
         }
       }
@@ -9043,6 +9033,12 @@
             "state": "translated",
             "value": "等对方回复"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting"
+          }
         }
       }
     },
@@ -9057,7 +9053,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "立即唤醒"
+            "value": "现在唤醒"
           }
         }
       }
@@ -9163,7 +9159,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "参加"
+            "value": "はい"
           }
         },
         "zh-Hans": {

@@ -22,7 +22,7 @@ final class TriageFlowTests: MailrsUITestCase {
         let row = app.buttons.containing(
             NSPredicate(format: "label CONTAINS %@", "Quarterly report")
         ).firstMatch
-        let item = app.buttons["Mark as notification"]
+        let item = app.buttons["Mark as Notification"]
         XCTAssertTrue(longPress(row, until: item), "no bucket in the row menu")
         item.tap()
 

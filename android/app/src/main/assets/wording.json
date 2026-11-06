@@ -1,0 +1,1313 @@
+{
+  "terms": [
+    {
+      "id": "list.inbox",
+      "about": "the inbox",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "Inbox",
+        "ja": "受信トレイ",
+        "zh": "收件箱"
+      },
+      "web": ["list.inbox", "category.inbox", "reason.class.inbox", "settings.senderRules.inbox"],
+      "ios": ["Inbox"],
+      "android": ["list_inbox", "bucket_inbox", "sections_title"]
+    },
+    {
+      "id": "list.np",
+      "about": "the list of notifications and promotions",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "N & P",
+        "ja": "通知・宣伝",
+        "zh": "通知与推广"
+      },
+      "web": ["list.np"],
+      "ios": ["N & P"],
+      "android": ["list_np"]
+    },
+    {
+      "id": "list.unread",
+      "about": "unread conversations",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Unread",
+        "ja": "未読",
+        "zh": "未读"
+      },
+      "web": ["list.unread"],
+      "ios": ["Unread"],
+      "android": ["list_unread"]
+    },
+    {
+      "id": "list.starred",
+      "about": "starred conversations",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Starred",
+        "ja": "スター付き",
+        "zh": "已加星"
+      },
+      "web": ["list.starred"],
+      "ios": ["Starred"],
+      "android": ["list_starred"]
+    },
+    {
+      "id": "list.pinned",
+      "about": "pinned conversations",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Pinned",
+        "ja": "ピン留め",
+        "zh": "已置顶"
+      },
+      "web": ["list.pinned", "home.pinned"],
+      "ios": ["Pinned"],
+      "android": ["list_pinned"]
+    },
+    {
+      "id": "list.snoozed",
+      "about": "snoozed conversations",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Snoozed",
+        "ja": "スヌーズ中",
+        "zh": "稍后处理"
+      },
+      "web": ["list.snoozed"],
+      "ios": ["Snoozed"],
+      "android": ["list_snoozed"]
+    },
+    {
+      "id": "list.awaiting",
+      "about": "conversations waiting for the other side's reply",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Waiting",
+        "ja": "返信待ち",
+        "zh": "等对方回复"
+      },
+      "web": ["list.awaiting"],
+      "ios": ["Waiting for a reply"],
+      "android": ["section_awaiting"]
+    },
+    {
+      "id": "list.assigned",
+      "about": "team conversations assigned to the reader",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Assigned to me",
+        "ja": "自分の担当",
+        "zh": "分给我的"
+      },
+      "web": ["list.assigned"],
+      "ios": ["Assigned to me"],
+      "android": []
+    },
+    {
+      "id": "list.sent",
+      "about": "sent mail",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Sent",
+        "ja": "送信済み",
+        "zh": "已发送"
+      },
+      "web": ["list.send"],
+      "ios": ["Sent"],
+      "android": ["list_sent"]
+    },
+    {
+      "id": "list.drafts",
+      "about": "drafts",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "Drafts",
+        "ja": "下書き",
+        "zh": "草稿"
+      },
+      "web": ["list.draft"],
+      "ios": ["Drafts"],
+      "android": ["list_drafts"]
+    },
+    {
+      "id": "list.all",
+      "about": "all mail",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "All mail",
+        "ja": "すべてのメール",
+        "zh": "全部邮件"
+      },
+      "web": ["list.all"],
+      "ios": ["All mail"],
+      "android": ["list_all"]
+    },
+    {
+      "id": "list.archived",
+      "about": "archived conversations",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Archived",
+        "ja": "アーカイブ",
+        "zh": "已归档"
+      },
+      "web": ["list.archived"],
+      "ios": ["Archived"],
+      "android": ["list_archived"]
+    },
+    {
+      "id": "list.junk",
+      "about": "junk mail",
+      "source": {
+        "en": "ours",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "Junk",
+        "ja": "迷惑メール",
+        "zh": "垃圾邮件"
+      },
+      "web": ["list.junk"],
+      "ios": ["Junk"],
+      "android": ["list_junk"]
+    },
+    {
+      "id": "list.review",
+      "about": "mail held as suspected fraud",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Review",
+        "ja": "確認待ち",
+        "zh": "待审"
+      },
+      "web": ["list.quarantine"],
+      "ios": ["Review"],
+      "android": ["list_review"]
+    },
+    {
+      "id": "list.trash",
+      "about": "the trash",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Trash",
+        "ja": "ゴミ箱",
+        "zh": "废纸篓"
+      },
+      "web": ["list.trash"],
+      "ios": ["Trash"],
+      "android": ["list_trash"]
+    },
+    {
+      "id": "list.label",
+      "about": "one label's conversations",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Label",
+        "ja": "ラベル",
+        "zh": "标签"
+      },
+      "web": ["list.label"],
+      "ios": ["Label"],
+      "android": ["list_label"]
+    },
+    {
+      "id": "list.otherMail",
+      "about": "mail from connected outside mailboxes",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Other mail",
+        "ja": "ほかのメール",
+        "zh": "其他邮件"
+      },
+      "web": [],
+      "ios": ["Other mail"],
+      "android": ["merged_title"]
+    },
+    {
+      "id": "section.reply",
+      "about": "sectioned inbox: mail the reader should answer",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "To reply",
+        "ja": "要返信",
+        "zh": "我要回复"
+      },
+      "web": ["sections.reply"],
+      "ios": ["To reply"],
+      "android": ["section_reply"]
+    },
+    {
+      "id": "section.new",
+      "about": "sectioned inbox: first mail from a sender",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "New senders",
+        "ja": "新しい送信者",
+        "zh": "新发件人"
+      },
+      "web": ["sections.new"],
+      "ios": ["New senders"],
+      "android": ["section_new"]
+    },
+    {
+      "id": "action.archive",
+      "about": "archive",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "Archive",
+        "ja": "アーカイブ",
+        "zh": "归档"
+      },
+      "web": ["action.archive"],
+      "ios": ["Archive"],
+      "android": ["action_archive"]
+    },
+    {
+      "id": "action.unarchive",
+      "about": "undo archive",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Unarchive",
+        "ja": "アーカイブを解除",
+        "zh": "取消归档"
+      },
+      "web": ["action.unarchive"],
+      "ios": ["Unarchive"],
+      "android": ["action_unarchive"]
+    },
+    {
+      "id": "action.deleteForever",
+      "about": "delete forever",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "Delete forever",
+        "ja": "完全に削除",
+        "zh": "永久删除"
+      },
+      "web": ["action.deleteForever"],
+      "ios": ["Delete forever"],
+      "android": ["action_delete_forever"]
+    },
+    {
+      "id": "action.trash",
+      "about": "move to the trash",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Move to Trash",
+        "ja": "ゴミ箱に移動",
+        "zh": "移到废纸篓"
+      },
+      "web": ["action.trash"],
+      "ios": ["Move to Trash"],
+      "android": ["action_trash"]
+    },
+    {
+      "id": "action.untrash",
+      "about": "take out of the trash",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Restore",
+        "ja": "元に戻す",
+        "zh": "恢复"
+      },
+      "web": ["action.untrash"],
+      "ios": ["Restore"],
+      "android": ["action_untrash"]
+    },
+    {
+      "id": "action.label",
+      "about": "open the labels picker",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "Labels",
+        "ja": "ラベル",
+        "zh": "标签"
+      },
+      "web": ["action.label"],
+      "ios": ["Labels"],
+      "android": ["action_label", "drawer_labels"]
+    },
+    {
+      "id": "action.unlabel",
+      "about": "remove a label",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Remove label",
+        "ja": "ラベルを外す",
+        "zh": "去掉标签"
+      },
+      "web": [],
+      "ios": ["Remove label"],
+      "android": ["action_unlabel"]
+    },
+    {
+      "id": "action.markJunk",
+      "about": "mark as junk",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Mark as junk",
+        "ja": "迷惑メールにする",
+        "zh": "标为垃圾邮件"
+      },
+      "web": ["action.markJunk"],
+      "ios": ["Mark as junk"],
+      "android": ["action_mark_junk"]
+    },
+    {
+      "id": "action.markNotJunk",
+      "about": "take out of junk",
+      "source": {
+        "en": "ours",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "Not junk",
+        "ja": "迷惑メールではない",
+        "zh": "这不是垃圾邮件"
+      },
+      "web": ["action.markNotJunk"],
+      "ios": ["Not junk"],
+      "android": ["action_mark_not_junk"]
+    },
+    {
+      "id": "action.markNotification",
+      "about": "file as a notification",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Mark as Notification",
+        "ja": "通知にする",
+        "zh": "标为通知"
+      },
+      "web": ["action.markNotification"],
+      "ios": ["Mark as Notification"],
+      "android": ["action_mark_notification"]
+    },
+    {
+      "id": "action.markPromotion",
+      "about": "file as a promotion",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Mark as Promotion",
+        "ja": "プロモーションにする",
+        "zh": "标为推广"
+      },
+      "web": ["action.markPromotion"],
+      "ios": ["Mark as Promotion"],
+      "android": ["action_mark_promotion"]
+    },
+    {
+      "id": "action.moveToInbox",
+      "about": "move to the inbox",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Move to Inbox",
+        "ja": "受信トレイに移動",
+        "zh": "移到收件箱"
+      },
+      "web": ["action.moveToInbox"],
+      "ios": ["Move to Inbox"],
+      "android": ["action_move_to_inbox"]
+    },
+    {
+      "id": "action.pin",
+      "about": "pin",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Pin",
+        "ja": "ピン留め",
+        "zh": "置顶"
+      },
+      "web": ["action.pin"],
+      "ios": ["Pin"],
+      "android": ["action_pin"]
+    },
+    {
+      "id": "action.unpin",
+      "about": "unpin",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Unpin",
+        "ja": "ピン留めを解除",
+        "zh": "取消置顶"
+      },
+      "web": ["action.unpin"],
+      "ios": ["Unpin"],
+      "android": ["action_unpin"]
+    },
+    {
+      "id": "action.read",
+      "about": "mark as read",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Mark as read",
+        "ja": "既読にする",
+        "zh": "标为已读"
+      },
+      "web": ["action.read"],
+      "ios": ["Mark as read"],
+      "android": ["action_read"]
+    },
+    {
+      "id": "action.unread",
+      "about": "mark as unread",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Mark as unread",
+        "ja": "未読にする",
+        "zh": "标为未读"
+      },
+      "web": ["action.unread"],
+      "ios": ["Mark as unread"],
+      "android": ["action_unread"]
+    },
+    {
+      "id": "action.snooze",
+      "about": "snooze",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Snooze",
+        "ja": "スヌーズ",
+        "zh": "稍后处理"
+      },
+      "web": ["action.snooze"],
+      "ios": ["Snooze"],
+      "android": ["action_snooze"]
+    },
+    {
+      "id": "action.unsnooze",
+      "about": "wake a snoozed conversation now",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Wake now",
+        "ja": "今すぐ戻す",
+        "zh": "现在唤醒"
+      },
+      "web": ["action.unsnooze"],
+      "ios": ["Wake now"],
+      "android": ["action_unsnooze"]
+    },
+    {
+      "id": "action.star",
+      "about": "star",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "Star",
+        "ja": "スターを付ける",
+        "zh": "加注星标"
+      },
+      "web": ["action.star"],
+      "ios": ["Star"],
+      "android": ["action_star"]
+    },
+    {
+      "id": "action.unstar",
+      "about": "remove the star",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Unstar",
+        "ja": "スターを外す",
+        "zh": "取消星标"
+      },
+      "web": ["action.unstar"],
+      "ios": ["Unstar"],
+      "android": ["action_unstar"]
+    },
+    {
+      "id": "action.release",
+      "about": "release from Review",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "This is not fraud",
+        "ja": "これは詐欺ではありません",
+        "zh": "这不是诈骗"
+      },
+      "web": [],
+      "ios": ["This is not fraud"],
+      "android": ["action_release"]
+    },
+    {
+      "id": "action.replyAll",
+      "about": "reply to everyone",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "Reply all",
+        "ja": "全員に返信",
+        "zh": "回复全部"
+      },
+      "web": ["compose.mode.replyAll"],
+      "ios": ["Reply all"],
+      "android": ["mail_reply_all"]
+    },
+    {
+      "id": "action.undo",
+      "about": "undo, on a toast",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "Undo",
+        "ja": "元に戻す",
+        "zh": "撤销"
+      },
+      "web": ["common.undo"],
+      "ios": ["Undo"],
+      "android": ["common_undo"]
+    },
+    {
+      "id": "compose.title",
+      "about": "the compose screen's title",
+      "source": {
+        "en": "ours",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "New message",
+        "ja": "作成",
+        "zh": "写邮件"
+      },
+      "web": ["compose.newHeader"],
+      "ios": ["New message"],
+      "android": ["compose_new", "shortcut_compose_long"]
+    },
+    {
+      "id": "compose.button",
+      "about": "the button that starts a new message",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "Compose",
+        "ja": "作成",
+        "zh": "写邮件"
+      },
+      "web": ["home.compose", "list.newConversation"],
+      "ios": [],
+      "android": ["shortcut_compose_short"]
+    },
+    {
+      "id": "invite.yes",
+      "about": "invitation answer: going",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "Yes",
+        "ja": "はい",
+        "zh": "参加"
+      },
+      "web": ["invite.accept"],
+      "ios": ["Yes"],
+      "android": ["invite_yes"]
+    },
+    {
+      "id": "invite.maybe",
+      "about": "invitation answer: maybe",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "Maybe",
+        "ja": "未定",
+        "zh": "不确定"
+      },
+      "web": ["invite.tentative"],
+      "ios": ["Maybe"],
+      "android": ["invite_maybe"]
+    },
+    {
+      "id": "invite.no",
+      "about": "invitation answer: not going",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "No",
+        "ja": "いいえ",
+        "zh": "不参加"
+      },
+      "web": ["invite.decline"],
+      "ios": ["No"],
+      "android": ["invite_no"]
+    },
+    {
+      "id": "invite.organizer",
+      "about": "who sent the invitation",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "Organizer: {name}",
+        "ja": "主催者：{name}",
+        "zh": "组织者：{name}"
+      },
+      "web": ["invite.organizer"],
+      "ios": ["Organizer: %@"],
+      "android": ["invite_from"]
+    },
+    {
+      "id": "invite.updated",
+      "about": "label on an updated invitation",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Updated invite",
+        "ja": "更新された招待",
+        "zh": "邀请已更新"
+      },
+      "web": ["invite.badge.updated"],
+      "ios": ["Updated invite"],
+      "android": ["invite_updated"]
+    },
+    {
+      "id": "invite.new",
+      "about": "label on a new invitation",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "New invite",
+        "ja": "新しい招待",
+        "zh": "新邀请"
+      },
+      "web": ["invite.badge.new"],
+      "ios": ["New invite"],
+      "android": ["invite_new"]
+    },
+    {
+      "id": "settings.title",
+      "about": "the settings screen",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "Settings",
+        "ja": "設定",
+        "zh": "设置"
+      },
+      "web": ["nav.settings", "settings.title"],
+      "ios": ["Settings"],
+      "android": ["settings_title"]
+    },
+    {
+      "id": "settings.account",
+      "about": "settings: the account",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Account",
+        "ja": "アカウント",
+        "zh": "账号"
+      },
+      "web": ["settings.cat.account"],
+      "ios": ["Account"],
+      "android": ["settings_account"]
+    },
+    {
+      "id": "settings.appearance",
+      "about": "settings: appearance",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Appearance",
+        "ja": "表示",
+        "zh": "外观"
+      },
+      "web": ["settings.cat.appearance"],
+      "ios": ["Appearance"],
+      "android": ["settings_appearance"]
+    },
+    {
+      "id": "settings.notifications",
+      "about": "settings: notifications",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "Notifications",
+        "ja": "通知",
+        "zh": "通知"
+      },
+      "web": ["settings.cat.notifications"],
+      "ios": ["Notifications"],
+      "android": ["settings_notifications"]
+    },
+    {
+      "id": "settings.security",
+      "about": "settings: security",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Security",
+        "ja": "セキュリティ",
+        "zh": "安全"
+      },
+      "web": ["settings.cat.security"],
+      "ios": ["Security"],
+      "android": []
+    },
+    {
+      "id": "settings.mailPrivacy",
+      "about": "settings: mail and privacy",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Mail and privacy",
+        "ja": "メールとプライバシー",
+        "zh": "邮件与隐私"
+      },
+      "web": [],
+      "ios": ["Mail and privacy"],
+      "android": ["settings_mail_privacy"]
+    },
+    {
+      "id": "settings.sessions",
+      "about": "settings: signed-in devices",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Signed-in devices",
+        "ja": "ログイン中の端末",
+        "zh": "已登录的设备"
+      },
+      "web": ["sessions.title"],
+      "ios": ["Signed-in devices"],
+      "android": ["settings_sessions"]
+    },
+    {
+      "id": "settings.appPasswords",
+      "about": "settings: app passwords",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "App passwords",
+        "ja": "アプリパスワード",
+        "zh": "应用专用密码"
+      },
+      "web": ["appPasswords.title"],
+      "ios": ["App passwords"],
+      "android": ["settings_app_passwords"]
+    },
+    {
+      "id": "settings.vacation",
+      "about": "settings: the vacation reply",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "Vacation reply",
+        "ja": "不在時の自動返信",
+        "zh": "外出回复"
+      },
+      "web": ["settings.vacation.title"],
+      "ios": ["Vacation reply"],
+      "android": ["settings_vacation"]
+    },
+    {
+      "id": "settings.masked",
+      "about": "settings: masked addresses",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Masked addresses",
+        "ja": "マスクアドレス",
+        "zh": "掩码地址"
+      },
+      "web": ["settings.cat.masked"],
+      "ios": ["Masked addresses"],
+      "android": ["settings_masked"]
+    },
+    {
+      "id": "settings.images",
+      "about": "settings: images in messages",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Images in messages",
+        "ja": "メール内の画像",
+        "zh": "邮件中的图片"
+      },
+      "web": [],
+      "ios": ["Images in messages"],
+      "android": ["settings_images"]
+    },
+    {
+      "id": "settings.signature",
+      "about": "settings: signatures",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "Signature",
+        "ja": "署名",
+        "zh": "签名"
+      },
+      "web": ["settings.cat.signatures"],
+      "ios": ["Signature"],
+      "android": []
+    },
+    {
+      "id": "settings.senders",
+      "about": "settings: rules per sender",
+      "source": {
+        "en": "ours",
+        "ja": "gmail",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Senders",
+        "ja": "送信者",
+        "zh": "发件人"
+      },
+      "web": ["settings.cat.senders"],
+      "ios": ["Senders"],
+      "android": ["notify_senders"]
+    },
+    {
+      "id": "settings.apiKeys",
+      "about": "settings: API keys",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "API keys",
+        "ja": "APIキー",
+        "zh": "API 密钥"
+      },
+      "web": ["settings.cat.api-keys", "settings.apiKeys.title"],
+      "ios": ["API keys"],
+      "android": []
+    },
+    {
+      "id": "settings.sectioned",
+      "about": "settings: the sectioned inbox switch",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Sectioned inbox",
+        "ja": "区分付き受信トレイ",
+        "zh": "分区收件箱"
+      },
+      "web": ["settings.sections.toggle"],
+      "ios": ["Sectioned inbox"],
+      "android": ["sections_toggle"]
+    },
+    {
+      "id": "settings.mailAccounts",
+      "about": "settings: connected mail accounts",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Mail accounts",
+        "ja": "メールアカウント",
+        "zh": "邮箱账号"
+      },
+      "web": [],
+      "ios": ["Mail accounts"],
+      "android": ["settings_mail_accounts"]
+    },
+    {
+      "id": "settings.swipe",
+      "about": "settings: swipe actions",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Swiping a conversation",
+        "ja": "会話のスワイプ",
+        "zh": "滑动会话"
+      },
+      "web": ["settings.appearance.swipe"],
+      "ios": [],
+      "android": ["swipe_title"]
+    },
+    {
+      "id": "push.mode.default",
+      "about": "push: mail to answer and important people (the default)",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Mail to answer and important people (recommended)",
+        "ja": "返信が必要なメールと重要な人（推奨）",
+        "zh": "需要回复的邮件和重要联系人（推荐）"
+      },
+      "web": ["settings.notify.mode.default"],
+      "ios": ["Mail to answer and important people (recommended)"],
+      "android": ["notify_mode_default"]
+    },
+    {
+      "id": "push.mode.all",
+      "about": "push: all mail but Junk and the notifications and promotions list (push_policy::by_mode)",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "All mail except Junk, notifications and promotions",
+        "ja": "迷惑メールと通知・宣伝以外のすべて",
+        "zh": "除垃圾邮件和「通知与推广」以外的全部邮件"
+      },
+      "web": ["settings.notify.mode.all"],
+      "ios": ["All mail except Junk, notifications and promotions"],
+      "android": ["notify_mode_all"]
+    },
+    {
+      "id": "push.mode.important",
+      "about": "push: important people only",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Important people only",
+        "ja": "重要な人だけ",
+        "zh": "只推重要联系人"
+      },
+      "web": ["settings.notify.mode.important"],
+      "ios": ["Important people only"],
+      "android": ["notify_mode_important"]
+    },
+    {
+      "id": "push.mode.off",
+      "about": "push: nothing",
+      "source": {
+        "en": "gmail",
+        "ja": "gmail",
+        "zh": "gmail"
+      },
+      "text": {
+        "en": "None",
+        "ja": "なし",
+        "zh": "无"
+      },
+      "web": ["settings.notify.mode.off"],
+      "ios": ["Nothing"],
+      "android": ["notify_mode_off"]
+    },
+    {
+      "id": "push.always",
+      "about": "push choice for a sender or conversation: always",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Always push",
+        "ja": "常に通知",
+        "zh": "总是推送"
+      },
+      "web": ["settings.notify.always"],
+      "ios": ["Always push"],
+      "android": ["notify_always"]
+    },
+    {
+      "id": "push.never",
+      "about": "push choice for a sender or conversation: never",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Never push",
+        "ja": "通知しない",
+        "zh": "从不推送"
+      },
+      "web": ["settings.notify.never"],
+      "ios": ["Never push"],
+      "android": ["notify_never"]
+    },
+    {
+      "id": "push.follow",
+      "about": "push choice for a conversation: every reply",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Following",
+        "ja": "返信ごと",
+        "zh": "跟踪"
+      },
+      "web": ["settings.notify.follow"],
+      "ios": ["Following"],
+      "android": ["notify_follow"]
+    },
+    {
+      "id": "push.muted",
+      "about": "push choice for a conversation: muted",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Muted",
+        "ja": "ミュート",
+        "zh": "已静音"
+      },
+      "web": ["settings.notify.mute"],
+      "ios": ["Muted"],
+      "android": ["notify_muted"]
+    },
+    {
+      "id": "push.hideContent",
+      "about": "push: hide sender and subject",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Hide sender and subject",
+        "ja": "差出人と件名を表示しない",
+        "zh": "隐藏发件人和主题"
+      },
+      "web": ["settings.notify.hideContent"],
+      "ios": ["Hide sender and subject"],
+      "android": ["notify_hide_content"]
+    },
+    {
+      "id": "push.quiet",
+      "about": "push: quiet hours",
+      "source": {
+        "en": "ours",
+        "ja": "ours",
+        "zh": "ours"
+      },
+      "text": {
+        "en": "Quiet hours",
+        "ja": "おやすみ時間",
+        "zh": "勿扰时段"
+      },
+      "web": ["settings.notify.quiet"],
+      "ios": ["Quiet hours"],
+      "android": ["notify_quiet_hours"]
+    }
+  ]
+}
