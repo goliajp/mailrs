@@ -23,7 +23,7 @@ use super::unified_push::{self, Device};
 use crate::keys::push::{session_link_key, tokens_key, used_key, web_subscriptions_key};
 
 mod removal;
-pub use removal::{REMOVED_KEPT, drop_all, drop_for_session, remove, removed};
+pub use removal::{REMOVED_KEPT, drop_all, drop_for_session, drop_signed_out, remove, removed};
 
 /// The most devices one account keeps, all channels together.
 pub const MAX_DEVICES: usize = 10;

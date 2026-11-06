@@ -105,7 +105,7 @@ pub fn spawn(vapid: Arc<Vapid>, addr: &str, now: i64) {
         }
         let devices = match tokio::task::spawn_blocking({
             let user = user.clone();
-            move || unified_push::list(&mut connect()?, &user)
+            move || devices(&mut connect()?, &user)
         })
         .await
         {
@@ -136,6 +136,15 @@ pub fn spawn(vapid: Arc<Vapid>, addr: &str, now: i64) {
             Err(e) => tracing::warn!(error = %e, "unifiedpush: outcome join failed"),
         }
     });
+}
+
+/// The phones `user` has to be pinged now.
+fn devices(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+) -> std::io::Result<Vec<(String, Device)>> {
+    crate::push::drop_signed_out(conn, user, push_devices::Channel::UnifiedPush)?;
+    unified_push::list(conn, user)
 }
 
 fn connect() -> std::io::Result<kevy_client::Connection> {
