@@ -186,7 +186,7 @@ async fn maintenance_holds_notices_except_for_data_in_danger_and_sums_up_at_the_
             .collect();
         assert_eq!(rules, ["data_volume_low", "maintenance_too_long"]);
     }
-    d.maintenance_ended(T + 100).await;
+    d.maintenance_ended(T, T + 100).await;
     let got = inbox.lock().unwrap();
     let v: serde_json::Value = serde_json::from_str(&got.bodies[1].1).unwrap();
     assert_eq!(v["kind"], "maintenance_ended");

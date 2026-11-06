@@ -1,0 +1,101 @@
+{
+  "controls": [
+    {
+      "action": "set",
+      "at": 1793926076,
+      "by": "cli:capture",
+      "id": "455d53ce4cca",
+      "kind": "silence",
+      "object": "spool",
+      "reason": "known file",
+      "rule": "spool_quarantined",
+      "until": 1793929676
+    }
+  ],
+  "notifications": [],
+  "since": 1793839676,
+  "starts": [],
+  "transitions": [
+    {
+      "at": 1793926075,
+      "from": "ok",
+      "object": "backup",
+      "reason": "condition holds",
+      "rule": "source_unreadable.backup",
+      "to": "pending",
+      "value": "never reported"
+    },
+    {
+      "at": 1793926075,
+      "from": "ok",
+      "object": "fetch",
+      "reason": "condition holds",
+      "rule": "source_unreadable.fetch",
+      "to": "pending",
+      "value": "never reported"
+    },
+    {
+      "at": 1793926075,
+      "from": "ok",
+      "object": "sender",
+      "reason": "condition holds",
+      "rule": "source_unreadable.sender",
+      "to": "pending",
+      "value": "never reported"
+    },
+    {
+      "at": 1793926075,
+      "from": "ok",
+      "object": "receiver",
+      "reason": "condition holds",
+      "rule": "source_unreadable.receiver",
+      "to": "pending",
+      "value": "never reported"
+    },
+    {
+      "at": 1793926075,
+      "from": "ok",
+      "object": "webapi",
+      "reason": "condition holds",
+      "rule": "source_unreadable.webapi",
+      "to": "pending",
+      "value": "cannot read: error sending request for url (http://127.0.0.1:9/api/health)"
+    },
+    {
+      "at": 1793926075,
+      "from": "ok",
+      "object": "fastcore",
+      "reason": "condition holds",
+      "rule": "source_unreadable.fastcore",
+      "to": "pending",
+      "value": "cannot read: core unavailable: healthz transport: error sending request for url (http://127.0.0.1:9/v1/healthz): client error (Connect): tcp connect error: Connection refused (os error 61)"
+    },
+    {
+      "at": 1793926075,
+      "from": "ok",
+      "object": "reports",
+      "reason": "condition holds",
+      "rule": "no_reports",
+      "to": "pending",
+      "value": "0 of 4 pushing processes heard"
+    },
+    {
+      "at": 1793926075,
+      "from": "pending",
+      "object": "ops",
+      "reason": "held for the for window",
+      "rule": "daemon_unwatched",
+      "to": "firing",
+      "value": "MAILRS_OPS_HEARTBEAT_URL unset"
+    },
+    {
+      "at": 1793926075,
+      "from": "ok",
+      "object": "ops",
+      "reason": "condition holds",
+      "rule": "daemon_unwatched",
+      "to": "pending",
+      "value": "MAILRS_OPS_HEARTBEAT_URL unset"
+    }
+  ]
+}

@@ -41,6 +41,11 @@ pub struct AlertView {
     pub why: Option<String>,
     pub title_en: &'static str,
     pub title_zh: &'static str,
+    pub title_ja: &'static str,
+    /// The first thing to do, in each interface language.
+    pub step_en: &'static str,
+    pub step_zh: &'static str,
+    pub step_ja: &'static str,
 }
 
 pub struct Engine {
@@ -212,6 +217,10 @@ impl Engine {
                     why: st.why.clone(),
                     title_en: rule.text.title_en,
                     title_zh: rule.text.title_zh,
+                    title_ja: rule.text.title_ja,
+                    step_en: rule.text.step_en,
+                    step_zh: rule.text.step_zh,
+                    step_ja: rule.text.step_ja,
                 })
             })
             .collect();

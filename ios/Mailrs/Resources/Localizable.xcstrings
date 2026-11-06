@@ -5718,6 +5718,22 @@
         }
       }
     },
+    "Saved searches": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存した検索"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存的搜索"
+          }
+        }
+      }
+    },
     "Scheduled": {
       "localizations": {
         "ja": {
@@ -5810,6 +5826,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "搜索此发件人"
+          }
+        }
+      }
+    },
+    "Search, or use from: to: subject: has:attachment in: is: label:": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検索、または from: to: subject: has:attachment in: is: label:"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索，或用 from: to: subject: has:attachment in: is: label:"
           }
         }
       }

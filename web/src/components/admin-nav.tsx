@@ -32,6 +32,11 @@ export const navGroups: { items: NavItem[]; label: Key }[] = [
         to: '/admin/overview',
       },
       { icon: <ListOrdered className="h-4 w-4" />, label: 'admin.nav.queues', to: '/admin/queues' },
+      {
+        icon: <ShieldAlert className="h-4 w-4" />,
+        label: 'admin.nav.monitor',
+        to: '/admin/monitor',
+      },
       { icon: <ShieldCheck className="h-4 w-4" />, label: 'admin.nav.dmarc', to: '/admin/dmarc' },
       {
         icon: <Filter className="h-4 w-4" />,
