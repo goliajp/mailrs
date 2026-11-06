@@ -28,7 +28,7 @@ export function ComposerActions({
 }: {
   ai: ComposerAi
   c: Composer
-  /** One row that scrolls sideways, for the narrow shells: the editor keeps its height. */
+  /** Tighter padding, for the floating window. */
   compact?: boolean
   /** Shells that can be closed get a Cancel. */
   onCancel?: () => void
@@ -184,7 +184,9 @@ export function ComposerActions({
 
 function barClass(compact: boolean | undefined): string {
   const base = 'border-border flex shrink-0 items-center gap-1 border-t py-2 select-none'
-  if (compact) return `${base} flex-nowrap overflow-x-auto px-3`
+  // wraps in every shell: a row that scrolled sideways hid Preview and
+  // Cancel past the floating window's edge with no sign they were there
+  if (compact) return `${base} flex-wrap px-3`
   return `${base} flex-wrap px-4`
 }
 

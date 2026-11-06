@@ -298,6 +298,7 @@ export const settingsJa: Record<SettingsKey, string> = {
   'settings.notify.mode.off': 'オフ',
   'settings.notify.mute': 'ミュート',
   'settings.notify.never': '通知しない',
+  'settings.notify.noSubject': '（件名なし）',
   'settings.notify.overrides': '送信者・会話ごとの設定',
   'settings.notify.overridesNone': 'まだありません',
   'settings.notify.quiet': 'おやすみ時間',
@@ -310,6 +311,7 @@ export const settingsJa: Record<SettingsKey, string> = {
   'settings.notify.stats': '過去 7 日間',
   'settings.notify.statsLine':
     '通知 {sent} 件、開封 {clicked} 件、設定で抑止 {policy} 件、おやすみ時間で保留 {quiet} 件、失敗 {failed} 件',
+  'settings.notify.threadGone': '削除済みの会話',
   'settings.notify.web': 'このブラウザの通知',
   'settings.notify.webDenied': 'ブラウザがこのサイトの通知をブロックしています',
   'settings.notify.webDisable': 'オフにする',

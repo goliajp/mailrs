@@ -5,6 +5,8 @@
   (`handlers/notify.rs`). A bad window is a 400, as there.
 - `GET /api/notify/overrides`; `PUT /api/notify/senders/{a}` (`always`,
   `never`, null) and `/api/notify/threads/{t}` (`follow`, `mute`, null).
+  Beside the `[id, choice]` pairs, `thread_details` names each
+  conversation by its subject, null for one the reader no longer has.
 - `GET /api/auth/sessions` (this one and an old laptop);
   `DELETE /api/auth/sessions/{id}`, 404 for one that is not there;
   `POST /api/auth/sessions/end-others` answers `{ended}`.
@@ -55,6 +57,10 @@ FRESH = {
 }
 STATE = copy.deepcopy(FRESH)
 
+# the subjects of the conversations the stub serves (stub-api.py); a
+# thread id not here is one the reader no longer has
+SUBJECTS = {"t1": "Quarterly report and the follow-up notes"}
+
 
 def reset():
     WRITES.clear()
@@ -82,7 +88,7 @@ def get(handler):
     path = urlparse(handler.path).path
     answers = {
         "/api/notify": lambda: STATE["notify"],
-        "/api/notify/overrides": lambda: STATE["overrides"],
+        "/api/notify/overrides": _overrides,
         "/api/auth/sessions": lambda: STATE["sessions"],
         "/api/auth/app-passwords": lambda: STATE["app_passwords"],
         "/api/settings/vacation": lambda: STATE["vacation"],
@@ -95,6 +101,15 @@ def get(handler):
         return False
     handler._send(answer())
     return True
+
+
+def _overrides():
+    out = copy.deepcopy(STATE["overrides"])
+    out["thread_details"] = [
+        {"thread_id": tid, "value": value, "subject": SUBJECTS.get(tid)}
+        for tid, value in STATE["overrides"]["threads"]
+    ]
+    return out
 
 
 def _window_ok(p):

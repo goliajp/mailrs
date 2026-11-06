@@ -1,0 +1,19 @@
+{
+  "senders": [["news@shop.example", "never"]],
+  "threads": [
+    ["a48529b44b1b190f@golia.jp", "mute"],
+    ["gone@golia.jp", "follow"]
+  ],
+  "thread_details": [
+    {
+      "thread_id": "a48529b44b1b190f@golia.jp",
+      "value": "mute",
+      "subject": "Re: Meeting"
+    },
+    {
+      "thread_id": "gone@golia.jp",
+      "value": "follow",
+      "subject": null
+    }
+  ]
+}

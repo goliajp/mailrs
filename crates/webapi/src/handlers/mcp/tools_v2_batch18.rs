@@ -137,16 +137,17 @@ impl MailrsMcpService {
     }
 
     #[tool(
-        description = "Your push settings: which mail pushes, quiet hours, and the per-sender and per-conversation choices."
+        description = "Your push settings: which mail pushes, quiet hours, and the per-sender and per-conversation choices (each conversation with its subject)."
     )]
     async fn get_notify_settings(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         let Json(prefs) = notify::get_prefs(axum::Extension(AuthedUser(user.clone())))
             .await
             .map_err(|c| map_status(c, "get_notify_settings"))?;
-        let Json(overrides) = notify::overrides(axum::Extension(AuthedUser(user)))
-            .await
-            .map_err(|c| map_status(c, "get_notify_settings"))?;
+        let Json(overrides) =
+            notify::overrides(State(self.state.clone()), axum::Extension(AuthedUser(user)))
+                .await
+                .map_err(|c| map_status(c, "get_notify_settings"))?;
         Ok(json(
             serde_json::json!({ "prefs": prefs, "overrides": overrides }),
         ))

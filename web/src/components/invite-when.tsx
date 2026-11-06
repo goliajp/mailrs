@@ -3,7 +3,7 @@ import type { InvitePayload } from '@/lib/invite-types'
 
 import { Clock, Repeat } from 'lucide-react'
 
-import { currentLocale, useT } from '@/i18n'
+import { currentLocale, type Translate, useT } from '@/i18n'
 import { recurrenceText, shownSpan } from '@/lib/invite-recurrence'
 import {
   formatLocalRange,
@@ -26,26 +26,35 @@ export function InviteWhen({ payload }: { payload: InvitePayload }) {
   return (
     <>
       {range && (
-        <div className="text-fg-muted mt-1 flex flex-wrap items-center gap-1 text-sm">
-          <Clock className="h-3.5 w-3.5" />
-          {upcoming && <span>{t('invite.repeat.next')}</span>}
-          {range}
-          {/* The organiser's own zone beside the reader's, when they
-              differ. "08:00" alone is a different claim from "08:00
-              here, 16:00 where it was scheduled", and the second is
-              what somebody joining across an ocean checks. */}
-          {organiserTime && <span className="text-fg-muted/70">· {organiserTime}</span>}
+        <div className="text-fg-muted mt-1 flex items-start gap-1 text-sm">
+          <Clock className="mt-[3px] h-3.5 w-3.5 shrink-0" />
+          {/* One run of text, so a narrow card wraps it like a sentence
+              instead of stacking the label, the dates and the zone as
+              separate pieces. */}
+          <span className="min-w-0" data-testid="invite-next">
+            {whenLine(upcoming, range, t)}
+            {/* The organiser's own zone beside the reader's, when they
+                differ. "08:00" alone is a different claim from "08:00
+                here, 16:00 where it was scheduled", and the second is
+                what somebody joining across an ocean checks. */}
+            {organiserTime && <span className="text-fg-muted/70"> · {organiserTime}</span>}
+          </span>
         </div>
       )}
       {rule && (
         <div
-          className="text-fg-muted mt-1 flex items-center gap-1 text-sm"
+          className="text-fg-muted mt-1 flex items-start gap-1 text-sm"
           data-testid="invite-repeat"
         >
-          <Repeat className="h-3.5 w-3.5" />
-          {recurrenceText(rule, t, currentLocale(), pickIso(payload.dtstart ?? null))}
-          {organiserTime && <span>{t('invite.repeat.organiserTime')}</span>}
-          {payload.next_occurrence === null && <span>· {t('invite.repeat.ended')}</span>}
+          <Repeat className="mt-[3px] h-3.5 w-3.5 shrink-0" />
+          <span className="min-w-0">
+            {repeatLine(
+              recurrenceText(rule, t, currentLocale(), pickIso(payload.dtstart ?? null)),
+              !!organiserTime,
+              payload.next_occurrence === null,
+              t
+            )}
+          </span>
         </div>
       )}
     </>
@@ -65,4 +74,19 @@ function organiserLabel(p: InvitePayload, start: CalDateTime | null | undefined)
   const local = p.next_occurrence?.organiser_local
   if (local) return formatOrganiserTime({ Floating: local }, tzName)
   return formatOrganiserTime(p.dtstart, tzName)
+}
+
+/// The rule in words, then whose clock it runs on and whether it is over.
+/// The translation places the organiser note: the space before
+/// "(organizer's time)" is English typography and wrong before "（".
+function repeatLine(words: string, organiserTime: boolean, ended: boolean, t: Translate): string {
+  let line = words
+  if (organiserTime) line = t('invite.repeat.organiserTime', { rule: line })
+  if (ended) line = `${line} · ${t('invite.repeat.ended')}`
+  return line
+}
+
+function whenLine(upcoming: boolean, range: string, t: Translate): string {
+  if (upcoming) return t('invite.repeat.next', { when: range })
+  return range
 }
