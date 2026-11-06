@@ -1,20 +1,28 @@
+import { toast } from '@goliapkg/gds'
 import { useAtom } from 'jotai'
 
+import { useSectionedInbox, useSetSectionedInbox } from '@/hooks/use-sectioned-inbox'
 import { useT } from '@/i18n'
-import { FOLLOWUP_DAY_CHOICES, followupDaysAtom, sectionedInboxAtom } from '@/store/inbox-sections'
+import { FOLLOWUP_DAY_CHOICES, followupDaysAtom } from '@/store/inbox-sections'
 
 import { cardClass, Field, Toggle } from './_shared'
+import { errorText } from './rules-shared'
 
-/** The sectioned inbox: on or off, and when a follow-up is due. */
+/**
+ * The sectioned inbox: on or off, saved on the server for the phone apps
+ * too, and when a follow-up is due, kept in this browser.
+ */
 export function InboxSectionsCard() {
   const t = useT()
-  const [on, setOn] = useAtom(sectionedInboxAtom)
+  const on = useSectionedInbox()
+  const save = useSetSectionedInbox()
   const [days, setDays] = useAtom(followupDaysAtom)
+  const turn = (value: boolean) => save.mutate(value, { onError: (e) => toast.error(errorText(e)) })
   return (
     <div className={cardClass}>
       <div className="space-y-3">
         <Field label={t('settings.sections.toggle')}>
-          <Toggle checked={on} onChange={setOn} />
+          <Toggle checked={on} onChange={turn} />
         </Field>
         <Field label={t('settings.sections.days')}>
           <label className="flex items-center gap-2 text-sm">

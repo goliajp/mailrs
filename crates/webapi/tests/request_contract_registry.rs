@@ -91,6 +91,7 @@ fn every_fixture_has_a_test() {
         "vacation-set",
         // read in request_contract_swipe.rs
         "swipe-set",
+        "sectioned-inbox-set",
         "totp-code",
         "confirm",
         "webhook-create",

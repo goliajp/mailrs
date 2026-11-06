@@ -18,6 +18,19 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### The sectioned inbox is one setting on every device
+
+- Whether the Inbox shows its tabs (All, To reply, Waiting, New
+  senders) is now a per-account setting, `GET/PUT
+  /api/settings/sectioned-inbox`, read by the web and both phone apps.
+  It is on unless turned off. The iPhone and Android apps gain a switch
+  for it in Settings; turning it off in one place turns it off
+  everywhere.
+- The web kept this switch in the browser only. A choice made there is
+  saved to the account on the first load after this release and then
+  removed from the browser. A browser where it was never touched now
+  shows the tabs, as the phone apps always have.
+
 ### A device removed from push stays removed
 
 - Removing a device from another device's push settings now keeps it

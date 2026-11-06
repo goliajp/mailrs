@@ -22,6 +22,35 @@ extension Session {
         await loadConversations()
     }
 
+    /// The sectioned inbox setting from the server. A failure keeps what is
+    /// there and says nothing: the Inbox still works either way.
+    func loadSectionedInbox() async {
+        guard let client else { return }
+        guard let found = try? await client.sectionedInboxSetting() else { return }
+        await showSections(found.enabled)
+    }
+
+    /// Turn the section tabs on or off; they change at once and go back if
+    /// the server does not take it.
+    func saveSectionedInbox(_ enabled: Bool) async {
+        guard let client else { return }
+        let before = sectionedInbox
+        await showSections(enabled)
+        do {
+            _ = try await client.saveSectionedInboxSetting(SectionedInboxSetting(enabled: enabled))
+        } catch {
+            banner = AppText.string("The sectioned inbox setting was not saved")
+            await showSections(before)
+        }
+    }
+
+    /// With the tabs gone a section can no longer be left, so the whole
+    /// Inbox comes back in its place.
+    private func showSections(_ enabled: Bool) async {
+        sectionedInbox = enabled
+        if !enabled { await selectSection(nil) }
+    }
+
     /// Accept the senders of the conversations shown in New, then reload:
     /// accepted senders leave the section, so the list shows what is left.
     func acceptShownSenders() async {
