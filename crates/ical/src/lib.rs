@@ -60,6 +60,7 @@ pub mod semantics;
 pub mod serialize;
 pub mod vtimezone;
 mod windows_zones;
+mod zone_block;
 
 #[cfg(test)]
 mod tests;
