@@ -15,8 +15,15 @@ use super::span::{date_of, span_of};
 /// `Err` says why the text cannot be stored: it does not parse, or its
 /// start names a zone nothing resolves, which would leave an event that
 /// cannot be placed on any calendar.
+///
+/// A recurring event comes as its series plus one `VEVENT` per changed
+/// occurrence; the row is the series, with those folded in.
 pub fn from_ics(ics: &str, source: &str) -> Result<StoredEvent, String> {
-    let parsed = parse_invite(ics.as_bytes()).map_err(|e| format!("{e:?}"))?;
+    let first = parse_invite(ics.as_bytes()).map_err(|e| format!("{e:?}"))?;
+    let (parsed, recurrence) = super::series::fold_text(ics)
+        .into_iter()
+        .find(|(ev, _)| ev.uid == first.uid)
+        .unwrap_or((first, None));
     let (start, end) = span_of(&parsed)
         .ok_or_else(|| "DTSTART names a time zone that cannot be resolved".to_string())?;
     let status = parsed.status.map(|s| match s {
@@ -36,6 +43,7 @@ pub fn from_ics(ics: &str, source: &str) -> Result<StoredEvent, String> {
         ics: Some(ics.to_string()),
         partstat: None,
         message_id: None,
+        recurrence,
     })
 }
 
@@ -181,6 +189,7 @@ mod tests {
             ics: None,
             partstat: None,
             message_id: None,
+            recurrence: None,
         };
         let text = to_ics(&ev);
         assert_eq!(text, to_ics(&ev));

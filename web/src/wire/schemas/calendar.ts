@@ -10,6 +10,11 @@ export const calendarEventSchema = z.object({
   message_id: z.string().optional(),
   organizer: z.string().nullable().default(null),
   partstat: z.enum(['ACCEPTED', 'TENTATIVE', 'DECLINED']).optional(),
+  /**
+   * For one occurrence of a recurring event, which one: the same `uid`
+   * comes back once per occurrence in the window. Absent otherwise.
+   */
+  recurrence_id: z.string().optional(),
   source: z.string().nullable().default(null),
   status: z.string().nullable().default(null),
   summary: z.string().default(''),

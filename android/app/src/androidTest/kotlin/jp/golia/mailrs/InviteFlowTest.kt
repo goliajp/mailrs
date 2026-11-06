@@ -3,6 +3,7 @@ package jp.golia.mailrs
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -45,9 +46,11 @@ class InviteFlowTest : MailrsUiTest() {
         // The whole timezone argument in one line: 16:00 in Santa Clara
         // is 08:00 the next morning here, and the organiser's own clock
         // is named beside it because neither number alone is the
-        // answer.
-        compose.onNodeWithText("Pacific Standard Time", substring = true).assertIsDisplayed()
+        // answer — as the abbreviation in force on 20 August (PDT), not
+        // the Windows TZID, which says "Standard" in summer.
+        compose.onNodeWithText("PDT", substring = true).assertIsDisplayed()
         compose.onNodeWithText("8:00", substring = true).assertIsDisplayed()
+        assertTrue(compose.onAllNodesWithText("Pacific Standard Time", substring = true).fetchSemanticsNodes().isEmpty())
 
         // The two things a reader does with a meeting.
         compose.onNodeWithTag("invite.join").assertIsDisplayed()

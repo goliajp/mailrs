@@ -184,8 +184,10 @@ accounts/TrashFolder.kt	deleted messages
 ui/Attachments.kt	$bytes B
 ui/ConversationRow.kt	×${c.messageCount}
 ui/ConversationRow.kt	↓${c.receivedCount} ↑${c.sentCount}
-ui/InviteCard.kt	$local · ${wall.drop(11).take(5)} $zone
-ui/InviteCard.kt	Zoned
+wire/InviteRepeat.kt	$line · $organiser
+wire/InviteRepeat.kt	$time $abbreviation
+wire/InviteRepeat.kt	${wall.drop(11).take(5)} $tzName
+wire/InviteRepeat.kt	Zoned
 ui/ListActions.kt	button.selectionMore
 ui/MailboxesScreen.kt	you@example.com
 ui/MailboxesScreen.kt	${guess.imapHost}:${guess.imapPort}

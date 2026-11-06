@@ -7,7 +7,7 @@
 
 use std::io;
 
-use super::{StoredEvent, event_key, from_flat, get, put};
+use super::{StoredEvent, event_key, from_flat, get, put, series};
 
 /// The answers an attendee can give (RFC 5545 `PARTSTAT`), as stored.
 pub const ANSWERS: [&str; 3] = ["ACCEPTED", "TENTATIVE", "DECLINED"];
@@ -52,6 +52,9 @@ pub fn from_invite(
         ics: None,
         partstat: None,
         message_id: None,
+        recurrence: serde_json::from_value::<mailrs_ical::ParsedInvite>(invite.clone())
+            .ok()
+            .and_then(|parsed| series::column_of(&parsed)),
     }
 }
 
@@ -68,11 +71,38 @@ pub fn file_invite(
     row: &StoredEvent,
 ) -> io::Result<bool> {
     let flat = conn.hgetall(event_key(user, &row.uid).as_bytes())?;
-    if !flat.is_empty() && from_flat(&row.uid, &flat).sequence > row.sequence {
-        return Ok(false);
+    let mut row = row.clone();
+    if !flat.is_empty() {
+        let stored = from_flat(&row.uid, &flat);
+        if stored.sequence > row.sequence {
+            return Ok(false);
+        }
+        series::carry_overrides(&stored, &mut row);
     }
-    put(conn, user, row)?;
+    put(conn, user, &row)?;
     Ok(true)
+}
+
+/// File what an invitation says: one changed or cancelled occurrence of
+/// a series already stored goes into that series; anything else is
+/// `row` through [`file_invite`]. `invite` is the payload `row` was built
+/// from by [`from_invite`].
+///
+/// Without this, a mail about one occurrence — "this week's meeting is
+/// cancelled" — replaced the whole series with that one occurrence, or
+/// marked every week cancelled.
+pub fn file_invitation(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+    row: &StoredEvent,
+    invite: &serde_json::Value,
+) -> io::Result<bool> {
+    if let Ok(parsed) = serde_json::from_value::<mailrs_ical::ParsedInvite>(invite.clone())
+        && let Some(filed) = series::file_instance(conn, user, &row.uid, &parsed)?
+    {
+        return Ok(filed);
+    }
+    file_invite(conn, user, row)
 }
 
 /// Record the reader's answer on the event. `false` when there is no such

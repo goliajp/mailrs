@@ -29,10 +29,13 @@ use serde::{Deserialize, Serialize};
 mod ics;
 pub mod invite;
 pub mod names;
+pub mod series;
 pub mod span;
 
 pub use ics::{from_ics, to_ics};
-pub use invite::{ANSWERS, file_invite, from_invite, set_message_id, set_partstat};
+pub use invite::{
+    ANSWERS, file_invitation, file_invite, from_invite, set_message_id, set_partstat,
+};
 
 /// An event as stored, and as the conflicts reader wants it.
 ///
@@ -89,6 +92,11 @@ pub struct StoredEvent {
     /// the meeting keeps it.
     #[serde(default)]
     pub message_id: Option<String>,
+    /// How the event repeats, JSON of `mailrs_ical::recur::Series`; absent
+    /// for one that does not. `dtstart` / `dtend` are then its first
+    /// occurrence, and readers expand the rest (see [`series`]).
+    #[serde(default)]
+    pub recurrence: Option<String>,
 }
 
 /// The hash key for one event.
@@ -113,6 +121,7 @@ pub fn fields(ev: &StoredEvent) -> Vec<(&'static str, String)> {
         ("source", ev.source.clone()),
         ("sequence", ev.sequence.to_string()),
         ("ics", ev.ics.clone().unwrap_or_default()),
+        ("recurrence", ev.recurrence.clone().unwrap_or_default()),
     ]
     .into_iter()
     .chain(ev.message_id.clone().map(|m| ("message_id", m)))
@@ -208,6 +217,7 @@ pub fn from_flat(uid: &str, flat: &[Vec<u8>]) -> StoredEvent {
             "ics" => ev.ics = Some(v).filter(|s| !s.is_empty()),
             "partstat" => ev.partstat = Some(v).filter(|s| !s.is_empty()),
             "message_id" => ev.message_id = Some(v).filter(|s| !s.is_empty()),
+            "recurrence" => ev.recurrence = Some(v).filter(|s| !s.is_empty()),
             "json" => {
                 if let Ok(legacy) = serde_json::from_str::<StoredEvent>(&v) {
                     let seq = ev.sequence;
@@ -256,6 +266,7 @@ mod tests {
             ics: Some("BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n".into()),
             partstat: None,
             message_id: None,
+            recurrence: Some(r#"{"dtstart":{"Utc":"2026-08-20T23:00:00Z"}}"#.into()),
         };
         let written = fields(&ev);
         let pairs: Vec<(&str, &str)> = written.iter().map(|(k, v)| (*k, v.as_str())).collect();

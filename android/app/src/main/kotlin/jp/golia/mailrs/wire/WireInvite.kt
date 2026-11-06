@@ -8,7 +8,8 @@ import kotlinx.serialization.json.JsonElement
  * A meeting invitation, as the server read it out of the message.
  *
  * Backend: `crates/webapi/src/handlers/complete.rs` —
- * `get_message_single`'s `invite_payload`.
+ * `get_message_single`'s `invite_payload`, with what
+ * `calendar_events::series::annotate` adds when it is read.
  */
 @Serializable
 data class WireInvite(
@@ -54,6 +55,41 @@ data class WireInvite(
     @SerialName("join_url") val joinUrl: String? = null,
     /** The wall-clock and zone the organiser wrote, for the second line. */
     val dtstart: JsonElement? = null,
+    /**
+     * The IANA zone the organiser's `TZID` names, Windows names resolved
+     * on the server. The organiser's clock is formatted from the instant
+     * in it, so the abbreviation is the one in force that day.
+     */
+    @SerialName("organiser_zone") val organiserZone: String? = null,
+    /** How a recurring invitation repeats; null for one that does not. */
+    val recurrence: WireRecurrence? = null,
+    /**
+     * The first occurrence that has not ended, worked out by the server
+     * when the message is read. Null for a single event, and for a series
+     * that is over (then [recurrence] is still set).
+     */
+    @SerialName("next_occurrence") val next: WireOccurrence? = null,
+)
+
+/** A rule, read for showing in words (`mailrs_ical::recur::Rule`). */
+@Serializable
+data class WireRecurrence(
+    val freq: String = "",
+    val interval: Int = 1,
+    @SerialName("by_day") val byDay: List<String> = emptyList(),
+    @SerialName("by_month_day") val byMonthDay: List<Int> = emptyList(),
+    val count: Int? = null,
+    /** The last day, `YYYY-MM-DD`, in the organiser's zone. */
+    val until: String? = null,
+    val plain: Boolean = false,
+)
+
+/** One occurrence: RFC 3339 instants, or dates for an all-day series. */
+@Serializable
+data class WireOccurrence(
+    val start: String = "",
+    val end: String = "",
+    @SerialName("organiser_local") val organiserLocal: String? = null,
 )
 
 @Serializable
