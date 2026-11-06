@@ -63,6 +63,11 @@ pub(super) fn rule_routes() -> axum::Router<Arc<WebState>> {
             get(crate::handlers::mail_settings::get_swipe)
                 .put(crate::handlers::mail_settings::put_swipe),
         )
+        .route(
+            "/api/settings/sectioned-inbox",
+            get(crate::handlers::mail_settings::get_sectioned_inbox)
+                .put(crate::handlers::mail_settings::put_sectioned_inbox),
+        )
         .route("/api/storage", get(crate::handlers::storage::get_storage))
         .route(
             "/api/settings/forwarding",

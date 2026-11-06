@@ -18,6 +18,8 @@ const stub: {
   sent: WireSentMessage[]
 } = { conversations: [], drafts: [], sends: [], sent: [] }
 
+// a setting on the server; which list is shown does not depend on it here
+vi.mock('@/hooks/use-sectioned-inbox', () => ({ useSectionedInbox: () => false }))
 vi.mock('@/hooks/use-flat-conversations', () => ({
   useFlatConversations: () => ({
     conversations: stub.conversations,

@@ -108,6 +108,7 @@ struct ConversationListView: View {
             .task {
                 await session.loadLabels()
                 await session.loadSwipe()
+                await session.loadSectionedInbox()
             }
             // deleting for good can be refused until the password is
             // typed; not while Settings is up, whose screens ask for it

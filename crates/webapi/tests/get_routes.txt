@@ -94,6 +94,7 @@
 /api/rules	read only
 /api/settings/vacation	read only
 /api/settings/swipe	read only, the default when nothing is stored
+/api/settings/sectioned-inbox	read only, on when nothing is stored
 /api/auth/sessions	read only, ids are hash prefixes
 /api/auth/app-passwords	read only, never the passwords
 /api/admin/protocol-logins	read only

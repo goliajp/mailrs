@@ -11,17 +11,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ConversationItem } from '@/components/conversation-item'
 import { SwipeableRow } from '@/components/swipeable-row'
 import { useHoverPrefetch } from '@/hooks/use-prefetch-threads'
+import { useSectionedInbox } from '@/hooks/use-sectioned-inbox'
 import { useSwipeSetting } from '@/hooks/use-swipe-setting'
 import { type Key, useT } from '@/i18n'
 import { nearEnd } from '@/lib/list-paging'
 import { MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
 import { swipeAction } from '@/lib/swipe'
-import {
-  followupDaysAtom,
-  type InboxSection,
-  inboxSectionAtom,
-  sectionedInboxAtom,
-} from '@/store/inbox-sections'
+import { followupDaysAtom, type InboxSection, inboxSectionAtom } from '@/store/inbox-sections'
 import { activeListAtom } from '@/store/ui'
 
 export type VirtualListItem =
@@ -97,7 +93,7 @@ export function VirtualConversationList({
 }) {
   const t = useT()
   const activeList = useAtomValue(activeListAtom)
-  const sectioned = useAtomValue(sectionedInboxAtom)
+  const sectioned = useSectionedInbox()
   const shownSection = useAtomValue(inboxSectionAtom)
   const followupDays = useAtomValue(followupDaysAtom)
   const inboxSection = sectionShown(sectioned, shownSection)

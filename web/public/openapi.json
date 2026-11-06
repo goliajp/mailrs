@@ -12903,6 +12903,59 @@
         }
       }
     },
+    "/api/settings/sectioned-inbox": {
+      "get": {
+        "operationId": "getSectionedInbox",
+        "summary": "Whether the Inbox is split into sections; on when never set",
+        "tags": [
+          "Settings"
+        ],
+        "responses": {
+          "200": {
+            "description": "SectionedInbox",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionedInbox"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setSectionedInbox",
+        "summary": "Turn the sectioned Inbox on or off, on the web and both phone apps",
+        "tags": [
+          "Settings"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SectionedInbox"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionedInbox"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The body has no boolean enabled"
+          }
+        }
+      }
+    },
     "/api/settings/forwarding": {
       "get": {
         "operationId": "getForwarding",
@@ -20505,6 +20558,18 @@
               "none"
             ],
             "description": "A finger moving left to right"
+          }
+        }
+      },
+      "SectionedInbox": {
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Show the Inbox by section (all, to reply, waiting, new senders)"
           }
         }
       }

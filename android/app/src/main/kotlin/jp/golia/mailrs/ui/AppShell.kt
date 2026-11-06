@@ -56,6 +56,7 @@ import jp.golia.mailrs.chooseNotify
 import jp.golia.mailrs.closeSettings
 import jp.golia.mailrs.closeSettingsPage
 import jp.golia.mailrs.openSettingsPage
+import jp.golia.mailrs.saveSectionedInbox
 import jp.golia.mailrs.saveSwipe
 import jp.golia.mailrs.closeSource
 import jp.golia.mailrs.closeThread
@@ -319,6 +320,7 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
                                 onMergedMail = { vm.openMergedMail() },
                                 onPage = { vm.openSettingsPage(it) },
                                 onSwipe = { vm.saveSwipe(it) },
+                                onSectioned = { vm.saveSectionedInbox(it) },
                                 onSignOut = { vm.closeSettings(); vm.signOut() },
                             )
                         }
