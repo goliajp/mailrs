@@ -1,5 +1,6 @@
 import type { Key } from './en'
 
+import { adminMonitorZh } from './admin-monitor/zh'
 import { adminOpsZh } from './admin-ops/zh'
 import { adminZh } from './admin/zh'
 import { appZh } from './app/zh'
@@ -22,6 +23,7 @@ export const zh: Record<Key, string> = {
   ...mockZh,
   ...adminZh,
   ...adminOpsZh,
+  ...adminMonitorZh,
   'lang.name.en': 'English',
   'lang.name.ja': '日本語',
   'lang.name.zh': '简体中文',
