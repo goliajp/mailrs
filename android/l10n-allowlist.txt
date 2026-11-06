@@ -322,6 +322,8 @@ wire/PushRegistration.kt	$endpoint $p256dh $auth
 ui/PushPage.kt	push.serverOff
 ui/PushPage.kt	push.noDistributor
 ui/PushPage.kt	push.noDistributorHint
+ui/PushPage.kt	push.removedElsewhere
+ui/PushPage.kt	push.removeIsNotSignOut
 wire/RecentRecipients.kt	jp.golia.mailrs.category.SHARE_TARGET
 wire/RecentRecipients.kt	recipient:$address
 wire/RecipientAutocomplete.kt	$email, 

@@ -32,6 +32,15 @@ class PushRecheckTest {
         assertEquals(listOf(PushSync.Step.Register("https://p.test/up1", "k", "a")), PushSync.recheck(on, listing()))
     }
 
+    /** Removed by a person on another device: turned off here, never registered back. */
+    @Test
+    fun removed_elsewhere_turns_pushes_off_instead_of_registering_again() {
+        val removed = listing().copy(removed = listOf("id1"))
+        assertEquals(listOf(PushSync.Step.TurnOff), PushSync.recheck(on, removed))
+        val someoneElse = listing().copy(removed = listOf("id9"))
+        assertEquals(listOf(PushSync.Step.Register("https://p.test/up1", "k", "a")), PushSync.recheck(on, someoneElse))
+    }
+
     @Test
     fun a_failed_read_needs_nothing() {
         assertEquals(emptyList<PushSync.Step>(), PushSync.recheck(on, null))

@@ -36,7 +36,10 @@ object PushDistributor {
      * distributors refuse a registration without one.
      */
     fun use(context: Context, pkg: String, vapid: String) {
-        PushRegistration(context).failure = null
+        val reg = PushRegistration(context)
+        reg.failure = null
+        reg.turnedOn = true
+        reg.removedElsewhere = false
         UnifiedPush.saveDistributor(context, pkg)
         UnifiedPush.register(context, messageForDistributor = "Mailrs", vapid = vapid)
     }
@@ -46,6 +49,20 @@ object PushDistributor {
         UnifiedPush.unregister(context)
         PushRegistration(context).lost()
         PushSyncWorker.enqueue(context)
+    }
+
+    /**
+     * A person removed this phone from another device: pushes here go off
+     * as if turned off on this page, except the server is not asked to
+     * forget a phone it already forgot, and the page says why.
+     */
+    fun removedElsewhere(context: Context) {
+        val reg = PushRegistration(context)
+        UnifiedPush.unregister(context)
+        reg.lost()
+        reg.dropped()
+        reg.turnedOn = false
+        reg.removedElsewhere = true
     }
 
     /**

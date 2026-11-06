@@ -19,6 +19,7 @@ import jp.golia.mailrs.wire.PASSWORD_CLEARED
 import jp.golia.mailrs.wire.NewMailWorker
 import jp.golia.mailrs.wire.Prefs
 import jp.golia.mailrs.wire.PushDistributor
+import jp.golia.mailrs.wire.PushSyncWorker
 import jp.golia.mailrs.wire.RecentRecipients
 import jp.golia.mailrs.wire.RecipientAutocomplete
 import jp.golia.mailrs.wire.ShareIntent
@@ -182,6 +183,8 @@ class MailViewModel(
                     refresh()
                     loadSignature()
                     refreshRole()
+                    // ending the old session dropped this phone's pushes; pushes left on here come back
+                    PushSyncWorker.check(getApplication())
                 }
                 is MailrsClient.Outcome.Err if r.code == PASSWORD_CLEARED ->
                     _state.update { it.copy(busy = false, reset = ResetPrompt(server, username, r.message)) }

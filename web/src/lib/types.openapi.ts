@@ -3978,7 +3978,7 @@ export interface paths {
         put?: never;
         /**
          * Register a device token for push notifications
-         * @description The iOS app registers its APNs token after sign-in. Fastcore reads the same store when a message lands and prunes tokens Apple reports dead. An account keeps at most 10 push devices, iOS, browsers and Android together; registering another removes the one that least recently received a push (one never pushed to counts from when it registered). Registering the same token again does not count twice.
+         * @description The iOS app registers its APNs token after sign-in. Fastcore reads the same store when a message lands and prunes tokens Apple reports dead. An account keeps at most 10 push devices, iOS, browsers and Android together; registering another removes the one that least recently received a push (one never pushed to counts from when it registered). Registering the same token again does not count twice. Ending the session that registered a token (signing out, the sessions list, a password change or reset) removes the token. A token a person removed from another device is refused with 410 for 30 days unless resume is set.
          */
         post: {
             parameters: {
@@ -3994,12 +3994,21 @@ export interface paths {
                         token: string;
                         /** @description "ios" (default) */
                         platform?: string;
+                        /** @description True only when the person turned pushes on on this device just now */
+                        resume?: boolean;
                     };
                 };
             };
             responses: {
                 /** @description Registered */
                 204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description {"error":"removed"}: a person removed this device from another device in the last 30 days and resume was not set */
+                410: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -4030,7 +4039,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Unregister a device token */
+        /**
+         * Unregister a device token
+         * @description Stops pushes to that device. From another device's session, the device cannot register itself back for 30 days unless its own person turns pushes on again (resume). It does not sign that device out: ending its session does, and also removes its token.
+         */
         delete: {
             parameters: {
                 query?: never;
@@ -6364,7 +6376,7 @@ export interface paths {
         };
         /**
          * This reader's phones on UnifiedPush
-         * @description enabled is false when the server has no VAPID key configured: UnifiedPush pushes are signed with the Web Push key. vapid_public_key is the key a phone registers with its distributor. Devices are listed by id, name and the distributor's host, never by endpoint.
+         * @description enabled is false when the server has no VAPID key configured: UnifiedPush pushes are signed with the Web Push key. vapid_public_key is the key a phone registers with its distributor. Devices are listed by id, name and the distributor's host, never by endpoint. removed lists the ids a person removed from another device in the last 30 days, so a phone can tell it was one of them.
          */
         get: {
             parameters: {
@@ -6391,6 +6403,7 @@ export interface paths {
                                 host: string;
                                 created_at: number;
                             }[];
+                            removed: string[];
                         };
                     };
                 };
@@ -6399,7 +6412,7 @@ export interface paths {
         put?: never;
         /**
          * Register a phone's UnifiedPush endpoint
-         * @description Sent by the Android app when its distributor gives it an endpoint. The endpoint must be https on port 443 and name a host whose addresses are all public; p256dh must be a P-256 public key and auth a 16-byte secret (the distributor connector's key set); name is at most 64 characters. New mail is then announced with a push that carries no sender, subject or count, and the app fetches what arrived. The same endpoint replaces its old keys. A device whose distributor answers 404 or 410 is dropped. An account is pushed at most once every 5 seconds; mail arriving in that time is announced by one more push when it ends. An account keeps at most 10 push devices, iOS, browsers and Android together; registering another removes the one that least recently received a push (one never pushed to counts from when it registered). The same endpoint registering again does not count twice.
+         * @description Sent by the Android app when its distributor gives it an endpoint. The endpoint must be https on port 443 and name a host whose addresses are all public; p256dh must be a P-256 public key and auth a 16-byte secret (the distributor connector's key set); name is at most 64 characters. New mail is then announced with a push that carries no sender, subject or count, and the app fetches what arrived. The same endpoint replaces its old keys. A device whose distributor answers 404 or 410 is dropped. An account is pushed at most once every 5 seconds; mail arriving in that time is announced by one more push when it ends. An account keeps at most 10 push devices, iOS, browsers and Android together; registering another removes the one that least recently received a push (one never pushed to counts from when it registered). The same endpoint registering again does not count twice. Ending the session that registered a phone removes it. A phone a person removed from another device is refused with 410 for 30 days unless resume is set.
          */
         post: {
             parameters: {
@@ -6417,6 +6430,8 @@ export interface paths {
                             auth: string;
                         };
                         name?: string;
+                        /** @description True only when the person turned pushes on on this phone just now */
+                        resume?: boolean;
                     };
                 };
             };
@@ -6446,6 +6461,13 @@ export interface paths {
                     };
                     content?: never;
                 };
+                /** @description {"error":"removed"}: a person removed this phone from another device in the last 30 days and resume was not set */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
             };
         };
         delete?: never;
@@ -6466,7 +6488,7 @@ export interface paths {
         post?: never;
         /**
          * Unregister a phone from UnifiedPush
-         * @description Idempotent: an id that is not there also answers 204.
+         * @description Idempotent: an id that is not there also answers 204. From another device's session, the phone cannot register itself back for 30 days unless its own person turns pushes on again (resume). It does not sign that phone out: ending its session does, and also removes the phone.
          */
         delete: {
             parameters: {
@@ -6502,7 +6524,7 @@ export interface paths {
         };
         /**
          * Whether Web Push is on
-         * @description enabled is false when the server has no VAPID key configured; the settings page then says Web Push is not enabled rather than showing zero subscriptions. public_key is the applicationServerKey to subscribe with.
+         * @description enabled is false when the server has no VAPID key configured; the settings page then says Web Push is not enabled rather than showing zero subscriptions. public_key is the applicationServerKey to subscribe with. removed lists browsers a person removed from another device in the last 30 days, by the sha256 of their endpoint (hex).
          */
         get: {
             parameters: {
@@ -6523,6 +6545,7 @@ export interface paths {
                             enabled: boolean;
                             /** @description base64url P-256 public key, present when enabled */
                             public_key?: string;
+                            removed: string[];
                         };
                     };
                 };
@@ -6781,7 +6804,7 @@ export interface paths {
         put?: never;
         /**
          * Subscribe this browser to Web Push
-         * @description The body is PushSubscription.toJSON(). The endpoint must be a known browser push service (FCM, Mozilla, Apple, Windows) over https; p256dh must be a P-256 public key and auth a 16-byte secret. An account keeps at most 10 push devices, iOS, browsers and Android together; subscribing another removes the one that least recently received a push (one never pushed to counts from when it subscribed). The same endpoint subscribing again does not count twice.
+         * @description The body is PushSubscription.toJSON(). The endpoint must be a known browser push service (FCM, Mozilla, Apple, Windows) over https; p256dh must be a P-256 public key and auth a 16-byte secret. An account keeps at most 10 push devices, iOS, browsers and Android together; subscribing another removes the one that least recently received a push (one never pushed to counts from when it subscribed). The same endpoint subscribing again does not count twice. Ending the session that subscribed a browser removes the subscription. A browser a person removed from another device is refused with 410 for 30 days unless resume is set.
          */
         post: {
             parameters: {
@@ -6798,6 +6821,8 @@ export interface paths {
                             p256dh: string;
                             auth: string;
                         };
+                        /** @description True only when the person turned pushes on in this browser just now */
+                        resume?: boolean;
                     };
                 };
             };
@@ -6823,9 +6848,19 @@ export interface paths {
                     };
                     content?: never;
                 };
+                /** @description {"error":"removed"}: a person removed this browser from another device in the last 30 days and resume was not set */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
             };
         };
-        /** Unsubscribe a browser from Web Push */
+        /**
+         * Unsubscribe a browser from Web Push
+         * @description Stops pushes to that browser. From another device's session, the browser cannot subscribe itself back for 30 days unless its own person turns pushes on again (resume).
+         */
         delete: {
             parameters: {
                 query?: never;

@@ -568,4 +568,6 @@
     <string name="invite_repeat_until">until %1$s</string>
     <string name="invite_repeat_count">%1$s times</string>
     <string name="invite_repeat_day_separator">", "</string>
+    <string name="push_removed_elsewhere">Removed from another device; turn on again to receive pushes</string>
+    <string name="push_remove_is_not_sign_out">Removing a phone only stops its pushes; it stays signed in. To sign out a lost phone, use Signed-in devices</string>
 </resources>

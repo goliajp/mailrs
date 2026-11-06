@@ -7,8 +7,21 @@ struct NotifySettingsView: View {
     @State private var prefs: SettingsWire.NotifyPrefs?
     @State private var overrides: SettingsWire.Overrides?
 
+    private let removal = PushRemoval.shared
+
     var body: some View {
         Form {
+            if removal.removedElsewhere {
+                Section {
+                    Text("Removed from another device; turn on again to receive pushes")
+                        .accessibilityIdentifier("notify.removedElsewhere")
+                    Button("Turn on again") {
+                        removal.turnOnAgain()
+                        PushRegistrar.requestAuthorization()
+                    }
+                    .accessibilityIdentifier("notify.turnOnAgain")
+                }
+            }
             if let prefs {
                 Section {
                     Picker("Notify me about", selection: field(\.mode)) {

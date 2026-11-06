@@ -26,6 +26,7 @@ fn push_register_body_matches() {
     let v: handlers::push::RegisterPushTokenRequest = parse("push-register");
     assert!(!v.token.is_empty());
     assert_eq!(v.platform, "ios");
+    assert!(v.resume);
 }
 
 #[test]

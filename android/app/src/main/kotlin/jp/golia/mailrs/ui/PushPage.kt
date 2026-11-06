@@ -85,6 +85,8 @@ internal fun PushPage(vm: MailViewModel) {
         else -> Control(status, installed, s.vapidPublicKey.orEmpty())
     }
     if (status is PushStatus.On && reregisteredAt != null) Note(Texts.get(R.string.push_reregistered, day(reregisteredAt)), "push.reregistered")
+    val removedElsewhere = remember(changes) { reg.removedElsewhere }
+    if (status is PushStatus.Off && removedElsewhere) Note(Texts.get(R.string.push_removed_elsewhere), "push.removedElsewhere")
     Devices(s.devices, have.serverId) { id ->
         scope.launch { if (vm.removePushDevice(id)) server = vm.loadUnifiedPush() }
     }
@@ -151,6 +153,8 @@ private fun Devices(devices: List<UnifiedPushWire.Device>, thisPhone: String?, r
     if (devices.isEmpty()) return
     val theme = LocalTheme.current
     Text(Texts.get(R.string.push_devices), color = theme.fgMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 16.dp, top = 16.dp))
+    // removing is easily taken for signing a lost phone out, which it is not
+    if (devices.any { it.id != thisPhone }) Note(Texts.get(R.string.push_remove_is_not_sign_out), "push.removeIsNotSignOut")
     for (d in devices) {
         val mine = d.id == thisPhone
         Row(

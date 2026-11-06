@@ -64,6 +64,20 @@ class PushRegistration(context: Context) {
         store.edit().putLong(REREGISTERED_AT, at).apply()
     }
 
+    /**
+     * The reader just turned pushes on here, and the server has not taken
+     * the registration yet. Only such a registration may undo a removal
+     * from another device; the ones the app makes on its own may not.
+     */
+    var turnedOn: Boolean
+        get() = store.getBoolean(TURNED_ON, false)
+        set(value) = store.edit().putBoolean(TURNED_ON, value).apply()
+
+    /** A person removed this phone from another device, and pushes here were turned off for it. */
+    var removedElsewhere: Boolean
+        get() = store.getBoolean(REMOVED_ELSEWHERE, false)
+        set(value) = store.edit().putBoolean(REMOVED_ELSEWHERE, value).apply()
+
     /** Why the last step failed, for the settings page; null once one works. */
     var failure: String?
         get() = store.getString(FAILURE, null)
@@ -96,6 +110,8 @@ class PushRegistration(context: Context) {
         const val SERVER_SENT = "server_sent"
         const val FAILURE = "failure"
         const val REREGISTERED_AT = "reregistered_at"
+        const val TURNED_ON = "turned_on"
+        const val REMOVED_ELSEWHERE = "removed_elsewhere"
     }
 }
 
@@ -114,6 +130,9 @@ object PushSync {
     sealed interface Step {
         data class Drop(val id: String) : Step
         data class Register(val endpoint: String, val p256dh: String, val auth: String) : Step
+
+        /** A person removed this phone from another device: pushes here go off. */
+        data object TurnOff : Step
     }
 
     /** The endpoint and keys as one value, so a change to either is seen. */
@@ -145,10 +164,13 @@ object PushSync {
      * took its place under the per-account cap). Read against what the
      * server lists: registered here and missing there is registered again;
      * anything else, a failed read (`listed` null) included, needs nothing.
+     * Missing because a person removed it from another device (`removed`)
+     * is not registered again: pushes here are turned off instead.
      */
     fun recheck(s: Snapshot, listed: UnifiedPushWire.State?): List<Step> {
         if (listed == null || !listed.enabled || !registered(s)) return emptyList()
         if (listed.devices.any { it.id == s.serverId }) return emptyList()
+        if (s.serverId in listed.removed) return listOf(Step.TurnOff)
         return listOf(Step.Register(s.endpoint!!, s.p256dh!!, s.auth!!))
     }
 }
