@@ -56,6 +56,12 @@ describe('settings request bodies match the shared contract', () => {
     expect(body).toEqual(fixture('swipe-set'))
   })
 
+  it('sectioned-inbox-set', async () => {
+    const { wireSetSectionedInbox } = await import('../endpoints/mail-settings')
+    const body = await bodyOf(() => wireSetSectionedInbox({ enabled: false }))
+    expect(body).toEqual(fixture('sectioned-inbox-set'))
+  })
+
   it('forwarding-request, forwarding-verify', async () => {
     const { wireRequestForwarding } = await import('../endpoints/mail-settings')
     const { wireVerifyForwarding } = await import('../endpoints/mail-settings')

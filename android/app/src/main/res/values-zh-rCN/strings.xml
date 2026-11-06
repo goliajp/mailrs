@@ -475,6 +475,10 @@
     <string name="swipe_none">不做什么</string>
     <string name="swipe_help">网页和 iOS 应用也用这个设置。在废纸篓里，往哪边滑都是把会话恢复</string>
     <string name="swipe_save_failed">滑动设置没有保存</string>
+    <string name="sections_title">收件箱</string>
+    <string name="sections_toggle">分区收件箱</string>
+    <string name="sections_help">在收件箱上方显示「我要回复」「等待回复」「新发件人」几个标签。网页和 iPhone 用的是同一个设置</string>
+    <string name="sections_save_failed">分区收件箱的设置没有保存</string>
     <string name="notify_mode_default">需要回复的邮件和重要联系人</string>
     <string name="notify_mode_all">所有邮件</string>
     <string name="notify_mode_important">只通知重要联系人</string>
