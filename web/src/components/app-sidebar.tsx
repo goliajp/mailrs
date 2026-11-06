@@ -20,6 +20,7 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router'
 
 import { BottomSheet } from '@/components/bottom-sheet'
+import { SidebarDomains } from '@/components/sidebar-domains'
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
 import { useSignOut } from '@/hooks/use-sign-out'
 import { useT } from '@/i18n'
@@ -49,7 +50,7 @@ export function AppSidebar() {
 
   const unreadCount = useCurrentUnreadCount()
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
-  const [selectedDomains, setSelectedDomains] = useAtom(selectedDomainsAtom)
+  const selectedDomains = useAtomValue(selectedDomainsAtom)
   const domains = auth?.accessible_domains ?? []
 
   const doLogout = useSignOut()
@@ -77,26 +78,7 @@ export function AppSidebar() {
             icon={Inbox}
             label={t('nav.mail')}
           />
-          {domains.length > 0 &&
-            domains.map((d) => {
-              const active =
-                section === 'mail' && selectedDomains.length === 1 && selectedDomains[0] === d
-              const label = d.split('.')[0]
-              return (
-                <button
-                  className={cx(
-                    navBtnBase,
-                    active ? navBtnActive : navBtnInactive,
-                    'h-8 w-8 text-[9px] font-semibold'
-                  )}
-                  key={d}
-                  onClick={() => setSelectedDomains(active ? [] : [d])}
-                  title={d}
-                >
-                  {label.slice(0, 3)}
-                </button>
-              )
-            })}
+          <SidebarDomains domains={domains} mailOpen={section === 'mail'} />
         </div>
 
         {/* separator */}

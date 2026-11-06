@@ -6,11 +6,17 @@
 //! - `GET /api/notify/stats` — the last days' counters
 //! - `GET /api/contacts/important`, `PUT /api/contacts/important/{address}`
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use axum::Json;
-use axum::extract::{Extension, Path, Query};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::StatusCode;
+use mailrs_core_api::method::conversation::ConversationsByIdsRequest;
 use mailrs_core_sidestate::families::{contacts, notify};
 
+use crate::WebState;
+use crate::handlers::complete::map_core_err;
 use crate::handlers::conversations::AuthedUser;
 use crate::handlers::kevy_util::with_kevy;
 
@@ -43,20 +49,76 @@ pub async fn put_prefs(
 #[derive(Debug, serde::Serialize)]
 pub struct Overrides {
     pub senders: Vec<(String, String)>,
+    /// `[thread id, choice]`, as before `thread_details`; kept for the
+    /// clients that read it.
     pub threads: Vec<(String, String)>,
+    /// The same choices, each with the conversation it is about, in the
+    /// order of `threads`.
+    pub thread_details: Vec<ThreadOverride>,
+}
+
+/// A per-conversation choice and what the reader would recognise it by.
+#[derive(Debug, serde::Serialize)]
+pub struct ThreadOverride {
+    pub thread_id: String,
+    pub value: String,
+    /// The subject on this reader's own row of the conversation; null when
+    /// the reader no longer has it (deleted for good), not an empty subject.
+    pub subject: Option<String>,
 }
 
 /// GET /api/notify/overrides
 pub async fn overrides(
+    State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<Overrides>, StatusCode> {
-    with_kevy(move |c| {
-        Ok(Overrides {
-            senders: notify::overrides(c, &notify::senders_key(&user))?,
-            threads: notify::overrides(c, &notify::threads_key(&user))?,
+    let reader = user.clone();
+    let (senders, threads) = with_kevy(move |c| {
+        Ok((
+            notify::overrides(c, &notify::senders_key(&reader))?,
+            notify::overrides(c, &notify::threads_key(&reader))?,
+        ))
+    })?;
+    let thread_details = name_threads(&state, &user, &threads).await?;
+    Ok(Json(Overrides {
+        senders,
+        threads,
+        thread_details,
+    }))
+}
+
+/// Each choice with its conversation's subject, read from the reader's
+/// own rows through the core (one call for all of them).
+async fn name_threads(
+    state: &WebState,
+    user: &str,
+    threads: &[(String, String)],
+) -> Result<Vec<ThreadOverride>, StatusCode> {
+    if threads.is_empty() {
+        return Ok(Vec::new());
+    }
+    let req = ConversationsByIdsRequest {
+        thread_ids: threads.iter().map(|(id, _)| id.clone()).collect(),
+        folder: None,
+    };
+    let rows = state
+        .core
+        .conversations_by_thread_ids(user, &req)
+        .await
+        .map_err(map_core_err)?;
+    let subjects: HashMap<String, String> = rows
+        .items
+        .into_iter()
+        .map(|r| (r.thread_id, r.subject))
+        .collect();
+    Ok(threads
+        .iter()
+        .map(|(id, value)| ThreadOverride {
+            subject: subjects.get(id).cloned(),
+            thread_id: id.clone(),
+            value: value.clone(),
         })
-    })
-    .map(Json)
+        .collect())
 }
 
 #[derive(Debug, serde::Deserialize)]

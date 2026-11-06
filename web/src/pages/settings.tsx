@@ -111,8 +111,8 @@ const CATEGORIES: { group: Group; key: Category; label: Key }[] = [
   { group: 'mail', key: 'forwarding', label: 'settings.cat.forwarding' },
   { group: 'mail', key: 'senders', label: 'settings.cat.senders' },
   { group: 'mail', key: 'masked', label: 'settings.cat.masked' },
-  { group: 'mail', key: 'notifications', label: 'settings.cat.notifications' },
   { group: 'appearance', key: 'appearance', label: 'settings.cat.appearance' },
+  { group: 'appearance', key: 'notifications', label: 'settings.cat.notifications' },
   { group: 'developer', key: 'api-keys', label: 'settings.cat.api-keys' },
   { group: 'developer', key: 'webhooks', label: 'settings.cat.webhooks' },
   { group: 'developer', key: 'calendar-feeds', label: 'settings.cat.calendar-feeds' },
@@ -158,7 +158,7 @@ export function Settings() {
         {/* sidebar - horizontal on mobile, vertical on desktop */}
         <nav
           aria-label={t('settings.sections')}
-          className="border-border flex shrink-0 gap-1 overflow-x-auto border-b p-2 sm:w-48 sm:flex-col sm:overflow-x-visible sm:overflow-y-auto sm:border-r sm:border-b-0 sm:p-3"
+          className="border-border flex shrink-0 gap-1 overflow-x-auto border-b p-2 sm:w-56 sm:flex-col sm:overflow-x-visible sm:overflow-y-auto sm:border-r sm:border-b-0 sm:p-3"
           onKeyDown={(e) => {
             const from = shown.findIndex((c) => c.key === active)
             const to = nextTabIndex(e.key, from, shown.length)
@@ -174,7 +174,7 @@ export function Settings() {
             return (
               <div className="flex shrink-0 gap-1 sm:flex-col" key={group.key}>
                 <p
-                  className="text-fg-muted hidden px-3 pt-2 text-xs sm:block"
+                  className="text-fg-muted break-phrase hidden px-3 pt-2 text-xs sm:block"
                   id={`${tabIds}-group-${group.key}`}
                 >
                   {t(group.label)}

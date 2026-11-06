@@ -298,6 +298,7 @@ export const settingsEn = {
   'settings.notify.mode.off': 'Off',
   'settings.notify.mute': 'Muted',
   'settings.notify.never': 'Never push',
+  'settings.notify.noSubject': '(no subject)',
   'settings.notify.overrides': 'Your choices for senders and conversations',
   'settings.notify.overridesNone': 'None yet',
   'settings.notify.quiet': 'Quiet hours',
@@ -310,6 +311,7 @@ export const settingsEn = {
   'settings.notify.stats': 'Last 7 days',
   'settings.notify.statsLine':
     'Pushed {sent}, opened {clicked}, held back by your settings {policy}, in quiet hours {quiet}, failed {failed}',
+  'settings.notify.threadGone': 'A conversation you no longer have',
   'settings.notify.web': 'Notifications in this browser',
   'settings.notify.webDenied': 'The browser blocked notifications for this site',
   'settings.notify.webDisable': 'Turn off',
