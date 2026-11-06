@@ -24,6 +24,20 @@ pub fn used_key(user: &str) -> String {
     format!("push:used:{}", user.to_lowercase())
 }
 
+/// Devices on any channel a person removed from another device, so they do
+/// not register themselves back: hash, field = `{channel}:{device id}`,
+/// value = epoch seconds; each field expires on its own.
+pub fn removed_key(user: &str) -> String {
+    format!("push:removed:{}", user.to_lowercase())
+}
+
+/// The session that last registered each of one user's devices, so ending
+/// a session ends its pushes: hash, field = `{channel}:{device id}`, value
+/// = the session's ref.
+pub fn session_link_key(user: &str) -> String {
+    format!("push:session:{}", user.to_lowercase())
+}
+
 /// One user's open UnifiedPush window: a counter that lives as long as the
 /// window.
 pub fn unified_push_window_key(user: &str) -> String {

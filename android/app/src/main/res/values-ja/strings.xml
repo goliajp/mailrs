@@ -549,4 +549,6 @@
     <string name="push_this_phone">%1$s（この端末）</string>
     <string name="push_remove">削除</string>
     <string name="push_reregistered">サーバーから外されていたため、%1$s に再登録しました</string>
+    <string name="push_removed_elsewhere">別の端末から削除されました。もう一度オンにすると通知が届きます</string>
+    <string name="push_remove_is_not_sign_out">削除してもその端末への通知が止まるだけで、ログインは続きます。紛失した端末をログアウトさせるには「ログイン中の端末」を使ってください</string>
 </resources>

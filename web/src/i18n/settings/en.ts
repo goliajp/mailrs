@@ -316,6 +316,7 @@ export const settingsEn = {
   'settings.notify.webEnable': 'Turn on in this browser',
   'settings.notify.webOff': 'Web Push is not enabled on this server',
   'settings.notify.webOn': 'On in this browser',
+  'settings.notify.webRemoved': 'Removed from another device; turn on again to receive pushes',
   'settings.notify.webUnsupported': 'This browser cannot receive push notifications',
   'settings.pager.first': 'First page',
   'settings.pager.label': 'Pagination',
