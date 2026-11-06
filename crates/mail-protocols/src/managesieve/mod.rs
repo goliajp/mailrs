@@ -152,8 +152,9 @@ where
             }
             "STARTTLS" => tx.write_all(b"NO \"STARTTLS not available\"\r\n").await?,
             "AUTHENTICATE" => {
+                let since = std::time::Instant::now();
                 if let Some(a) = authenticate(dir, arg, reader, tx).await? {
-                    signed_in = dir.signins().map(|s| s.enter(a.user()));
+                    signed_in = crate::guard::register(dir, a.user(), since).await;
                     account = Some(a);
                 }
             }

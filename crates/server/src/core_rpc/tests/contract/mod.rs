@@ -17,6 +17,7 @@ mod coverage;
 mod deleted_rows;
 mod deletes;
 mod display;
+mod flag_lists;
 mod forged_results;
 mod group_purge;
 mod harness;
