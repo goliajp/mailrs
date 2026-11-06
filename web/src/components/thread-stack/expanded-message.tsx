@@ -11,13 +11,14 @@ import { FraudVerdictPanel } from '@/components/fraud-verdict-panel'
 import { InviteCard } from '@/components/invite-card'
 import { linkifyNodes } from '@/components/linkify-nodes'
 import { MessageBubble } from '@/components/message-bubble'
+import { MessageMenu } from '@/components/message-menu'
 import { MessageSource } from '@/components/message-source'
 import { MessageRecipients } from '@/components/recipient-list'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { SenderClaimBadge } from '@/components/sender-claim-badge'
 import { SenderChecks, SenderTrustBadge } from '@/components/sender-trust-badge'
 import { StructuredDataCard } from '@/components/structured-data-card'
-import { FeedbackMenu, SmBtn } from '@/components/thread-view-bubble'
+import { SmBtn } from '@/components/thread-view-bubble'
 import { UnsubscribeFooter } from '@/components/unsubscribe-footer'
 import { type Key, useT } from '@/i18n'
 import { extractEmail, extractName } from '@/lib/avatar'
@@ -107,7 +108,7 @@ export function ExpandedMessage({
             <SmBtn onClick={() => downloadEml(m.uid, m.subject)} title={t('read.downloadEml')}>
               <Download className="h-3.5 w-3.5" />
             </SmBtn>
-            <FeedbackMenu senderEmail={extractEmail(m.sender)} />
+            <MessageMenu own={own} senderEmail={extractEmail(m.sender)} threadId={threadId} />
           </div>
         </div>
         <div className="text-fg-muted mt-0.5 space-y-0.5 pl-[38px] text-xs select-text">

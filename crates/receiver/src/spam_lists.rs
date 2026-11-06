@@ -17,7 +17,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use mailrs_core_sidestate::families::sender_lists::{blacklist_key, whitelist_key};
+use mailrs_core_sidestate::families::sender_lists;
 
 use crate::kevy_net::KevyNetClient;
 
@@ -31,9 +31,14 @@ pub fn load_recipient_lists(
     client: &KevyNetClient,
     user: &str,
 ) -> (HashSet<String>, HashSet<String>) {
-    let user_lc = user.to_lowercase();
-    let wl = read_lowercase_set(client, &whitelist_key(&user_lc)).unwrap_or_default();
-    let bl = read_lowercase_set(client, &blacklist_key(&user_lc)).unwrap_or_default();
+    // the readers the block-sender tests use, so what they assert is what
+    // delivery sees
+    let wl = client
+        .with_conn(|c| sender_lists::whitelist(c, user))
+        .unwrap_or_default();
+    let bl = client
+        .with_conn(|c| sender_lists::blacklist(c, user))
+        .unwrap_or_default();
     (wl, bl)
 }
 
@@ -51,22 +56,6 @@ pub async fn load_recipient_lists_async(
     tokio::task::spawn_blocking(move || load_recipient_lists(&client, &user_owned))
         .await
         .unwrap_or_default()
-}
-
-fn read_lowercase_set(client: &KevyNetClient, key: &str) -> Option<HashSet<String>> {
-    let bytes = client
-        .with_conn(|c| c.smembers(key.as_bytes()).map_err(std::io::Error::from))
-        .ok()?;
-    let mut out = HashSet::with_capacity(bytes.len());
-    for b in bytes {
-        if let Ok(s) = std::str::from_utf8(&b) {
-            let t = s.trim();
-            if !t.is_empty() {
-                out.insert(t.to_lowercase());
-            }
-        }
-    }
-    Some(out)
 }
 
 /// How many messages this deployment has ever had from `host`'s
@@ -236,7 +225,7 @@ mod tests {
         client
             .with_conn(|c| {
                 c.sadd(
-                    whitelist_key("u@example.com").as_bytes(),
+                    sender_lists::whitelist_key("u@example.com").as_bytes(),
                     &[b"Friend@GOLIA.jp"],
                 )
                 .map_err(std::io::Error::from)
@@ -245,7 +234,7 @@ mod tests {
         client
             .with_conn(|c| {
                 c.sadd(
-                    blacklist_key("u@example.com").as_bytes(),
+                    sender_lists::blacklist_key("u@example.com").as_bytes(),
                     &[b"spammer@EVIL.com"],
                 )
                 .map_err(std::io::Error::from)

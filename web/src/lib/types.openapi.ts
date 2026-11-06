@@ -4622,9 +4622,49 @@ export interface paths {
         put?: never;
         /**
          * Move a conversation out of Junk and whitelist its senders
-         * @description Moves the thread to the Inbox and adds each participant address (except the caller's own) to the caller's sender whitelist. The whitelist write is best-effort: a lookup or kevy failure there does not fail the request.
+         * @description Moves the thread to the Inbox and adds each participant address (except the caller's own) to the caller's sender whitelist, taking it off their blacklist. The list write is best-effort: a lookup or kevy failure there does not fail the request.
          */
         post: operations["markThreadNotJunk"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/conversations/{thread_id}/block-sender": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Block a conversation's sender and move the conversation to Junk
+         * @description Moves the thread to Junk, then puts `address` (trimmed, lowercased) on the caller's sender blacklist and takes it off their whitelist. Later mail from the address is filed in Junk on arrival; it is never rejected at SMTP and the sender is not told. `was_allowed` says whether the address was on the whitelist, for an undo to restore it.
+         */
+        post: operations["blockThreadSender"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/conversations/{thread_id}/unblock-sender": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo block-sender
+         * @description Moves the thread back to the Inbox and takes `address` off the caller's blacklist; with `allow: true`, puts it back on the whitelist. Unlike `mark-not-junk`, no other sender of the thread is whitelisted.
+         */
+        post: operations["unblockThreadSender"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4723,7 +4763,7 @@ export interface paths {
         put?: never;
         /**
          * Add an address to the caller's sender whitelist
-         * @description The address is trimmed and lowercased before it is stored.
+         * @description The address is trimmed and lowercased before it is stored. The address is taken off the caller's blacklist: an address is on one list at most.
          */
         post: operations["addSpamWhitelist"];
         delete?: never;
@@ -4761,7 +4801,7 @@ export interface paths {
         put?: never;
         /**
          * Add an address to the caller's sender blacklist
-         * @description The address is trimmed and lowercased before it is stored.
+         * @description The address is trimmed and lowercased before it is stored, and taken off the caller's whitelist: an address is on one list at most.
          */
         post: operations["addSpamBlacklist"];
         delete?: never;
@@ -7486,6 +7526,12 @@ export interface components {
                         error: string | null;
                     }[];
                 } | null;
+                /** @description Unix seconds the receiver built the latest frame; null from a receiver that does not say */
+                sent_at?: number | null;
+                /** @description Unix seconds the latest frame arrived here */
+                received_at?: number | null;
+                /** @description Seconds since the latest frame arrived. A frame that keeps aging is the last one before the receiver stopped */
+                age_secs?: number | null;
             } | null;
             /** @description The daily check of this server's sending addresses against the configured blocklists. Null when the store cannot be read. */
             egress?: {
@@ -8558,6 +8604,24 @@ export interface components {
             content_type: string;
             /** @description Bytes; the saved draft takes it from the stored file */
             size: number;
+        };
+        BlockSenderRequest: {
+            /** @description The `From:` address of the message blocked from */
+            address: string;
+        };
+        BlockSenderResponse: {
+            /** @description As stored: trimmed and lowercased */
+            address: string;
+            /** @description It was on the whitelist and was taken off */
+            was_allowed: boolean;
+        };
+        UnblockSenderRequest: {
+            address: string;
+            /**
+             * @description Put the address back on the whitelist
+             * @default false
+             */
+            allow: boolean;
         };
     };
     responses: never;
@@ -13058,6 +13122,105 @@ export interface operations {
             };
         };
     };
+    blockThreadSender: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BlockSenderRequest"];
+            };
+        };
+        responses: {
+            /** @description Blocked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlockSenderResponse"];
+                };
+            };
+            /** @description `address` empty after trimming or contains no `@` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Thread not found for this user (core-api NotFound); nothing is written. Other core-api errors map to 400/403/409/500/501/503/504 with an empty body */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `address` is the caller's own address (nothing is moved or written), or the body lacks a string `address` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description kevy unavailable; the thread is already in Junk */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    unblockThreadSender: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnblockSenderRequest"];
+            };
+        };
+        responses: {
+            /** @description Done; empty body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Thread not found for this user (core-api NotFound); nothing is written. Other core-api errors map to 400/403/409/500/501/503/504 with an empty body */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body lacks a string `address` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description kevy unavailable */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     markThreadNotification: {
         parameters: {
             query?: never;
@@ -13338,7 +13501,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Body is JSON but lacks a string `address` */
+            /** @description Body is JSON but lacks a string `address`, or `address` is the caller's own address */
             422: {
                 headers: {
                     [name: string]: unknown;

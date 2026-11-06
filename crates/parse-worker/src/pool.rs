@@ -84,6 +84,8 @@ struct Slot {
     started_once: bool,
     deaths_in_a_row: u32,
     retry_at: Option<Instant>,
+    /// Counted in the health probe's `paused_since` while true.
+    paused: bool,
 }
 
 pub struct Pool {
@@ -199,6 +201,9 @@ fn call_in(
         Ok(answer) => {
             slot.deaths_in_a_row = 0;
             slot.retry_at = None;
+            if std::mem::take(&mut slot.paused) {
+                health::pause_ended();
+            }
             if resident_bytes(live.child.id()).is_some_and(|b| b > RETIRE_RSS) {
                 retire(slot);
                 pid.store(0, Ordering::Relaxed);
@@ -319,6 +324,10 @@ fn died(slot: &mut Slot) {
         0 | 1 => None,
         n => Some(Instant::now() + backoff(n)),
     };
+    if slot.retry_at.is_some() && !slot.paused {
+        slot.paused = true;
+        health::pause_started();
+    }
 }
 
 fn backoff(deaths_in_a_row: u32) -> Duration {
@@ -382,5 +391,22 @@ mod tests {
         assert!(slot.retry_at.is_none(), "the first death restarts at once");
         let waits: Vec<u64> = (2..12).map(|n| backoff(n).as_secs()).collect();
         assert_eq!(waits, [1, 2, 4, 8, 16, 32, 60, 60, 60, 60]);
+    }
+
+    /// The health probe's `paused_since` is set once by the second death in
+    /// a row and kept until the slot answers again.
+    #[test]
+    fn a_held_back_worker_shows_in_the_health_probe() {
+        let mut slot = Slot::default();
+        died(&mut slot);
+        assert!(!slot.paused, "restarted at once, not held back");
+        died(&mut slot);
+        assert!(slot.paused);
+        let since = health::snapshot().paused_since.expect("paused");
+        died(&mut slot);
+        assert_eq!(health::snapshot().paused_since, Some(since), "counted once");
+        slot.paused = false;
+        health::pause_ended();
+        assert_eq!(health::snapshot().paused_since, None);
     }
 }

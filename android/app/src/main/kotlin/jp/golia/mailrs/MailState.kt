@@ -87,6 +87,10 @@ data class UiState(
     val labels: List<jp.golia.mailrs.wire.WireTriage.Label> = emptyList(),
     /** Deleting for good was asked for, and waits for the reader to say yes. */
     val confirmForever: List<String> = emptyList(),
+    /** Both sender lists, for a message menu's Block / Unblock; null until read. */
+    val senderLists: SenderLists? = null,
+    /** Blocking this address was asked for, and waits for the reader to say yes. */
+    val confirmBlock: String? = null,
     /** A page is on its way; the list shows a spinner at its foot. */
     val loadingMore: Boolean = false,
     /** The last page carried nothing new, so there is no more to ask for. */

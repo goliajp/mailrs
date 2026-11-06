@@ -10,6 +10,7 @@ mod account_store;
 pub mod config;
 mod conn_metrics;
 mod credential_store;
+pub mod ops;
 mod recipient_check;
 mod run;
 

@@ -46,6 +46,8 @@ mod client_labels;
 #[cfg(feature = "client")]
 mod client_messages;
 #[cfg(feature = "client")]
+mod client_ops;
+#[cfg(feature = "client")]
 mod client_rejudge;
 #[cfg(feature = "client")]
 mod client_reports;
@@ -114,6 +116,17 @@ pub const SECRET_ENVS: &[&str] = &[
     "MAILRS_OIDC_GOOGLE_CLIENT_SECRET",
     "MAILRS_OIDC_MICROSOFT_CLIENT_SECRET",
     "MAILRS_OIDC_PORTAL_CLIENT_SECRET",
+    "MAILRS_OPS_ADMIN_SECRET",
+    // not a secret: its hash, and blank is no setting at all
+    "MAILRS_OPS_ALERT_KEY_SHA256",
+    // not a secret: its hash, and blank is no setting at all
+    "MAILRS_OPS_ADMIN_SECRET_SHA256",
+    "MAILRS_OPS_PUSH_TOKEN",
+    "MAILRS_OPS_RELAY_PASSWORD",
+    "MAILRS_OPS_REPORT_KEY",
+    "MAILRS_OPS_REPORT_MASTER_KEY",
+    "MAILRS_OPS_TOKEN",
+    "MAILRS_OPS_WEBHOOK_SECRET",
     // not a secret: allow or app-only, and blank is no setting at all
     "MAILRS_PROTOCOL_PASSWORD",
     "MAILRS_RESET_CODE_KEY",

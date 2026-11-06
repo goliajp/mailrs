@@ -36,6 +36,7 @@ struct UndoBar: View {
 
     /// What was done, in the words of the action table.
     static func label(_ undo: Session.PendingUndo?) -> LocalizedStringKey {
+        if let blocked = undo?.blocked { return "Blocked \(blocked.address)" }
         let count = undo?.rows.count ?? 1
         let action = undo?.action ?? .archive
         if action != .archive {

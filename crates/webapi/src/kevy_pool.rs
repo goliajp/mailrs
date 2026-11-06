@@ -104,7 +104,10 @@ where
     }
     let conn = slot.as_mut().expect("just ensured Some");
     match f(conn) {
-        Ok(v) => Ok(v),
+        Ok(v) => {
+            mailrs_ops_report::kevy_contact();
+            Ok(v)
+        }
         Err(e) => {
             // Possibly broken — a half-consumed RESP reply would desync
             // every later op on this socket, which is worse than a reconnect.

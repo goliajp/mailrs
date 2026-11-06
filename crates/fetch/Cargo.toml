@@ -10,6 +10,7 @@ license = "Apache-2.0 OR MIT"
 workspace = true
 
 [dependencies]
+mailrs-ops-report = { path = "../ops-report", features = ["push"] }
 axum = "0.8"
 serde = { workspace = true }
 serde_json = { workspace = true }

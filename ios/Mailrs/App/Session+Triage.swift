@@ -252,6 +252,10 @@ extension Session {
         let rows: [UndoableRow]
         /// What was done, so the undo knows what takes it back.
         var action: RowAction = .archive
+        /// Set when the undo takes back a block, which is not the
+        /// action's own undo: `mark-not-junk` would whitelist every
+        /// sender of the thread.
+        var blocked: BlockedSender?
     }
 
 
@@ -261,9 +265,9 @@ extension Session {
 
 
     // internal for the same reason as `removeRows` above.
-    func offerUndo(_ rows: [UndoableRow], action: RowAction = .archive) {
+    func offerUndo(_ rows: [UndoableRow], action: RowAction = .archive, blocked: BlockedSender? = nil) {
         undoDismissTask?.cancel()
-        withAnimation { pendingUndo = PendingUndo(rows: rows, action: action) }
+        withAnimation { pendingUndo = PendingUndo(rows: rows, action: action, blocked: blocked) }
         let offered = pendingUndo
         undoDismissTask = Task { [weak self] in
             try? await Task.sleep(for: Session.undoWindow)
@@ -301,6 +305,10 @@ extension Session {
         guard let client, let undo = pendingUndo else { return }
         clearUndo()
         withAnimation { conversations = Session.reinserted(undo.rows, into: conversations) }
+        if let blocked = undo.blocked {
+            await unblockSender(blocked, client: client)
+            return
+        }
         if let back = undo.action.undo, undo.action != .archive {
             await takeBack(undo.rows, with: back, client: client)
             return
@@ -374,6 +382,11 @@ extension Session {
         guard let client else { return }
         do {
             try await client.addToSenderList(kind, address: address)
+            // the server takes it off the other list too
+            switch kind {
+            case .blocked: senderLists?.block(address.lowercased())
+            case .allowed: senderLists?.allow(address.lowercased())
+            }
             banner = kind == .blocked
                 ? String(localized: "Blocked \(address)")
                 : String(localized: "Always allowing \(address)")
