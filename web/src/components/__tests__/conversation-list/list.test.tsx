@@ -227,8 +227,6 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-// domain selector tests removed — domains moved to sidebar
-
 describe('ConversationList empty states', () => {
   let store: ReturnType<typeof createStore>
 
