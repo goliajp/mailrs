@@ -77,9 +77,11 @@ pub fn bucket_of(category: &str) -> Bucket {
 pub enum Scope {
     /// No folder and no category: every thread.
     All,
-    /// Every bucket but Junk. The scope of the cross-cutting views such as
-    /// Starred, which are attributes of a thread rather than places; junk
-    /// mail has exactly one surface. Unread only is [`Scope::Unread`].
+    /// Every bucket but Junk, Inbox-shaped: the threads the user only sent
+    /// into are out. `nonjunk` with no per-reader mark, which is the JMAP
+    /// Inbox; junk mail has exactly one surface. Its lists of a mark are
+    /// not this: Unread is [`Scope::Unread`], Starred and Pinned are
+    /// [`Scope::AllMail`], see [`list_scope`].
     NotJunk,
     /// The Unread view: every bucket but Junk, the threads the user only
     /// sent into included. A thread the reader marked unread is in it
@@ -88,9 +90,10 @@ pub enum Scope {
     /// out as in every list; see [`list_scope`].
     Unread,
     /// All Mail: every bucket but Junk, the threads the user only sent
-    /// into included. The one list that also shows what was archived —
-    /// each core reads both sides of the archive for it; the Trash stays
-    /// out as it does everywhere but its own list.
+    /// into included. It and the lists narrowed from it (Starred, Pinned)
+    /// are the ones that also show what was archived — each core reads
+    /// both sides of the archive for it; the Trash stays out as it does
+    /// everywhere but its own list.
     AllMail,
     /// One bucket.
     Bucket(Bucket),
@@ -146,12 +149,28 @@ pub fn scope(folder: Option<&str>, category: Option<&str>) -> Scope {
     }
 }
 
-/// The scope of a list: [`scope`] of its folder and category, except that
-/// `nonjunk` asked for unread threads only is [`Scope::Unread`]. Every
-/// list, its search and "mark all as read" go through this; the unread
-/// badge does not, it counts the Inbox and Notifications & Promotions.
-pub fn list_scope(folder: Option<&str>, category: Option<&str>, unread: bool) -> Scope {
+/// The scope of a list: [`scope`] of its folder and category, except for
+/// the lists of a per-reader mark across `nonjunk`.
+///
+/// - `flagged` (Starred, Pinned): [`Scope::AllMail`]. As in Gmail, a
+///   thread the reader starred or pinned is in the list wherever it
+///   lives, archived or of only their own mail, so the list is All Mail
+///   narrowed to the flag. Junk, the Trash and held mail stay out.
+/// - `unread`: [`Scope::Unread`]. Asked together with a flag, the flag
+///   decides, as Gmail's `is:starred is:unread` reads the archive too.
+///
+/// Every list, its search and "mark all as read" go through this; the
+/// unread badge does not, it counts the Inbox and Notifications &
+/// Promotions, and neither does `nonjunk` with no mark, which is the
+/// JMAP Inbox.
+pub fn list_scope(
+    folder: Option<&str>,
+    category: Option<&str>,
+    unread: bool,
+    flagged: bool,
+) -> Scope {
     match scope(folder, category) {
+        Scope::NotJunk if flagged => Scope::AllMail,
         Scope::NotJunk if unread => Scope::Unread,
         s => s,
     }
@@ -235,18 +254,24 @@ mod tests {
 
     #[test]
     fn the_unread_view_takes_what_you_only_sent_into() {
-        assert_eq!(list_scope(Some("NonJunk"), None, true), Scope::Unread);
-        assert_eq!(list_scope(Some("NonJunk"), None, false), Scope::NotJunk);
         assert_eq!(
-            list_scope(Some("Inbox"), None, true),
+            list_scope(Some("NonJunk"), None, true, false),
+            Scope::Unread
+        );
+        assert_eq!(
+            list_scope(Some("NonJunk"), None, false, false),
+            Scope::NotJunk
+        );
+        assert_eq!(
+            list_scope(Some("Inbox"), None, true, false),
             Scope::Bucket(Bucket::Inbox)
         );
         assert_eq!(
-            list_scope(Some("nonjunk"), Some("inbox"), true),
+            list_scope(Some("nonjunk"), Some("inbox"), true, false),
             Scope::Category("inbox".into())
         );
         assert_eq!(
-            list_scope(Some("nonjunk"), Some("spam"), true),
+            list_scope(Some("nonjunk"), Some("spam"), true, false),
             Scope::Contradiction
         );
         let sent = ThreadFacts {
@@ -259,6 +284,25 @@ mod tests {
             sent_only: true,
         };
         assert!(!Scope::Unread.admits(junk));
+    }
+
+    #[test]
+    fn starred_and_pinned_are_all_mail_narrowed_to_the_flag() {
+        for unread in [false, true] {
+            assert_eq!(
+                list_scope(Some("NonJunk"), None, unread, true),
+                Scope::AllMail
+            );
+        }
+        assert_eq!(
+            list_scope(Some("Inbox"), None, false, true),
+            Scope::Bucket(Bucket::Inbox)
+        );
+        assert_eq!(
+            list_scope(Some("nonjunk"), Some("promotion"), false, true),
+            Scope::Category("promotion".into())
+        );
+        assert_eq!(list_scope(None, None, false, true), Scope::All);
     }
 
     #[test]

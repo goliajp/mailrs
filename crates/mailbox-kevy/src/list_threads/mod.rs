@@ -21,7 +21,6 @@
 use std::io;
 
 use super::KevyMailboxStore;
-use super::keys;
 use super::thread_row::ThreadRow;
 
 /// What a list does about conversations held as suspected fraud.
@@ -147,7 +146,12 @@ impl ListThreadsFilter<'_> {
     /// The scope `folder` and `category` reconcile to; the rule is shared
     /// with every store, see [`mailrs_mailbox::scope::list_scope`].
     fn scope(&self) -> Scope {
-        mailrs_mailbox::scope::list_scope(self.folder, self.category, self.has_unread)
+        mailrs_mailbox::scope::list_scope(
+            self.folder,
+            self.category,
+            self.has_unread,
+            self.starred || self.pinned,
+        )
     }
 }
 
@@ -273,71 +277,6 @@ impl KevyMailboxStore {
     /// Returns `(rows, total_in_index)`. `total_in_index` is the
     /// pre-pagination count of the chosen index — exactly the
     /// "X / Y conversations" badge the UI shows.
-    /// One account's page under the rest of the filter.
-    ///
-    /// Keyed on the account index and given every other predicate as a
-    /// value filter, which is the flag axes' shape — so a narrowed
-    /// Inbox, or Starred within one mailbox, is still one walk and its
-    /// total is still an index count rather than a page read twice.
-    fn list_for_account(
-        &self,
-        user: &str,
-        filter: &ListThreadsFilter<'_>,
-        want: usize,
-        account_id: &str,
-    ) -> io::Result<(Vec<ThreadRow>, usize)> {
-        let scope = filter.scope();
-        if scope == Scope::Contradiction {
-            return Ok((Vec::new(), 0));
-        }
-        // The predicates the account index carries beside itself.
-        // `archived` is always one of them: every list but Archived
-        // excludes archived threads, and leaving it to a post-filter is
-        // what once answered "Inbox" with archived threads in it.
-        let archived = if filter.archived { "1" } else { "0" };
-        let trashed = if filter.trashed { "1" } else { "0" };
-        let mut extra: Vec<(&str, &str)> = vec![("archived", archived), ("trashed", trashed)];
-        for (col, on) in [
-            ("starred", filter.starred),
-            ("pinned", filter.pinned),
-            ("unread", filter.has_unread),
-            ("has_action", filter.has_action),
-        ] {
-            if on {
-                extra.push((col, "1"));
-            }
-        }
-        // `All`, `NotJunk` and `Np` are several buckets or none, and
-        // this index keys on the account rather than the bucket — so
-        // they are answered by the account walk and narrowed below,
-        // where the rows are in hand.
-        let scoped = match &scope {
-            Scope::Bucket(b) => Some(("bucket", b.name().to_string())),
-            Scope::Category(c) => Some(("category", c.clone())),
-            _ => None,
-        };
-        if let Some((col, ref val)) = scoped {
-            extra.push((col, val));
-        }
-        let total = self.count_thread_ids_by_account(user, account_id, &extra)?;
-        if want == 0 {
-            return Ok((Vec::new(), total));
-        }
-        let tids =
-            self.list_thread_ids_by_account(user, account_id, &extra, want, 0, filter.before_ts)?;
-        let (mut rows, _) = self.hydrate_page(user, &tids, total)?;
-        // The multi-bucket scopes, applied where the rows are.
-        let keep: Option<&[&str]> = match scope {
-            Scope::NotJunk | Scope::AllMail | Scope::Unread => Some(&NON_JUNK_BUCKETS),
-            Scope::Np => Some(&NP_BUCKETS),
-            _ => None,
-        };
-        if let Some(buckets) = keep {
-            rows.retain(|r| buckets.contains(&keys::bucket_of(&r.category).name()));
-        }
-        Ok((rows, total))
-    }
-
     pub fn list_threads_by_activity(
         &self,
         user: &str,
@@ -492,6 +431,7 @@ impl KevyMailboxStore {
     }
 }
 
+mod account;
 mod merge;
 mod paths;
 mod snoozed;
