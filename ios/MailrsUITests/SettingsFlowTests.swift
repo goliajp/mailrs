@@ -47,7 +47,7 @@ final class SettingsFlowTests: MailrsUITestCase {
         XCTAssertTrue(element(app, "notify.thread.t1").exists, "the muted conversation was not listed")
 
         element(app, "notify.mode").tap()
-        app.buttons["All mail except Junk and N & P"].tap()
+        app.buttons["All mail except Junk, notifications and promotions"].tap()
         let mode = waitForWrite("PUT", "/api/notify")?["body"] as? [String: Any]
         XCTAssertEqual(mode?["mode"] as? String, "all", "the mode did not reach the server")
 

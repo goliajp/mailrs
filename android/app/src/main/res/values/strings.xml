@@ -485,7 +485,7 @@
     <string name="sections_help">Tabs over the Inbox for mail to reply to, conversations waiting on an answer and new senders. The same setting is used on the web and on the iPhone</string>
     <string name="sections_save_failed">The sectioned inbox setting was not saved</string>
     <string name="notify_mode_default">Mail to answer and important people (recommended)</string>
-    <string name="notify_mode_all">All mail except Junk and N &amp; P</string>
+    <string name="notify_mode_all">All mail except Junk, notifications and promotions</string>
     <string name="notify_mode_important">Important people only</string>
     <string name="notify_mode_off">None</string>
     <string name="notify_hide_content">Hide sender and subject</string>

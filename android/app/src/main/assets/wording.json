@@ -1165,12 +1165,12 @@
         "zh": "ours"
       },
       "text": {
-        "en": "All mail except Junk and N & P",
+        "en": "All mail except Junk, notifications and promotions",
         "ja": "迷惑メールと通知・宣伝以外のすべて",
         "zh": "除垃圾邮件和「通知与推广」以外的全部邮件"
       },
       "web": ["settings.notify.mode.all"],
-      "ios": ["All mail except Junk and N & P"],
+      "ios": ["All mail except Junk, notifications and promotions"],
       "android": ["notify_mode_all"]
     },
     {
