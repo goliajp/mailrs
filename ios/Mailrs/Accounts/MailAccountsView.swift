@@ -98,8 +98,8 @@ struct MailAccountsView: View {
         if let p = model.draft.provider {
             if p.auth == .oauth2 {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("\(p.label) does not accept a password for mail apps.")
-                    Text("Sign in with \(p.label) is not built yet — a mailbox that takes an app password works today.")
+                    Text("\(p.label) does not accept a password for mail apps")
+                    Text("Sign in with \(p.label) is not built yet — a mailbox that takes an app password works today")
                 }
                 .font(.caption)
                 .foregroundStyle(theme.fgMuted)

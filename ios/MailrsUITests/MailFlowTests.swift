@@ -72,7 +72,7 @@ final class MailFlowTests: MailrsUITestCase {
         let first = app.staticTexts["Quarterly report and the follow-up notes"]
         XCTAssertTrue(first.waitForExistence(timeout: 15), "inbox never listed")
 
-        app.buttons["Select"].tap()
+        app.buttons["list.select"].tap()
         first.tap()
         app.staticTexts["請求書のご送付につきまして"].tap()
         XCTAssertTrue(app.staticTexts["2 selected"].waitForExistence(timeout: 5),

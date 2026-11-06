@@ -36,7 +36,20 @@ struct SettingsWireTests {
     }
 
     @Test func quietHoursAreMinutesAfterMidnight() {
-        #expect(QuietHours.minutesAfterMidnight(of: QuietHours.date(minutes: 22 * 60 + 15)) == 1335)
+        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+        #expect(QuietHours.minutesAfterMidnight(of: QuietHours.date(minutes: 22 * 60 + 15, in: tokyo), in: tokyo) == 1335)
+    }
+
+    /// 22:00 in the zone chosen in the app, whatever zone the phone is in:
+    /// the picker shows that zone, so the minutes are read in it.
+    @Test func quietHoursAreReadInTheAppsZone() {
+        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+        let berlin = TimeZone(identifier: "Europe/Berlin")!
+        let tenAtNightInTokyo = QuietHours.date(minutes: 22 * 60, in: tokyo)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = tokyo
+        #expect(calendar.component(.hour, from: tenAtNightInTokyo) == 22)
+        #expect(QuietHours.minutesAfterMidnight(of: tenAtNightInTokyo, in: berlin) != 22 * 60)
     }
 
     /// Going back to the rule is `null`, written out as the web writes it.

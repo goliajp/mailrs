@@ -53,7 +53,7 @@ enum MessageReader {
         account: MailAccount, row: MailboxRow, wholeMessage: Bool = false
     ) async -> Outcome {
         guard let secret = AccountStore.secret(for: account.id) else {
-            return .failed("Sign in again to read this account")
+            return .failed(AppText.string("Sign in again to read this account"))
         }
         // Through the pool. Opening a message is the wait a person
         // notices most, and most of it used to be a TLS handshake and a
@@ -77,7 +77,7 @@ enum MessageReader {
                 return Outcome.loaded(loaded)
             }
         } catch {
-            return .failed("Could not open this message")
+            return .failed(AppText.string("Could not open this message"))
         }
     }
 

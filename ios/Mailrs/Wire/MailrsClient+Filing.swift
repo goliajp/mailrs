@@ -38,7 +38,7 @@ extension MailrsClient {
             url: baseURL.appendingPathComponent("/api/quarantine"), resolvingAgainstBaseURL: false)
         components?.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
             + ThreadPage.queryItems(page)
-        guard let url = components?.url else { throw MailrsError.transport("Bad URL.") }
+        guard let url = components?.url else { throw MailrsError.transport("Bad URL") }
         let (data, response) = try await send("GET", url: url, body: nil, authorized: true)
         try Self.ok(response)
         do {
@@ -62,7 +62,7 @@ extension MailrsClient {
 
     nonisolated static func ok(_ response: URLResponse) throws {
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)

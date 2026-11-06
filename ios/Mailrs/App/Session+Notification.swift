@@ -42,10 +42,10 @@ extension Session {
 enum NotificationActions {
     static func register() {
         let archive = UNNotificationAction(
-            identifier: PushPayload.archive, title: String(localized: "Archive"), options: []
+            identifier: PushPayload.archive, title: AppText.string("Archive"), options: []
         )
         let read = UNNotificationAction(
-            identifier: PushPayload.markRead, title: String(localized: "Mark as read"), options: []
+            identifier: PushPayload.markRead, title: AppText.string("Mark as read"), options: []
         )
         let mail = UNNotificationCategory(
             identifier: PushPayload.category, actions: [archive, read],

@@ -60,8 +60,8 @@ struct BlockSenderConfirm: ViewModifier {
     }
 
     static func message(_ address: String, allowed: Bool) -> String {
-        let what = String(localized: "Mail from this address will go to Junk, and this conversation moves there now. You can undo this in Settings → Senders.")
+        let what = AppText.string("Mail from this address will go to Junk, and this conversation moves there now. You can undo this in Settings → Senders.")
         guard allowed else { return what }
-        return what + "\n\n" + String(localized: "\(address) is on your Always allowed list. Blocking takes it off.")
+        return what + "\n\n" + AppText.string("\(address) is on your Always allowed list. Blocking takes it off.")
     }
 }

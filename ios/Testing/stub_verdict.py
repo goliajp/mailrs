@@ -65,9 +65,12 @@ LINKS_HTML = (
 SUSPICIOUS = {
     "html_body": LINKS_HTML,
     "text_body": "Short reply, narrow body. Questions? Call +81 3-1234-5678.",
+    # what `nothing-vouches-for-the-sender` in the identity layer fires on:
+    # no DKIM signature and an SPF that did not pass, under a DMARC record
+    # (the forged sender of 2026-10-24 had exactly these three)
     "sender_checks": [
-        {"code": "auth-check", "params": {"check": "SPF", "result": "pass"}},
-        {"code": "auth-check", "params": {"check": "DKIM", "result": "fail"}},
+        {"code": "auth-check", "params": {"check": "SPF", "result": "softfail"}},
+        {"code": "auth-check", "params": {"check": "DKIM", "result": "none"}},
         {"code": "auth-check", "params": {"check": "DMARC", "result": "fail"}},
     ],
     "link_warnings": [

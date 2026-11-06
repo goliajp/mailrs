@@ -9,7 +9,7 @@ extension Session {
         do {
             return try await client.teamNotes(c)
         } catch {
-            banner = String(localized: "The team's notes could not be loaded")
+            banner = AppText.string("The team's notes could not be loaded")
             return nil
         }
     }
@@ -19,7 +19,7 @@ extension Session {
         do {
             return TeamWire.replyHint(try await client.teamOverview(c), me: role?.address ?? "")
         } catch {
-            banner = String(localized: "Who else is on this conversation could not be loaded")
+            banner = AppText.string("Who else is on this conversation could not be loaded")
             return nil
         }
     }
@@ -29,7 +29,7 @@ extension Session {
         do {
             return try await client.calendarEvents(monday: monday, calendar: calendar)
         } catch {
-            banner = String(localized: "The calendar could not be loaded")
+            banner = AppText.string("The calendar could not be loaded")
             return nil
         }
     }

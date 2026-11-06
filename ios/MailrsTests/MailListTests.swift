@@ -33,6 +33,30 @@ struct MailListTests {
         }
     }
 
+    /// The menu and the iPad's sidebar list what the web lists, in its
+    /// order: `MAIL_LIST_TABS` in `web/src/lib/mail-lists.ts`, where
+    /// `quarantine` is this app's `review`.
+    @Test func theListsAreTheWebsInItsOrder() {
+        let web = ["inbox", "np", "unread", "starred", "pinned", "snoozed", "awaiting", "assigned",
+                   "send", "draft", "all", "archived", "junk", "quarantine", "trash"]
+        let shown = MailList.shown.map { list in
+            if list == .review { return "quarantine" }
+            return list.rawValue
+        }
+        #expect(shown == web)
+    }
+
+    /// The team lists ask for their own rows, not a folder's.
+    @Test func theTeamListsAskTheServerForTheirRows() {
+        let awaiting = MailList.awaiting.axes.queryItems
+        #expect(awaiting.contains(URLQueryItem(name: "section", value: "awaiting")))
+        #expect(!awaiting.contains { $0.name == "folder" })
+        let assigned = MailList.assigned.axes.queryItems
+        #expect(assigned.contains(URLQueryItem(name: "assigned_to_me", value: "true")))
+        #expect(!assigned.contains { $0.name == "folder" })
+        #expect(!MailList.inbox.axes.queryItems.contains { $0.name == "assigned_to_me" })
+    }
+
     /// Archived is cross-folder on purpose: the server drops the folder
     /// when `archived` is set, so naming one would be a contradiction
     /// rather than a refinement.

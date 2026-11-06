@@ -84,7 +84,7 @@ extension Session {
                 }
             }
             if !refused.isEmpty {
-                banner = String(localized: "\(refused.count) could not be marked read")
+                banner = AppText.string("\(refused.count) could not be marked read")
             }
         } catch {
             for conversation in targets {

@@ -58,6 +58,7 @@ struct LeadingSwipes: View {
                 Label("Move", systemImage: "tray.and.arrow.down")
             }
             .tint(.indigo)
+            .accessibilityIdentifier("swipe.move")
         }
         Button {
             Task { await session.toggleStarred(conversation) }

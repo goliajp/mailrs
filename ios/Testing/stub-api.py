@@ -925,7 +925,7 @@ class H(BaseHTTPRequestHandler):
             query = parse_qs(urlparse(self.path).query)
             # Paging fixtures are opt-in: the two-row list stays what other tests see.
             folder = query.get("folder", [""])[0]
-            if folder == "Inbox" and stub_sections.answer(self, query):
+            if folder in ("Inbox", "") and stub_sections.answer(self, query):
                 return
             archived = query.get("archived", ["false"])[0] == "true"
             # Each list gets its own row, so a switch that did not change

@@ -16,10 +16,10 @@ enum SnoozeChoice: CaseIterable, Identifiable, Sendable {
 
     var label: String {
         switch self {
-        case .laterToday: return String(localized: "Later today")
-        case .tomorrowMorning: return String(localized: "Tomorrow morning")
-        case .thisWeekend: return String(localized: "This weekend")
-        case .nextWeek: return String(localized: "Next week")
+        case .laterToday: return AppText.string("Later today")
+        case .tomorrowMorning: return AppText.string("Tomorrow morning")
+        case .thisWeekend: return AppText.string("This weekend")
+        case .nextWeek: return AppText.string("Next week")
         }
     }
 
