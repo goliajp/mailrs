@@ -17,16 +17,10 @@ import { useAtomValue } from 'jotai'
 import { useMemo } from 'react'
 
 import { useThrottledValue } from '@/hooks/use-throttled-value'
-import { type MailListId, threadAxesOf, type ThreadListAxes } from '@/lib/mail-lists'
+import { mailFiltersOf } from '@/lib/mail-filters'
 import { type MailListFilters } from '@/lib/query-keys'
 import { z } from '@/lib/zod'
-import {
-  followupDaysAtom,
-  followupDueBy,
-  type InboxSection,
-  inboxSectionAtom,
-  sectionedInboxAtom,
-} from '@/store/inbox-sections'
+import { followupDaysAtom, inboxSectionAtom, sectionedInboxAtom } from '@/store/inbox-sections'
 import { conversationKeys } from '@/store/query-keys-v21'
 import { hideSuspectedFraudAtom } from '@/store/settings'
 import {
@@ -58,42 +52,33 @@ export function useCurrentMailFilters(): MailListFilters | null {
   const hideSuspectedFraud = useAtomValue(hideSuspectedFraudAtom)
   const askedSearch = useThrottledValue(searchQuery, SEARCH_INTERVAL_MS)
 
-  return useMemo<MailListFilters | null>(() => {
-    const axes = sectionAxes(labelAxes(threadAxesOf(list), list, activeLabel), list, {
-      days: followupDays,
-      on: sectioned,
-      section: inboxSection,
-    })
-    if (!axes) return null
-    // The list fixes its axes; category, section, search and domains are
-    // refinements stacked on top of whichever list is showing.
-    return {
-      ...axes,
-      // `null` passes through as `null`: no filter. It is deliberately
-      // not collapsed with `[]`, which is somebody who unticked every
-      // account and must not be served the unfiltered list.
-      accounts: selectedAccounts,
-      category: categoryFilter,
-      domains: selectedDomains.length > 0 ? selectedDomains : undefined,
-      // The setting says whether to hide them; the request asks for
-      // them. Two ideas, and the negation is where they meet — a
-      // reader who has switched hiding off is asking to be shown what
-      // is held, marked, in place.
-      includeQuarantined: !hideSuspectedFraud,
-      query: askedSearch || undefined,
-    }
-  }, [
-    list,
-    activeLabel,
-    categoryFilter,
-    selectedAccounts,
-    selectedDomains,
-    askedSearch,
-    hideSuspectedFraud,
-    sectioned,
-    inboxSection,
-    followupDays,
-  ])
+  return useMemo<MailListFilters | null>(
+    () =>
+      mailFiltersOf({
+        accounts: selectedAccounts,
+        category: categoryFilter,
+        domains: selectedDomains,
+        followupDays,
+        hideSuspectedFraud,
+        inboxSection,
+        label: activeLabel,
+        list,
+        search: askedSearch,
+        sectioned,
+      }),
+    [
+      list,
+      activeLabel,
+      categoryFilter,
+      selectedAccounts,
+      selectedDomains,
+      askedSearch,
+      hideSuspectedFraud,
+      sectioned,
+      inboxSection,
+      followupDays,
+    ]
+  )
 }
 
 /**
@@ -130,31 +115,3 @@ const unseenCountSchema = z.object({ count: z.number(), inbox: z.number(), np: z
 export type UnreadCounts = z.infer<typeof unseenCountSchema>
 
 const NO_UNREAD: UnreadCounts = { count: 0, inbox: 0, np: 0 }
-
-/** The `label` list's axes carry the label it shows. */
-function labelAxes(
-  axes: null | ThreadListAxes,
-  list: MailListId,
-  label: null | string
-): null | ThreadListAxes {
-  if (list !== 'label' || !axes) return axes
-  if (!label) return null
-  return { ...axes, label }
-}
-
-/**
- * With the sectioned inbox on, the Inbox shows one section rather than the
- * folder: the server reads it off its own axis, across folders. A
- * follow-up is a waiting conversation older than the reader's days.
- */
-function sectionAxes(
-  axes: null | ThreadListAxes,
-  list: MailListId,
-  inbox: { days: number; on: boolean; section: InboxSection }
-): null | ThreadListAxes {
-  if (list !== 'inbox' || !inbox.on || !axes) return axes
-  if (inbox.section === 'followup') {
-    return { followupDueBy: followupDueBy(inbox.days, Date.now()), section: 'awaiting' }
-  }
-  return { section: inbox.section }
-}

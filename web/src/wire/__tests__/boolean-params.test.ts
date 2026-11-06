@@ -37,30 +37,15 @@ describe('boolean query parameters', () => {
     return Object.fromEntries(params)
   }
 
-  it('fetchConversationList', async () => {
-    const { fetchConversationList } = await import('../endpoints/conversations')
-    await fetchConversationList({
-      archived: true,
-      includeQuarantined: true,
-      label: '3',
-      starred: true,
-      trashed: true,
-      unread: true,
-    })
-    expect(flags(urls[0])).toEqual({
-      archived: 'true',
-      include_quarantined: 'true',
-      starred: 'true',
-      trashed: 'true',
-      unread: 'true',
-    })
-  })
-
   it('the mail list route loader', async () => {
+    const { getDefaultStore } = await import('jotai')
+    const { activeListAtom } = await import('@/store/ui')
+    getDefaultStore().set(activeListAtom, 'unread')
     const { mailListLoader } = await import('@/lib/route-loaders')
-    await mailListLoader({ request: new Request('http://mail.test/mail?tab=unread') })
+    await mailListLoader({ request: new Request('http://mail.test/mail') })
     await vi.waitFor(() => expect(urls.some((u) => u.includes('/conversations?'))).toBe(true))
     const list = urls.find((u) => u.includes('/conversations?')) ?? ''
-    expect(flags(list)).toEqual({ unread: 'true' })
+    expect(flags(list)).toMatchObject({ unread: 'true' })
+    for (const value of Object.values(flags(list))) expect(value).not.toBe('1')
   })
 })

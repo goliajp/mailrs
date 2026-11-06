@@ -2,7 +2,7 @@ import type { CategoryCount, ConversationSummary, ThreadMessage } from '@/lib/ty
 
 import { queryOptions, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 
-import { listAxes } from '@/lib/list-axes'
+import { conversationListKey, LIST_PAGE_SIZE, listPath } from '@/lib/list-axes'
 import { mailKeys, type MailListFilters } from '@/lib/query-keys'
 import { conversationKeys } from '@/store/query-keys-v21'
 import { wireFetch } from '@/wire/client'
@@ -11,30 +11,6 @@ import {
   wireThreadDetailResponseSchema,
   wireThreadListResponseSchema,
 } from '@/wire/schemas/conversation'
-
-const PAGE_SIZE = 50
-
-/** The API path for one page of a conversation list, or for a search inside it. */
-export function listPath(filters: MailListFilters, cursor?: string): string {
-  if (filters.query) {
-    const p = `/conversations/search?q=${encodeURIComponent(filters.query)}&limit=${PAGE_SIZE}`
-    // the review list has no list parameters: it is its own endpoint
-    if (filters.quarantined) return `${p}&quarantined=true`
-    return p + listAxes(filters)
-  }
-  // The review list is its own endpoint — held mail is not a
-  // predicate over the ordinary lists, it is the thing they exclude.
-  // Paged like the rest: the client appends pages, so a route that
-  // ignored the cursor would show every held conversation twice.
-  if (filters.quarantined) {
-    let p = `/quarantine?limit=${PAGE_SIZE}`
-    if (cursor) p += `&cursor=${encodeURIComponent(cursor)}`
-    return p
-  }
-  let p = `/conversations?limit=${PAGE_SIZE}`
-  if (cursor) p += `&cursor=${encodeURIComponent(cursor)}`
-  return p + listAxes(filters)
-}
 
 /**
  * The thread query without its `enabled` gate, so a prefetch fills the
@@ -132,31 +108,9 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
   >({
     enabled,
     initialPageParam: undefined,
-    queryKey: conversationKeys.infinite({
-      accounts: filters.accounts,
-      archived: filters.archived,
-      assignedToMe: filters.assignedToMe,
-      category: filters.category as never,
-      domains: filters.domains,
-      folder: filters.folder as never,
-      includeQuarantined: filters.includeQuarantined,
-      quarantined: filters.quarantined,
-      // `query` MUST be in the key: listPath() switches to the
-      // /conversations/search endpoint when filters.query is set, but
-      // without query in the key a search reuses the non-search inbox
-      // cache and never refetches — search silently shows the inbox.
-      followupDueBy: filters.followupDueBy,
-      label: filters.label,
-      pinned: filters.pinned,
-      query: filters.query,
-      section: filters.section,
-      snoozed: filters.snoozed,
-      starred: filters.starred,
-      trashed: filters.trashed,
-      unread: filters.unread,
-    }),
+    queryKey: conversationListKey(filters),
     getNextPageParam: (lastPage) => {
-      if (lastPage.length < PAGE_SIZE) return undefined
+      if (lastPage.length < LIST_PAGE_SIZE) return undefined
       // search answers in one page; asking it again appends the same rows
       if (filters.query) return undefined
       // the server's place after the last row: the time it is ordered by

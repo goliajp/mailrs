@@ -34,8 +34,7 @@ export type Category =
 
 /**
  * The list-query filter — canonical shape shared by every conversation
- * list read. `useConversationList(filter)` keys its cache on this
- * object after canonicalization.
+ * list read. The list caches key on this object after canonicalization.
  */
 export type ConversationFilter = {
   /**

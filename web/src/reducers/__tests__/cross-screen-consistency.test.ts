@@ -13,8 +13,8 @@
  *   - Assert every conversation-list cache line containing that
  *     thread reports `unreadCount = 0` synchronously, before the wire
  *     round-trip resolves.
- *   - Assert `useUnreadCount()`'s pure derivation over the same cache
- *     line yields the updated total.
+ *   - Assert an unread total derived over the same cache line yields
+ *     the updated total.
  *
  * If this test ever regresses, either the reducer stopped patching all
  * matching cache lines, or a screen re-introduced a parallel cache.
@@ -99,8 +99,7 @@ describe('cross-screen consistency — the v2.1 architectural guarantee', () => 
       items: [makeThread('t-1', 2), makeThread('t-2', 3)],
     })
 
-    // Compute unread total the way `useUnreadCount()` does — a pure
-    // reduction over the INBOX list.
+    // The unread total as a pure reduction over the INBOX list.
     const beforeData = qc.getQueryData<{ items: ThreadSummary[] }>(
       conversationKeys.list({ folder: 'INBOX' })
     )
