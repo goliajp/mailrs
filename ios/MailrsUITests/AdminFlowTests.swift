@@ -27,8 +27,7 @@ final class AdminFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 15), "inbox never listed")
 
-        app.buttons["Lists"].tap()
-        app.buttons["Settings"].tap()
+        tapInListsMenu(app, "Settings")
         scrollTo(app, button: "Permissions")
         app.buttons["Permissions"].tap()
 
@@ -77,8 +76,7 @@ final class AdminFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 15), "inbox never listed")
 
-        app.buttons["Lists"].tap()
-        app.buttons["Settings"].tap()
+        tapInListsMenu(app, "Settings")
         scrollTo(app, button: "Audit log")
         app.buttons["Audit log"].tap()
 
@@ -110,8 +108,7 @@ final class AdminFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 15), "inbox never listed")
 
-        app.buttons["Lists"].tap()
-        app.buttons["Settings"].tap()
+        tapInListsMenu(app, "Settings")
         scrollTo(app, button: "DMARC")
         app.buttons["DMARC"].tap()
 
@@ -141,8 +138,7 @@ final class AdminFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 15), "inbox never listed")
 
-        app.buttons["Lists"].tap()
-        app.buttons["Settings"].tap()
+        tapInListsMenu(app, "Settings")
         scrollTo(app, button: "Queue")
         app.buttons["Queue"].tap()
 
@@ -187,8 +183,7 @@ final class AdminFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 15), "inbox never listed")
 
-        app.buttons["Lists"].tap()
-        app.buttons["Settings"].tap()
+        tapInListsMenu(app, "Settings")
         scrollTo(app, button: "Groups")
         app.buttons["Groups"].tap()
 
@@ -226,8 +221,7 @@ final class AdminFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 15), "inbox never listed")
 
-        app.buttons["Lists"].tap()
-        app.buttons["Settings"].tap()
+        tapInListsMenu(app, "Settings")
         // Scrolled to, not asserted where it happens to sit: the
         // settings form scrolls, and every row below moves each
         // time a section is added above it.
@@ -266,8 +260,7 @@ final class AdminFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 15), "inbox never listed")
 
-        app.buttons["Lists"].tap()
-        app.buttons["Settings"].tap()
+        tapInListsMenu(app, "Settings")
         scrollTo(app, button: "Domains")
         app.buttons["Domains"].tap()
 

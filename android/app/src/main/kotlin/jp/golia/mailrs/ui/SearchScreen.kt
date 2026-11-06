@@ -132,7 +132,7 @@ private fun SearchResults(state: UiState, vm: MailViewModel) {
 
         else -> LazyColumn(Modifier.fillMaxSize().testTag("list.searchResults")) {
             itemsIndexed(results, key = { _, c -> c.threadId }) { index, c ->
-                ConversationRow(c) { vm.open(c) }
+                ConversationRow(c, state.myAddress) { vm.open(c) }
                 if (index < results.lastIndex) {
                     HorizontalDivider(color = theme.border, thickness = 0.5.dp)
                 }

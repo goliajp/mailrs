@@ -68,4 +68,25 @@ describe('ListSearchInput', () => {
     )
     expect(screen.getByLabelText('New conversation')).toBeTruthy()
   })
+  /**
+   * The operators used to be the placeholder, which a list column cuts
+   * off after a few of them. They are a line of their own under the empty
+   * box, as on iOS, and the placeholder is short enough to be read whole.
+   */
+  it('lists the operators under the empty box while it has focus', () => {
+    render(
+      <Provider store={createStore()}>
+        <ListSearchInput hint="from: to: subject:" label="Search conversations" />
+      </Provider>
+    )
+    const box = screen.getByLabelText('Search conversations')
+    expect(screen.queryByText('from: to: subject:')).toBeNull()
+    fireEvent.focus(box)
+    expect(screen.getByText('from: to: subject:')).toBeTruthy()
+    fireEvent.change(box, { target: { value: 'invoice' } })
+    expect(screen.queryByText('from: to: subject:')).toBeNull()
+    fireEvent.change(box, { target: { value: '' } })
+    fireEvent.blur(box)
+    expect(screen.queryByText('from: to: subject:')).toBeNull()
+  })
 })

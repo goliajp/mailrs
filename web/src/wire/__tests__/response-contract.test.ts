@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import { adminResultSchema } from '../schemas/admin'
 import { wireThreadListResponseSchema } from '../schemas/conversation'
+import { notifyOverridesSchema } from '../schemas/notify'
 import { sendsSchema } from '../schemas/sends'
 
 /**
@@ -102,6 +103,18 @@ describe('response contract', () => {
     expect(raw[0].count).toBe(4224)
   })
 
+  it('the push choices parse, each conversation named by its subject', () => {
+    const parsed = notifyOverridesSchema.parse(fixture('notify-overrides'))
+    expect(parsed.threads[0]).toEqual(['a48529b44b1b190f@golia.jp', 'mute'])
+    expect(parsed.thread_details.map((d) => d.subject)).toEqual(['Re: Meeting', null])
+    // a server from before the field still parses
+    const { thread_details: _dropped, ...older } = fixture('notify-overrides') as Record<
+      string,
+      unknown
+    >
+    expect(notifyOverridesSchema.parse(older).thread_details).toEqual([])
+  })
+
   it('every response fixture is checked by a case above', () => {
     const present = readdirSync(RESPONSES)
       .filter((f) => f.endsWith('.json'))
@@ -110,6 +123,7 @@ describe('response contract', () => {
     expect(present).toEqual([
       'conversation-categories',
       'conversation-list',
+      'notify-overrides',
       'rsvp-result',
       'send-list',
     ])

@@ -25,6 +25,22 @@ android {
         testInstrumentationRunnerArguments["timeout_msec"] = "300000"
     }
 
+    // The release key comes from the environment of the one lane that
+    // signs (`scripts/android-build.sh release`); it is never in the repo.
+    // Without it a release build comes out unsigned and cannot install.
+    signingConfigs {
+        create("release") {
+            val keystore = System.getenv("MAILRS_ANDROID_KEYSTORE_FILE")
+            if (keystore != null) {
+                storeFile = file(keystore)
+                storeType = "pkcs12"
+                storePassword = System.getenv("MAILRS_ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = "mailrs"
+                keyPassword = System.getenv("MAILRS_ANDROID_KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             // The only build that will take a server from an intent.
@@ -32,6 +48,9 @@ android {
         }
         release {
             buildConfigField("boolean", "ALLOW_SERVER_OVERRIDE", "false")
+            if (System.getenv("MAILRS_ANDROID_KEYSTORE_FILE") != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

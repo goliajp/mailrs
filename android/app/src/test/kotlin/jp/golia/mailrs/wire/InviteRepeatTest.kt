@@ -120,4 +120,39 @@ class InviteRepeatTest {
         // 30 October 05:00 UTC is daylight time in Santa Clara
         assertTrue(InviteRepeat.whenLine(single, TOKYO, Locale.US)!!.endsWith("PDT"))
     }
+
+    /** As the web's line does, the end too: the next meeting is 15:00 to 16:00 in Tokyo. */
+    @Test
+    fun the_next_meeting_says_when_it_ends() {
+        val line = InviteRepeat.whenLine(payload(AFTER_CHANGE), TOKYO, Locale.US)!!
+        assertTrue("got $line", line.contains(" → "))
+        val (start, rest) = line.split(" → ")
+        hour(start, "15:00", "3:00")
+        // the same day, so the end is a time and not a second date
+        assertFalse("got $line", rest.contains("2026"))
+        hour(rest, "16:00", "4:00")
+        assertTrue("got $line", line.endsWith("PST"))
+    }
+
+    @Test
+    fun an_end_on_another_day_gives_its_date() {
+        val overnight = inviteJson.decodeFromString(
+            WireInvite.serializer(),
+            """{"uid":"x","summary":"x","dtstart_utc":"2026-11-06T14:00:00+00:00",
+                "dtend_utc":"2026-11-06T16:00:00+00:00","organiser_zone":"Asia/Tokyo"}""",
+        )
+        // 23:00 to 01:00 in Tokyo
+        val line = InviteRepeat.whenLine(overnight, TOKYO, Locale.US)!!
+        assertTrue("got $line", line.contains(" → "))
+        assertTrue("got $line", line.split(" → ")[1].contains("Nov 7, 2026"))
+    }
+
+    @Test
+    fun an_event_without_an_end_shows_only_its_start() {
+        val open = inviteJson.decodeFromString(
+            WireInvite.serializer(),
+            """{"uid":"x","summary":"x","dtstart_utc":"2026-10-30T05:00:00+00:00","organiser_zone":"Asia/Tokyo"}""",
+        )
+        assertFalse(InviteRepeat.whenLine(open, TOKYO, Locale.US)!!.contains("→"))
+    }
 }

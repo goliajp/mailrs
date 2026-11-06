@@ -16,10 +16,10 @@ extension MailrsClient {
         components?.queryItems = axes.queryItems
             + [URLQueryItem(name: "limit", value: String(limit))]
             + ThreadPage.queryItems(page)
-        guard let url = components?.url else { throw MailrsError.transport("Bad URL.") }
+        guard let url = components?.url else { throw MailrsError.transport("Bad URL") }
         let (data, response) = try await send("GET", url: url, body: nil, authorized: true)
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)
@@ -37,7 +37,7 @@ extension MailrsClient {
         let url = url("/api/conversations/\(MailrsClient.segment(threadId))")
         let (data, response) = try await send("GET", url: url, body: nil, authorized: true)
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)
@@ -63,7 +63,7 @@ extension MailrsClient {
             URLQueryItem(name: "q", value: query),
             URLQueryItem(name: "limit", value: String(limit)),
         ]
-        guard let url = components?.url else { throw MailrsError.transport("Bad contacts URL.") }
+        guard let url = components?.url else { throw MailrsError.transport("Bad contacts URL") }
         let (data, response) = try await send("GET", url: url, body: nil, authorized: true)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: (response as? HTTPURLResponse)?.statusCode ?? 0)
@@ -133,7 +133,7 @@ extension MailrsClient {
             "GET", "/api/mail/sends/\(MailrsClient.segment(sendId))/source",
             body: nil, authorized: true)
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)
@@ -159,10 +159,10 @@ extension MailrsClient {
             URLQueryItem(name: "q", value: query),
             URLQueryItem(name: "limit", value: String(limit)),
         ]
-        guard let url = components?.url else { throw MailrsError.transport("Bad URL.") }
+        guard let url = components?.url else { throw MailrsError.transport("Bad URL") }
         let (data, response) = try await send("GET", url: url, body: nil, authorized: true)
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)
@@ -179,7 +179,7 @@ extension MailrsClient {
         let path = "/api/mail/messages/\(uid)/attachments/\(index)"
         let (data, response) = try await send("GET", path, body: nil, authorized: true)
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)
@@ -288,7 +288,7 @@ extension MailrsClient {
         let (data, response) = try await send(
             "POST", "/api/mail/unsubscribe", body: body, authorized: true)
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)
@@ -320,7 +320,7 @@ extension MailrsClient {
         let (data, response) = try await send(
             "POST", "/api/mail/signatures", body: body, authorized: true)
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)
@@ -361,7 +361,7 @@ extension MailrsClient {
         let body = try JSONEncoder().encode(Wire.SnoozeRequest(snoozedUntil: until))
         let (_, response) = try await send("PUT", path, body: body, authorized: true)
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)
@@ -411,7 +411,7 @@ extension MailrsClient {
         let (data, response) = try await send(
             "GET", "/api/mail/messages/\(uid)/raw", body: nil, authorized: true)
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)
@@ -454,10 +454,10 @@ extension MailrsClient {
             url: baseURL.appendingPathComponent("/api/conversations/mark-all-read"),
             resolvingAgainstBaseURL: false)
         components?.queryItems = axes.queryItems
-        guard let url = components?.url else { throw MailrsError.transport("Bad URL.") }
+        guard let url = components?.url else { throw MailrsError.transport("Bad URL") }
         let (data, response) = try await send("POST", url: url, body: nil, authorized: true)
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)

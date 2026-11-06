@@ -64,7 +64,7 @@ struct MessageSourceSheet: View {
                     return
                 }
                 guard let client = session.client, let uid else {
-                    failure = "Not signed in."
+                    failure = AppText.string("Not signed in")
                     loading = false
                     return
                 }

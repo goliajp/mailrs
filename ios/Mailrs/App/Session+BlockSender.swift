@@ -79,7 +79,7 @@ extension Session {
         do {
             try await client.removeFromSenderList(.blocked, address: addr)
             senderLists?.blocked.remove(addr)
-            banner = String(localized: "Unblocked \(addr)")
+            banner = AppText.string("Unblocked \(addr)")
         } catch {
             banner = error.localizedDescription
         }

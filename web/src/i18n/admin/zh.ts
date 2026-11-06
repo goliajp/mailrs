@@ -263,7 +263,7 @@ export const adminZh: Record<AdminKey, string> = {
   'admin.signIns.account': '账号',
   'admin.signIns.accountPlaceholder': '账号，例如 lihao@golia.jp',
   'admin.signIns.channel.any': '所有登录方式',
-  'admin.signIns.channel.apiKey': 'API key',
+  'admin.signIns.channel.apiKey': 'API 密钥',
   'admin.signIns.channel.dav': '日历和联系人',
   'admin.signIns.channel.verify': '凭据核验',
   'admin.signIns.channel.web': '网页',

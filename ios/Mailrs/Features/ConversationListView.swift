@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ConversationListView: View {
     @Environment(Session.self) private var session
+    @Environment(\.locale) private var locale
     /// The thread a delete is waiting on confirmation for.
     @State private var pendingDelete: Wire.Conversation?
     @State private var searchText = ""
@@ -131,7 +132,7 @@ struct ConversationListView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Every conversation in \(session.activeList.title) will be marked read.")
+                Text("Every conversation in \(LocalisedTitle.of(session.activeList.titleKey, in: locale)) will be marked read")
             }
             .alert(
                 "Move to",
@@ -145,8 +146,10 @@ struct ConversationListView: View {
                         Task { await session.move(conversation, to: bucket) }
                         pendingMove = nil
                     }
+                    .accessibilityIdentifier("move.\(bucket.rawValue)")
                 }
                 Button("Cancel", role: .cancel) { pendingMove = nil }
+                    .accessibilityIdentifier("move.cancel")
             }
             .navigationTitle(navigationTitle)
             // Inline, not large: the large title spends about fifty
@@ -247,6 +250,12 @@ struct ConversationListView: View {
                                 // batch bar acts on rows that are no
                                 // longer on screen.
                                 leaveSelectMode()
+                                // drafts open in their own sheet, as a
+                                // draft opens the composer on the web
+                                if list == .draft {
+                                    showingDrafts = true
+                                    return
+                                }
                                 Task { await session.select(list) }
                             }
                         )) {
@@ -279,11 +288,6 @@ struct ConversationListView: View {
                             Label("Mark all as read", systemImage: "envelope.open")
                         }
                         .disabled(session.activeList == .send)
-                        Button {
-                            showingDrafts = true
-                        } label: {
-                            Label("Drafts", systemImage: "doc.text")
-                        }
                         Button { session.showingCalendar = true } label: { Label("Calendar", systemImage: "calendar") }
                             .accessibilityIdentifier("open-calendar")
                         Divider()
@@ -323,10 +327,13 @@ struct ConversationListView: View {
                                 withAnimation { editMode = .inactive }
                                 selection.removeAll()
                             }
+                            .accessibilityIdentifier("list.done")
                         } else {
                             Button("Select") {
                                 withAnimation { editMode = .active }
                             }
+                            // named, so a walk in Japanese finds 選択
+                            .accessibilityIdentifier("list.select")
                         }
                     }
                 }

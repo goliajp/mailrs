@@ -94,6 +94,12 @@ final class Preferences {
         didSet { persist(remoteImages.rawValue, Keys.remoteImages) }
     }
 
+    /// The language chosen in Settings, for code no view's `\.locale`
+    /// reaches (see `AppText`); nil follows the phone.
+    nonisolated static func chosenLocale(in defaults: UserDefaults = .standard) -> Locale? {
+        defaults.string(forKey: Keys.language).flatMap(Language.init(rawValue:))?.locale
+    }
+
     private enum Keys {
         static let remoteImages = "mailrs.remoteImages"
         static let appearance = "mailrs.appearance"

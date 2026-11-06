@@ -1,8 +1,11 @@
 package jp.golia.mailrs
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -46,6 +49,30 @@ class ListShapeTest : MailrsUiTest() {
             "the extreme row is $heights, which is not the shape of the others",
             heights.last() <= heights.first() * 1.2f,
         )
+    }
+
+    /**
+     * A row says what the iPhone's row says, from the same fields: the
+     * sender's name (a bare address reads as its local part), how many
+     * other people are on it, and the snippet.
+     */
+    @Test
+    fun a_row_shows_the_name_the_others_and_the_snippet() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+
+        fun text(tag: String): String? = compose.onAllNodesWithTag(tag, useUnmergedTree = true)
+            .fetchSemanticsNodes().firstOrNull()
+            ?.config?.getOrNull(SemanticsProperties.Text)?.joinToString("")
+
+        // t2 is from a bare address
+        val bare = text("row.sender.t2")
+        assertEquals("keiri", bare)
+        assertEquals("Alice Smith", text("row.sender.t1"))
+        // t9 has many participants, t1 has one
+        assertTrue("no other-participants mark on a crowded thread", text("row.others.t9")?.startsWith("+") == true)
+        assertNull("an others mark on a one-sender thread", text("row.others.t1"))
+        assertEquals("Please review before Friday, ref 2026", text("row.snippet.t1"))
     }
 
     /**

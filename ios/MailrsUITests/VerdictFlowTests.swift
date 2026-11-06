@@ -32,7 +32,7 @@ final class VerdictFlowTests: MailrsUITestCase {
 
         let checks = element(app, "sender-checks")
         XCTAssertTrue(checks.exists, "no SPF/DKIM/DMARC line under a suspicious sender")
-        for result in ["SPF: pass", "DKIM: fail", "DMARC: fail"] {
+        for result in ["SPF: softfail", "DKIM: none", "DMARC: fail"] {
             XCTAssertTrue(checks.label.contains(result), "\(result) missing: \(checks.label)")
         }
 

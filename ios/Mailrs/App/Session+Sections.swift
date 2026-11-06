@@ -34,7 +34,7 @@ extension Session {
             reachedEnd = false
             await loadConversations()
         } catch {
-            banner = String(localized: "The senders could not be accepted")
+            banner = AppText.string("The senders could not be accepted")
         }
     }
 }

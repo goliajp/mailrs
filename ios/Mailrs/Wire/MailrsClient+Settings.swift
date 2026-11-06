@@ -12,7 +12,7 @@ extension MailrsClient {
         let encoded = try JSONEncoder().encode(body)
         let (data, response) = try await send(method, path, body: encoded, authorized: true)
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)

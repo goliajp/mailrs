@@ -42,12 +42,23 @@ fun ThreadActionMenu(state: UiState, vm: MailViewModel, open: Wire.Conversation)
     val actions = RowActions.forRow(open, state.list, now)
         // Star, unread and archive have their own buttons beside this menu.
         .filterNot { it in setOf(RowAction.Star, RowAction.Unstar, RowAction.Unread, RowAction.Archive) }
+    var snoozing by rememberSaveable { mutableStateOf(false) }
+    if (snoozing) {
+        SnoozePickerDialog(
+            onPick = { until ->
+                snoozing = false
+                vm.applyToOpenThread(RowAction.Snooze, until = until)
+            },
+            onDismiss = { snoozing = false },
+        )
+    }
     RowActionMenu(actions, tag = "button.threadMore") { action ->
         when (action) {
             RowAction.Label -> {
                 vm.loadLabels()
                 labelling = true
             }
+            RowAction.Snooze -> snoozing = true
             RowAction.DeleteForever -> vm.askDeleteForever(listOf(open.threadId))
             RowAction.Unlabel -> vm.applyToOpenThread(action, state.label?.id)
             else -> vm.applyToOpenThread(action)

@@ -32,11 +32,11 @@ enum MailboxActions {
     static func delete(_ row: MailboxRow, from account: MailAccount) async -> Outcome {
         if account.incoming == .pop3 { return await deletePop3(row, from: account) }
         guard account.incoming == .imap else {
-            return .failed("Deleting is not supported for this account yet")
+            return .failed(AppText.string("Deleting is not supported for this account yet"))
         }
         return await withImap(account) { session in
             guard let trash = TrashFolder.pick(try await session.list()) else {
-                return .failed("This account has no trash folder")
+                return .failed(AppText.string("This account has no trash folder"))
             }
             _ = try await session.select(row.folder)
             try await session.moveTo(
@@ -79,7 +79,7 @@ enum MailboxActions {
         _ account: MailAccount, _ body: sending @escaping (IMAPSession) async throws -> Outcome
     ) async -> Outcome {
         guard let secret = AccountStore.secret(for: account.id) else {
-            return .failed("Sign in again to change this account")
+            return .failed(AppText.string("Sign in again to change this account"))
         }
         // Through the pool: one tap is one command, and paying for a
         // TLS handshake and a LOGIN each time is most of the wait. The
@@ -89,7 +89,7 @@ enum MailboxActions {
                 try await body(session)
             }
         } catch {
-            return .failed("Could not reach the server")
+            return .failed(AppText.string("Could not reach the server"))
         }
     }
 
@@ -108,7 +108,7 @@ enum MailboxActions {
     ///   try again.
     private static func deletePop3(_ row: MailboxRow, from account: MailAccount) async -> Outcome {
         guard let secret = AccountStore.secret(for: account.id) else {
-            return .failed("Sign in again to change this account")
+            return .failed(AppText.string("Sign in again to change this account"))
         }
         let session = openPop3(account.imapHost, account.imapPort)
         do {
@@ -132,7 +132,7 @@ enum MailboxActions {
             return .done
         } catch {
             await session.close()
-            return .failed("Could not reach the server")
+            return .failed(AppText.string("Could not reach the server"))
         }
     }
 }

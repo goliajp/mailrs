@@ -26,7 +26,7 @@ enum AccountSender {
         async -> Outcome
     {
         let recipients = OutgoingMessage.envelope(draft, bcc: bcc)
-        guard !recipients.isEmpty else { return .failed("Add somebody to send this to") }
+        guard !recipients.isEmpty else { return .failed(AppText.string("Add somebody to send this to")) }
         // Refused before sending rather than discovered during it: a
         // message stopped here is a message somebody still has, and one
         // that dies mid-send looks exactly like mail that vanished.
@@ -37,7 +37,7 @@ enum AccountSender {
                 "Too large to send: \(attachedText) attached, and about \(limitText) is the most.")
         }
         guard let secret = AccountStore.secret(for: account.id) else {
-            return .failed("Sign in again to send from this account")
+            return .failed(AppText.string("Sign in again to send from this account"))
         }
         // Streamed, not assembled: the socket pulls 57 bytes of a file
         // at a time, so a large attachment is never in memory whole.
@@ -62,7 +62,7 @@ enum AccountSender {
             return .failed(explain(e))
         } catch {
             await session.close()
-            return .failed("Could not reach the outgoing server")
+            return .failed(AppText.string("Could not reach the outgoing server"))
         }
     }
 
@@ -94,15 +94,15 @@ enum AccountSender {
             // 5xx is the message's fault and 4xx is the moment's; a
             // person told "try again" about a permanent rejection will
             // try again forever.
-            if !permanent { return "The server is busy — try again shortly (\(code))" }
+            if !permanent { return AppText.string("The server is busy — try again shortly (\(code))") }
             if code == 550 || code == 553 {
-                return "The server refused the recipient or the sender address (\(code)): \(text)"
+                return AppText.string("The server refused the recipient or the sender address (\(code)): \(text)")
             }
-            if code == 535 { return "The server refused the sign-in for this account (535)" }
-            return "The server refused this message (\(code)): \(text)"
+            if code == 535 { return AppText.string("The server refused the sign-in for this account (535)") }
+            return AppText.string("The server refused this message (\(code)): \(text)")
         case let .refused(detail): return AccountConnection.readable(detail)
         case let .unreachable(detail): return AccountConnection.readable(detail)
-        case .closed: return "The outgoing server closed the connection"
+        case .closed: return AppText.string("The outgoing server closed the connection")
         }
     }
 }

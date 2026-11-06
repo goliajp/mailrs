@@ -6,10 +6,7 @@ import XCTest
 final class SettingsFlowTests: MailrsUITestCase {
 
     private func openPage(_ app: XCUIApplication, _ id: String) {
-        let lists = app.buttons["Lists"]
-        XCTAssertTrue(lists.waitForExistence(timeout: 15), "inbox never listed")
-        lists.tap()
-        app.buttons["open-settings"].tap()
+        tapInListsMenu(app, "open-settings")
         let link = element(app, id)
         scrollTo(app, element: link, named: id)
         link.tap()

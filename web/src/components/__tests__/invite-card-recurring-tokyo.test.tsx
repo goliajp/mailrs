@@ -44,6 +44,15 @@ describe('a weekly invitation read in Tokyo', () => {
     expect(repeat.textContent).toContain('按组织者的时间')
   })
 
+  it('sets the Chinese lines without Latin spacing around dates and full-width marks', async () => {
+    get.mockResolvedValue(recurringDetail('after-change'))
+    card()
+    const repeat = await screen.findByTestId('invite-repeat')
+    expect(repeat.textContent).toBe('每周四 · 到2027年4月29日为止（按组织者的时间）')
+    const next = await screen.findByTestId('invite-next')
+    expect(next.textContent).toMatch(/^下一次：2026/)
+  })
+
   it('shows the next meeting at 15:00 after the US clocks go back, 22:00 PST beside it', async () => {
     get.mockResolvedValue(recurringDetail('after-change'))
     card()

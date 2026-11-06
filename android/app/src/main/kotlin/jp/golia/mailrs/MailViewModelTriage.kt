@@ -102,19 +102,19 @@ fun MailViewModel.clearSelection() {
  * The rows change at once and the selection ends, because a selection
  * that survived its own action would invite the same action twice.
  */
-fun MailViewModel.applyToSelection(action: RowAction, labelId: String? = null) {
+fun MailViewModel.applyToSelection(action: RowAction, labelId: String? = null, until: Long? = null) {
     val ids = _state.value.selected
     val rows = _state.value.conversations.filter { it.threadId in ids }
     if (rows.isEmpty()) return
     _state.update { it.copy(selected = emptySet()) }
-    actNow(rows, action, labelId)
+    actNow(rows, action, labelId, until)
 }
 
 /** Apply an action from the open thread's menu, and go back to the list when it leaves. */
-fun MailViewModel.applyToOpenThread(action: RowAction, labelId: String? = null) {
+fun MailViewModel.applyToOpenThread(action: RowAction, labelId: String? = null, until: Long? = null) {
     val conversation = _state.value.open ?: return
     if (action.leavesList) closeThread()
-    actNow(listOf(conversation), action, labelId)
+    actNow(listOf(conversation), action, labelId, until)
 }
 
 /**
@@ -140,7 +140,12 @@ fun MailViewModel.answerDeleteForever(yes: Boolean) {
  * A failure puts the rows back: mail that vanished on a failed request
  * is mail the person believes they filed and did not.
  */
-internal fun MailViewModel.actNow(rows: List<Wire.Conversation>, action: RowAction, labelId: String?) {
+internal fun MailViewModel.actNow(
+    rows: List<Wire.Conversation>,
+    action: RowAction,
+    labelId: String?,
+    until: Long? = null,
+) {
     pending?.let { commit(it) }
     val before = _state.value.conversations
     val ids = rows.map { it.threadId }.toSet()
@@ -148,12 +153,12 @@ internal fun MailViewModel.actNow(rows: List<Wire.Conversation>, action: RowActi
         true -> before.filterNot { it.threadId in ids }
         false -> before.map { row -> changedBy(row, action, ids, labelId) }
     }
-    val done = PendingTriage(rows, action, before, applied = true, labelId = labelId)
+    val done = PendingTriage(rows, action, before, applied = true, labelId = labelId, until = until)
     _state.update { it.copy(conversations = after, undo = done) }
     viewModelScope.launch {
         // Deleting for good wants the password typed again on the server,
         // as on the web; the prompt asks and the request is sent once more.
-        when (val r = confirmed { client.act(action, ids.toList(), labelId) }) {
+        when (val r = confirmed { client.act(action, ids.toList(), labelId, until) }) {
             is MailrsClient.Outcome.Ok -> Unit
             is MailrsClient.Outcome.Err -> _state.update { it.copy(conversations = before, undo = null, error = r.message) }
         }
@@ -184,7 +189,8 @@ fun MailViewModel.undo() {
     if (!action.applied) return
     val back = action.action.undo ?: return
     viewModelScope.launch {
-        val r = client.act(back, action.rows.map { it.threadId }, action.labelId)
+        // waking a row is taken back by snoozing it to the time it had
+        val r = client.act(back, action.rows.map { it.threadId }, action.labelId, action.rows.first().snoozedUntil)
         if (r is MailrsClient.Outcome.Err) {
             // It did not go back, so the list should not say it did.
             _state.update { it.copy(error = r.message) }
@@ -201,7 +207,7 @@ private fun MailViewModel.commit(action: PendingTriage) {
     pending = null
     _state.update { it.copy(undo = null) }
     viewModelScope.launch {
-        when (val r = client.act(action.action, action.rows.map { it.threadId }, action.labelId)) {
+        when (val r = client.act(action.action, action.rows.map { it.threadId }, action.labelId, action.until)) {
             is MailrsClient.Outcome.Ok -> Unit
             // It did not happen, so the row comes back. A row that
             // vanished on a failed request is mail the person believes

@@ -10,8 +10,14 @@ export const notifyPrefsSchema = z.object({
   utc_offset_minutes: z.number().default(0),
 })
 
+// Backend: crates/webapi/src/handlers/notify.rs — fn overrides
 export const notifyOverridesSchema = z.object({
   senders: z.array(z.tuple([z.string(), z.string()])),
+  // each conversation's choice with its subject; null when the reader no
+  // longer has the conversation. Absent from a server older than the field.
+  thread_details: z
+    .array(z.object({ subject: z.string().nullable(), thread_id: z.string(), value: z.string() }))
+    .default([]),
   threads: z.array(z.tuple([z.string(), z.string()])),
 })
 
