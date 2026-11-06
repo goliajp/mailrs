@@ -164,6 +164,21 @@ pub async fn list_conversations(
     Ok(Json(wire::ListConversationsResponse { items }))
 }
 
+/// A label's list: `q` over the labelled conversations `ids`.
+///
+/// A label is not a place: archived conversations are in it, those in the
+/// Trash are not, wherever they are filed.
+pub(crate) fn labelled_query<'a>(q: ThreadQuery<'a>, ids: &'a [String]) -> ThreadQuery<'a> {
+    ThreadQuery {
+        scope: Scope::All,
+        sent: false,
+        archived: None,
+        trashed: Some(false),
+        thread_ids: Some(ids),
+        ..q
+    }
+}
+
 /// One fetch of the list `f` describes, `before_ts` paging and all.
 async fn fetch_page(
     state: &Arc<CoreRpcState>,
@@ -173,16 +188,7 @@ async fn fetch_page(
 ) -> Result<Vec<ConversationSummaryWire>, StatusCode> {
     let mut q = thread_query(user, f);
     if let Some(ids) = labelled {
-        // a label is not a place: archived conversations are in it, those
-        // in the Trash are not, wherever they are filed
-        q = ThreadQuery {
-            scope: Scope::All,
-            sent: false,
-            archived: None,
-            trashed: Some(false),
-            thread_ids: Some(ids),
-            ..q
-        };
+        q = labelled_query(q, ids);
     }
     let rows = state
         .mailbox

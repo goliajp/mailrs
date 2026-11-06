@@ -20,6 +20,13 @@ struct InboxSectionsTests {
         #expect(axes.queryItems.contains(URLQueryItem(name: "section", value: "awaiting")))
     }
 
+    /// Review is listed from its own endpoint; a search typed into it
+    /// must still search it rather than every other list.
+    @Test func aSearchInReviewNamesReview() {
+        #expect(MailList.review.axes.queryItems.contains(URLQueryItem(name: "quarantined", value: "true")))
+        #expect(!MailList.inbox.axes.queryItems.contains { $0.name == "quarantined" })
+    }
+
     @Test func theWholeInboxSendsNoSection() {
         #expect(!MailList.inbox.axes.queryItems.contains { $0.name == "section" })
     }

@@ -88,6 +88,8 @@ class MailListTest {
         assertEquals("archived=false&trashed=true", MailList.Trash.axes.query())
         assertEquals("archived=false&label=7", MailList.labelAxes("7").query())
         assertTrue("Review is its own endpoint", MailList.Review.axes.held)
+        // and a search typed into it searches it
+        assertEquals("archived=false&quarantined=true", MailList.Review.axes.query())
         // The drawer lists every list but the label one, which is each label.
         assertEquals(MailList.entries.size - 1, MailList.fixed.size)
     }
