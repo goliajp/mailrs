@@ -130,3 +130,25 @@ fn last_used_times_of_devices_gone_are_dropped() {
     assert_eq!(used.len(), 1);
     assert_eq!(used.get("apns:t1"), Some(&5));
 }
+
+#[test]
+fn a_device_registered_again_after_its_last_push_counts_as_used_then() {
+    let mut c = kevy_client::Connection::connect("mem://push-devices-later").unwrap();
+    ten(&mut c);
+    // t1 took a push at 20 and its app re-registered at 30; t2 took one at
+    // 25 and was not opened since: t2 is the least recently used
+    mark_used(&mut c, "me@x.test", Channel::Apns, "t1", 20).unwrap();
+    mark_used(&mut c, "me@x.test", Channel::Apns, "t2", 25).unwrap();
+    for (token, at) in [("t3", 26), ("t4", 27)] {
+        mark_used(&mut c, "me@x.test", Channel::Apns, token, at).unwrap();
+    }
+    for n in 0..3 {
+        let field = notify::endpoint_field(&web(n, 0).endpoint);
+        mark_used(&mut c, "me@x.test", Channel::Web, &field, 28).unwrap();
+        let id = unified_push::id_of(&phone(n, 0).endpoint);
+        mark_used(&mut c, "me@x.test", Channel::UnifiedPush, &id, 28).unwrap();
+    }
+    assert!(apns(&mut c, "t1", 30).evicted.is_empty());
+    let r = apns(&mut c, "t9", 31);
+    assert_eq!(r.evicted, vec![(Channel::Apns, "t2".to_string())]);
+}

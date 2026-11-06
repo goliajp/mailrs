@@ -10,8 +10,8 @@
 //!
 //! Each registration path goes through [`register`], which files the
 //! device and then evicts the least recently used others until the account
-//! is back at the cap. A device that never took a push counts from when it
-//! was registered.
+//! is back at the cap. A device's last use is the later of its last push
+//! that got through and its last registration.
 
 use std::collections::HashMap;
 
@@ -222,10 +222,13 @@ fn enforce_cap(
         .iter()
         .filter(|d| !(d.channel == keep_channel && d.id == keep_id))
         .map(|d| {
+            // a registration counts as use too: iOS registers again on
+            // every launch, and a phone opened daily but rarely pushed to
+            // is not the unused one
             let at = used
                 .get(&used_field(d.channel, &d.id))
                 .copied()
-                .unwrap_or(d.created_at);
+                .map_or(d.created_at, |u| u.max(d.created_at));
             (at, d.channel, d.id.clone())
         })
         .collect();
