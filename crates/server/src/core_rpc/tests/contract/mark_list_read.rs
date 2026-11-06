@@ -12,7 +12,9 @@ use mailrs_core_api::method::thread::MarkListReadRequest;
 use mailrs_core_api::types::ConversationFilter;
 
 use super::harness::{self, Cores, Diffs};
-use super::search_scope::{HELLO, INTRO, INVOICE, PHISHED, SALE, SHARED, TEAM, arrange, lists};
+use super::search_scope::{
+    HELLO, INTRO, INVOICE, PHISHED, SALE, SENT, SHARED, TEAM, arrange, lists,
+};
 use super::{ALICE, BOB, accounts, mail};
 
 const FC_KEVY: &str = "mem://mark-list-read-fastcore-side-state";
@@ -211,7 +213,7 @@ async fn mark_all_read_marks_what_its_list_shows_on_both_cores() {
     all_unread(&cores).await;
     for (core, client) in [("fastcore", &cores.fastcore), ("pg", &cores.pg_core)] {
         let held = unread_ids(&unread_state(client, ALICE).await);
-        for tid in [HELLO, INVOICE, SALE, SHARED, INTRO, PHISHED, TEAM] {
+        for tid in [HELLO, INVOICE, SALE, SENT, SHARED, INTRO, PHISHED, TEAM] {
             assert!(
                 held.contains(tid),
                 "{core}: {tid} is not unread for {ALICE}: {held:?}"
@@ -228,12 +230,11 @@ async fn mark_all_read_marks_what_its_list_shows_on_both_cores() {
                 check_one(&cores.fastcore, "fastcore", user, name, &req, &mut wrong).await;
             let (pg_unread, pg) =
                 check_one(&cores.pg_core, "pg", user, name, &req, &mut wrong).await;
-            // Compared over what was unread on both: marking a conversation
-            // of only the reader's own sent mail unread takes on the SQL
-            // core and not on fastcore, which is not what is tested here.
-            let both: BTreeSet<String> = fc_unread.intersection(&pg_unread).cloned().collect();
-            let fc: BTreeSet<&String> = fc.intersection(&both).collect();
-            let pg: BTreeSet<&String> = pg.intersection(&both).collect();
+            if fc_unread != pg_unread {
+                wrong.push(format!(
+                    "[{name}] as {user}: unread before, fastcore {fc_unread:?}, pg {pg_unread:?}"
+                ));
+            }
             if fc != pg {
                 wrong.push(format!(
                     "[{name}] as {user}: fastcore marked {fc:?}, pg {pg:?}"
