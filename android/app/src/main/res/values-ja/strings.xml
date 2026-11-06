@@ -452,8 +452,8 @@
     <string name="settings_session_end_failed">端末をログアウトできませんでした</string>
     <string name="settings_app_passwords_load_failed">アプリパスワードを読み込めませんでした</string>
     <string name="settings_app_password_revoke_failed">アプリパスワードを無効にできませんでした</string>
-    <string name="settings_vacation_load_failed">不在時の自動返信を読み込めませんでした</string>
-    <string name="settings_vacation_save_failed">不在時の自動返信を保存できませんでした</string>
+    <string name="settings_vacation_load_failed">不在通知を読み込めませんでした</string>
+    <string name="settings_vacation_save_failed">不在通知を保存できませんでした</string>
     <string name="settings_masks_load_failed">マスクアドレスを読み込めませんでした</string>
     <string name="settings_mask_create_failed">マスクアドレスを作成できませんでした</string>
     <string name="settings_file_sender_failed">この差出人のメールを振り分けできませんでした</string>
@@ -463,7 +463,7 @@
     <string name="settings_notifications">通知</string>
     <string name="settings_sessions">ログイン中の端末</string>
     <string name="settings_app_passwords">アプリパスワード</string>
-    <string name="settings_vacation">不在時の自動返信</string>
+    <string name="settings_vacation">不在通知</string>
     <string name="settings_masked">マスクアドレス</string>
     <string name="settings_images_auto">常に読み込む</string>
     <string name="settings_images_click">毎回たずねる</string>

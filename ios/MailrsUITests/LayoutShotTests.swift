@@ -241,7 +241,7 @@ final class LayoutShotTests: MailrsUITestCase {
     private var trashTitle: String {
         switch language {
         case "ja": return "ゴミ箱"
-        case "zh-Hans": return "废纸篓"
+        case "zh-Hans": return "已删除邮件"
         default: return "Trash"
         }
     }

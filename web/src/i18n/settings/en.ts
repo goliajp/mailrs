@@ -210,7 +210,7 @@ export const settingsEn = {
   'settings.forwarding.sendCode': 'Send code',
   'settings.forwarding.stop': 'Stop',
   'settings.forwarding.stopped': 'Forwarding stopped',
-  'settings.forwarding.title': 'Forwarding and vacation',
+  'settings.forwarding.title': 'Forwarding and vacation responder',
   'settings.forwarding.to': 'Forwarding to {address}',
   'settings.group.account': 'Account & security',
   'settings.group.appearance': 'Appearance & notifications',
@@ -353,8 +353,8 @@ export const settingsEn = {
   'settings.rules.action.archive': 'Archive',
   'settings.rules.action.junk': 'Move to Junk',
   'settings.rules.action.read': 'Mark read',
-  'settings.rules.action.star': 'Star',
-  'settings.rules.action.trash': 'Move to Trash',
+  'settings.rules.action.star': word('en', 'settings.rules.action.star'),
+  'settings.rules.action.trash': word('en', 'settings.rules.action.trash'),
   'settings.rules.alsoApply': 'Also apply to them',
   'settings.rules.applyConfirm':
     'Apply "{name}" to the {count} conversations that match now? You can undo it afterwards.',
@@ -466,7 +466,7 @@ export const settingsEn = {
   'settings.vacation.message': 'Message',
   'settings.vacation.note':
     'No reply goes to mail in Junk, held mail, mailing lists or automatic mail.',
-  'settings.vacation.saved': 'Vacation reply saved',
+  'settings.vacation.saved': 'Vacation responder saved',
   'settings.vacation.subject': 'Subject',
   'settings.vacation.title': word('en', 'settings.vacation.title'),
   'settings.vacation.until': 'Until (UTC)',
