@@ -77,10 +77,16 @@ pub fn bucket_of(category: &str) -> Bucket {
 pub enum Scope {
     /// No folder and no category: every thread.
     All,
-    /// Every bucket but Junk. The scope of the cross-cutting views, Unread
-    /// and Starred, which are attributes of a thread rather than places;
-    /// junk mail has exactly one surface.
+    /// Every bucket but Junk. The scope of the cross-cutting views such as
+    /// Starred, which are attributes of a thread rather than places; junk
+    /// mail has exactly one surface. Unread only is [`Scope::Unread`].
     NotJunk,
+    /// The Unread view: every bucket but Junk, the threads the user only
+    /// sent into included. A thread the reader marked unread is in it
+    /// wherever it lives, as in Gmail, even one of only their own mail,
+    /// which no Inbox shows. The archive, the Trash and held mail stay
+    /// out as in every list; see [`list_scope`].
+    Unread,
     /// All Mail: every bucket but Junk, the threads the user only sent
     /// into included. The one list that also shows what was archived —
     /// each core reads both sides of the archive for it; the Trash stays
@@ -140,6 +146,17 @@ pub fn scope(folder: Option<&str>, category: Option<&str>) -> Scope {
     }
 }
 
+/// The scope of a list: [`scope`] of its folder and category, except that
+/// `nonjunk` asked for unread threads only is [`Scope::Unread`]. Every
+/// list, its search and "mark all as read" go through this; the unread
+/// badge does not, it counts the Inbox and Notifications & Promotions.
+pub fn list_scope(folder: Option<&str>, category: Option<&str>, unread: bool) -> Scope {
+    match scope(folder, category) {
+        Scope::NotJunk if unread => Scope::Unread,
+        s => s,
+    }
+}
+
 /// Whether `folder` names the Sent view, the threads the user wrote into.
 pub fn is_sent_folder(folder: Option<&str>) -> bool {
     folder.is_some_and(|f| f.eq_ignore_ascii_case("sent"))
@@ -163,7 +180,7 @@ impl Scope {
         match self {
             Scope::All => true,
             Scope::NotJunk => NON_JUNK.into_iter().any(in_bucket),
-            Scope::AllMail => bucket != Bucket::Junk,
+            Scope::AllMail | Scope::Unread => bucket != Bucket::Junk,
             Scope::Bucket(b) => in_bucket(*b),
             Scope::Np => in_bucket(Bucket::Notifications) || in_bucket(Bucket::Promotions),
             Scope::Category(c) => t.category.eq_ignore_ascii_case(c),
@@ -214,6 +231,34 @@ mod tests {
         };
         assert!(Scope::Np.admits(note));
         assert!(Scope::NotJunk.admits(note));
+    }
+
+    #[test]
+    fn the_unread_view_takes_what_you_only_sent_into() {
+        assert_eq!(list_scope(Some("NonJunk"), None, true), Scope::Unread);
+        assert_eq!(list_scope(Some("NonJunk"), None, false), Scope::NotJunk);
+        assert_eq!(
+            list_scope(Some("Inbox"), None, true),
+            Scope::Bucket(Bucket::Inbox)
+        );
+        assert_eq!(
+            list_scope(Some("nonjunk"), Some("inbox"), true),
+            Scope::Category("inbox".into())
+        );
+        assert_eq!(
+            list_scope(Some("nonjunk"), Some("spam"), true),
+            Scope::Contradiction
+        );
+        let sent = ThreadFacts {
+            category: "inbox",
+            sent_only: true,
+        };
+        assert!(Scope::Unread.admits(sent));
+        let junk = ThreadFacts {
+            category: "spam",
+            sent_only: true,
+        };
+        assert!(!Scope::Unread.admits(junk));
     }
 
     #[test]

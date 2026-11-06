@@ -145,9 +145,9 @@ impl ListThreadsFilter<'_> {
     }
 
     /// The scope `folder` and `category` reconcile to; the rule is shared
-    /// with every store, see [`mailrs_mailbox::scope::scope`].
+    /// with every store, see [`mailrs_mailbox::scope::list_scope`].
     fn scope(&self) -> Scope {
-        mailrs_mailbox::scope::scope(self.folder, self.category)
+        mailrs_mailbox::scope::list_scope(self.folder, self.category, self.has_unread)
     }
 }
 
@@ -328,7 +328,7 @@ impl KevyMailboxStore {
         let (mut rows, _) = self.hydrate_page(user, &tids, total)?;
         // The multi-bucket scopes, applied where the rows are.
         let keep: Option<&[&str]> = match scope {
-            Scope::NotJunk | Scope::AllMail => Some(&NON_JUNK_BUCKETS),
+            Scope::NotJunk | Scope::AllMail | Scope::Unread => Some(&NON_JUNK_BUCKETS),
             Scope::Np => Some(&NP_BUCKETS),
             _ => None,
         };
@@ -418,7 +418,7 @@ impl KevyMailboxStore {
                 Scope::NotJunk => {
                     self.list_buckets_via_table(user, NON_JUNK_SET, filter, offset, limit)
                 }
-                Scope::AllMail => {
+                Scope::AllMail | Scope::Unread => {
                     self.list_buckets_via_table(user, ALL_MAIL_SET, filter, offset, limit)
                 }
                 Scope::Category(cat) => {
@@ -475,13 +475,13 @@ impl KevyMailboxStore {
                 return self
                     .list_buckets_flagged_via_table(user, NP_SET, key, filter, offset, limit);
             }
-            Scope::NotJunk | Scope::AllMail => {
+            Scope::NotJunk | Scope::AllMail | Scope::Unread => {
                 let key = FlagKey {
                     flag: key_flag,
                     extra: &extra,
                 };
                 let set = match scope {
-                    Scope::AllMail => ALL_MAIL_SET,
+                    Scope::AllMail | Scope::Unread => ALL_MAIL_SET,
                     _ => NON_JUNK_SET,
                 };
                 return self.list_buckets_flagged_via_table(user, set, key, filter, offset, limit);
