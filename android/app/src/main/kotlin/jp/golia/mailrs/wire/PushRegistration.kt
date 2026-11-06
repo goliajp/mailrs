@@ -52,6 +52,18 @@ class PushRegistration(context: Context) {
         store.edit().remove(SERVER_ID).remove(SERVER_ENDPOINT).remove(SERVER_SENT).apply()
     }
 
+    /**
+     * When the server was last found to have dropped this phone and was told
+     * again, in epoch milliseconds; null if it never was. Only shown on the
+     * settings page, as a trace.
+     */
+    val reregisteredAt: Long?
+        get() = store.getLong(REREGISTERED_AT, 0).takeIf { it > 0 }
+
+    fun reregistered(at: Long) {
+        store.edit().putLong(REREGISTERED_AT, at).apply()
+    }
+
     /** Why the last step failed, for the settings page; null once one works. */
     var failure: String?
         get() = store.getString(FAILURE, null)
@@ -83,6 +95,7 @@ class PushRegistration(context: Context) {
         const val SERVER_ENDPOINT = "server_endpoint"
         const val SERVER_SENT = "server_sent"
         const val FAILURE = "failure"
+        const val REREGISTERED_AT = "reregistered_at"
     }
 }
 
@@ -122,5 +135,20 @@ object PushSync {
         if (s.serverId != null && s.serverSent == sent(endpoint, p256dh, auth)) return emptyList()
         val stale = s.serverId?.takeIf { s.serverEndpoint != endpoint }?.let { Step.Drop(it) }
         return listOfNotNull(stale, Step.Register(endpoint, p256dh, auth))
+    }
+
+    /** On, and the server was told what the distributor gave: nothing for [steps] to do. */
+    fun registered(s: Snapshot) = s.serverId != null && steps(s).isEmpty()
+
+    /**
+     * The server may forget this phone without saying so (another device
+     * took its place under the per-account cap). Read against what the
+     * server lists: registered here and missing there is registered again;
+     * anything else, a failed read (`listed` null) included, needs nothing.
+     */
+    fun recheck(s: Snapshot, listed: UnifiedPushWire.State?): List<Step> {
+        if (listed == null || !listed.enabled || !registered(s)) return emptyList()
+        if (listed.devices.any { it.id == s.serverId }) return emptyList()
+        return listOf(Step.Register(s.endpoint!!, s.p256dh!!, s.auth!!))
     }
 }

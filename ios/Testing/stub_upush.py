@@ -13,6 +13,10 @@
 included, so a test checks what the phone sent and not only the screen.
 `POST /debug/unifiedpush-off` makes the server answer as one with no VAPID
 key: `enabled: false`, and registration refused with 409.
+`POST /debug/unifiedpush-evict/{id}` forgets a device the way the
+per-account cap does, without the phone being told and without counting as
+one of its writes. `GET /debug/unifiedpush-reads` is how many times the list
+was read, so a test can tell "checked and found it there" from "never asked".
 """
 
 import copy
@@ -25,6 +29,7 @@ BASE_TS = 1754500000
 VAPID = "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4"
 
 WRITES = []
+READS = {"list": 0}
 FRESH = {
     "enabled": True,
     "devices": {
@@ -37,6 +42,7 @@ STATE = copy.deepcopy(FRESH)
 
 def reset():
     WRITES.clear()
+    READS["list"] = 0
     STATE.clear()
     STATE.update(copy.deepcopy(FRESH))
 
@@ -63,6 +69,7 @@ def _listed():
 def get(handler):
     path = urlparse(handler.path).path
     if path == "/api/push/unifiedpush":
+        READS["list"] += 1
         answer = {"enabled": STATE["enabled"], "devices": _listed()}
         if STATE["enabled"]:
             answer["vapid_public_key"] = VAPID
@@ -70,6 +77,9 @@ def get(handler):
         return True
     if path == "/debug/unifiedpush":
         handler._send(WRITES)
+        return True
+    if path == "/debug/unifiedpush-reads":
+        handler._send(READS)
         return True
     return False
 
@@ -79,6 +89,10 @@ def post(handler):
     if path == "/debug/unifiedpush-off":
         STATE["enabled"] = False
         handler._send({"ok": True})
+        return True
+    evict = "/debug/unifiedpush-evict/"
+    if path.startswith(evict):
+        handler._send({"evicted": STATE["devices"].pop(unquote(path[len(evict):]), None) is not None})
         return True
     if path != "/api/push/unifiedpush":
         return False
