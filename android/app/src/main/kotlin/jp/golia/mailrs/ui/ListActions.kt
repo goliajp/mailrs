@@ -11,6 +11,10 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -102,9 +106,20 @@ fun SelectionActions(state: UiState, vm: MailViewModel, onLabel: () -> Unit) {
     ) {
         Icon(Icons.Filled.Star, contentDescription = stringResource(R.string.action_star), tint = theme.fgSecondary)
     }
+    var snoozing by rememberSaveable { mutableStateOf(false) }
+    if (snoozing) {
+        SnoozePickerDialog(
+            onPick = { until ->
+                snoozing = false
+                vm.applyToSelection(RowAction.Snooze, until = until)
+            },
+            onDismiss = { snoozing = false },
+        )
+    }
     RowActionMenu(RowActions.forSelection(state.list), tag = "button.selectionMore") { action ->
         when (action) {
             RowAction.Label -> onLabel()
+            RowAction.Snooze -> snoozing = true
             RowAction.DeleteForever -> vm.askDeleteForever(state.selected.toList())
             RowAction.Unlabel -> vm.applyToSelection(action, state.label?.id)
             else -> vm.applyToSelection(action)

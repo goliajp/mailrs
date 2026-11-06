@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,9 +46,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.clickable
@@ -132,7 +135,7 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
                     draft.inReplyTo != null -> Texts.get(R.string.mail_reply)
                     else -> Texts.get(R.string.compose_new)
                 }
-                Text(what, fontSize = 17.sp)
+                Text(what, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             },
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = theme.bg,
@@ -154,19 +157,28 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
                 if (state.sending) {
                     CircularProgressIndicator(Modifier.padding(end = 16.dp).size(20.dp), color = theme.accent)
                 } else {
-                    // **Long-press for when.** Android's own answer for
-                    // a secondary meaning on a primary control, and the
-                    // right one here: sending now is what almost every
-                    // press means, and a second button for scheduling
-                    // would spend a permanent corner of the bar on the
-                    // rarer choice.
+                    // A button of its own for when, as the iPhone and the
+                    // web have: a choice that lives only on a long press
+                    // is one nobody finds. The long press on Send stays
+                    // as a second way to the same sheet.
                     var pickingTime by rememberSaveable { mutableStateOf(false) }
+                    val ready = vm.recipientsIn(to).isNotEmpty()
+                    IconButton(
+                        onClick = { pickingTime = true },
+                        enabled = ready,
+                        modifier = Modifier.testTag("button.sendLater"),
+                    ) {
+                        Icon(
+                            Icons.Filled.Schedule,
+                            contentDescription = Texts.get(R.string.compose_send_later),
+                            tint = sendTint(ready, theme.fgSecondary, theme.fgMuted),
+                        )
+                    }
                     // A Box rather than an `IconButton`: the button
                     // owns its own click, and a `combinedClickable`
                     // wrapped around it never sees the press at all —
                     // the long press did nothing and looked like a
                     // sheet that would not open.
-                    val ready = vm.recipientsIn(to).isNotEmpty()
                     Box(
                         Modifier
                             .minimumInteractiveComponentSize()
@@ -183,7 +195,7 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
                         Icon(
                             Icons.AutoMirrored.Filled.Send,
                             contentDescription = Texts.get(R.string.common_send),
-                            tint = if (ready) theme.accent else theme.fgMuted,
+                            tint = sendTint(ready, theme.accent, theme.fgMuted),
                         )
                     }
                     if (pickingTime) {
@@ -416,4 +428,10 @@ private fun Suggestions(
                 .testTag("suggestion.contact"),
         )
     }
+}
+
+/** A send control lit while there is somewhere to send to, muted otherwise. */
+private fun sendTint(ready: Boolean, lit: Color, muted: Color): Color = when (ready) {
+    true -> lit
+    false -> muted
 }
