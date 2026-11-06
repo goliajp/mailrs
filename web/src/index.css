@@ -297,3 +297,10 @@ label,
 [data-component='status-bar'] > * {
   height: 100%;
 }
+
+/* Japanese has no spaces, so a narrow label otherwise breaks wherever the
+   line runs out, often mid-word (すべてのメ / ール). Chrome breaks at phrase
+   boundaries instead when <html lang> is ja; other browsers ignore it. */
+@utility break-phrase {
+  word-break: auto-phrase;
+}

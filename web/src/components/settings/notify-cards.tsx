@@ -22,6 +22,8 @@ const SUBSCRIBED_KEY = ['settings', 'web-push-here'] as const
 const IMPORTANT_KEY = ['settings', 'important'] as const
 const OVERRIDES_KEY = ['settings', 'notify-overrides'] as const
 const NONE: string[] = []
+// beside a field or a long line: the label keeps its one line
+const KEEP = 'shrink-0 whitespace-nowrap'
 
 /** The contacts whose mail always rings. */
 export function ImportantCard() {
@@ -52,7 +54,7 @@ export function ImportantCard() {
           value={adding}
         />
         <button
-          className={btnPrimary}
+          className={`${btnPrimary} ${KEEP}`}
           disabled={!adding.includes('@')}
           onClick={() => void set(adding.trim(), true)}
         >
@@ -66,7 +68,7 @@ export function ImportantCard() {
         {list.map((address) => (
           <li className="flex items-center justify-between py-2" key={address}>
             <span className="text-fg text-sm">{address}</span>
-            <button className={btnSecondary} onClick={() => void set(address, false)}>
+            <button className={`${btnSecondary} ${KEEP}`} onClick={() => void set(address, false)}>
               {t('settings.notify.remove')}
             </button>
           </li>
@@ -176,7 +178,10 @@ export function OverridesCard() {
               <span className="text-fg block truncate">{r.field}</span>
               <span className="text-fg-muted block text-xs">{t(CHOICE_LABEL[r.value])}</span>
             </span>
-            <button className={btnSecondary} onClick={() => void clear(r.kind, r.field)}>
+            <button
+              className={`${btnSecondary} ${KEEP}`}
+              onClick={() => void clear(r.kind, r.field)}
+            >
               {t('settings.notify.remove')}
             </button>
           </li>

@@ -260,7 +260,11 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
 
   return (
     <div className="relative flex h-full flex-col select-none">
-      <ListSearchInput label={t('list.searchLabel')} placeholder={t('list.searchPlaceholder')}>
+      <ListSearchInput
+        hint={t('list.searchOperators')}
+        label={t('list.searchLabel')}
+        placeholder={t('list.searchPlaceholder')}
+      >
         {isSearching && <SaveSearchButton />}
         {isSearching && <CreateRuleButton />}
         {/* batch select toggle — hidden during search */}
