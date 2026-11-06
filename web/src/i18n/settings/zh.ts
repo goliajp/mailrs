@@ -268,6 +268,7 @@ export const settingsZh: Record<SettingsKey, string> = {
   'settings.notify.always': '总是推送',
   'settings.notify.blurb': '什么样的信会推送到你的设备',
   'settings.notify.channel.apns': 'iPhone',
+  'settings.notify.channel.unifiedpush': 'Android（UnifiedPush）',
   'settings.notify.channel.web': '浏览器',
   'settings.notify.failed': '没能保存',
   'settings.notify.follow': '跟踪',

@@ -527,4 +527,25 @@
     <string name="block_confirm_action">ブロック</string>
     <string name="block_done">%1$s をブロックしました</string>
     <string name="block_unblocked">%1$s のブロックを解除しました</string>
+    <string name="settings_push">即時通知</string>
+    <string name="settings_push_load_failed">即時通知の設定を読み込めませんでした</string>
+    <string name="settings_push_remove_failed">端末を削除できませんでした</string>
+    <string name="push_intro">この端末の UnifiedPush ディストリビューターアプリを通じて、メールが届いたらすぐに通知します。プッシュで伝わるのは何か届いたことだけで、内容は Mailrs がメールサーバーから取得します</string>
+    <string name="push_server_off">このサーバーではプッシュ通知が有効になっていません</string>
+    <string name="push_none_installed">UnifiedPush ディストリビューターがインストールされていません。ない場合、Mailrs はアプリを閉じている間は約 15 分ごとに新着メールを確認し、Android がさらに遅らせることもあります</string>
+    <string name="push_none_hint">ntfy などのディストリビューターアプリをインストールしてから、ここに戻ってください</string>
+    <string name="push_pick">ディストリビューター</string>
+    <string name="push_turn_on">オンにする</string>
+    <string name="push_turn_off">オフにする</string>
+    <string name="push_status_on">オン（%1$s 経由）</string>
+    <string name="push_status_waiting">%1$s の応答を待っています</string>
+    <string name="push_status_failed">オンにできませんでした：%1$s</string>
+    <string name="push_status_off">オフ。アプリを閉じている間は約 15 分ごとに新着メールを確認します</string>
+    <string name="push_failed_network">ネットワークに接続されていません</string>
+    <string name="push_failed_action">ディストリビューターの操作が必要です。アプリを開いてください</string>
+    <string name="push_failed_vapid">ディストリビューターが必要とする鍵をサーバーが提供していません</string>
+    <string name="push_failed_internal">ディストリビューターに拒否されました</string>
+    <string name="push_devices">プッシュを受け取る端末</string>
+    <string name="push_this_phone">%1$s（この端末）</string>
+    <string name="push_remove">削除</string>
 </resources>

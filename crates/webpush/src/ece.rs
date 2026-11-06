@@ -106,10 +106,78 @@ pub fn encrypt_with(
     Ok(out)
 }
 
+/// The receiving side of [`encrypt`]: what `receiver` (the subscriber's
+/// private key) reads from `body`. A device does this; the server uses it to
+/// check what it sent.
+pub fn decrypt(body: &[u8], receiver: &PrivateKey, auth: &[u8]) -> Result<Vec<u8>, Error> {
+    let header = body.get(..21).ok_or(Error::Crypto)?;
+    let salt = &header[..16];
+    let id_len = usize::from(header[20]);
+    let as_public = body.get(21..21 + id_len).ok_or(Error::BadKey)?;
+    let mut record = body.get(21 + id_len..).ok_or(Error::Crypto)?.to_vec();
+    let ua_public = receiver.compute_public_key().map_err(|_| Error::Crypto)?;
+    let ecdh_secret = agreement::agree(
+        receiver,
+        UnparsedPublicKey::new(&ECDH_P256, as_public),
+        Error::BadKey,
+        |s| Ok(s.to_vec()),
+    )?;
+    let mut key_info = b"WebPush: info\0".to_vec();
+    key_info.extend_from_slice(ua_public.as_ref());
+    key_info.extend_from_slice(as_public);
+    let mut ikm = [0u8; 32];
+    Hkdf::<Sha256>::new(Some(auth), &ecdh_secret)
+        .expand(&key_info, &mut ikm)
+        .map_err(|_| Error::Crypto)?;
+    let prk = Hkdf::<Sha256>::new(Some(salt), &ikm);
+    let mut cek = [0u8; 16];
+    prk.expand(b"Content-Encoding: aes128gcm\0", &mut cek)
+        .map_err(|_| Error::Crypto)?;
+    let mut nonce = [0u8; 12];
+    prk.expand(b"Content-Encoding: nonce\0", &mut nonce)
+        .map_err(|_| Error::Crypto)?;
+    let key = LessSafeKey::new(UnboundKey::new(&AES_128_GCM, &cek).map_err(|_| Error::Crypto)?);
+    let plain = key
+        .open_in_place(
+            Nonce::assume_unique_for_key(nonce),
+            Aad::empty(),
+            &mut record,
+        )
+        .map_err(|_| Error::Crypto)?;
+    // padding zeros, then the last record's 0x02 delimiter
+    let end = plain.iter().rposition(|b| *b != 0).ok_or(Error::Crypto)?;
+    match plain[end] {
+        2 => Ok(plain[..end].to_vec()),
+        _ => Err(Error::Crypto),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{b64url, from_b64url};
+
+    #[test]
+    fn the_rfc_8291_example_decrypts_with_the_receivers_key() {
+        let d = |s: &str| from_b64url(&s.replace(' ', "")).unwrap();
+        let ua_private = d("q1dXpw3UpT5VOmu_cf_v6ih07Aems3njxI-JWgLcM94");
+        let receiver = PrivateKey::from_private_key(&ECDH_P256, &ua_private).unwrap();
+        let body = d(
+            "DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27ml\
+             mlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPT\
+             pK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN",
+        );
+        let auth = d("BTBZMqHH6r4Tts7J_aSIgg");
+        assert_eq!(
+            decrypt(&body, &receiver, &auth).unwrap(),
+            b"When I grow up, I want to be a watermelon"
+        );
+        assert_eq!(
+            decrypt(&body, &receiver, &[0u8; 16]),
+            Err(Error::Crypto),
+            "the wrong auth secret does not open it"
+        );
+    }
 
     /// RFC 8291 §5 and Appendix A, byte for byte.
     #[test]

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- A UnifiedPush distributor for the push tests: installed with
+             the test APK, so the app finds it the way it finds a real one. -->
+        <receiver
+            android:name="jp.golia.mailrs.FakeDistributor"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="org.unifiedpush.android.distributor.REGISTER" />
+                <action android:name="org.unifiedpush.android.distributor.UNREGISTER" />
+            </intent-filter>
+        </receiver>
+        <activity
+            android:name="jp.golia.mailrs.FakeDistributorOpen"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <!-- Lets a test take the fake distributor away and back. -->
+        <receiver
+            android:name="jp.golia.mailrs.FakeDistributorSwitch"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="jp.golia.mailrs.test.FAKE_DISTRIBUTOR" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
