@@ -14,7 +14,7 @@
 //! device and then evicts the least recently used others until the account
 //! is back at the cap. A device's last use is the later of its last push
 //! that got through and its last registration. How devices leave other
-//! than by the cap is [`removal`].
+//! than by the cap is in the `removal` module.
 
 use std::collections::HashMap;
 
