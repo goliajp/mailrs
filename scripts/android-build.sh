@@ -138,6 +138,7 @@ start_stub() {
     # platform ignores in a release build. The certificate is generated
     # per run and is not in git.
     ios/Testing/make-test-ca.sh "$CERT_DIR" >/dev/null
+    mkdir -p android/app/src/debug/res/raw
     cp "$CERT_DIR/ca.pem" android/app/src/debug/res/raw/mailrs_test_ca.pem
     stop_recorded "$MAIL_STUB_PIDFILE"
     python3 ios/Testing/tls-mail-stub.py "$CERT_DIR" \

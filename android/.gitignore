@@ -3,6 +3,8 @@
 # time anyone looked — including `.gradle/*.lock`, which changes on
 # every build and conflicts on every merge.
 .gradle/
+# the Kotlin daemon's session markers, created and deleted on every build
+.kotlin/
 build/
 local.properties
 captures/
