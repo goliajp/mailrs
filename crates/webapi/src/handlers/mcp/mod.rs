@@ -45,6 +45,7 @@ mod params;
 mod params_email_groups;
 mod params_greylist;
 mod params_labels;
+mod params_ops;
 mod params_rules;
 mod params_senders;
 mod scopes;
@@ -62,6 +63,7 @@ mod tools_v2_batch15;
 mod tools_v2_batch16;
 mod tools_v2_batch17;
 mod tools_v2_batch18;
+mod tools_v2_batch19;
 mod tools_v2_batch2;
 mod tools_v2_batch3;
 mod tools_v2_batch4;
@@ -118,6 +120,7 @@ impl MailrsMcpService {
             + Self::tool_router_v2_batch16()
             + Self::tool_router_v2_batch17()
             + Self::tool_router_v2_batch18()
+            + Self::tool_router_v2_batch19()
             + Self::tool_router_mock()
     }
 }
