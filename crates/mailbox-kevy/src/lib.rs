@@ -97,6 +97,7 @@ mod message_dates_tests;
 mod messages;
 mod move_category;
 mod mutations;
+mod own_unseen;
 mod ownerless;
 mod participants;
 mod standing;
@@ -111,6 +112,7 @@ mod participants_tests;
 #[cfg(test)]
 mod read_state_tests;
 mod unread_column;
+pub use own_unseen::OwnUnseen;
 pub use unread_column::UnreadColumn;
 mod rethread;
 mod sections;

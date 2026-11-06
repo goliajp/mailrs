@@ -141,7 +141,7 @@ impl KevyMailboxStore {
     /// Three call sites used to hset `flags` directly. They are the whole
     /// reason this is a function rather than three lines repeated: every
     /// writer maintains the row.
-    fn write_flags(
+    pub(crate) fn write_flags(
         &self,
         user: &str,
         message_id: &str,
