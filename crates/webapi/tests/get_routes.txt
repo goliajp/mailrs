@@ -98,6 +98,7 @@
 /api/auth/sessions	read only, ids are hash prefixes
 /api/auth/app-passwords	read only, never the passwords
 /api/admin/protocol-logins	read only
+/api/admin/push-stats	read only
 /api/settings/forwarding	read only, never the code
 /api/mail/drafts	read only
 /api/mail/draft-attachments/{blob_id}	read only; the caller's own uploads only

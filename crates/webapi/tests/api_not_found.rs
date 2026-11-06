@@ -56,6 +56,7 @@ async fn known_routes_still_answer() {
     for path in [
         "/api/mock/namespaces/x/messages",
         "/api/admin/flow",
+        "/api/admin/push-stats",
         "/api/admin/mock",
     ] {
         let (status, _) = get(path).await;

@@ -96,6 +96,7 @@ pub const ADMIN_ROUTES: &[(&str, Need)] = &[
     ("/api/admin/password-clear/preview", Super),
     ("/api/admin/permissions", GROUPS),
     ("/api/admin/protocol-logins", Super),
+    ("/api/admin/push-stats", AnyAdmin),
     ("/api/admin/queues", Super),
     ("/api/admin/rbl-status", DOMAINS),
     ("/api/admin/reconcile-maildir", CACHE),

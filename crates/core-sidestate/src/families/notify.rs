@@ -11,6 +11,9 @@
 
 use serde::{Deserialize, Serialize};
 
+mod site;
+pub use site::{ChannelTotals, SiteDay, site_stats};
+
 pub fn prefs_key(user: &str) -> String {
     format!("notify:{}", user.to_lowercase())
 }
