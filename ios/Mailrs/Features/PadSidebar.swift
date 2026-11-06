@@ -10,6 +10,7 @@ import SwiftUI
 struct PadSidebar: View {
     @Environment(Session.self) private var session
     @Binding var showingSettings: Bool
+    @Binding var showingDrafts: Bool
 
     var body: some View {
         List(selection: selectionBinding) {
@@ -58,6 +59,11 @@ struct PadSidebar: View {
             get: { session.activeList },
             set: { chosen in
                 guard let chosen, chosen != session.activeList else { return }
+                // drafts open in their own sheet and the list stays put
+                if chosen == .draft {
+                    showingDrafts = true
+                    return
+                }
                 Task { await session.select(chosen) }
             })
     }

@@ -34,12 +34,12 @@ struct SenderSettingsActions: View {
 
     private func file(to bucket: SettingsWire.Bucket) async {
         guard let moved = await session.fileSender(address, to: bucket) else { return }
-        session.banner = String(localized: "Filed. \(moved) conversations moved")
+        session.banner = AppText.string("Filed. \(moved) conversations moved")
     }
 
     private func notify(_ value: String?) async {
         if await session.notifySender(address, value) {
-            session.banner = String(localized: "Notification setting saved")
+            session.banner = AppText.string("Notification setting saved")
         }
     }
 
@@ -74,7 +74,7 @@ struct ThreadNotifyActions: View {
 
     private func set(_ value: String?) async {
         if await session.notifyThread(threadId, value) {
-            session.banner = String(localized: "Notification setting saved")
+            session.banner = AppText.string("Notification setting saved")
         }
     }
 }

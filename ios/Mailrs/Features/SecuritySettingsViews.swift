@@ -38,7 +38,7 @@ struct SessionsView: View {
     }
 
     static func deviceLabel(_ userAgent: String) -> String {
-        if userAgent.isEmpty { return String(localized: "Unknown device") }
+        if userAgent.isEmpty { return AppText.string("Unknown device") }
         return userAgent
     }
 

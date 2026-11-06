@@ -40,6 +40,7 @@ struct PadRootView: View {
     @State private var searchTask: Task<Void, Never>?
     @State private var composing = false
     @State private var showingSettings = false
+    @State private var showingDrafts = false
     @State private var confirmingMarkAllRead = false
     @State private var columns = NavigationSplitViewVisibility.all
     /// Held rather than deleted at once: the phone asks, and a bigger
@@ -48,7 +49,7 @@ struct PadRootView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
-            PadSidebar(showingSettings: $showingSettings)
+            PadSidebar(showingSettings: $showingSettings, showingDrafts: $showingDrafts)
         } content: {
             conversations
                 // Resolved in code — see `LocalisedTitle`. A key handed
@@ -111,7 +112,7 @@ struct PadRootView: View {
             Button("Mark all as read") { Task { await session.markListRead() } }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Every conversation in \(listTitle) will be marked read.")
+            Text("Every conversation in \(listTitle) will be marked read")
         }
         .overlay(alignment: .bottom) { UndoBar() }
         .overlay(alignment: .bottom) { SendUndoBar() }
@@ -139,12 +140,13 @@ struct PadRootView: View {
             Button("Cancel", role: .cancel) { pendingDelete = nil }
         }
         .sheet(isPresented: $showingSettings) { SettingsView() }
+        .sheet(isPresented: $showingDrafts) { DraftsView() }
         .task {
             await session.loadConversations()
             await session.loadLabels()
             await session.loadSwipe()
         }
-        .confirmPrompt(when: !showingSettings && !composing)
+        .confirmPrompt(when: !showingSettings && !showingDrafts && !composing)
     }
 
     @ViewBuilder private var conversations: some View {

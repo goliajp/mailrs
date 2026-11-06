@@ -1,6 +1,22 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%@ does not accept a password for mail apps": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ はメールアプリのパスワードを受け付けません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 不接受邮件应用的密码"
+          }
+        }
+      }
+    },
     "%@ does not accept a password for mail apps — connecting it opens a sign-in page.": {
       "localizations": {
         "ja": {
@@ -129,6 +145,22 @@
         }
       }
     },
+    "%@:%@ and %@:%@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@:%@ と %@:%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@:%@ 和 %@:%@"
+          }
+        }
+      }
+    },
     "%lld attempts": {
       "localizations": {
         "ja": {
@@ -145,6 +177,54 @@
         }
       }
     },
+    "%lld awaiting": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未回答 %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未回复 %lld"
+          }
+        }
+      }
+    },
+    "%lld could not be marked read": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 件を既読にできませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个会话没能标记为已读"
+          }
+        }
+      }
+    },
+    "%lld guests": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ゲスト %lld 人"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 位来宾"
+          }
+        }
+      }
+    },
     "%lld messages": {
       "localizations": {
         "ja": {
@@ -157,6 +237,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld 封邮件"
+          }
+        }
+      }
+    },
+    "%lld no": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不参加 %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不参加 %lld"
           }
         }
       }
@@ -205,6 +301,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已选 %lld 项"
+          }
+        }
+      }
+    },
+    "%lld yes": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "参加 %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "参加 %lld"
           }
         }
       }
@@ -269,6 +381,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "(未知)"
+          }
+        }
+      }
+    },
+    "1 guest": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ゲスト 1 人"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 位来宾"
           }
         }
       }
@@ -381,6 +509,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "新密码只在网页上显示一次，复制到邮件程序里使用"
+          }
+        }
+      }
+    },
+    "A port must be between 1 and 65535": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ポートは 1 から 65535 の間で指定してください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "端口必须在 1 到 65535 之间"
           }
         }
       }
@@ -621,6 +765,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "在「设置」中添加后即可在这里阅读。"
+          }
+        }
+      }
+    },
+    "Add somebody to send this to": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "宛先を追加してください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请添加收件人"
           }
         }
       }
@@ -1089,6 +1249,22 @@
         }
       }
     },
+    "Assigned to me": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自分の担当"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分给我的"
+          }
+        }
+      }
+    },
     "At least 12 characters. Leave out your name and the company name.": {
       "localizations": {
         "ja": {
@@ -1197,6 +1373,70 @@
           "stringUnit": {
             "state": "translated",
             "value": "已放回原处"
+          }
+        }
+      }
+    },
+    "Bad URL": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL が正しくありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL 无效"
+          }
+        }
+      }
+    },
+    "Bad audit URL": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "監査ログの URL が正しくありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "审计日志 URL 无效"
+          }
+        }
+      }
+    },
+    "Bad contacts URL": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連絡先の URL が正しくありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "联系人 URL 无效"
+          }
+        }
+      }
+    },
+    "Bad icon URL": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アイコンの URL が正しくありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图标 URL 无效"
           }
         }
       }
@@ -1890,6 +2130,22 @@
         }
       }
     },
+    "Could not open this message": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このメールを開けませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打不开这封邮件"
+          }
+        }
+      }
+    },
     "Could not open this thread": {
       "localizations": {
         "ja": {
@@ -1906,6 +2162,38 @@
         }
       }
     },
+    "Could not reach the outgoing server": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送信サーバーに接続できませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连不上发件服务器"
+          }
+        }
+      }
+    },
+    "Could not reach the server": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーに接続できませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连不上服务器"
+          }
+        }
+      }
+    },
     "Could not read the source": {
       "localizations": {
         "ja": {
@@ -1918,6 +2206,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法读取原文"
+          }
+        }
+      }
+    },
+    "Could not read this mailbox": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このメールボックスを読めませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读不了这个邮箱"
           }
         }
       }
@@ -2018,6 +2322,54 @@
         }
       }
     },
+    "Delete %lld conversations?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 件の会話を削除しますか？"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除 %lld 个会话？"
+          }
+        }
+      }
+    },
+    "Delete account?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウントを削除しますか？"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除账户？"
+          }
+        }
+      }
+    },
+    "Delete alias?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エイリアスを削除しますか？"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除别名？"
+          }
+        }
+      }
+    },
     "Delete conversation?": {
       "localizations": {
         "ja": {
@@ -2030,6 +2382,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "删除这个会话？"
+          }
+        }
+      }
+    },
+    "Delete domain?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ドメインを削除しますか？"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除域名？"
           }
         }
       }
@@ -2094,6 +2462,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "删除群组？"
+          }
+        }
+      }
+    },
+    "Deleting is not supported for this account yet": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアカウントではまだ削除できません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个账户暂时不能删除邮件"
           }
         }
       }
@@ -2370,6 +2754,22 @@
         }
       }
     },
+    "Enter the code from your authenticator app": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "認証アプリのコードを入力してください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入验证器 App 中的验证码"
+          }
+        }
+      }
+    },
     "Enter the full address, like name@example.com": {
       "localizations": {
         "ja": {
@@ -2386,6 +2786,22 @@
         }
       }
     },
+    "Enter the full email address of the account to add": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "追加するアカウントのメールアドレスを省略せずに入力してください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入要添加的账户的完整邮箱地址"
+          }
+        }
+      }
+    },
     "Enter the server settings myself": {
       "localizations": {
         "ja": {
@@ -2398,6 +2814,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "自行填写服务器设置"
+          }
+        }
+      }
+    },
+    "Enter the six-digit code from your authenticator": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "認証アプリの 6 桁のコードを入力してください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入验证器中的 6 位验证码"
+          }
+        }
+      }
+    },
+    "Enter your password to continue": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "続けるにはパスワードを入力してください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入密码以继续"
           }
         }
       }
@@ -2430,6 +2878,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "日程"
+          }
+        }
+      }
+    },
+    "Every conversation in %@ will be marked read": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ のすべての会話が既読になります"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 中的所有会话都会标记为已读"
           }
         }
       }
@@ -2514,6 +2978,22 @@
         }
       }
     },
+    "Expands the message": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メールを展開します"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "展开这封邮件"
+          }
+        }
+      }
+    },
     "Failed": {
       "localizations": {
         "ja": {
@@ -2526,6 +3006,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "发送失败"
+          }
+        }
+      }
+    },
+    "Fetch Mail": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メールを取得"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收取邮件"
           }
         }
       }
@@ -2558,6 +3054,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "收取邮件"
+          }
+        }
+      }
+    },
+    "Fetch the whole message (%@)": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メール全体を取得（%@）"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "获取整封邮件（%@）"
+          }
+        }
+      }
+    },
+    "Fetch this mailbox first": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先にこのメールボックスを取得してください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先收取这个邮箱"
           }
         }
       }
@@ -2670,6 +3198,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "发件人"
+          }
+        }
+      }
+    },
+    "From %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主催者：%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "组织者：%@"
           }
         }
       }
@@ -3445,6 +3989,22 @@
         }
       }
     },
+    "Mark All as Read": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべて既読にする"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部标记为已读"
+          }
+        }
+      }
+    },
     "Mark all as read": {
       "localizations": {
         "ja": {
@@ -3569,6 +4129,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "标为已读或未读"
+          }
+        }
+      }
+    },
+    "Marked %lld as read": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 件を既読にしました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已将 %lld 个会话标记为已读"
           }
         }
       }
@@ -3973,6 +4549,22 @@
         }
       }
     },
+    "New Message": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新規メッセージ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "写邮件"
+          }
+        }
+      }
+    },
     "New account": {
       "localizations": {
         "ja": {
@@ -4197,6 +4789,38 @@
         }
       }
     },
+    "No HTTP response": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーから応答がありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器没有响应"
+          }
+        }
+      }
+    },
+    "No accounts": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウントはありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有账户"
+          }
+        }
+      }
+    },
     "No addresses": {
       "localizations": {
         "ja": {
@@ -4209,6 +4833,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有地址"
+          }
+        }
+      }
+    },
+    "No aliases": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エイリアスはありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有别名"
           }
         }
       }
@@ -4274,6 +4914,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "这个标签下没有会话"
+          }
+        }
+      }
+    },
+    "No domains": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ドメインはありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有域名"
           }
         }
       }
@@ -4582,6 +5238,22 @@
         }
       }
     },
+    "Not signed in": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サインインしていません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未登录"
+          }
+        }
+      }
+    },
     "Not syncing": {
       "localizations": {
         "ja": {
@@ -4690,6 +5362,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有匹配项。只搜索已经取回的邮件。"
+          }
+        }
+      }
+    },
+    "Nothing is assigned to you": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "担当の会話はありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有分给你的会话"
+          }
+        }
+      }
+    },
+    "Nothing is waiting for a reply": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返信を待っている会話はありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有等待回复的会话"
           }
         }
       }
@@ -4914,6 +5618,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "好"
+          }
+        }
+      }
+    },
+    "Older mail is not available for this account yet": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアカウントでは古いメールをまだ取得できません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个账户暂时取不到更早的邮件"
           }
         }
       }
@@ -5442,6 +6162,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "移除"
+          }
+        }
+      }
+    },
+    "Remove %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ を削除"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除 %@"
           }
         }
       }
@@ -6102,6 +6838,22 @@
         }
       }
     },
+    "Sent from %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ から送信"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发自 %@"
+          }
+        }
+      }
+    },
     "Sent from my phone": {
       "localizations": {
         "ja": {
@@ -6278,6 +7030,22 @@
         }
       }
     },
+    "Sign Out": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サインアウト"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出登录"
+          }
+        }
+      }
+    },
     "Sign in": {
       "localizations": {
         "ja": {
@@ -6310,6 +7078,54 @@
         }
       }
     },
+    "Sign in again to change this account": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアカウントを変更するには、もう一度サインインしてください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要修改这个账户，请重新登录"
+          }
+        }
+      }
+    },
+    "Sign in again to read this account": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアカウントを読むには、もう一度サインインしてください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要读取这个账户，请重新登录"
+          }
+        }
+      }
+    },
+    "Sign in again to send from this account": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアカウントから送信するには、もう一度サインインしてください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要用这个账户发信，请重新登录"
+          }
+        }
+      }
+    },
     "Sign in to your mail": {
       "localizations": {
         "ja": {
@@ -6322,6 +7138,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "登录你的邮箱"
+          }
+        }
+      }
+    },
+    "Sign in with %@ is not built yet — a mailbox that takes an app password works today": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ でのサインインはまだ使えません。アプリ用パスワードを受け付けるメールボックスなら今すぐ使えます"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还不能用 %@ 登录；接受应用专用密码的邮箱现在就能用"
           }
         }
       }
@@ -6386,6 +7218,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "当前登录"
+          }
+        }
+      }
+    },
+    "Signed out after too many wrong passwords": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "パスワードの誤りが多すぎたため、サインアウトしました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密码错误次数过多，已退出登录"
           }
         }
       }
@@ -6518,6 +7366,22 @@
         }
       }
     },
+    "Support": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サポート"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "客服"
+          }
+        }
+      }
+    },
     "Suppressed": {
       "localizations": {
         "ja": {
@@ -6630,6 +7494,22 @@
         }
       }
     },
+    "Team": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "チーム"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "团队"
+          }
+        }
+      }
+    },
     "Templates": {
       "localizations": {
         "ja": {
@@ -6646,6 +7526,38 @@
         }
       }
     },
+    "That address and password did not match": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アドレスとパスワードが一致しません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地址和密码不匹配"
+          }
+        }
+      }
+    },
+    "That code does not work: it may be mistyped, used up, or replaced by a newer one": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このコードは使えません。入力ミス、使用済み、または新しいコードに置き換えられた可能性があります"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个验证码不能用：可能输错了、已经用过，或者已被新的验证码取代"
+          }
+        }
+      }
+    },
     "That code does not work: it may be mistyped, used up, or replaced by a newer one. Ask %@ for a new code.": {
       "localizations": {
         "ja": {
@@ -6658,6 +7570,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "这个验证码不能用：可能输错了、已经用过，或者已被新的验证码取代。请向 %@ 索取新的验证码。"
+          }
+        }
+      }
+    },
+    "That is not an email address": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メールアドレスではありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这不是邮箱地址"
           }
         }
       }
@@ -6722,6 +7650,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "没能让这台设备退出登录"
+          }
+        }
+      }
+    },
+    "The incoming server needs a name": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "受信サーバー名を入力してください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请填写收件服务器的地址"
+          }
+        }
+      }
+    },
+    "The incoming server refused: %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "受信サーバーが拒否しました：%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收件服务器拒绝了：%@"
           }
         }
       }
@@ -6822,6 +7782,70 @@
         }
       }
     },
+    "The outgoing server closed the connection": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送信サーバーが接続を切りました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发件服务器断开了连接"
+          }
+        }
+      }
+    },
+    "The outgoing server needs a name": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送信サーバー名を入力してください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请填写发件服务器的地址"
+          }
+        }
+      }
+    },
+    "The outgoing server refused: %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送信サーバーが拒否しました：%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发件服务器拒绝了：%@"
+          }
+        }
+      }
+    },
+    "The reply could not be sent": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返信を送れませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回复没有发出去"
+          }
+        }
+      }
+    },
     "The same setting is used on the web and in the Android app. In the Trash either swipe restores the conversation": {
       "localizations": {
         "ja": {
@@ -6882,6 +7906,134 @@
           "stringUnit": {
             "state": "translated",
             "value": "没能接受这些发件人"
+          }
+        }
+      }
+    },
+    "The server answered %lld": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーの応答：%lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器返回 %lld"
+          }
+        }
+      }
+    },
+    "The server did not queue the message": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーがメールを送信待ちに入れませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器没有把这封邮件放进发送队列"
+          }
+        }
+      }
+    },
+    "The server is busy — try again shortly (%lld)": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーが混み合っています。少し待ってからもう一度お試しください（%lld）"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器繁忙，请稍后再试（%lld）"
+          }
+        }
+      }
+    },
+    "The server is restarting. Try again in a moment": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーを再起動しています。少し待ってからもう一度お試しください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器正在重启，请稍后再试"
+          }
+        }
+      }
+    },
+    "The server refused the recipient or the sender address (%lld): %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーが宛先または差出人のアドレスを拒否しました（%lld）：%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器拒绝了收件人或发件人地址（%lld）：%@"
+          }
+        }
+      }
+    },
+    "The server refused the sign-in for this account (535)": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーがこのアカウントのサインインを拒否しました（535）"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器拒绝了这个账户的登录（535）"
+          }
+        }
+      }
+    },
+    "The server refused this message (%lld): %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーがこのメールを拒否しました（%lld）：%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器拒绝了这封邮件（%lld）：%@"
+          }
+        }
+      }
+    },
+    "The server sent something unexpected: %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーから想定外の応答がありました：%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器返回了意料之外的内容：%@"
           }
         }
       }
@@ -6966,6 +8118,22 @@
         }
       }
     },
+    "Their name": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名前"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对方的名字"
+          }
+        }
+      }
+    },
     "Theme": {
       "localizations": {
         "ja": {
@@ -6978,6 +8146,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "主题"
+          }
+        }
+      }
+    },
+    "This account has no trash folder": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアカウントにはゴミ箱フォルダがありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个账户没有废纸篓文件夹"
           }
         }
       }
@@ -7010,6 +8194,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "这台设备"
+          }
+        }
+      }
+    },
+    "This device is holding as much of this account as it can": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この端末に保存できるこのアカウントのメールは上限に達しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台设备上这个账户的邮件已经存满"
           }
         }
       }
@@ -7058,6 +8258,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "该邮箱已不再连接"
+          }
+        }
+      }
+    },
+    "This mailbox was rebuilt — fetch it again": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このメールボックスは作り直されました。もう一度取得してください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个邮箱已重建，请重新收取"
           }
         }
       }
@@ -7238,6 +8454,22 @@
         }
       }
     },
+    "To: %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "宛先：%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收件人：%@"
+          }
+        }
+      }
+    },
     "Today": {
       "localizations": {
         "ja": {
@@ -7250,6 +8482,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "今天"
+          }
+        }
+      }
+    },
+    "Toggle read": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "既読／未読を切り替え"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换已读／未读"
           }
         }
       }
@@ -7442,6 +8690,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "撤销"
+          }
+        }
+      }
+    },
+    "Unknown": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不明"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知"
           }
         }
       }
@@ -7814,6 +9078,38 @@
         }
       }
     },
+    "Wrong password or code. %lld tries left before you are signed out": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "パスワードまたはコードが違います。あと %lld 回試せます。使い切るとサインアウトされます"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密码或验证码错误。还能再试 %lld 次，用完就会退出登录"
+          }
+        }
+      }
+    },
+    "Wrong password or code. 1 try left before you are signed out": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "パスワードまたはコードが違います。あと 1 回間違えるとサインアウトされます"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密码或验证码错误。再错 1 次就会退出登录"
+          }
+        }
+      }
+    },
     "Yes": {
       "localizations": {
         "ja": {
@@ -7830,6 +9126,70 @@
         }
       }
     },
+    "You accepted": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "参加と回答しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你已接受"
+          }
+        }
+      }
+    },
+    "You answered": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回答しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你已回复"
+          }
+        }
+      }
+    },
+    "You answered maybe": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未定と回答しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你回复了待定"
+          }
+        }
+      }
+    },
+    "You declined": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不参加と回答しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你已拒绝"
+          }
+        }
+      }
+    },
     "Your new password is set. Sign in with it.": {
       "localizations": {
         "ja": {
@@ -7842,6 +9202,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "新密码已设好，请用它登录。"
+          }
+        }
+      }
+    },
+    "Your password was reset by an administrator": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "パスワードは管理者によってリセットされました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的密码已被管理员重置"
           }
         }
       }
@@ -7974,6 +9350,28 @@
         }
       }
     },
+    "invite.answers.separator": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", "
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "、"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "，"
+          }
+        }
+      }
+    },
     "rules %@": {
       "localizations": {
         "ja": {
@@ -8002,6 +9400,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "someone@example.com"
+          }
+        }
+      }
+    },
+    "the server closed the connection": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーが接続を切りました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器断开了连接"
+          }
+        }
+      }
+    },
+    "the server did not answer": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーが応答しませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器没有响应"
           }
         }
       }

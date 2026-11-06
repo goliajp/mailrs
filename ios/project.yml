@@ -88,6 +88,13 @@ schemes:
         MailrsUITests: [test]
     test:
       targets: [MailrsTests, MailrsUITests]
+      # The unit tests' host app runs in this language rather than the
+      # simulator's, which is Chinese: a string resolved in code follows
+      # the process language when the app's own is "System", and the
+      # tests that read English sentences would read Chinese ones. The UI
+      # tests set their language at each launch.
+      language: en
+      region: US
       preActions:
         - name: start stub API
           script: |

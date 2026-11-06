@@ -181,7 +181,7 @@ extension MailrsClient {
     /// A JSON body whose answer is empty (`204`).
     private func sendJSON<B: Encodable>(_ method: String, _ path: String, body: B) async throws {
         let (_, response) = try await send(method, path, body: try JSONEncoder().encode(body), authorized: true)
-        guard let http = response as? HTTPURLResponse else { throw MailrsError.transport("No HTTP response.") }
+        guard let http = response as? HTTPURLResponse else { throw MailrsError.transport("No HTTP response") }
         guard (200..<300).contains(http.statusCode) else { throw MailrsError.server(status: http.statusCode) }
     }
 }

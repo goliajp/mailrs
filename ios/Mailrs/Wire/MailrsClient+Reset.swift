@@ -35,7 +35,7 @@ extension MailrsClient {
             "POST", "/api/auth/password-reset", body: try JSONEncoder().encode(body), authorized: false
         )
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         if (200..<300).contains(http.statusCode) { return }
         let code = Self.errorCode(data)

@@ -19,7 +19,7 @@ struct ResetCodeSheet: View {
     @State private var busy = false
 
     private var whom: String {
-        session.resetContact?.text ?? String(localized: "an administrator")
+        session.resetContact?.text ?? AppText.string("an administrator")
     }
 
     var body: some View {
@@ -86,7 +86,7 @@ struct ResetCodeSheet: View {
 
     private func submit() async {
         guard !address.isEmpty, !code.isEmpty, !password.isEmpty else {
-            failure = String(localized: "Fill in the address, the code and the new password.")
+            failure = AppText.string("Fill in the address, the code and the new password.")
             return
         }
         busy = true
@@ -98,7 +98,7 @@ struct ResetCodeSheet: View {
             onDone(trimmed)
             dismiss()
         } catch MailrsError.invalidResetCode {
-            failure = String(localized: "That code does not work: it may be mistyped, used up, or replaced by a newer one. Ask \(whom) for a new code.")
+            failure = AppText.string("That code does not work: it may be mistyped, used up, or replaced by a newer one. Ask \(whom) for a new code.")
         } catch {
             failure = error.localizedDescription
         }

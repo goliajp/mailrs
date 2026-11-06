@@ -16,6 +16,9 @@ struct InviteCard: View {
     let method: String
     @Environment(Session.self) private var session
     @Environment(\.theme) private var theme
+    // the language and zone chosen in the app, which `.current` is not
+    @Environment(\.locale) private var locale
+    @Environment(\.timeZone) private var timeZone
     @State private var detail: Wire.MessageDetail?
     @State private var sending = false
     @State private var failure: String?
@@ -65,13 +68,13 @@ struct InviteCard: View {
 
             // the next occurrence of a series, in the reader's zone, with
             // the organiser's clock beside it when the two differ
-            if let when = InviteRepeat.whenLine(invite) {
+            if let when = InviteRepeat.whenLine(invite, reader: timeZone, locale: locale) {
                 Label(when, systemImage: "clock")
                     .font(.caption)
                     .foregroundStyle(theme.fgSecondary)
                     .accessibilityIdentifier("invite.when")
             }
-            if let repeats = InviteRepeat.ruleLine(invite) {
+            if let repeats = InviteRepeat.ruleLine(invite, reader: timeZone, locale: locale) {
                 Label(repeats, systemImage: "repeat")
                     .font(.caption)
                     .foregroundStyle(theme.fgSecondary)
@@ -105,15 +108,17 @@ struct InviteCard: View {
                 Text("From \(organizer.cn ?? organizer.email)")
                     .font(.caption2)
                     .foregroundStyle(theme.fgMuted)
+                    .accessibilityIdentifier("invite.organizer")
             }
             if !invite.attendees.isEmpty {
-                Text(InviteGuests.summary(invite.attendees))
+                Text(InviteGuests.summary(invite.attendees, locale: locale))
                     .font(.caption2)
                     .foregroundStyle(theme.fgMuted)
+                    .accessibilityIdentifier("invite.guests")
             }
 
             if let answered = detail?.rsvpStatus, !answered.isEmpty {
-                Text(InviteGuests.answered(answered))
+                Text(InviteGuests.answered(answered, locale: locale))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(theme.accent)
             } else if InviteMethod.wantsAnswer(method), !cancelled {

@@ -56,7 +56,7 @@ struct RecipientLine: View {
 
     private func names(_ summary: RecipientSummary) -> String {
         var names = summary.named
-        if summary.me { names.insert(String(localized: "Me"), at: 0) }
+        if summary.me { names.insert(AppText.string("Me"), at: 0) }
         return names.joined(separator: ", ")
     }
 

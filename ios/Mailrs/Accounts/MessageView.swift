@@ -9,6 +9,8 @@ struct MessageView: View {
     var onReply: ((MessageReader.Loaded, Bool) -> Void)?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.theme) private var theme
+    @Environment(\.locale) private var locale
+    @Environment(\.timeZone) private var timeZone
     @State private var outcome: MessageReader.Outcome?
     /// The attachment being previewed, if any.
     @State private var previewing: PreviewFile?
@@ -65,7 +67,7 @@ struct MessageView: View {
         }
         .task {
             guard let account else {
-                outcome = .failed("This mailbox is no longer connected")
+                outcome = .failed(AppText.string("This mailbox is no longer connected"))
                 return
             }
             outcome = await MessageReader.load(
@@ -126,9 +128,10 @@ struct MessageView: View {
         if let when = row.date {
             parts.append(
                 Date(timeIntervalSince1970: TimeInterval(when))
-                    .formatted(date: .abbreviated, time: .shortened))
+                    .formatted(Date.FormatStyle(
+                        date: .abbreviated, time: .shortened, locale: locale, timeZone: timeZone)))
         }
-        var name = "Unknown"
+        var name = AppText.string("Unknown", in: locale)
         if let account { name = account.title }
         parts.append("\(name) · \(row.folder)")
         return parts.joined(separator: " · ")
@@ -220,9 +223,7 @@ struct MessageView: View {
                                 account: account, row: row, wholeMessage: true)
                         }
                     } label: {
-                        Text(
-                            "Fetch the whole message ("
-                                + (loaded.size ?? 0).formatted(.byteCount(style: .file)) + ")")
+                        Text("Fetch the whole message (\((loaded.size ?? 0).formatted(.byteCount(style: .file))))")
                     }
                     .font(.caption)
                     .accessibilityIdentifier("message.fetchWhole")

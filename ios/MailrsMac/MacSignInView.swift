@@ -172,7 +172,7 @@ struct MacSignInView: View {
         let account = CredentialStore.lastAddress ?? address
         guard !account.isEmpty,
               let stored = CredentialStore.password(
-                for: account, reason: String(localized: "Sign in to your mail"))
+                for: account, reason: AppText.string("Sign in to your mail"))
         else {
             showsPassword = true
             return

@@ -5,6 +5,8 @@ import SwiftUI
 struct ScheduledLine: View {
     let at: Int64
     let onClear: () -> Void
+    @Environment(\.locale) private var locale
+    @Environment(\.timeZone) private var timeZone
 
     var body: some View {
         HStack(spacing: 8) {
@@ -23,7 +25,8 @@ struct ScheduledLine: View {
     }
 
     private var when: String {
-        Date(timeIntervalSince1970: TimeInterval(at)).formatted(date: .abbreviated, time: .shortened)
+        Date(timeIntervalSince1970: TimeInterval(at)).formatted(
+            Date.FormatStyle(date: .abbreviated, time: .shortened, locale: locale, timeZone: timeZone))
     }
 }
 
