@@ -54,6 +54,9 @@ export const selectMailListAtom = atom(null, (get, set, id: MailListId) => {
 /** The conversations the label picker is open for, or null when it is closed. */
 export const labelPickerAtom = atom<null | { threadIds: string[] }>(null)
 
+/** The conversation the snooze picker asks "until when" for, or null when it is closed. */
+export const snoozePickerAtom = atom<null | { threadId: string }>(null)
+
 /** Show one label's conversations. */
 export const selectLabelAtom = atom(null, (get, set, id: string) => {
   if (get(activeListAtom) === 'label' && get(activeLabelAtom) === id) return
