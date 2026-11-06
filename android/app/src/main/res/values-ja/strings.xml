@@ -480,7 +480,7 @@
     <string name="sections_help">受信トレイの上に、返信が必要なメール、返事を待っている会話、新しい差出人のタブを表示します。Web と iPhone でも同じ設定が使われます</string>
     <string name="sections_save_failed">区分付き受信トレイの設定を保存できませんでした</string>
     <string name="notify_mode_default">返信が必要なメールと重要な人（推奨）</string>
-    <string name="notify_mode_all">すべてのメール</string>
+    <string name="notify_mode_all">迷惑メールと通知・宣伝以外のすべて</string>
     <string name="notify_mode_important">重要な人だけ</string>
     <string name="notify_mode_off">なし</string>
     <string name="notify_hide_content">差出人と件名を表示しない</string>

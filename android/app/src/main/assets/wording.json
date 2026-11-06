@@ -1158,19 +1158,19 @@
     },
     {
       "id": "push.mode.all",
-      "about": "push: every message",
+      "about": "push: all mail but Junk and the notifications and promotions list (push_policy::by_mode)",
       "source": {
         "en": "ours",
         "ja": "ours",
         "zh": "ours"
       },
       "text": {
-        "en": "Every message",
-        "ja": "すべてのメール",
-        "zh": "所有邮件"
+        "en": "All mail except Junk and N & P",
+        "ja": "迷惑メールと通知・宣伝以外のすべて",
+        "zh": "除垃圾邮件和「通知与推广」以外的全部邮件"
       },
       "web": ["settings.notify.mode.all"],
-      "ios": ["Every message"],
+      "ios": ["All mail except Junk and N & P"],
       "android": ["notify_mode_all"]
     },
     {

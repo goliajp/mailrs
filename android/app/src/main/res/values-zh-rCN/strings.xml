@@ -480,7 +480,7 @@
     <string name="sections_help">在收件箱上方显示「我要回复」「等待回复」「新发件人」几个标签。网页和 iPhone 用的是同一个设置</string>
     <string name="sections_save_failed">分区收件箱的设置没有保存</string>
     <string name="notify_mode_default">需要回复的邮件和重要联系人（推荐）</string>
-    <string name="notify_mode_all">所有邮件</string>
+    <string name="notify_mode_all">除垃圾邮件和「通知与推广」以外的全部邮件</string>
     <string name="notify_mode_important">只推重要联系人</string>
     <string name="notify_mode_off">无</string>
     <string name="notify_hide_content">隐藏发件人和主题</string>
