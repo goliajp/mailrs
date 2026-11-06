@@ -235,25 +235,7 @@ fn listen_for_signouts(kevy_url: &str, ctx: Arc<ConnectionContext>) {
         },
         move || {
             let ctx = ctx.clone();
-            runtime.spawn(async move { end_cleared(&ctx).await });
+            runtime.spawn(async move { crate::smtp_session::end_cleared(&ctx).await });
         },
     );
-}
-
-/// Close the submission connections of every account signed in here whose
-/// password has been cleared.
-pub(crate) async fn end_cleared(ctx: &ConnectionContext) {
-    let Some(credentials) = &ctx.credential_store else {
-        return;
-    };
-    for account in ctx.signins.accounts() {
-        if matches!(credentials.password_cleared(&account).await, Ok(true)) {
-            let closed = ctx.signins.end(&account);
-            tracing::info!(
-                account = %mailrs_auth_guard::login::loggable_account(&account),
-                closed,
-                "closed submission connections of an account signed out while unheard"
-            );
-        }
-    }
 }

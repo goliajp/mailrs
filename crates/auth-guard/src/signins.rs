@@ -27,33 +27,44 @@ pub struct Signins {
     /// When each account's sign-ins were last ended, for a connection that
     /// signs in while that happens; see [`Signins::enter_since`].
     last_ended: Arc<Mutex<HashMap<String, Instant>>>,
+    /// When a sweep last listed the accounts signed in; see
+    /// [`Signins::sweep`].
+    last_swept: Arc<Mutex<Option<Instant>>>,
 }
 
 /// A connection's place in the registry, held for as long as it is signed
 /// in; dropping it leaves.
 pub struct SignedIn {
     flag: Arc<Flag>,
+    missed_sweep: bool,
 }
 
 impl Signins {
-    /// Register a connection that has signed in as `account`.
-    pub fn enter(&self, account: &str) -> SignedIn {
+    fn enter(&self, account: &str) -> SignedIn {
         let flag = Arc::new(Flag::default());
         let mut map = self.by_account.lock().expect("signins lock");
         let list = map.entry(account.to_ascii_lowercase()).or_default();
         // connections that have closed since leave dead entries behind
         list.retain(|w| w.strong_count() > 0);
         list.push(Arc::downgrade(&flag));
-        SignedIn { flag }
+        SignedIn {
+            flag,
+            missed_sweep: false,
+        }
     }
 
-    /// [`Signins::enter`] for a connection that answered the sign-in before
-    /// registering: ended already if the account's sign-ins were ended at
-    /// or after `since`, a moment taken before the sign-in was answered.
-    /// Otherwise an end landing between the answer and the registration
-    /// would find nothing to close, and the connection would stay open.
+    /// Register a connection that has signed in as `account`. `since` is a
+    /// moment taken before its credentials were checked: an end or a sweep
+    /// landing between the check and this registration finds nothing to
+    /// close, and the connection would stay open for good.
+    ///
+    /// The connection is ended already if the account's sign-ins were
+    /// ended at or after `since`. If a sweep listed the accounts at or
+    /// after `since`, it may have passed over this one: the connection
+    /// learns it from [`SignedIn::missed_sweep`] and has to ask, as the
+    /// sweep would have, whether the account's password is cleared.
     pub fn enter_since(&self, account: &str, since: Instant) -> SignedIn {
-        let signed_in = self.enter(account);
+        let mut signed_in = self.enter(account);
         let ended = self.last_ended.lock().expect("signins lock");
         if ended
             .get(&account.to_ascii_lowercase())
@@ -61,11 +72,27 @@ impl Signins {
         {
             signed_in.flag.ended.store(true, Ordering::SeqCst);
         }
+        drop(ended);
+        // read after registering: a sweep stamps its time before listing,
+        // so one that listed before this registration is seen here
+        signed_in.missed_sweep = self
+            .last_swept
+            .lock()
+            .expect("signins lock")
+            .is_some_and(|at| at >= since);
         signed_in
     }
 
-    /// The accounts with a connection open now.
-    pub fn accounts(&self) -> Vec<String> {
+    /// The accounts with a connection open now, for a sweep that ends
+    /// those whose password has been cleared. A connection registering
+    /// while the sweep runs is not listed, and learns it from
+    /// [`SignedIn::missed_sweep`].
+    pub fn sweep(&self) -> Vec<String> {
+        *self.last_swept.lock().expect("signins lock") = Some(Instant::now());
+        self.accounts()
+    }
+
+    fn accounts(&self) -> Vec<String> {
         let mut map = self.by_account.lock().expect("signins lock");
         map.retain(|_, list| {
             list.retain(|w| w.strong_count() > 0);
@@ -98,6 +125,12 @@ impl Signins {
 }
 
 impl SignedIn {
+    /// Whether a sweep listed the accounts between this connection's
+    /// credential check and its registration; see [`Signins::enter_since`].
+    pub fn missed_sweep(&self) -> bool {
+        self.missed_sweep
+    }
+
     /// Resolves once the account's sign-ins are ended, at once if they
     /// already were.
     pub async fn ended(&self) {
@@ -187,12 +220,28 @@ mod tests {
         );
     }
 
+    /// The sweep race: the credentials are checked, a sweep lists the
+    /// accounts signed in, and only then does the connection register.
+    #[test]
+    fn a_sweep_between_the_check_and_the_registration_is_reported() {
+        let signins = Signins::default();
+        let since = Instant::now();
+        assert!(signins.sweep().is_empty(), "nothing registered yet");
+        assert!(signins.enter_since("a@x.test", since).missed_sweep());
+        assert!(
+            !signins
+                .enter_since("a@x.test", Instant::now())
+                .missed_sweep(),
+            "a sweep before the check could not have missed this sign-in"
+        );
+    }
+
     #[test]
     fn only_accounts_with_an_open_connection_are_listed() {
         let signins = Signins::default();
         let _a = signins.enter("A@x.test");
         drop(signins.enter("b@x.test"));
-        assert_eq!(signins.accounts(), vec!["a@x.test".to_string()]);
+        assert_eq!(signins.sweep(), vec!["a@x.test".to_string()]);
     }
 
     #[test]
