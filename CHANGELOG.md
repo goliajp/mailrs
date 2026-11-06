@@ -18,6 +18,18 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### A device removed from push stays removed
+
+- Removing a device from another device's push settings now keeps it
+  removed: the device no longer registers itself back on its next
+  launch. It shows that it was removed and stays off until it is turned
+  on again on that device. The removal is kept for 30 days.
+- Removing a device only stops its notifications; it stays signed in.
+  Signing a device out, ending its session in the list of signed-in
+  devices, or changing or resetting the password now also stops
+  notifications to the devices those sessions registered.
+- The iPhone app now ends its session on the server when it signs out.
+
 ### An Android phone the server dropped from push registers again
 
 - When the server drops an Android phone from instant notifications

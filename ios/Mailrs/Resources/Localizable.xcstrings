@@ -5462,6 +5462,22 @@
         }
       }
     },
+    "Removed from another device; turn on again to receive pushes": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別の端末から削除されました。もう一度オンにすると通知が届きます"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已在另一台设备上移除；重新开启才能收到推送"
+          }
+        }
+      }
+    },
     "Reply": {
       "localizations": {
         "ja": {
@@ -7330,6 +7346,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "废纸篓是空的"
+          }
+        }
+      }
+    },
+    "Turn on again": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "もう一度オンにする"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新开启"
           }
         }
       }

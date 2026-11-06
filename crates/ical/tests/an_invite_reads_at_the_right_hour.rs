@@ -113,31 +113,18 @@ fn the_same_meeting_in_january_is_standard_time() {
 }
 
 /// 08 March 2026 is the second Sunday: 02:00 becomes 03:00 and 02:30
-/// never happens. A resolver must still answer *something* rather than
-/// panic — an invitation naming an impossible hour is a real thing
-/// organisers send, and refusing to render it is worse than picking
-/// the offset either side of the gap.
+/// never happens. RFC 5545 §3.3.5 reads it with the offset before the
+/// gap, standard time, which puts it at 03:30 daylight time.
 #[test]
-fn the_hour_that_does_not_exist_still_resolves() {
-    let off = offset_for(2026, 3, 8, 2, 30);
-    assert!(
-        off == -8 * 3600 || off == -7 * 3600,
-        "expected one of the two offsets around the gap, got {off}"
-    );
+fn the_hour_that_does_not_exist_takes_the_offset_before_the_gap() {
+    assert_eq!(offset_for(2026, 3, 8, 2, 30), -8 * 3600);
 }
 
-/// 01 November 2026 is the first Sunday: 01:30 happens twice. Whichever
-/// is chosen, it must be one of the two — and it must be chosen the
-/// same way every time, or a meeting moves an hour between renders.
+/// 01 November 2026 is the first Sunday: 01:30 happens twice. RFC 5545
+/// §3.3.5 takes the first, still on daylight time.
 #[test]
-fn the_hour_that_happens_twice_resolves_the_same_way_each_time() {
-    let first = offset_for(2026, 11, 1, 1, 30);
-    let second = offset_for(2026, 11, 1, 1, 30);
-    assert_eq!(first, second, "the ambiguous hour must not wobble");
-    assert!(
-        first == -7 * 3600 || first == -8 * 3600,
-        "expected one of the two offsets around the repeat, got {first}"
-    );
+fn the_hour_that_happens_twice_is_the_first_of_the_two() {
+    assert_eq!(offset_for(2026, 11, 1, 1, 30), -7 * 3600);
 }
 
 /// And the whole of it in one call — the shape the server stores and

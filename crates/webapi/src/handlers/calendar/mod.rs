@@ -5,18 +5,17 @@
 //! ```text
 //! calendar_feeds:<user>          hash { feed_id -> JSON CalendarFeed }
 //! calendar_events:<user>         zset  score = dtstart_epoch, member = event_uid
-//! calendar_event:<user>:<uid>    hash  { summary, dtstart, dtend, organizer, status, source, partstat }
+//! calendar_event:<user>:<uid>    hash  { summary, dtstart, dtend, organizer, status, source, partstat, recurrence, … }
 //! ```
 //!
-//! Full recurrence expansion (RRULE / EXDATE / RECURRENCE-ID) mirrors
-//! the monolith's `crates/server/src/web/calendar_api.rs`. This port
-//! ships the same wire shapes so the UI's invite card + weekly view
-//! render identically.
+//! A recurring event is one row holding its series; the events and
+//! conflicts readers expand it into the occurrences of the window asked
+//! for (`calendar_events::series`), each with its `recurrence_id`.
 
 use std::sync::Arc;
 
 use axum::Json;
-use axum::extract::{Extension, Path, Query, State};
+use axum::extract::{Extension, Query, State};
 use axum::http::StatusCode;
 use mailrs_core_sidestate::families::calendar_events::span;
 use serde::{Deserialize, Serialize};
@@ -25,12 +24,8 @@ use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
 use crate::handlers::kevy_util::with_kevy;
 
-fn now_secs() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
+mod feeds;
+pub use feeds::{CreateFeedRequest, FeedView, FeedWire, create_feed, delete_feed, list_feeds};
 
 #[derive(Debug, Deserialize)]
 pub struct ConflictsQuery {
@@ -70,6 +65,12 @@ pub struct EventRow {
     /// Absent when the mail is gone or the event did not come by mail.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thread_id: Option<String>,
+    /// For one occurrence of a recurring event, which occurrence it is (the
+    /// start the rule gave it, RFC 3339, or a date for an all-day series);
+    /// the same `uid` comes back once per occurrence in the window. Absent
+    /// for an event that does not repeat.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recurrence_id: Option<String>,
 }
 
 fn parse_iso(s: &str) -> Option<i64> {
@@ -166,29 +167,52 @@ pub async fn get_events(
 /// disagree about which events exist. A row without an end lasts an hour,
 /// as it always has for conflicts.
 fn rows_in_window(user: &str, start_ts: i64, end_ts: i64) -> Result<Vec<EventRow>, StatusCode> {
+    use mailrs_core_sidestate::families::calendar_events::series;
     let user = user.to_string();
     let stored =
         with_kevy(move |c| mailrs_core_sidestate::families::calendar_events::list(c, &user))?;
-    Ok(stored
-        .into_iter()
-        .map(EventRow::from)
-        .filter(|row| {
-            if is_all_day(row) {
-                return all_day_overlaps(row, start_ts, end_ts);
-            }
-            let s_ts = row
-                .dtstart
-                .as_deref()
-                .and_then(parse_iso)
-                .unwrap_or(i64::MIN);
-            let e_ts = row
-                .dtend
-                .as_deref()
-                .and_then(parse_iso)
-                .unwrap_or(s_ts + 3600);
-            s_ts < end_ts && e_ts > start_ts
-        })
-        .collect())
+    let (Some(from), Some(to)) = (
+        chrono::DateTime::from_timestamp(start_ts, 0),
+        chrono::DateTime::from_timestamp(end_ts, 0),
+    ) else {
+        return Err(StatusCode::BAD_REQUEST);
+    };
+    let mut rows = Vec::new();
+    for ev in stored {
+        if let Some(occurrences) = series::occurrences(&ev, from, to) {
+            let row = EventRow::from(ev);
+            rows.extend(occurrences.into_iter().map(|o| EventRow {
+                dtstart: Some(o.start.to_column()),
+                dtend: Some(o.end.to_column()),
+                recurrence_id: Some(o.recurrence_id.to_column()),
+                ..row.clone()
+            }));
+            continue;
+        }
+        let row = EventRow::from(ev);
+        if overlaps(&row, start_ts, end_ts) {
+            rows.push(row);
+        }
+    }
+    rows.sort_by_key(|r| r.dtstart.as_deref().and_then(span::epoch_of));
+    Ok(rows)
+}
+
+fn overlaps(row: &EventRow, start_ts: i64, end_ts: i64) -> bool {
+    if is_all_day(row) {
+        return all_day_overlaps(row, start_ts, end_ts);
+    }
+    let s_ts = row
+        .dtstart
+        .as_deref()
+        .and_then(parse_iso)
+        .unwrap_or(i64::MIN);
+    let e_ts = row
+        .dtend
+        .as_deref()
+        .and_then(parse_iso)
+        .unwrap_or(s_ts + 3600);
+    s_ts < end_ts && e_ts > start_ts
 }
 
 fn is_all_day(row: &EventRow) -> bool {
@@ -225,150 +249,7 @@ impl From<mailrs_core_sidestate::families::calendar_events::StoredEvent> for Eve
             partstat: stored.partstat,
             message_id: stored.message_id,
             thread_id: None,
+            recurrence_id: None,
         }
     }
-}
-
-// ── Feeds (subscriptions to external ICS URLs) ─────────────────────
-
-/// The stored row, shared with the worker that syncs it.
-///
-/// Was a local type holding only what the form collected; the sync state the
-/// worker records (`last_synced_at`, `last_error`, the validators) now comes
-/// back with the feed, so a subscription that has been failing says so on
-/// the page where it was added.
-pub type FeedWire = mailrs_core_sidestate::families::calendar_feeds::FeedRow;
-
-/// A feed as the client sees it.
-///
-/// Separate from the stored row because the row holds the basic-auth
-/// password the user typed. Serving the stored row directly would send that
-/// password back to the browser on every list — and `FeedRow` has to keep it
-/// serializable, since that is how the worker reads it.
-#[derive(Debug, Serialize)]
-pub struct FeedView {
-    pub id: String,
-    pub name: String,
-    pub url: String,
-    pub color: Option<String>,
-    pub sync_interval_secs: i64,
-    pub created_at: i64,
-    pub last_synced_at: i64,
-    pub last_error: Option<String>,
-    pub last_event_count: i64,
-    /// Whether credentials are stored, without saying what they are.
-    pub has_basic_auth: bool,
-}
-
-impl From<FeedWire> for FeedView {
-    fn from(f: FeedWire) -> Self {
-        Self {
-            id: f.id,
-            name: f.name,
-            url: f.url,
-            color: f.color,
-            sync_interval_secs: f.sync_interval_secs,
-            created_at: f.created_at,
-            last_synced_at: f.last_synced_at,
-            last_error: f.last_error,
-            last_event_count: f.last_event_count,
-            has_basic_auth: f.basic_auth_user.is_some(),
-        }
-    }
-}
-
-#[derive(Debug, Deserialize)]
-/// `deny_unknown_fields`: the basic-auth pair was dropped here once
-/// already, silently, because the handler did not name it. Pinned by
-/// `wire-contract/requests/calendar-feed-create.json`.
-#[serde(deny_unknown_fields)]
-pub struct CreateFeedRequest {
-    pub name: String,
-    pub url: String,
-    #[serde(default)]
-    pub color: Option<String>,
-    #[serde(default = "default_sync_interval")]
-    pub sync_interval_secs: i64,
-    /// Username for a feed behind HTTP basic auth.
-    ///
-    /// The inputs were removed on 2026-07-30 because nothing consumed them.
-    /// The fetcher that does now exists.
-    #[serde(default)]
-    pub basic_auth_user: Option<String>,
-    /// Password for a feed behind HTTP basic auth.
-    #[serde(default)]
-    pub basic_auth_pass: Option<String>,
-}
-
-fn default_sync_interval() -> i64 {
-    3600
-}
-
-fn random_id() -> String {
-    let mut b = [0u8; 8];
-    rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut b);
-    b.iter().map(|x| format!("{x:02x}")).collect()
-}
-
-/// GET /api/calendar/feeds — user's subscribed feeds.
-pub async fn list_feeds(
-    Extension(AuthedUser(user)): Extension<AuthedUser>,
-) -> Json<serde_json::Value> {
-    let key = mailrs_core_sidestate::families::calendar_feeds::feeds_key(&user);
-    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))
-        .unwrap_or_default();
-    let mut items: Vec<FeedView> = Vec::new();
-    let mut i = 0;
-    while i + 1 < flat.len() {
-        if let Ok(f) = serde_json::from_slice::<FeedWire>(&flat[i + 1]) {
-            items.push(f.into());
-        }
-        i += 2;
-    }
-    Json(serde_json::json!({ "items": items }))
-}
-
-/// POST /api/calendar/feeds — subscribe.
-pub async fn create_feed(
-    Extension(AuthedUser(user)): Extension<AuthedUser>,
-    Json(req): Json<CreateFeedRequest>,
-) -> Result<Json<FeedView>, StatusCode> {
-    let feed = FeedWire {
-        id: random_id(),
-        name: req.name,
-        url: req.url,
-        color: req.color,
-        sync_interval_secs: req.sync_interval_secs,
-        created_at: now_secs(),
-        // Never synced, so the worker picks it up on its next tick rather
-        // than an interval from now.
-        last_synced_at: 0,
-        last_error: None,
-        last_event_count: 0,
-        etag: None,
-        last_modified: None,
-        basic_auth_user: req.basic_auth_user,
-        basic_auth_pass: req.basic_auth_pass,
-    };
-    let key = mailrs_core_sidestate::families::calendar_feeds::feeds_key(&user);
-    let id_c = feed.id.clone();
-    let payload = serde_json::to_vec(&feed).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    with_kevy(move |c| {
-        c.hset(key.as_bytes(), &[(id_c.as_bytes(), payload.as_slice())])?;
-        Ok(())
-    })?;
-    Ok(Json(feed.into()))
-}
-
-/// DELETE /api/calendar/feeds/{feed_id} — unsubscribe.
-pub async fn delete_feed(
-    Extension(AuthedUser(user)): Extension<AuthedUser>,
-    Path(feed_id): Path<String>,
-) -> Result<StatusCode, StatusCode> {
-    let key = mailrs_core_sidestate::families::calendar_feeds::feeds_key(&user);
-    with_kevy(move |c| {
-        c.hdel(key.as_bytes(), &[feed_id.as_bytes()])?;
-        Ok(())
-    })?;
-    Ok(StatusCode::NO_CONTENT)
 }

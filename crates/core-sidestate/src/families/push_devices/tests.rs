@@ -19,12 +19,20 @@ fn phone(n: u32, created_at: i64) -> Device {
     }
 }
 
+/// Registered by a session that never turned pushes on again.
+fn plain(conn: &mut kevy_client::Connection, reg: Registration<'_>, now: i64) -> Registered {
+    match register(conn, "me@x.test", reg, Asker::default(), now).unwrap() {
+        Filed::Registered(r) => r,
+        Filed::Removed => panic!("refused as removed"),
+    }
+}
+
 fn apns(conn: &mut kevy_client::Connection, token: &str, now: i64) -> Registered {
     let reg = Registration::Apns {
         token,
         platform: "ios",
     };
-    register(conn, "me@x.test", reg, now).unwrap()
+    plain(conn, reg, now)
 }
 
 fn count(conn: &mut kevy_client::Connection) -> usize {
@@ -39,12 +47,12 @@ fn ten(conn: &mut kevy_client::Connection) {
     }
     for n in 0..3 {
         let sub = web(n, 5 + i64::from(n));
-        let r = register(conn, "me@x.test", Registration::Web(&sub), 5 + i64::from(n)).unwrap();
+        let r = plain(conn, Registration::Web(&sub), 5 + i64::from(n));
         assert!(r.evicted.is_empty());
     }
     for n in 0..3 {
         let d = phone(n, 8 + i64::from(n));
-        let r = register(conn, "me@x.test", Registration::UnifiedPush(&d), 8).unwrap();
+        let r = plain(conn, Registration::UnifiedPush(&d), 8);
         assert!(r.evicted.is_empty());
     }
     assert_eq!(count(conn), MAX_DEVICES);
@@ -58,20 +66,14 @@ fn the_eleventh_device_on_any_channel_evicts_the_one_least_recently_pushed_to() 
     mark_used(&mut c, "me@x.test", Channel::Apns, "t1", 100).unwrap();
 
     let eleventh = phone(10, 11);
-    let r = register(
-        &mut c,
-        "me@x.test",
-        Registration::UnifiedPush(&eleventh),
-        11,
-    )
-    .unwrap();
+    let r = plain(&mut c, Registration::UnifiedPush(&eleventh), 11);
     assert_eq!(r.evicted, vec![(Channel::Apns, "t2".to_string())]);
     assert_eq!(r.id, unified_push::id_of(&eleventh.endpoint));
     assert_eq!(count(&mut c), MAX_DEVICES);
 
     // a browser now: the next never-used device by registration time goes
     let browser = web(9, 12);
-    let r = register(&mut c, "me@x.test", Registration::Web(&browser), 12).unwrap();
+    let r = plain(&mut c, Registration::Web(&browser), 12);
     assert_eq!(r.evicted, vec![(Channel::Apns, "t3".to_string())]);
 
     // used ones outrank never-used ones registered after them
@@ -100,7 +102,7 @@ fn registering_a_device_again_counts_it_once() {
         p256dh: "k2".into(),
         ..web(1, 50)
     };
-    let r = register(&mut c, "me@x.test", Registration::Web(&again), 50).unwrap();
+    let r = plain(&mut c, Registration::Web(&again), 50);
     assert!(r.evicted.is_empty(), "the same browser is not an eleventh");
     let r = apns(&mut c, "t2", 51);
     assert!(
@@ -111,7 +113,7 @@ fn registering_a_device_again_counts_it_once() {
         name: "Renamed".into(),
         ..phone(2, 52)
     };
-    let r = register(&mut c, "me@x.test", Registration::UnifiedPush(&d), 52).unwrap();
+    let r = plain(&mut c, Registration::UnifiedPush(&d), 52);
     assert!(r.evicted.is_empty());
     assert_eq!(count(&mut c), MAX_DEVICES);
 }
@@ -120,7 +122,7 @@ fn registering_a_device_again_counts_it_once() {
 fn last_used_times_of_devices_gone_are_dropped() {
     let mut c = kevy_client::Connection::connect("mem://push-devices-stale").unwrap();
     let d = phone(1, 1);
-    let r = register(&mut c, "me@x.test", Registration::UnifiedPush(&d), 1).unwrap();
+    let r = plain(&mut c, Registration::UnifiedPush(&d), 1);
     mark_used(&mut c, "me@x.test", Channel::UnifiedPush, &r.id, 5).unwrap();
     mark_used(&mut c, "me@x.test", Channel::Apns, "t1", 5).unwrap();
     // the distributor answered 410 and the sender dropped the phone

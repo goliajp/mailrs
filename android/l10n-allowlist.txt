@@ -184,8 +184,10 @@ accounts/TrashFolder.kt	deleted messages
 ui/Attachments.kt	$bytes B
 ui/ConversationRow.kt	×${c.messageCount}
 ui/ConversationRow.kt	↓${c.receivedCount} ↑${c.sentCount}
-ui/InviteCard.kt	$local · ${wall.drop(11).take(5)} $zone
-ui/InviteCard.kt	Zoned
+wire/InviteRepeat.kt	$line · $organiser
+wire/InviteRepeat.kt	$time $abbreviation
+wire/InviteRepeat.kt	${wall.drop(11).take(5)} $tzName
+wire/InviteRepeat.kt	Zoned
 ui/ListActions.kt	button.selectionMore
 ui/MailboxesScreen.kt	you@example.com
 ui/MailboxesScreen.kt	${guess.imapHost}:${guess.imapPort}
@@ -320,6 +322,8 @@ wire/PushRegistration.kt	$endpoint $p256dh $auth
 ui/PushPage.kt	push.serverOff
 ui/PushPage.kt	push.noDistributor
 ui/PushPage.kt	push.noDistributorHint
+ui/PushPage.kt	push.removedElsewhere
+ui/PushPage.kt	push.removeIsNotSignOut
 wire/RecentRecipients.kt	jp.golia.mailrs.category.SHARE_TARGET
 wire/RecentRecipients.kt	recipient:$address
 wire/RecipientAutocomplete.kt	$email, 

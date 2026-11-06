@@ -20,7 +20,7 @@ pub(super) fn sessions(c: &mut Connection, address: &str, dry_run: bool) -> io::
     if dry_run {
         return Ok(c.scard(session::by_addr_key(address).as_bytes())? as u64);
     }
-    Ok(session::revoke_sessions(c, address)? as u64)
+    Ok(session::end_every_session(c, address)? as u64)
 }
 
 /// Agent-key secret index entries: `{user, id}` JSON under the hash of the

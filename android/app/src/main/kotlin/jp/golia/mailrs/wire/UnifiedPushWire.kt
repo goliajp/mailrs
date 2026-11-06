@@ -11,6 +11,8 @@ object UnifiedPushWire {
         val enabled: Boolean = false,
         @SerialName("vapid_public_key") val vapidPublicKey: String? = null,
         val devices: List<Device> = emptyList(),
+        /** Ids a person removed from another device: such a phone stays off until turned on here. */
+        val removed: List<String> = emptyList(),
     )
 
     /** Listed by the distributor's host: the endpoint itself is never sent back. */
@@ -27,7 +29,16 @@ object UnifiedPushWire {
 
     /** The shape of `wire-contract/requests/unified-push-register.json`. */
     @Serializable
-    data class Register(val endpoint: String, val keys: Keys, val name: String)
+    data class Register(
+        val endpoint: String,
+        val keys: Keys,
+        val name: String,
+        /** The reader turned pushes on here just now; registrations the app makes on its own say false. */
+        val resume: Boolean,
+    )
+
+    /** The `error` of a refused registration: a person removed this phone from another device. */
+    const val REMOVED = "removed"
 
     @Serializable
     data class Registered(val id: String)

@@ -7,6 +7,7 @@ import { appJa } from './app/ja'
 import { calendarJa } from './calendar/ja'
 import { composerJa } from './composer/ja'
 import { draftsJa } from './drafts/ja'
+import { inviteJa } from './invite/ja'
 import { mockJa } from './mock/ja'
 import { reasonsJa } from './reasons/ja'
 import { sectionsJa } from './sections/ja'
@@ -17,6 +18,7 @@ export const ja: Record<Key, string> = {
   ...composerJa,
   ...draftsJa,
   ...calendarJa,
+  ...inviteJa,
   ...sectionsJa,
   ...reasonsJa,
   ...settingsJa,
@@ -230,51 +232,6 @@ export const ja: Record<Key, string> = {
   'images.missing': '一部の画像を読み込めませんでした',
   'images.show': '画像を表示',
   'images.showAnyway': 'それでも画像を表示',
-  'invite.accept': '承諾',
-  'invite.badge.cancelled': 'キャンセル',
-  'invite.badge.counter': '別の日時の提案',
-  'invite.badge.event': 'イベント',
-  'invite.badge.new': '新しい招待',
-  'invite.badge.reply': '返信',
-  'invite.badge.updated': '更新された招待',
-  'invite.change': '変更',
-  'invite.conflictsMany': '{n} 件の予定と重なっています',
-  'invite.conflictsWith': '「{what}」と重なっています',
-  'invite.counterCancel': '時間の提案をやめる',
-  'invite.counterEnd': '提案する終了時刻',
-  'invite.counterNote':
-    '別の時間を提案します（あなたの現地時間）。主催者に METHOD=COUNTER の返信を送り、主催者のカレンダーで承諾・辞退を選べます。',
-  'invite.counterPropose': '別の時間を提案',
-  'invite.counterStart': '提案する開始時刻',
-  'invite.decline': '辞退',
-  'invite.end': '終了',
-  'invite.error': 'エラー：{error}',
-  'invite.guest.accepted': '承諾',
-  'invite.guest.awaiting': '未回答',
-  'invite.guest.awaitingCount': '未回答 {n}',
-  'invite.guest.declined': '辞退',
-  'invite.guest.many': 'ゲスト {n} 人',
-  'invite.guest.maybe': '未定',
-  'invite.guest.no': '不参加',
-  'invite.guest.noCount': '不参加 {n}',
-  'invite.guest.one': 'ゲスト 1 人',
-  'invite.guest.separator': '、',
-  'invite.guest.tentative': '仮承諾',
-  'invite.guest.yes': '参加',
-  'invite.guest.yesCount': '参加 {n}',
-  'invite.join': '会議に参加',
-  'invite.organizer': '主催者:',
-  'invite.replied.accepted': '承諾しました',
-  'invite.replied.declined': '辞退しました',
-  'invite.replied.other': '返信済み：{status}',
-  'invite.replied.tentative': '仮承諾しました',
-  'invite.sendCounter': '提案を送信',
-  'invite.sending': '送信中…',
-  'invite.sent': '返信しました',
-  'invite.singleOccurrence':
-    '繰り返し予定のうちの 1 回です。出欠の返信はこの回にだけ適用されます。',
-  'invite.start': '開始',
-  'invite.tentative': '仮承諾',
   'labels.delete': '削除',
   'labels.deleteConfirm':
     '「{name}」を削除しますか？すべての会話から外れますが、メールは削除されません。',

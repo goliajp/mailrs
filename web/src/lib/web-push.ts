@@ -10,6 +10,8 @@ const PUSH_SW_URL = '/push-sw.js'
 
 export type EnableResult = 'denied' | 'subscribed'
 
+export type PushHere = 'off' | 'on' | 'removed'
+
 /** This browser's current subscription, if it has one. */
 export async function currentSubscription(): Promise<null | PushSubscription> {
   const reg = await registration()
@@ -39,8 +41,15 @@ export async function enableWebPush(publicKey: string): Promise<EnableResult> {
   await wireWebPushSubscribe({
     endpoint: sub.endpoint,
     keys: { auth: json.keys?.auth ?? '', p256dh: json.keys?.p256dh ?? '' },
+    resume: true,
   })
   return 'subscribed'
+}
+
+/** The id the server files a subscription under: the endpoint's sha256, hex. */
+export async function endpointId(endpoint: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(endpoint))
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 /** Remove every service worker except the push worker. */
@@ -58,6 +67,20 @@ export function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
   const out = new Uint8Array(new ArrayBuffer(raw.length))
   for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i)
   return out
+}
+
+/**
+ * This browser's push state: subscribed, not subscribed, or subscribed but
+ * removed from another device. A removed browser still holds its
+ * subscription; the server no longer pushes to it, so it counts as off
+ * until the person turns it on again. `removed` is the server's list, by
+ * the sha256 of each endpoint.
+ */
+export async function pushHere(removed: string[]): Promise<PushHere> {
+  const sub = await currentSubscription()
+  if (!sub) return 'off'
+  if (removed.includes(await endpointId(sub.endpoint))) return 'removed'
+  return 'on'
 }
 
 /** Whether this browser can take Web Push at all. */
