@@ -11,6 +11,7 @@
 
 use std::sync::Arc;
 
+use mailrs_core_sidestate::families::push_devices;
 use mailrs_core_sidestate::families::unified_push::{self, Device};
 use mailrs_webpush::send::{self, Outcome, Subscription};
 use mailrs_webpush::vapid::Vapid;
@@ -20,7 +21,7 @@ use mailrs_webpush::vapid::Vapid;
 pub const PING: &[u8] = b"new-mail";
 
 /// The counter channel.
-pub const CHANNEL: &str = "unifiedpush";
+pub const CHANNEL: &str = push_devices::Channel::UnifiedPush.as_str();
 
 /// A stored device in the form the sender takes; `None` when its keys do
 /// not decode.
@@ -67,7 +68,10 @@ pub fn settle(
         };
         notify::count(conn, user, CHANNEL, counted, now)?;
         match outcome {
-            Outcome::Sent => tracing::info!(%user, "unifiedpush: delivered to the distributor"),
+            Outcome::Sent => {
+                tracing::info!(%user, "unifiedpush: delivered to the distributor");
+                push_devices::mark_used(conn, user, push_devices::Channel::UnifiedPush, id, now)?;
+            }
             Outcome::Gone => {
                 tracing::info!(%user, "unifiedpush: dropping a device its distributor no longer knows");
                 unified_push::remove(conn, user, id)?;
@@ -78,7 +82,9 @@ pub fn settle(
     Ok(())
 }
 
-/// Ping every phone `addr` registered, in the background.
+/// Ping every phone `addr` registered, in the background, at most once per
+/// [`coalesce::WINDOW`] (see there for why the last mail of a burst is not
+/// lost).
 pub fn spawn(vapid: Arc<Vapid>, addr: &str, now: i64) {
     let Ok(handle) = tokio::runtime::Handle::try_current() else {
         tracing::warn!(%addr, "unifiedpush: no runtime handle, no push");
@@ -86,6 +92,17 @@ pub fn spawn(vapid: Arc<Vapid>, addr: &str, now: i64) {
     };
     let user = addr.to_string();
     handle.spawn(async move {
+        match coalesce::gate(connect, &user, coalesce::WINDOW).await {
+            Ok(true) => {}
+            Ok(false) => {
+                tracing::debug!(%user, "unifiedpush: a ping still to come covers this message");
+                return;
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, %user, "unifiedpush: ping window unreadable, no push");
+                return;
+            }
+        }
         let devices = match tokio::task::spawn_blocking({
             let user = user.clone();
             move || unified_push::list(&mut connect()?, &user)
@@ -126,6 +143,8 @@ fn connect() -> std::io::Result<kevy_client::Connection> {
         .map_err(|_| std::io::Error::other("MAILRS_KEVY_URL unset"))?;
     Ok(kevy_client::Connection::connect(&url)?)
 }
+
+pub mod coalesce;
 
 #[cfg(test)]
 mod tests;

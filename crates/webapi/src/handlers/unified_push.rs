@@ -13,6 +13,7 @@
 use axum::Json;
 use axum::extract::{Extension, Path};
 use axum::http::StatusCode;
+use mailrs_core_sidestate::families::push_devices;
 use mailrs_core_sidestate::families::unified_push::{self, Device};
 
 use crate::handlers::conversations::AuthedUser;
@@ -121,14 +122,20 @@ pub async fn register(
     if !well_formed(&body) || !public(&body.endpoint).await {
         return Err(StatusCode::BAD_REQUEST);
     }
+    let now = chrono::Utc::now().timestamp();
     let device = Device {
         endpoint: body.endpoint,
         p256dh: body.keys.p256dh,
         auth: body.keys.auth,
         name: body.name,
-        created_at: chrono::Utc::now().timestamp(),
+        created_at: now,
     };
-    let id = with_kevy(move |c| unified_push::add(c, &user, &device))?;
+    let id = with_kevy(move |c| {
+        let reg = push_devices::Registration::UnifiedPush(&device);
+        let done = push_devices::register(c, &user, reg, now)?;
+        crate::handlers::push::log_evicted(&user, &done.evicted);
+        Ok(done.id)
+    })?;
     Ok(Json(Registered { id }))
 }
 

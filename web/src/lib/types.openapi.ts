@@ -3978,7 +3978,7 @@ export interface paths {
         put?: never;
         /**
          * Register a device token for push notifications
-         * @description The iOS app registers its APNs token after sign-in. Fastcore reads the same store when a message lands and prunes tokens Apple reports dead.
+         * @description The iOS app registers its APNs token after sign-in. Fastcore reads the same store when a message lands and prunes tokens Apple reports dead. An account keeps at most 10 push devices, iOS, browsers and Android together; registering another removes the one that least recently received a push (one never pushed to counts from when it registered). Registering the same token again does not count twice.
          */
         post: {
             parameters: {
@@ -5916,6 +5916,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/swipe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What a swipe on a conversation row does; right archive, left trash when never set */
+        get: operations["getSwipe"];
+        /** Set what a swipe on a conversation row does, on the web and both phone apps */
+        put: operations["setSwipe"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/forwarding": {
         parameters: {
             query?: never;
@@ -6381,7 +6399,7 @@ export interface paths {
         put?: never;
         /**
          * Register a phone's UnifiedPush endpoint
-         * @description Sent by the Android app when its distributor gives it an endpoint. The endpoint must be https on port 443 and name a host whose addresses are all public; p256dh must be a P-256 public key and auth a 16-byte secret (the distributor connector's key set); name is at most 64 characters. New mail is then announced with a push that carries no sender, subject or count, and the app fetches what arrived. The same endpoint replaces its old keys. A device whose distributor answers 404 or 410 is dropped.
+         * @description Sent by the Android app when its distributor gives it an endpoint. The endpoint must be https on port 443 and name a host whose addresses are all public; p256dh must be a P-256 public key and auth a 16-byte secret (the distributor connector's key set); name is at most 64 characters. New mail is then announced with a push that carries no sender, subject or count, and the app fetches what arrived. The same endpoint replaces its old keys. A device whose distributor answers 404 or 410 is dropped. An account is pushed at most once every 5 seconds; mail arriving in that time is announced by one more push when it ends. An account keeps at most 10 push devices, iOS, browsers and Android together; registering another removes the one that least recently received a push (one never pushed to counts from when it registered). The same endpoint registering again does not count twice.
          */
         post: {
             parameters: {
@@ -6763,7 +6781,7 @@ export interface paths {
         put?: never;
         /**
          * Subscribe this browser to Web Push
-         * @description The body is PushSubscription.toJSON(). The endpoint must be a known browser push service (FCM, Mozilla, Apple, Windows) over https; p256dh must be a P-256 public key and auth a 16-byte secret.
+         * @description The body is PushSubscription.toJSON(). The endpoint must be a known browser push service (FCM, Mozilla, Apple, Windows) over https; p256dh must be a P-256 public key and auth a 16-byte secret. An account keeps at most 10 push devices, iOS, browsers and Android together; subscribing another removes the one that least recently received a push (one never pushed to counts from when it subscribed). The same endpoint subscribing again does not count twice.
          */
         post: {
             parameters: {
@@ -8860,6 +8878,18 @@ export interface components {
              * @default false
              */
             allow: boolean;
+        };
+        Swipe: {
+            /**
+             * @description A finger moving right to left
+             * @enum {string}
+             */
+            left: "archive" | "trash" | "read" | "none";
+            /**
+             * @description A finger moving left to right
+             * @enum {string}
+             */
+            right: "archive" | "trash" | "read" | "none";
         };
     };
     responses: never;
@@ -16861,6 +16891,57 @@ export interface operations {
                         error?: string;
                     };
                 };
+            };
+        };
+    };
+    getSwipe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Swipe */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Swipe"];
+                };
+            };
+        };
+    };
+    setSwipe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Swipe"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Swipe"];
+                };
+            };
+            /** @description A direction names an action that is not one of the choices */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
