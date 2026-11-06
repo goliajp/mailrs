@@ -70,6 +70,15 @@ pub enum NoticeKind {
 }
 
 impl NoticeKind {
+    pub const ALL: [NoticeKind; 6] = [
+        NoticeKind::Firing,
+        NoticeKind::Repeat,
+        NoticeKind::Escalated,
+        NoticeKind::Resolved,
+        NoticeKind::Unreadable,
+        NoticeKind::Readable,
+    ];
+
     pub fn as_str(self) -> &'static str {
         match self {
             NoticeKind::Firing => "firing",

@@ -5126,6 +5126,7 @@ dependencies = [
  "mailrs-mime",
  "mailrs-mock",
  "mailrs-oauth-client",
+ "mailrs-ops",
  "mailrs-ops-report",
  "mailrs-reputation",
  "mailrs-rfc2047",

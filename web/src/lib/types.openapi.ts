@@ -5585,6 +5585,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/ops/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The ops daemon's state, or why webapi cannot see it
+         * @description webapi asks the ops daemon (MAILRS_OPS_URL, with the shared admin secret). `reach` is `ok`, `not_configured`, `unreachable` or `refused`; only with `ok` are `stale` (the last completed check is older than MAILRS_OPS_SILENT_SECS), `silent_after_secs` and the daemon's `state` present. Super administrators only.
+         */
+        get: operations["getOpsState"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ops/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The ops daemon's alert transitions, notifications and control events
+         * @description Since `since` (unix seconds; the last day by default). Super administrators only.
+         */
+        get: operations["getOpsHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ops/silences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Silence an ops rule, or one object of it, for a while
+         * @description `for_secs` and `reason` are required; the daemon records the administrator. Super administrators only, with a recent confirmation. Audited as ops.silence.set.
+         */
+        post: operations["setOpsSilence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ops/silences/{id}/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * End an ops silence before its time
+         * @description Super administrators only, with a recent confirmation. Audited as ops.silence.end.
+         */
+        post: operations["endOpsSilence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ops/maintenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start, extend or end the ops daemon's maintenance state
+         * @description While it is on, alerts are checked but notifications are held and summed up when it ends. `start` and `extend` need `for_secs`. Super administrators only, with a recent confirmation. Audited as ops.maintenance.<action>.
+         */
+        post: operations["setOpsMaintenance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/mail/image/{name}": {
         parameters: {
             query?: never;
@@ -15559,6 +15659,345 @@ export interface operations {
             };
             /** @description The account is not paused */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getOpsState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        reach: "ok" | "not_configured" | "unreachable" | "refused";
+                        /** @description With `unreachable`: why */
+                        detail?: string;
+                        silent_after_secs?: number;
+                        stale?: boolean;
+                        state?: {
+                            now?: number;
+                            last_cycle?: {
+                                started_at?: number;
+                                duration_ms?: number;
+                            } | null;
+                            /** @description No MAILRS_OPS_HEARTBEAT_URL: nothing outside watches the daemon */
+                            unmonitored?: boolean;
+                            /** @description Whether any external notification channel is configured */
+                            external_channel?: boolean;
+                            maintenance?: {
+                                started_at?: number;
+                                until?: number;
+                                reason?: string;
+                                by?: string;
+                            } | null;
+                            silences?: {
+                                id?: string;
+                                rule?: string;
+                                /** @description null: every object of the rule */
+                                object?: string | null;
+                                /** @description Unix seconds */
+                                until?: number;
+                                reason?: string;
+                                /** @description `webapi:<administrator>` or `cli:<name>` */
+                                by?: string;
+                                /** @description Unix seconds */
+                                set_at?: number;
+                            }[];
+                            alerts?: {
+                                rule?: string;
+                                object?: string;
+                                /** @enum {string} */
+                                phase?: "ok" | "pending" | "firing" | "recovering" | "unknown";
+                                /** @enum {string} */
+                                severity?: "warning" | "critical";
+                                /** @description Unix seconds */
+                                since?: number;
+                                value?: string | null;
+                                threshold?: string | null;
+                                /** @description Why it is unknown */
+                                why?: string | null;
+                                title_en?: string;
+                                title_zh?: string;
+                                title_ja?: string;
+                                /** @description The first thing to do */
+                                step_en?: string;
+                                step_zh?: string;
+                                step_ja?: string;
+                            }[];
+                            rules?: {
+                                name?: string;
+                                title_en?: string;
+                                title_zh?: string;
+                                title_ja?: string;
+                            }[];
+                            notifications?: {
+                                held_for_maintenance?: number;
+                                /** @description Own-path messages not yet accepted by the receiving server (250) */
+                                own_path_awaiting_acceptance_250?: string[];
+                            };
+                            warnings?: string[];
+                        };
+                    };
+                };
+            };
+            /** @description Not a super administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getOpsHistory: {
+        parameters: {
+            query?: {
+                since?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The history */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        since?: number;
+                        transitions?: {
+                            rule?: string;
+                            object?: string;
+                            from?: string;
+                            to?: string;
+                            at?: number;
+                            value?: string | null;
+                            reason?: string;
+                        }[];
+                        notifications?: {
+                            group_id?: string;
+                            channel?: string;
+                            attempt?: number;
+                            result?: string;
+                            at?: number;
+                            summary?: string;
+                        }[];
+                        controls?: Record<string, never>[];
+                        starts?: Record<string, never>[];
+                    };
+                };
+            };
+            /** @description Not a super administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `{"error": <reason>}`: the request was refused (400), nothing matched (404), it conflicts with the current state (409), or webapi could not ask the ops daemon (502) */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    setOpsSilence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    rule: string;
+                    object?: string | null;
+                    for_secs: number;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The silence */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id?: string;
+                        rule?: string;
+                        /** @description null: every object of the rule */
+                        object?: string | null;
+                        /** @description Unix seconds */
+                        until?: number;
+                        reason?: string;
+                        /** @description `webapi:<administrator>` or `cli:<name>` */
+                        by?: string;
+                        /** @description Unix seconds */
+                        set_at?: number;
+                    };
+                };
+            };
+            /** @description `{"error": <reason>}`: the request was refused (400), nothing matched (404), it conflicts with the current state (409), or webapi could not ask the ops daemon (502) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a super administrator, or `confirm_required` */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `{"error": <reason>}`: the request was refused (400), nothing matched (404), it conflicts with the current state (409), or webapi could not ask the ops daemon (502) */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    endOpsSilence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Ended */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        removed?: string;
+                    };
+                };
+            };
+            /** @description `{"error": <reason>}`: the request was refused (400), nothing matched (404), it conflicts with the current state (409), or webapi could not ask the ops daemon (502) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a super administrator, or `confirm_required` */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such silence in force */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `{"error": <reason>}`: the request was refused (400), nothing matched (404), it conflicts with the current state (409), or webapi could not ask the ops daemon (502) */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    setOpsMaintenance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    action: "start" | "extend" | "end";
+                    for_secs?: number;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The maintenance state now */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        maintenance?: {
+                            started_at?: number;
+                            until?: number;
+                            reason?: string;
+                            by?: string;
+                        } | null;
+                    };
+                };
+            };
+            /** @description `{"error": <reason>}`: the request was refused (400), nothing matched (404), it conflicts with the current state (409), or webapi could not ask the ops daemon (502) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a super administrator, or `confirm_required` */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `{"error": <reason>}`: the request was refused (400), nothing matched (404), it conflicts with the current state (409), or webapi could not ask the ops daemon (502) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `{"error": <reason>}`: the request was refused (400), nothing matched (404), it conflicts with the current state (409), or webapi could not ask the ops daemon (502) */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

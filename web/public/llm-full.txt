@@ -25,7 +25,7 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-127 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority):
+132 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority):
 
 ### Email Operations
 
@@ -158,6 +158,18 @@ Config for Claude Code or any MCP client:
 | get_system_config | admin.accounts | Read all system-config key/value pairs |
 | set_system_config | admin.accounts | Set max_message_size_bytes, the one key a running process reads; settings read at start (hostname, ports, TLS) and unknown keys are refused |
 | reset_system_config | admin.accounts | Reset a system-config key to its compile-time default |
+
+### Ops Daemon
+
+The ops daemon (`mailrs-ops`) watches the other processes and keeps the alert state. webapi reaches it with a shared secret; the daemon records the administrator behind every change.
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| get_ops_state | super administrator | The daemon's alerts, silences, maintenance, rules and warnings; `reach` says whether webapi reached it and `stale` whether its last completed check is older than MAILRS_OPS_SILENT_SECS |
+| get_ops_history | super administrator | The last day (or since `since`) of alert transitions, notifications and silence / maintenance events |
+| set_ops_silence | super administrator, recent confirmation | Silence a rule, or one object of it, for `for_secs` (required) with a `reason` |
+| end_ops_silence | super administrator, recent confirmation | End a silence by `id`, with a `reason` |
+| set_ops_maintenance | super administrator, recent confirmation | `action` `start` / `extend` (both need `for_secs`) or `end`, with a `reason`; notifications are held while it is on and summed up when it ends |
 
 ### Scheduled Send
 
@@ -1290,6 +1302,24 @@ curl https://mail.golia.ai/api/queue \
 # retry message
 curl -X POST https://mail.golia.ai/api/queue/{id}/retry \
   -H "Authorization: Bearer mlrs_..."
+```
+
+### Ops Daemon (super administrator only)
+
+```
+# state: reach is ok, not_configured, unreachable or refused
+curl https://mail.golia.ai/api/admin/ops/state \
+  -H "Authorization: Bearer mlrs_..."
+
+# silence one rule for an hour (needs a recent confirmation)
+curl -X POST https://mail.golia.ai/api/admin/ops/silences \
+  -H "Authorization: Bearer mlrs_..." -H "Content-Type: application/json" \
+  -d '{"rule": "spool_quarantined", "object": "spool", "for_secs": 3600, "reason": "known file"}'
+
+# start maintenance for two hours
+curl -X POST https://mail.golia.ai/api/admin/ops/maintenance \
+  -H "Authorization: Bearer mlrs_..." -H "Content-Type: application/json" \
+  -d '{"action": "start", "for_secs": 7200, "reason": "upgrade"}'
 ```
 
 ### Conversations Nobody Holds (super administrator only)

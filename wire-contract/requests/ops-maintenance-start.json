@@ -1,0 +1,5 @@
+{
+  "action": "start",
+  "for_secs": 7200,
+  "reason": "upgrade"
+}

@@ -172,3 +172,28 @@ fn identity_unlink_body_matches() {
     assert_eq!(v.issuer, "https://accounts.google.com");
     assert_eq!(v.subject, "1029384756");
 }
+
+/// The ops daemon's silence and maintenance bodies, as the admin page
+/// sends them; the handler refuses any field it does not know, so the page
+/// cannot name who made the change.
+#[test]
+fn ops_bodies_match() {
+    use handlers::admin_ops_daemon::{MaintenanceAction, MaintenanceRequest, SilenceRequest};
+    let s: SilenceRequest = parse("ops-silence-set");
+    assert_eq!(
+        (
+            s.rule.as_str(),
+            s.object.as_deref(),
+            s.for_secs,
+            s.reason.as_str()
+        ),
+        ("spool_quarantined", Some("spool"), 3600, "known file")
+    );
+    let e: handlers::admin_ops_daemon::EndSilenceRequest = parse("ops-silence-end");
+    assert_eq!(e.reason, "fixed");
+    let m: MaintenanceRequest = parse("ops-maintenance-start");
+    assert_eq!(
+        (m.action, m.for_secs, m.reason.as_str()),
+        (MaintenanceAction::Start, Some(7200), "upgrade")
+    );
+}

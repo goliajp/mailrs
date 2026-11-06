@@ -1,3 +1,4 @@
+import { adminMonitorEn } from './admin-monitor/en'
 import { adminOpsEn } from './admin-ops/en'
 import { adminEn } from './admin/en'
 import { appEn } from './app/en'
@@ -25,6 +26,7 @@ export const en = {
   ...mockEn,
   ...adminEn,
   ...adminOpsEn,
+  ...adminMonitorEn,
   'lang.name.en': 'English',
   'lang.name.ja': '日本語',
   'lang.name.zh': '简体中文',
