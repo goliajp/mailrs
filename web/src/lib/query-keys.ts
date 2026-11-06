@@ -131,6 +131,7 @@ export const adminKeys = {
   overviewAuditLog: () => [...adminKeys.all(), 'overview-audit-log'] as const,
   overviewFlow: () => [...adminKeys.all(), 'overview-flow'] as const,
   overviewHealth: () => [...adminKeys.all(), 'overview-health'] as const,
+  overviewPushStats: () => [...adminKeys.all(), 'overview-push-stats'] as const,
   overviewSmtp: () => [...adminKeys.all(), 'overview-smtp'] as const,
   overviewStatus: () => [...adminKeys.all(), 'overview-status'] as const,
   permissions: () => [...adminKeys.all(), 'permissions'] as const,

@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { adminResultSchema } from '../schemas/admin'
+import { adminPushStatsSchema } from '../schemas/admin-push-stats'
 import { wireThreadListResponseSchema } from '../schemas/conversation'
 import { notifyOverridesSchema } from '../schemas/notify'
 import { sendsSchema } from '../schemas/sends'
@@ -115,12 +116,26 @@ describe('response contract', () => {
     expect(notifyOverridesSchema.parse(older).thread_details).toEqual([])
   })
 
+  it('the admin push counts parse, every channel with all four counts', () => {
+    const parsed = adminPushStatsSchema.parse(fixture('admin-push-stats'))
+    expect(parsed.accounts).toBe(12)
+    expect(parsed.days.map((d) => d.day)).toEqual(['20261107', '20261106'])
+    expect(parsed.days[0].web.sent).toBe(1)
+    expect(parsed.days[1].unifiedpush).toEqual({
+      failed: 1,
+      sent: 3,
+      suppressed_policy: 3,
+      suppressed_quiet: 2,
+    })
+  })
+
   it('every response fixture is checked by a case above', () => {
     const present = readdirSync(RESPONSES)
       .filter((f) => f.endsWith('.json'))
       .map((f) => f.replace(/\.json$/, ''))
       .sort()
     expect(present).toEqual([
+      'admin-push-stats',
       'conversation-categories',
       'conversation-list',
       'notify-overrides',

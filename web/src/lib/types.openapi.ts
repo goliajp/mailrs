@@ -4479,6 +4479,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/push-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pushes sent, failed and held back per channel per day, summed over every account; any admin permission */
+        get: operations["adminPushStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/mock/settings": {
         parameters: {
             query?: never;
@@ -8959,6 +8976,14 @@ export interface components {
             /** @description Show the Inbox by section (all, to reply, waiting, new senders) */
             enabled: boolean;
         };
+        PushChannelTotals: {
+            sent: number;
+            failed: number;
+            /** @description Held back by the reader's push settings */
+            suppressed_policy: number;
+            /** @description Held back by the reader's quiet hours */
+            suppressed_quiet: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -13024,6 +13049,46 @@ export interface operations {
                         } | null;
                     };
                 };
+            };
+        };
+    };
+    adminPushStats: {
+        parameters: {
+            query?: {
+                /** @description How many days back, newest first (1-90, default 14). Days are UTC days */
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description PushStats */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description How many accounts the sums are over */
+                        accounts: number;
+                        days: {
+                            /** @description YYYYMMDD, UTC */
+                            day: string;
+                            apns: components["schemas"]["PushChannelTotals"];
+                            web: components["schemas"]["PushChannelTotals"];
+                            unifiedpush: components["schemas"]["PushChannelTotals"];
+                        }[];
+                    };
+                };
+            };
+            /** @description Not an administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

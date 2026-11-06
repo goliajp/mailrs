@@ -2,13 +2,17 @@ use std::sync::Arc;
 
 use crate::*;
 
-/// `/api/mock/*`: disposable test mailboxes, and the admin overview's flow.
+/// `/api/mock/*`: disposable test mailboxes, and the admin overview's flow and push counts.
 pub(super) fn mock_routes() -> axum::Router<Arc<WebState>> {
     use crate::handlers::mock::rest as mock;
     use axum::routing::{delete, get, post, put};
 
     axum::Router::new()
         .route("/api/admin/flow", get(crate::handlers::admin_flow::flow))
+        .route(
+            "/api/admin/push-stats",
+            get(crate::handlers::admin_push_stats::push_stats),
+        )
         .route(
             "/api/admin/dane/tlsa",
             get(crate::handlers::smtp_monitor::dane_tlsa),
