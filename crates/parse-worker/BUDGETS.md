@@ -31,3 +31,11 @@ P95 and per-call overhead stayed normal. Usual in-process P95 on studio:
 about 160 µs (search text) and 500 µs (scan); a failing run that prints
 an in-process P95 far above these, or a normal one next to a worker P95
 several times its budget, was measured on a busy machine.
+
+The in-process P95 is also the control for each run: the gate prints a
+line starting `perf-gate: busy machine` when it reads above 1.5× the
+usual figure (750 µs scan, 240 µs search text), and `perf-gates.sh`
+voids a failure that printed it. In the 2.216.0 deploy load1 was under
+16 with a game taking the fast cores; the gate failed twice with the
+in-process P95 at 1.0–1.1 ms (scan) and 320 µs (search text) and the
+per-call overhead normal (45–62 µs).
