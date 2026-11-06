@@ -75,6 +75,12 @@ export default defineConfig({
       testMatch: /reading-header-narrow\.spec\.ts/,
       use: { baseURL: 'http://localhost:6038' },
     },
+    // the desktop shell's rail and floating panes, light and dark
+    {
+      name: 'shell',
+      testMatch: /shell-layout\.spec\.ts/,
+      use: { baseURL: 'http://localhost:6038' },
+    },
   ],
   webServer: [
     // Port from the shared port registry (this project's row).
