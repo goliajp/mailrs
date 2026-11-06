@@ -29,6 +29,7 @@ import stub_reset
 import stub_restart
 import stub_role
 import stub_login
+import stub_block
 
 WIDE = ('<table width="760" style="width:760px"><tr><td>'
         '<div style="width:760px;background:#eef;padding:8px">'
@@ -1126,7 +1127,7 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
-        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.handle(self) or stub_triage.post(self, VERBS) or stub_verdict.arm(self) or stub_invite.arm(self) or stub_compose.post(self) or stub_sections.post(self) or stub_settings.post(self):
+        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.handle(self) or stub_triage.post(self, VERBS) or stub_verdict.arm(self) or stub_invite.arm(self) or stub_compose.post(self) or stub_sections.post(self) or stub_settings.post(self) or stub_block.post(self, SPAM_LISTS, VERBS):
             return
         if self.path.split("?")[0] == "/api/auth/confirm":
             stub_confirm.answer(self)
@@ -1267,6 +1268,10 @@ class H(BaseHTTPRequestHandler):
                  "prefix": "mk_a1b2c", "created_at": 1754400000},
             ]
             AGENT_KEY_COUNTER[0] = 1
+            # a test that blocked a sender would leave Unblock on every
+            # menu after it
+            SPAM_LISTS["whitelist"][:] = ["friend@example.com"]
+            SPAM_LISTS["blacklist"][:] = ["spammer@example.com"]
             CONTACT_QUERIES.clear()
             ALIASES[:] = [
                 {"id": 1, "source_address": "sales@golia.jp",
@@ -1420,8 +1425,8 @@ class H(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", "0"))
             body = json.loads(self.rfile.read(length)) if length else {}
             address = body.get("address", "")
-            if address and address not in SPAM_LISTS[kind]:
-                SPAM_LISTS[kind].append(address)
+            if address:
+                stub_block.put(SPAM_LISTS, address, kind)
             self._send({"ok": True})
         elif self.path.split("?")[0] == "/api/admin/aliases":
             length = int(self.headers.get("Content-Length", "0"))

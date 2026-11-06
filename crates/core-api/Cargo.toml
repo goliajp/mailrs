@@ -19,7 +19,7 @@ default = []
 # server-side dependencies (axum + tower). Pulled in by `core` and
 # `fastcore` binaries which expose the RPC. webapi/sender just want the
 # `client` feature.
-server = ["dep:axum", "dep:tower-http"]
+server = ["dep:axum", "dep:tower-http", "dep:sha2", "dep:hex", "dep:reqwest"]
 # client-side dependencies (reqwest). Pulled in by webapi/sender to call
 # core.
 client = ["dep:reqwest", "dep:percent-encoding"]
@@ -35,10 +35,13 @@ tracing = "0.1"
 # We keep these typed instead of stringly so the client + server agree at
 # compile time. Without its `pg` feature, so the SQL store stays out.
 mailrs-mailbox = { path = "../mailbox", default-features = false }
+mailrs-ops-report = { path = "../ops-report" }
 
 # Server-only deps (gated by `server` feature)
 axum = { version = "0.8", optional = true }
 tower-http = { version = "0.6", optional = true, features = ["trace"] }
+sha2 = { version = "0.11", optional = true }
+hex = { version = "0.4", optional = true }
 
 # Client-only deps (gated by `client` feature)
 reqwest = { version = "0.13", optional = true, default-features = false, features = ["json", "rustls"] }

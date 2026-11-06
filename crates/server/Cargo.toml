@@ -21,6 +21,7 @@ spg = [
 ]
 
 [dependencies]
+mailrs-ops-report = { path = "../ops-report", features = ["push"] }
 mailrs-smtp-proto = { path = "../smtp-proto", version = "1" }
 mailrs-maildir = { path = "../storage-maildir", version = "2" }
 mailrs-message-store = { path = "../message-store" }

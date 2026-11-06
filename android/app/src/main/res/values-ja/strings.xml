@@ -511,4 +511,12 @@
     <string name="thread_notify_default">この会話は通知の設定どおり</string>
     <string name="notify_quiet_starts">開始</string>
     <string name="notify_quiet_ends">終了</string>
+    <string name="block_item">%1$s をブロック</string>
+    <string name="block_unblock_item">%1$s のブロックを解除</string>
+    <string name="block_confirm_title">%1$s をブロックしますか？</string>
+    <string name="block_confirm_body">今後このアドレスからのメールは迷惑メールに入り、この会話も今すぐ移動します。「設定 → 常にブロック」で元に戻せます</string>
+    <string name="block_confirm_allowed">%1$s は「常に許可」に入っています。ブロックするとそこから外れます</string>
+    <string name="block_confirm_action">ブロック</string>
+    <string name="block_done">%1$s をブロックしました</string>
+    <string name="block_unblocked">%1$s のブロックを解除しました</string>
 </resources>

@@ -4,13 +4,8 @@ import { useState } from 'react'
 
 import { type Key, useT } from '@/i18n'
 import { errorText } from '@/lib/error-text'
-import { queryClient } from '@/lib/query-client'
-import {
-  type SenderListName,
-  wireAddSender,
-  wireListSenders,
-  wireRemoveSender,
-} from '@/wire/endpoints/settings'
+import { invalidateSenderLists, sendersQuery } from '@/lib/sender-lists'
+import { type SenderListName, wireAddSender, wireRemoveSender } from '@/wire/endpoints/settings'
 
 import { btnPrimary, btnSecondary, cardClass, inputClass, SectionHeader } from './_shared'
 import { SenderRulesCard } from './sender-rules-card'
@@ -19,8 +14,6 @@ const LISTS: { blurb: Key; name: SenderListName; title: Key }[] = [
   { blurb: 'settings.senders.allowedBlurb', name: 'whitelist', title: 'settings.senders.allowed' },
   { blurb: 'settings.senders.blockedBlurb', name: 'blacklist', title: 'settings.senders.blocked' },
 ]
-
-const sendersKey = (list: SenderListName) => ['settings', 'senders', list] as const
 
 /**
  * The senders this account always allows, and always blocks.
@@ -45,14 +38,12 @@ export function SendersSection() {
 
 function SenderList({ blurb, name, title }: { blurb: Key; name: SenderListName; title: Key }) {
   const t = useT()
-  const { data: entries = [] } = useQuery({
-    queryKey: sendersKey(name),
-    queryFn: () => wireListSenders(name).then((rows) => [...rows].sort()),
-  })
+  const { data: entries = [] } = useQuery(sendersQuery(name))
   const [adding, setAdding] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: sendersKey(name) })
+  // both: adding to one list takes the address off the other
+  const invalidate = invalidateSenderLists
 
   const add = async () => {
     const address = adding.trim()

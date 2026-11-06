@@ -173,6 +173,7 @@ fun MailViewModel.undo() {
     undoToken++
     pending = null
     _state.update { it.copy(conversations = action.before, undo = null) }
+    action.blocked?.let { undoBlock(it); return }
     if (!action.applied) return
     val back = action.action.undo ?: return
     viewModelScope.launch {

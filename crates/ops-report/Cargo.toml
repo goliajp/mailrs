@@ -1,0 +1,31 @@
+[package]
+name = "mailrs-ops-report"
+version.workspace = true
+edition = "2024"
+publish = false
+description = "The signed reports each mailrs process pushes to the ops daemon: wire format, per-process keys, the start counter, and the sender."
+license = "Apache-2.0 OR MIT"
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# the sender a process uses to push its reports; the daemon and core-api
+# need only the format
+push = ["dep:reqwest", "dep:tokio", "dep:tracing"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = "0.11"
+hex = "0.4"
+mailrs-webhook-signature = { path = "../webhook-signature", version = "1" }
+reqwest = { version = "0.13", optional = true, default-features = false, features = ["rustls"] }
+tokio = { workspace = true, optional = true }
+tracing = { version = "0.1", optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { workspace = true }
+axum = "0.8"

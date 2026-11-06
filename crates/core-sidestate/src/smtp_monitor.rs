@@ -56,6 +56,11 @@ pub struct ReceiverStats {
     /// them.
     #[serde(default)]
     pub parsing: Option<mailrs_core_api::types::ParsingHealthWire>,
+    /// Unix seconds the receiver built this frame; `None` from a receiver
+    /// that predates it. With the time the reader got it, a frame that is
+    /// only the last one before the receiver stopped can be told apart.
+    #[serde(default)]
+    pub sent_at: Option<i64>,
 }
 
 /// The receiver's view of DANE for its own hostname.
@@ -161,7 +166,9 @@ mod tests {
                     kind: "panic".into(),
                     count: 1,
                 }],
+                paused_since: None,
             }),
+            sent_at: Some(1_700_000_000),
         };
         let bytes = serde_json::to_vec(&sent).unwrap();
         let got: ReceiverStats = serde_json::from_slice(&bytes).unwrap();

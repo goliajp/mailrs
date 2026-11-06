@@ -32,8 +32,10 @@ pub(super) async fn pop_next(cfg: Cfg, wait: Duration) -> std::io::Result<Option
         // practice the pending-idx dup fraction shrinks fast once
         // Phase 8 lands, since we RPOP one entry per claim now.
         let Some((_key, id_bytes)) = c.brpop(&[PENDING_IDX_KEY], Some(wait))? else {
+            super::ops::popped(false);
             return Ok(None);
         };
+        super::ops::popped(true);
         let id = String::from_utf8_lossy(&id_bytes).to_string();
         // The id has left the list whatever the claim says. A job that is
         // still pending afterwards sits in no index, and `recover` puts it

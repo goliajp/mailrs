@@ -261,18 +261,28 @@ async fn remote_images_are_queued_alike_by_both_cores() {
     accounts::seed(&cores, &mut d).await;
     let spools = Spools::new(&cores);
     let pg_net = cores.pg_core_state.net_url.clone().expect("net url");
-    let queued = |cores: &Cores| {
+    let in_lane = |cores: &Cores, asked: bool| {
+        let (fc_set, pg_set) = match asked {
+            true => (
+                mailrs_mailbox_kevy::keys::IMAGE_PREFETCH_ASKED,
+                mailrs_core_sidestate::families::image_prefetch::ASKED,
+            ),
+            false => (
+                mailrs_mailbox_kevy::keys::IMAGE_PREFETCH_PENDING,
+                mailrs_core_sidestate::families::image_prefetch::PENDING,
+            ),
+        };
         let mut fc: Vec<String> = cores
             .fastcore_state
             .mailbox
-            .pending_image_prefetches(100)
+            .pending_image_prefetches(fc_set, 100)
             .expect("fastcore queue")
             .into_iter()
             .map(|(_, _, url)| url)
             .collect();
         let mut conn = kevy_client::Connection::connect(&pg_net).expect("kevy");
         let mut pg: Vec<String> =
-            mailrs_core_sidestate::families::image_prefetch::pending(&mut conn, 100)
+            mailrs_core_sidestate::families::image_prefetch::pending(&mut conn, pg_set, 100)
                 .expect("pg queue")
                 .into_iter()
                 .map(|(_, _, url)| url)
@@ -283,6 +293,7 @@ async fn remote_images_are_queued_alike_by_both_cores() {
         pg.dedup();
         (fc, pg)
     };
+    let queued = |cores: &Cores| in_lane(cores, false);
     let mail = |id: &str| {
         format!(
             "From: Shop <news@outside.example>\r\nTo: alice@example.test\r\n\
@@ -345,4 +356,23 @@ async fn remote_images_are_queued_alike_by_both_cores() {
     let (fc, pg) = queued(&cores);
     assert_eq!(fc, want, "fastcore after leaving Junk and Review");
     assert_eq!(pg, want, "pg-core after leaving Junk and Review");
+
+    // a reader who opens a thread and asks for its images, here past the
+    // Junk refusal, has them queued in the lane the worker serves first
+    let (fc, pg) = in_lane(&cores, true);
+    assert!(fc.is_empty() && pg.is_empty(), "nothing asked yet");
+    spools
+        .arrive(&cores, &into("Junk", None), mail("asked").as_bytes())
+        .await;
+    for c in [&cores.fastcore, &cores.pg_core] {
+        c.prefetch_thread_images(ALICE, &tid("asked"), true)
+            .await
+            .expect("asked");
+    }
+    let (fc, pg) = in_lane(&cores, true);
+    assert_eq!(fc, [url("asked")], "fastcore's asked lane");
+    assert_eq!(pg, [url("asked")], "pg-core's asked lane");
+    let (fc, pg) = queued(&cores);
+    assert_eq!(fc, want, "fastcore's background lane is unchanged");
+    assert_eq!(pg, want, "pg-core's background lane is unchanged");
 }

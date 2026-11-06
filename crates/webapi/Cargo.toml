@@ -14,6 +14,7 @@ name = "mailrs-webapi"
 path = "src/main.rs"
 
 [dependencies]
+mailrs-ops-report = { path = "../ops-report", features = ["push"] }
 mailrs-attachment-extract = { path = "../attachment-extract", version = "1" }
 mailrs-oauth-client = { path = "../oauth-client", version = "0.2" }
 mailrs-core-api = { path = "../core-api", features = ["client"] }
