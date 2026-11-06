@@ -11,22 +11,25 @@
 // which caches the promise so the child hook's queryKey lookup finds
 // an in-flight (or resolved) promise instead of undefined.
 //
-// URL params are the source of truth for filters (D11). The loader
-// reads them and derives the same filter shape the component would
-// have computed via atoms — so on refresh, the URL alone re-primes
-// the cache. Atoms remain the transient UI state (hover, selection)
-// but stop being the primary "which folder am I in" state.
+// The list on screen is decided by atoms (`activeListAtom` and the
+// refinements beside it), not by the URL. The mail loader reads the same
+// atoms through the same `mailFiltersOf`, and builds the path and the
+// cache key with the list's own `listPath` and `conversationListKey`, so
+// the page it primes is the page the list reads. It used to read
+// `?folder=` / `?tab=` from the URL, which nothing writes, and primed a
+// whole-mailbox page under a key no list used.
 
 import type { CategoryCount } from '@/lib/types'
 
+import { getDefaultStore } from 'jotai'
+
+import { conversationListKey, listPath } from '@/lib/list-axes'
+import { mailFilterInputsIn, mailFiltersOf } from '@/lib/mail-filters'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys, type MailListFilters } from '@/lib/query-keys'
-import { conversationKeys } from '@/store/query-keys-v21'
 import { wireFetch } from '@/wire/client'
 import { adminListGet } from '@/wire/endpoints/admin'
 import { wireThreadListResponseSchema } from '@/wire/schemas/conversation'
-
-const PAGE_SIZE = 50
 
 // Dashboard loader — same idea but for INBOX list + categories. The
 // action-count query was removed in Phase 1.1, so the dashboard only
@@ -37,31 +40,11 @@ export async function dashboardLoader({ request: _request }: { request: Request 
     category: null,
     domains: [],
     folder: 'INBOX',
-    query: '',
     section: null,
     starred: false,
     unread: false,
   }
-  queryClient
-    .ensureInfiniteQueryData({
-      initialPageParam: undefined as string | undefined,
-      queryKey: conversationKeys.infinite({
-        archived: false,
-        category: null as never,
-        domains: [],
-        folder: 'INBOX' as never,
-        starred: false,
-        unread: false,
-      }),
-      queryFn: async ({ pageParam, signal }) => {
-        const parsed = await wireFetch(wireThreadListResponseSchema, {
-          path: listPath(filters, pageParam as string | undefined),
-          signal,
-        })
-        return parsed.items
-      },
-    })
-    .catch(() => {})
+  primeList(filters)
   queryClient
     .ensureQueryData({
       queryKey: mailKeys.categories([]),
@@ -75,21 +58,20 @@ export async function dashboardLoader({ request: _request }: { request: Request 
 // route's `element` renders; we prime RQ and return null. The RQ
 // hooks inside the component then find an in-flight or resolved
 // promise for the same queryKey and skip the initial fetch.
-export async function mailListLoader({ request }: { request: Request }) {
-  const url = new URL(request.url)
-  const filters = filtersFromUrl(url)
-  const key = conversationKeys.infinite({
-    archived: filters.archived,
-    category: filters.category as never,
-    domains: filters.domains,
-    folder: filters.folder as never,
-    starred: filters.starred,
-    unread: filters.unread,
-  })
+export async function mailListLoader({ request: _request }: { request: Request }) {
+  const filters = mailFiltersOf(mailFilterInputsIn(getDefaultStore()))
+  // Send and Draft are not served by `/conversations`
+  if (!filters) return null
+  primeList(filters)
+  return null
+}
+
+/** Start the first page of `filters`' list, under the key the list reads. */
+function primeList(filters: MailListFilters) {
   queryClient
     .ensureInfiniteQueryData({
       initialPageParam: undefined as string | undefined,
-      queryKey: key,
+      queryKey: conversationListKey(filters),
       queryFn: async ({ pageParam, signal }) => {
         const parsed = await wireFetch(wireThreadListResponseSchema, {
           path: listPath(filters, pageParam as string | undefined),
@@ -99,41 +81,4 @@ export async function mailListLoader({ request }: { request: Request }) {
       },
     })
     .catch(() => {})
-  return null
-}
-
-function filtersFromUrl(url: URL): MailListFilters {
-  const folder = url.searchParams.get('folder') ?? null
-  const tab = url.searchParams.get('tab')
-  const cat = url.searchParams.get('cat') ?? null
-  return {
-    archived: false,
-    category: cat,
-    domains: [],
-    folder,
-    query: '',
-    section: null,
-    starred: tab === 'starred',
-    unread: tab === 'unread',
-  }
-}
-
-// Mirrors `use-mail-queries.ts::listPath`. Kept in sync by hand — the
-// loader would otherwise import from the hook module, which triggers
-// a chain that pulls in React and blocks the router bundle from
-// pre-loading.
-function listPath(filters: MailListFilters, cursor?: string): string {
-  const params = new URLSearchParams()
-  params.set('limit', String(PAGE_SIZE))
-  if (cursor !== undefined) params.set('cursor', cursor)
-  if (filters.folder) params.set('folder', filters.folder)
-  if (filters.category) params.set('category', filters.category)
-  if (filters.unread) params.set('unread', 'true')
-  if (filters.starred) params.set('starred', 'true')
-  if (filters.archived) params.set('archived', 'true')
-  if (filters.query) params.set('q', filters.query)
-  if (filters.domains && filters.domains.length > 0) {
-    params.set('domains', filters.domains.join(','))
-  }
-  return `/conversations?${params.toString()}`
 }

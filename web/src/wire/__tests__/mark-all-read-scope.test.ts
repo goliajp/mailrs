@@ -57,7 +57,7 @@ describe('wireMarkAllRead scope', () => {
   })
 
   it('sends what the list itself sends', async () => {
-    const { listPath } = await import('@/hooks/use-mail-queries')
+    const { listPath } = await import('@/lib/list-axes')
     const { wireMarkAllRead } = await import('../endpoints/mutations')
     for (const filters of [
       { folder: 'NonJunk', pinned: true },

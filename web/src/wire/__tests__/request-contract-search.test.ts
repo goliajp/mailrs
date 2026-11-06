@@ -26,7 +26,7 @@ describe('search request bodies match the shared contract', () => {
    * same thing; `request_contract_search.rs` reads the same file.
    */
   it('conversation-search', async () => {
-    const { listPath } = await import('@/hooks/use-mail-queries')
+    const { listPath } = await import('@/lib/list-axes')
     const path = listPath({
       accounts: ['', 'ext_a'],
       archived: true,
@@ -50,14 +50,14 @@ describe('search request bodies match the shared contract', () => {
   })
 
   it('a search from Review is a search of Review', async () => {
-    const { listPath } = await import('@/hooks/use-mail-queries')
+    const { listPath } = await import('@/lib/list-axes')
     const url = new URL(listPath({ quarantined: true, query: 'invoice' }), 'http://mail.test')
     expect(url.pathname).toBe('/conversations/search')
     expect(url.searchParams.get('quarantined')).toBe('true')
   })
 
   it('the list sends the axes its search sends', async () => {
-    const { listPath } = await import('@/hooks/use-mail-queries')
+    const { listPath } = await import('@/lib/list-axes')
     const filters = { assignedToMe: true, label: '3', pinned: true, section: 'awaiting' }
     const list = new URL(listPath(filters), 'http://mail.test').searchParams
     const search = new URL(listPath({ ...filters, query: 'x' }), 'http://mail.test').searchParams
