@@ -213,6 +213,10 @@ pub(crate) async fn get_unseen_count(
     // Each folder shows its own part of it beside its name: the Inbox
     // once showed the whole count, two unread promotions read as two
     // unread in the Inbox.
+    //
+    // A conversation of only the reader's own mail marked unread is in the
+    // Unread view but not counted: the badge is the Inbox's and N&P's, and
+    // no Inbox holds it.
     let count_in = |buckets: &[&str]| {
         state
             .mailbox

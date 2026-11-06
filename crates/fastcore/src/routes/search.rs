@@ -285,13 +285,13 @@ fn in_folder_list(
     row: &mailrs_mailbox_kevy::ThreadRow,
     f: &mailrs_core_api::types::ConversationFilter,
 ) -> bool {
-    use mailrs_mailbox_kevy::scope::{Scope, ThreadFacts, is_sent_folder, scope};
+    use mailrs_mailbox_kevy::scope::{Scope, ThreadFacts, is_sent_folder, list_scope};
     // Archived is a tab across folders, not a predicate inside one
     let folder = match f.archived {
         true => None,
         false => f.folder.as_deref(),
     };
-    let scope = scope(folder, f.category.as_deref());
+    let scope = list_scope(folder, f.category.as_deref(), f.unread == Some(true));
     // All Mail reads both sides of the archive
     if scope != Scope::AllMail && row.archived != f.archived {
         return false;
