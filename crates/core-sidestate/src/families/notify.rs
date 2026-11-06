@@ -144,7 +144,8 @@ pub struct WebSubscription {
     pub created_at: i64,
 }
 
-fn endpoint_field(endpoint: &str) -> String {
+/// The field an endpoint is filed under: its sha256, hex.
+pub fn endpoint_field(endpoint: &str) -> String {
     use sha2::Digest as _;
     sha2::Sha256::digest(endpoint.as_bytes())
         .iter()
@@ -190,7 +191,7 @@ pub fn web_subscriptions(
 }
 
 /// The channels and outcomes the counters are kept for.
-pub const CHANNELS: [&str; 2] = ["apns", "web"];
+pub const CHANNELS: [&str; 3] = ["apns", "web", "unifiedpush"];
 pub const OUTCOMES: [&str; 5] = [
     "sent",
     "suppressed_policy",

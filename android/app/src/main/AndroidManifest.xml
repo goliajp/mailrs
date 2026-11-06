@@ -100,6 +100,18 @@
             android:name=".wire.ReplyFromNotification"
             android:exported="false" />
 
+        <!-- What the reader's UnifiedPush distributor tells the app: new
+             endpoints, and "look now" pings. Not exported: the connector
+             library's own receiver takes the distributor's broadcasts and
+             binds this from inside the app. -->
+        <service
+            android:name=".wire.PushPingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.unifiedpush.android.connector.PUSH_EVENT" />
+            </intent-filter>
+        </service>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"

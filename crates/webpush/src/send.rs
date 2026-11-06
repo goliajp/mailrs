@@ -29,14 +29,46 @@ pub enum Outcome {
 /// How long the push service keeps an undelivered message.
 const TTL_SECS: u32 = 24 * 3600;
 
-/// Push `payload` to `sub`.
+/// Push `payload` to `sub`, a browser's subscription.
 pub async fn send(vapid: &Vapid, sub: &Subscription, payload: &[u8], now: i64) -> Outcome {
     let Ok(url) = url::Url::parse(&sub.endpoint) else {
         return Outcome::Failed("not a URL".into());
     };
-    let (host, addr) = match endpoint::resolve(&url).await {
-        Ok(v) => v,
-        Err(e) => return Outcome::Failed(e.to_string()),
+    match endpoint::resolve(&url).await {
+        Ok((host, addr)) => post(vapid, sub, payload, now, &host, addr).await,
+        Err(e) => Outcome::Failed(e.to_string()),
+    }
+}
+
+/// Push `payload` to `sub`, a phone's UnifiedPush endpoint: the same
+/// request, to any host whose addresses are all public.
+pub async fn send_to_distributor(
+    vapid: &Vapid,
+    sub: &Subscription,
+    payload: &[u8],
+    now: i64,
+) -> Outcome {
+    let Ok(url) = url::Url::parse(&sub.endpoint) else {
+        return Outcome::Failed("not a URL".into());
+    };
+    match endpoint::resolve_distributor(&url).await {
+        Ok((host, addr)) => post(vapid, sub, payload, now, &host, addr).await,
+        Err(e) => Outcome::Failed(e.to_string()),
+    }
+}
+
+/// The push itself, connecting `host` to `addr`. The endpoint checks are
+/// the caller's: [`send`] and [`send_to_distributor`] make them.
+pub async fn post(
+    vapid: &Vapid,
+    sub: &Subscription,
+    payload: &[u8],
+    now: i64,
+    host: &str,
+    addr: std::net::SocketAddr,
+) -> Outcome {
+    let Ok(url) = url::Url::parse(&sub.endpoint) else {
+        return Outcome::Failed("not a URL".into());
     };
     let body = match ece::encrypt(
         payload,
@@ -53,7 +85,7 @@ pub async fn send(vapid: &Vapid, sub: &Subscription, payload: &[u8], now: i64) -
     };
     // connect to the address checked above, not a second lookup's answer
     let client = match reqwest::Client::builder()
-        .resolve(&host, addr)
+        .resolve(host, addr)
         .redirect(reqwest::redirect::Policy::none())
         .timeout(Duration::from_secs(15))
         .build()

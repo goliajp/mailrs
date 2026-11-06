@@ -50,6 +50,12 @@ describe('settings request bodies match the shared contract', () => {
     expect(body).toEqual(fixture('vacation-set'))
   })
 
+  it('swipe-set', async () => {
+    const { wireSetSwipe } = await import('../endpoints/mail-settings')
+    const body = await bodyOf(() => wireSetSwipe({ left: 'none', right: 'read' }))
+    expect(body).toEqual(fixture('swipe-set'))
+  })
+
   it('forwarding-request, forwarding-verify', async () => {
     const { wireRequestForwarding } = await import('../endpoints/mail-settings')
     const { wireVerifyForwarding } = await import('../endpoints/mail-settings')

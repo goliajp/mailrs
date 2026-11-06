@@ -1,6 +1,7 @@
 //! Web Push for "you have mail": the message encrypted to the browser's
 //! keys (RFC 8291), signed for the push service (RFC 8292), and sent only
-//! to a known browser push service whose addresses are public.
+//! to a known browser push service whose addresses are public. A phone's
+//! UnifiedPush endpoint takes the same request, to its distributor's host.
 
 pub mod ece;
 pub mod endpoint;

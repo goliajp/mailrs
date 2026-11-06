@@ -25,3 +25,9 @@ export type WireForwarding = z.infer<typeof forwardingSchema>
 
 // Backend: crates/webapi/src/handlers/mail_settings.rs — fn verify_forwarding
 export const forwardingVerifiedSchema = z.object({ address: z.string() })
+
+// Backend: crates/webapi/src/handlers/mail_settings.rs — fn get_swipe / fn put_swipe
+// (the type is crates/core-sidestate/src/families/swipe.rs `Swipe`)
+const swipeChoice = z.enum(['archive', 'none', 'read', 'trash'])
+
+export const swipeSchema = z.object({ left: swipeChoice, right: swipeChoice })

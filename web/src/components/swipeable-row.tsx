@@ -1,21 +1,29 @@
-import { Archive, Trash2 } from 'lucide-react'
+import type { ActionId } from '@/lib/actions'
+
 import { useCallback, useRef, useState } from 'react'
 
 import { useIsMobile } from '@/hooks/use-is-mobile'
+import { ACTIONS } from '@/lib/actions'
 
 const THRESHOLD = 80
 const MAX_SWIPE = 120
 
+/** What one direction does: the action it runs, drawn with that action's icon. */
+export type SwipeSide = { action: ActionId; run: () => void }
+
 type SwipeableRowProps = {
   children: React.ReactNode
-  onSwipeLeft?: () => void
-  onSwipeRight?: () => void
+  /** A finger moving right to left; none when the setting says nothing. */
+  left: null | SwipeSide
+  right: null | SwipeSide
 }
 
-// swipeable list row for mobile: right = archive, left = delete.
-// On desktop (md+ = 768px+) returns children unwrapped so the
-// surrounding virtualizer measures the real content height directly.
-export function SwipeableRow({ children, onSwipeLeft, onSwipeRight }: SwipeableRowProps) {
+// swipeable list row for mobile; what each direction does is the user's
+// swipe setting. On desktop (md+ = 768px+) returns children unwrapped so
+// the surrounding virtualizer measures the real content height directly.
+export function SwipeableRow({ children, left, right }: SwipeableRowProps) {
+  const onSwipeLeft = left?.run
+  const onSwipeRight = right?.run
   const isMobile = useIsMobile()
   const [offsetX, setOffsetX] = useState(0)
   const [transitioning, setTransitioning] = useState(false)
@@ -89,23 +97,21 @@ export function SwipeableRow({ children, onSwipeLeft, onSwipeRight }: SwipeableR
 
   return (
     <div className="relative overflow-hidden">
-      {/* right swipe background: archive */}
-      {offsetX > 0 && (
-        <div
-          className={`absolute inset-y-0 left-0 flex items-center pl-4 ${committed ? 'bg-success' : 'bg-success/60'}`}
-          style={{ width: absOffset }}
-        >
-          <Archive className="h-5 w-5 text-white" />
-        </div>
+      {offsetX > 0 && right && (
+        <SwipeBackground
+          action={right.action}
+          committed={committed}
+          edge="left"
+          width={absOffset}
+        />
       )}
-      {/* left swipe background: delete */}
-      {offsetX < 0 && (
-        <div
-          className={`absolute inset-y-0 right-0 flex items-center justify-end pr-4 ${committed ? 'bg-danger' : 'bg-danger/60'}`}
-          style={{ width: absOffset }}
-        >
-          <Trash2 className="h-5 w-5 text-white" />
-        </div>
+      {offsetX < 0 && left && (
+        <SwipeBackground
+          action={left.action}
+          committed={committed}
+          edge="right"
+          width={absOffset}
+        />
       )}
       <div
         className="relative"
@@ -121,4 +127,53 @@ export function SwipeableRow({ children, onSwipeLeft, onSwipeRight }: SwipeableR
       </div>
     </div>
   )
+}
+
+function edgeClass(edge: 'left' | 'right'): string {
+  if (edge === 'left') return 'left-0 pl-4'
+  return 'right-0 justify-end pr-4'
+}
+
+function SwipeBackground({
+  action,
+  committed,
+  edge,
+  width,
+}: {
+  action: ActionId
+  committed: boolean
+  edge: 'left' | 'right'
+  width: number
+}) {
+  const Icon = ACTIONS[action].icon
+  return (
+    <div
+      className={`absolute inset-y-0 flex items-center ${edgeClass(edge)} ${toneClass(action, committed)}`}
+      data-testid={`swipe-${action}`}
+      style={{ width }}
+    >
+      <Icon className="h-5 w-5 text-white" />
+    </div>
+  )
+}
+
+// archive and restore green, trash red, read and unread the accent; the
+// paler shade until the swipe has gone far enough to count. Whole class
+// names, so Tailwind finds them in the source.
+const TONES = {
+  accent: { committed: 'bg-accent', pending: 'bg-accent/60' },
+  danger: { committed: 'bg-danger', pending: 'bg-danger/60' },
+  success: { committed: 'bg-success', pending: 'bg-success/60' },
+}
+
+function toneClass(action: ActionId, committed: boolean): string {
+  const tone = TONES[toneOf(action)]
+  if (committed) return tone.committed
+  return tone.pending
+}
+
+function toneOf(action: ActionId): keyof typeof TONES {
+  if (action === 'trash') return 'danger'
+  if (action === 'read' || action === 'unread') return 'accent'
+  return 'success'
 }

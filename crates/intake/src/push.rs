@@ -90,11 +90,16 @@ pub fn maybe_notify(
     }
     let apns = client();
     let web = crate::web_push::vapid();
-    let channels: Vec<&str> = [("apns", apns.is_some()), ("web", web.is_some())]
-        .into_iter()
-        .filter(|(_, on)| *on)
-        .map(|(c, _)| c)
-        .collect();
+    // UnifiedPush is signed with the Web Push key, so it is on when that is
+    let channels: Vec<&str> = [
+        ("apns", apns.is_some()),
+        ("web", web.is_some()),
+        (crate::unified_push::CHANNEL, web.is_some()),
+    ]
+    .into_iter()
+    .filter(|(_, on)| *on)
+    .map(|(c, _)| c)
+    .collect();
     if channels.is_empty() {
         tracing::debug!("push: no channel configured, no push");
         return;
@@ -122,6 +127,7 @@ pub fn maybe_notify(
     if let Some(vapid) = web {
         let payload =
             crate::web_push::payload(&a.thread_id, sender, subject, decision.hide_content);
+        crate::unified_push::spawn(vapid.clone(), addr, now);
         crate::web_push::spawn(vapid, addr, payload, now);
     }
     let Some(apns) = apns else {
@@ -196,6 +202,11 @@ fn spawn_apns(apns: Arc<ApnsClient>, addr: &str, title: String, body: String, ta
                     // identically — and the only way to tell them
                     // apart was to hold the phone.
                     tracing::info!(%user, "apns: delivered to Apple");
+                    let who = user.clone();
+                    let _ = tokio::task::spawn_blocking(move || {
+                        mark_used(&who, push_devices::Channel::Apns, &token, now)
+                    })
+                    .await;
                 }
                 Ok(Outcome::Unregistered) => {
                     tracing::info!(%user, "apns: pruning dead token");
@@ -236,6 +247,20 @@ pub(crate) fn count(user: &str, channel: &str, outcome: &str, now: i64) {
         return;
     };
     let _ = mailrs_core_sidestate::families::notify::count(&mut conn, user, channel, outcome, now);
+}
+
+use mailrs_core_sidestate::families::push_devices;
+
+/// Record a push that got through, for the device cap's least-recently-used
+/// order.
+pub(crate) fn mark_used(user: &str, channel: push_devices::Channel, id: &str, now: i64) {
+    let Ok(url) = std::env::var("MAILRS_KEVY_URL") else {
+        return;
+    };
+    let Ok(mut conn) = kevy_client::Connection::connect(&url) else {
+        return;
+    };
+    let _ = push_devices::mark_used(&mut conn, user, channel, id, now);
 }
 
 fn prune_token(user: &str, token: &str) {

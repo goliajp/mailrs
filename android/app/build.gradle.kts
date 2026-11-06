@@ -85,6 +85,7 @@ dependencies {
     implementation(libs.glance.material3)
     implementation(libs.splashscreen)
     implementation(libs.work.runtime)
+    implementation(libs.unifiedpush.connector)
     androidTestImplementation(libs.work.testing)
     androidTestImplementation(libs.glance.testing)
     androidTestImplementation(platform(libs.compose.bom))
