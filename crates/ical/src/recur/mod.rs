@@ -17,11 +17,13 @@ use crate::{CalDateTime, EventStatus, Method, ParsedInvite, VTimezone};
 
 mod clock;
 mod rule;
+mod write;
 
 pub use clock::organiser_clock;
 use clock::{moment, moment_at};
 pub use rule::Rule;
 use rule::split_until;
+pub use write::Head;
 
 /// At most this many occurrences come back from one expansion.
 pub const MAX_OCCURRENCES: usize = 500;

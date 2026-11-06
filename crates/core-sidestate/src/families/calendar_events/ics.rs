@@ -5,6 +5,7 @@
 //! text itself is kept, so a GET returns what the PUT sent. Out: a row a
 //! feed or a mail produced has no text, so one is written from the columns.
 
+use mailrs_ical::recur::Head;
 use mailrs_ical::{EventStatus, parse_invite};
 
 use super::StoredEvent;
@@ -47,7 +48,9 @@ pub fn from_ics(ics: &str, source: &str) -> Result<StoredEvent, String> {
     })
 }
 
-/// The iCalendar text CalDAV serves for `ev`.
+/// The iCalendar text CalDAV serves for `ev`. A recurring row is written
+/// as its whole series — rule, exclusions, additions, zone and moved
+/// occurrences — so a client shows every occurrence, not the first.
 ///
 /// Deterministic, because the ETag is a digest of it: the same row must
 /// always produce the same bytes. `DTSTAMP` is required by RFC 5545 and
@@ -55,6 +58,24 @@ pub fn from_ics(ics: &str, source: &str) -> Result<StoredEvent, String> {
 pub fn to_ics(ev: &StoredEvent) -> String {
     if let Some(raw) = &ev.ics {
         return raw.clone();
+    }
+    let stamp = ev
+        .dtstart
+        .as_deref()
+        .and_then(utc_basic)
+        .unwrap_or_else(|| "19700101T000000Z".to_string());
+    let head = Head {
+        uid: &ev.uid,
+        summary: &ev.summary,
+        organizer: ev.organizer.as_deref(),
+        status: ev.status.as_deref(),
+        sequence: ev.sequence,
+        dtstamp: &stamp,
+    };
+    // a series whose zone no longer resolves still shows as its first
+    // occurrence rather than not at all
+    if let Some(text) = super::series::series_of(ev).and_then(|s| s.to_calendar(&head)) {
+        return text;
     }
     let mut lines = vec![
         "BEGIN:VCALENDAR".to_string(),
@@ -65,11 +86,6 @@ pub fn to_ics(ev: &StoredEvent) -> String {
         format!("SEQUENCE:{}", ev.sequence),
     ];
     let start = ev.dtstart.as_deref().and_then(property_value);
-    let stamp = ev
-        .dtstart
-        .as_deref()
-        .and_then(utc_basic)
-        .unwrap_or_else(|| "19700101T000000Z".to_string());
     lines.push(format!("DTSTAMP:{stamp}"));
     if let Some(s) = &start {
         lines.push(format!("DTSTART{s}"));
