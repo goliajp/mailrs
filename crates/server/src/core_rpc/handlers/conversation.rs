@@ -16,7 +16,7 @@ use axum::{
 use mailrs_core_api::method::conversation as wire;
 use mailrs_core_api::types::{ConversationFilter, ConversationSummaryWire};
 use mailrs_mailbox::pg::{Held, ThreadQuery};
-use mailrs_mailbox::scope::{Bucket, Scope, is_sent_folder, scope};
+use mailrs_mailbox::scope::{Bucket, Scope, is_sent_folder, list_scope};
 
 use crate::core_rpc::CoreRpcState;
 use crate::core_rpc::handlers::failed;
@@ -46,9 +46,15 @@ pub(crate) fn thread_query<'a>(user: &'a str, f: &'a ConversationFilter) -> Thre
     let scope = if own_mail_excluded {
         Scope::Contradiction
     } else {
-        scope(folder, f.category.as_deref())
+        let flagged = f.starred == Some(true) || f.pinned == Some(true);
+        list_scope(
+            folder,
+            f.category.as_deref(),
+            f.unread == Some(true),
+            flagged,
+        )
     };
-    // All Mail is the one list that reads both sides of the archive
+    // All Mail and the lists narrowed from it read both sides of the archive
     let archived = match f.trashed || snoozed || scope == Scope::AllMail {
         true => None,
         false => Some(f.archived),

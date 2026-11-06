@@ -223,7 +223,9 @@ pub(crate) fn scope_predicate(scope: &Scope, category_param: usize) -> (String, 
             ),
             None,
         ),
-        Scope::AllMail => (format!("({bucket} <> '{}')", Bucket::Junk.name()), None),
+        Scope::AllMail | Scope::Unread => {
+            (format!("({bucket} <> '{}')", Bucket::Junk.name()), None)
+        }
         Scope::Bucket(b) => (in_bucket(*b), None),
         Scope::Np => (
             format!(

@@ -158,13 +158,25 @@ fn a_flag_axis_excludes_archived() {
     st.set_archived(u, "filed", true).unwrap();
 
     let f = ListThreadsFilter {
-        folder: Some("nonjunk"),
+        folder: Some("inbox"),
         starred: true,
         ..Default::default()
     };
     let (rows, total) = st.list_threads_by_activity(u, &f, 0, 50).unwrap();
     assert_eq!(tids(&rows), vec!["kept"]);
     assert_eq!(total, 1);
+
+    // Starred itself is All Mail narrowed to the flag, archive and all
+    let f = ListThreadsFilter {
+        folder: Some("nonjunk"),
+        starred: true,
+        ..Default::default()
+    };
+    let (rows, total) = st.list_threads_by_activity(u, &f, 0, 50).unwrap();
+    let mut got = tids(&rows);
+    got.sort();
+    assert_eq!(got, vec!["filed", "kept"]);
+    assert_eq!(total, 2);
 }
 
 /// The unread badge counts the set the Unread view lists.
