@@ -11,7 +11,7 @@ use std::sync::OnceLock;
 use axum::Json;
 use axum::extract::Extension;
 use axum::http::StatusCode;
-use mailrs_core_sidestate::families::notify;
+use mailrs_core_sidestate::families::{notify, push_devices};
 use mailrs_webpush::vapid::Vapid;
 
 use crate::handlers::conversations::AuthedUser;
@@ -91,7 +91,12 @@ pub async fn subscribe(
         auth: body.keys.auth,
         created_at: chrono::Utc::now().timestamp(),
     };
-    with_kevy(move |c| notify::add_web_subscription(c, &user, &sub))?;
+    let now = sub.created_at;
+    with_kevy(move |c| {
+        let done = push_devices::register(c, &user, push_devices::Registration::Web(&sub), now)?;
+        crate::handlers::push::log_evicted(&user, &done.evicted);
+        Ok(())
+    })?;
     Ok(StatusCode::NO_CONTENT)
 }
 

@@ -44,6 +44,7 @@ egress:refusals:;crates/core-sidestate/src/families/egress.rs
 inline:;crates/core-sidestate/src/families/inline_images.rs
 calendar_events?:;crates/core-sidestate/src/families/calendar_events/mod.rs
 push:tokens:;crates/core-sidestate/src/keys/push.rs
+push:(web|unifiedpush|used|upwindow|uptrailing):;crates/core-sidestate/src/keys/push.rs
 shared:;crates/core-sidestate/src/families/shared_inbox/mod.rs
 session:;crates/core-sidestate/src/keys/session.rs
 spam:[^"]*:(whitelist|blacklist);crates/core-sidestate/src/families/sender_lists.rs

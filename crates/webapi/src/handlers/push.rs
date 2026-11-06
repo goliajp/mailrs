@@ -3,8 +3,9 @@
 //! The iOS app registers its APNs token here after sign-in; the sender
 //! side lives in fastcore's spool drain, which reads the same hash when
 //! a message lands and prunes any token Apple reports dead. This handler
-//! is deliberately dumb storage: what "should be pushed" is decided
-//! where mail arrives, not where tokens are filed.
+//! only files the token, through the account-wide device cap
+//! (`push_devices::register`): what "should be pushed" is decided where
+//! mail arrives, not where tokens are filed.
 //!
 //! Fastcore only, and permanently: the monolith is not coming back.
 
@@ -13,6 +14,7 @@ use std::sync::Arc;
 use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
+use mailrs_core_sidestate::families::push_devices;
 use serde::Deserialize;
 
 use crate::WebState;
@@ -45,17 +47,29 @@ pub async fn register_push_token(
     if req.token.is_empty() || req.token.len() > 512 {
         return Err(StatusCode::UNPROCESSABLE_ENTITY);
     }
-    let key = tokens_key(&user);
-    let meta = serde_json::json!({
-        "platform": if req.platform.is_empty() { "ios" } else { &req.platform },
-        "registered_at": now_secs(),
-    })
-    .to_string();
+    let platform = match req.platform.is_empty() {
+        true => "ios".to_string(),
+        false => req.platform,
+    };
+    let now = now_secs();
     with_kevy(move |c| {
-        c.hset(key.as_bytes(), &[(req.token.as_bytes(), meta.as_bytes())])
-            .map_err(std::io::Error::from)
+        let reg = push_devices::Registration::Apns {
+            token: &req.token,
+            platform: &platform,
+        };
+        let done = push_devices::register(c, &user, reg, now)?;
+        log_evicted(&user, &done.evicted);
+        Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Say which devices a registration pushed out; by channel and count only,
+/// since a device id can be a push token.
+pub(crate) fn log_evicted(user: &str, evicted: &[(push_devices::Channel, String)]) {
+    for (channel, _) in evicted {
+        tracing::info!(%user, channel = channel.as_str(), "push: device cap reached, least recently used device removed");
+    }
 }
 
 /// DELETE /api/push/tokens/{token} — sign-out unregisters the device.
