@@ -57,6 +57,9 @@ struct PadRootView: View {
                 // and the window then shows two languages at once.
                 .navigationTitle(listTitle)
                 .searchable(text: $searchText, prompt: Text("Search mail"))
+                .searchSuggestions {
+                    if searchText.isEmpty { SavedSearchSuggestions() }
+                }
                 .onChange(of: searchText) { _, text in search(text) }
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
