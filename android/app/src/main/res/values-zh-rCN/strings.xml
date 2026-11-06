@@ -208,7 +208,8 @@
     <string name="reset_back_to_sign_in">返回登录</string>
     <string name="search_placeholder">搜索邮件</string>
     <string name="common_clear">清除</string>
-    <string name="search_hint">搜索主题和正文</string>
+    <string name="search_hint">搜索，或用 from: to: subject: has:attachment in: is: label:</string>
+    <string name="search_saved">已保存的搜索</string>
     <string name="search_no_match">没有和「%1$s」匹配的邮件</string>
     <string name="search_first_n">只显示前 %1$s 个结果，缩小搜索范围可以看到更多</string>
     <string name="sent_empty">还没有发出任何邮件</string>

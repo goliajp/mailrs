@@ -2,10 +2,16 @@ package jp.golia.mailrs.ui
 
 import jp.golia.mailrs.R
 import jp.golia.mailrs.wire.Texts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -105,18 +111,11 @@ private fun SearchResults(state: UiState, vm: MailViewModel) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center), color = theme.accent)
             }
 
-        results == null ->
-            // Not an empty state: nothing has been asked yet, so there is
-            // nothing to report. Saying "no results" before a search is
-            // an answer to a question nobody put.
-            Box(Modifier.fillMaxSize()) {
-                Text(
-                    Texts.get(R.string.search_hint),
-                    color = theme.fgMuted,
-                    fontSize = 13.sp,
-                    modifier = Modifier.align(Alignment.Center).padding(32.dp),
-                )
-            }
+        // Not an empty state: nothing has been asked yet, so there is
+        // nothing to report. Saying "no results" before a search is an
+        // answer to a question nobody put. What is offered instead is
+        // what the web offers: the saved searches and the operators.
+        results == null -> SavedSearches(state, vm)
 
         results.isEmpty() ->
             Box(Modifier.fillMaxSize()) {
@@ -157,6 +156,46 @@ private fun SearchResults(state: UiState, vm: MailViewModel) {
                     )
                 }
             }
+        }
+    }
+}
+
+/** The searches saved on the web, each running its query, then the operators the server takes. */
+@Composable
+private fun SavedSearches(state: UiState, vm: MailViewModel) {
+    val theme = LocalTheme.current
+    LazyColumn(Modifier.fillMaxSize().testTag("search.savedList")) {
+        if (state.savedSearches.isNotEmpty()) {
+            item {
+                Text(
+                    Texts.get(R.string.search_saved),
+                    color = theme.fgSecondary,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+                )
+            }
+        }
+        items(state.savedSearches, key = { it.id }) { saved ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { vm.search(saved.query) }
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .testTag("search.saved.${saved.id}"),
+            ) {
+                Icon(Icons.Filled.Search, contentDescription = null, tint = theme.fgSecondary, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(12.dp))
+                Text(saved.name, color = theme.fg, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        item {
+            Text(
+                Texts.get(R.string.search_hint),
+                color = theme.fgMuted,
+                fontSize = 13.sp,
+                modifier = Modifier.fillMaxWidth().padding(16.dp).testTag("search.operators"),
+            )
         }
     }
 }

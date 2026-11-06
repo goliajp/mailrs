@@ -207,6 +207,9 @@ struct ConversationListView: View {
             .sheet(isPresented: $showingDrafts) { DraftsView() }
             .sheet(isPresented: $showingSettings) { SettingsView() }
             .searchable(text: $searchText, prompt: "Search mail")
+            .searchSuggestions {
+                if searchText.isEmpty { SavedSearchSuggestions() }
+            }
             .onChange(of: searchText) { _, text in
                 // Debounced, and the previous request cancelled: a
                 // keystroke per character otherwise puts one search in

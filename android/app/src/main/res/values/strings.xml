@@ -213,7 +213,8 @@
     <string name="reset_back_to_sign_in">Back to sign in</string>
     <string name="search_placeholder">Search mail</string>
     <string name="common_clear">Clear</string>
-    <string name="search_hint">Search subjects and message text.</string>
+    <string name="search_hint">Search, or use from: to: subject: has:attachment in: is: label:</string>
+    <string name="search_saved">Saved searches</string>
     <string name="search_no_match">No mail matches “%1$s”.</string>
     <string name="search_first_n">First %1$s matches. Narrow the search to see more.</string>
     <string name="sent_empty">Nothing sent yet.</string>

@@ -104,6 +104,8 @@ final class Session {
     var role: Wire.Role?
 
     var searchQuery: String?
+    /// The reader's saved searches, offered while the search field is empty.
+    var savedSearches: [SavedSearch] = []
 
     var searchResults: [Wire.Conversation] = []
 
