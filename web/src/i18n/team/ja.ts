@@ -1,12 +1,14 @@
 import type { TeamKey } from './en'
 
+import { word } from '@/i18n/wording'
+
 export const teamJa: Record<TeamKey, string> = {
   'admin.emailGroups.shared': 'チーム受信箱',
   'admin.emailGroups.sharedHelp':
     'メンバーは会話の担当を決め、内部メモを残し、誰が返信中かを見られます',
   'admin.emailGroups.sharedOff': 'チーム受信箱ではなくなりました',
   'admin.emailGroups.sharedOn': 'チーム受信箱にしました',
-  'list.assigned': '自分の担当',
+  'list.assigned': word('ja', 'list.assigned'),
   'list.assigned.empty': '担当の会話はありません',
   'team.assign': '担当',
   'team.assignee': '担当者',

@@ -28,8 +28,8 @@ struct NotifySettingsView: View {
             if let prefs {
                 Section {
                     Picker("Notify me about", selection: field(\.mode)) {
-                        Text("Mail to answer and important people").tag("default")
-                        Text("Every message").tag("all")
+                        Text("Mail to answer and important people (recommended)").tag("default")
+                        Text("All mail except Junk, notifications and promotions").tag("all")
                         Text("Important people only").tag("important")
                         Text("Nothing").tag("off")
                     }
@@ -140,9 +140,9 @@ private struct OverrideSection: View {
 
     static func label(_ value: String) -> LocalizedStringKey {
         switch value {
-        case "always": "Always notify"
-        case "never": "Never notify"
-        case "follow": "Every reply"
+        case "always": "Always push"
+        case "never": "Never push"
+        case "follow": "Following"
         case "mute": "Muted"
         default: LocalizedStringKey(value)
         }

@@ -1,13 +1,15 @@
 import type { InviteKey } from './en'
 
+import { word } from '@/i18n/wording'
+
 export const inviteJa: Record<InviteKey, string> = {
-  'invite.accept': '承諾',
+  'invite.accept': word('ja', 'invite.accept'),
   'invite.badge.cancelled': 'キャンセル',
   'invite.badge.counter': '別の日時の提案',
   'invite.badge.event': 'イベント',
-  'invite.badge.new': '新しい招待',
+  'invite.badge.new': word('ja', 'invite.badge.new'),
   'invite.badge.reply': '返信',
-  'invite.badge.updated': '更新された招待',
+  'invite.badge.updated': word('ja', 'invite.badge.updated'),
   'invite.change': '変更',
   'invite.conflictsMany': '{n} 件の予定と重なっています',
   'invite.conflictsWith': '「{what}」と重なっています',
@@ -24,7 +26,7 @@ export const inviteJa: Record<InviteKey, string> = {
   'invite.day.TH': '木曜日',
   'invite.day.TU': '火曜日',
   'invite.day.WE': '水曜日',
-  'invite.decline': '辞退',
+  'invite.decline': word('ja', 'invite.decline'),
   'invite.end': '終了',
   'invite.error': 'エラー：{error}',
   'invite.guest.accepted': '承諾',
@@ -41,7 +43,7 @@ export const inviteJa: Record<InviteKey, string> = {
   'invite.guest.yes': '参加',
   'invite.guest.yesCount': '参加 {n}',
   'invite.join': '会議に参加',
-  'invite.organizer': '主催者:',
+  'invite.organizer': word('ja', 'invite.organizer'),
   'invite.repeat.count': '全 {n} 回',
   'invite.repeat.daily': '毎日',
   'invite.repeat.dailyN': '{n} 日ごと',
@@ -66,5 +68,5 @@ export const inviteJa: Record<InviteKey, string> = {
   'invite.singleOccurrence':
     '繰り返し予定のうちの 1 回です。出欠の返信はこの回にだけ適用されます。',
   'invite.start': '開始',
-  'invite.tentative': '仮承諾',
+  'invite.tentative': word('ja', 'invite.tentative'),
 }

@@ -4,12 +4,12 @@ import SwiftUI
 ///
 /// A sheet rather than a push: a reply is a thing you finish or abandon,
 /// and the message you are answering should still be behind it. The
-/// mode picker is the web's three (`reply-box.tsx`): Reply, Reply All,
+/// mode picker is the web's three (`reply-box.tsx`): Reply, Reply all,
 /// Forward — same recipient rules, same wire shapes.
 struct ReplyView: View {
     enum Mode: String, CaseIterable, Identifiable {
         case reply = "Reply"
-        case replyAll = "Reply All"
+        case replyAll = "Reply all"
         case forward = "Forward"
         var id: String { rawValue }
 

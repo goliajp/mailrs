@@ -1,4 +1,4 @@
-import type { InvitePayload } from '@/lib/invite-types'
+import type { InvitePayload, Person } from '@/lib/invite-types'
 import type { RsvpBody } from '@/wire/endpoints/invites'
 
 import { useQuery } from '@tanstack/react-query'
@@ -219,10 +219,7 @@ export function InviteCard({
         )}
         {payload.organizer && (
           <div className="text-fg-muted mt-1 text-xs">
-            {t('invite.organizer')}{' '}
-            {payload.organizer.cn
-              ? `${payload.organizer.cn} <${payload.organizer.email}>`
-              : payload.organizer.email}
+            {t('invite.organizer', { name: personLine(payload.organizer) })}
           </div>
         )}
         {payload.attendees && payload.attendees.length > 0 && (
@@ -412,6 +409,12 @@ export function InviteCard({
 function counterLabel(open: boolean): Key {
   if (open) return 'invite.counterCancel'
   return 'invite.counterPropose'
+}
+
+/** A person as the card names them: `Name <address>`, or the address alone. */
+function personLine(person: Person): string {
+  if (person.cn) return `${person.cn} <${person.email}>`
+  return person.email
 }
 
 function showHide(expanded: boolean): Key {

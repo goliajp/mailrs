@@ -3,7 +3,7 @@
     <!-- Generated from one table of key, English, Japanese, Chinese; the three
          files carry the same keys, which scripts/check-android-l10n.sh checks. -->
     <string name="app_name" translatable="false">Mailrs</string>
-    <string name="shortcut_compose_short">Write</string>
+    <string name="shortcut_compose_short">Compose</string>
     <string name="shortcut_compose_long">New message</string>
     <string name="shortcut_search_short">Search</string>
     <string name="shortcut_search_long">Search mail</string>
@@ -57,7 +57,7 @@
     <string name="action_delete_forever_done">Deleted forever</string>
     <string name="action_mark_junk">Mark as junk</string>
     <string name="action_mark_junk_done">Moved to Junk</string>
-    <string name="action_mark_not_junk">Mark as not junk</string>
+    <string name="action_mark_not_junk">Not junk</string>
     <string name="action_mark_not_junk_done">Marked as not junk</string>
     <string name="action_mark_notification">Mark as Notification</string>
     <string name="action_mark_notification_done">Moved to Notifications</string>
@@ -405,7 +405,7 @@
     <string name="secret_auth_code">授权码</string>
     <string name="secret_app_password">app password</string>
     <string name="secret_app_specific">app-specific password</string>
-    <string name="invite_from">From %1$s</string>
+    <string name="invite_from">Organizer: %1$s</string>
     <string name="reply_attribution_short">%1$s wrote:</string>
     <string name="verdict_held">Held: suspected fraud</string>
     <string name="verdict_examined">Examined: something looked wrong</string>
@@ -437,7 +437,7 @@
     <string name="row_assignee">Assigned to %1$s</string>
     <string name="section_all">All</string>
     <string name="section_reply">To reply</string>
-    <string name="section_awaiting">Waiting for a reply</string>
+    <string name="section_awaiting">Waiting</string>
     <string name="section_new">New senders</string>
     <string name="section_accept_all">Accept all</string>
     <string name="section_accept_failed">The senders could not be accepted</string>
@@ -484,19 +484,19 @@
     <string name="sections_toggle">Sectioned inbox</string>
     <string name="sections_help">Tabs over the Inbox for mail to reply to, conversations waiting on an answer and new senders. The same setting is used on the web and on the iPhone</string>
     <string name="sections_save_failed">The sectioned inbox setting was not saved</string>
-    <string name="notify_mode_default">Mail to answer and important people</string>
-    <string name="notify_mode_all">Every message</string>
+    <string name="notify_mode_default">Mail to answer and important people (recommended)</string>
+    <string name="notify_mode_all">All mail except Junk, notifications and promotions</string>
     <string name="notify_mode_important">Important people only</string>
-    <string name="notify_mode_off">Nothing</string>
+    <string name="notify_mode_off">None</string>
     <string name="notify_hide_content">Hide sender and subject</string>
     <string name="notify_quiet_hours">Quiet hours</string>
     <string name="notify_quiet_window">%1$s to %2$s, in this phone\'s time zone</string>
     <string name="notify_senders">Senders</string>
     <string name="notify_threads">Conversations</string>
     <string name="notify_remove">Remove</string>
-    <string name="notify_always">Always notify</string>
-    <string name="notify_never">Never notify</string>
-    <string name="notify_follow">Every reply</string>
+    <string name="notify_always">Always push</string>
+    <string name="notify_never">Never push</string>
+    <string name="notify_follow">Following</string>
     <string name="notify_muted">Muted</string>
     <string name="sessions_unknown_device">Unknown device</string>
     <string name="sessions_sign_out">Sign out</string>
