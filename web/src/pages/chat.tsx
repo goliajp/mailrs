@@ -9,6 +9,7 @@ import { MailFolders } from '@/components/mail-folders'
 import { MobileMail } from '@/components/mobile-mail'
 import { NewConversation } from '@/components/new-conversation'
 import { SendList } from '@/components/send-list/send-list'
+import { SnoozePicker } from '@/components/snooze-picker'
 import { ThreadView } from '@/components/thread-view'
 import { useCurrentSelection } from '@/hooks/use-current-list'
 import { useIsMobile } from '@/hooks/use-is-mobile'
@@ -153,6 +154,7 @@ export function Chat() {
       <div className="h-full">
         {renderMobileBody()}
         <LabelPicker />
+        <SnoozePicker />
       </div>
     )
   }
@@ -167,6 +169,7 @@ export function Chat() {
         <MPaneGroup>{renderDesktopMain()}</MPaneGroup>
       </MPaneGroup>
       <LabelPicker />
+      <SnoozePicker />
     </>
   )
 }

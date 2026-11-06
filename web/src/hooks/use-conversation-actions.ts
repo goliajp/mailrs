@@ -27,12 +27,13 @@ import {
   useTrashMutation,
   useUntrashMutation,
 } from '@/hooks/use-trash-mutations'
-import { tNow, useT } from '@/i18n'
+import { currentLocale, tNow, useT } from '@/i18n'
 import { ACTIONS } from '@/lib/actions'
 import { errorText } from '@/lib/error-text'
 import { offerSenderCorrection } from '@/lib/sender-correction'
+import { snoozeSeconds } from '@/lib/snooze-choice'
 import { authAtom } from '@/store/auth'
-import { labelPickerAtom, lastUndoAtom } from '@/store/ui'
+import { labelPickerAtom, lastUndoAtom, snoozePickerAtom } from '@/store/ui'
 
 // One place that turns an action into the mutation serving it. What the
 // action is called, what the toast says and what undoes it are the action
@@ -46,6 +47,8 @@ export type ConversationActions = {
   confirmDelete: () => void
   /** The thread awaiting confirmation, or null. */
   pendingDelete: null | string
+  /** Snooze until `until` (epoch seconds), as picked in the snooze picker. */
+  snoozeUntil: (threadId: string, until: number) => void
 }
 
 export function useConversationActions(): ConversationActions {
@@ -53,6 +56,7 @@ export function useConversationActions(): ConversationActions {
   const [pendingDelete, setPendingDelete] = useState<null | string>(null)
   const setLastUndo = useSetAtom(lastUndoAtom)
   const openLabels = useSetAtom(labelPickerAtom)
+  const openSnooze = useSetAtom(snoozePickerAtom)
   const mutations = {
     archive: useArchiveMutation(),
     'delete-forever': useDeleteForeverMutation(),
@@ -77,23 +81,50 @@ export function useConversationActions(): ConversationActions {
   const latest = useRef(mutations)
   latest.current = mutations
 
-  const run = useCallback((threadId: string, action: SingleAction, onSuccess: () => void) => {
-    const m = latest.current
-    const onError = (err: unknown) => {
-      toast.error(errorText(err, tNow('action.failed')))
-    }
-    const opts = { onError, onSuccess }
-    switch (action) {
-      // the picker, not a mutation: `act` opens it before reaching here
-      case 'label':
-        break
-      case 'snooze':
-        m.snooze.mutate({ snoozedUntil: tomorrowMorning(), threadId }, opts)
-        break
-      default:
-        m[action].mutate({ threadId }, opts)
-    }
-  }, [])
+  // `until` is the snooze time; an undo that snoozes again has none and
+  // uses tomorrow morning
+  const run = useCallback(
+    (threadId: string, action: SingleAction, onSuccess: () => void, until?: number) => {
+      const m = latest.current
+      const onError = (err: unknown) => {
+        toast.error(errorText(err, tNow('action.failed')))
+      }
+      const opts = { onError, onSuccess }
+      switch (action) {
+        // the picker, not a mutation: `act` opens it before reaching here
+        case 'label':
+          break
+        case 'snooze':
+          m.snooze.mutate(
+            { snoozedUntil: until ?? snoozeSeconds('tomorrowMorning', new Date()), threadId },
+            opts
+          )
+          break
+        default:
+          m[action].mutate({ threadId }, opts)
+      }
+    },
+    []
+  )
+
+  // what follows a single action that went through: the sender correction,
+  // the undo `z` takes back, and the toast that offers it
+  const finish = useCallback(
+    (threadId: string, action: SingleAction, done: string) => {
+      offerSenderCorrection(threadId, action, getDefaultStore().get(authAtom)?.address ?? '')
+      const undo = ACTIONS[action].undo
+      if (undo) setLastUndo({ action: undo, threadId })
+      if (!undo) {
+        toast.success(done)
+        return
+      }
+      toast.success(done, {
+        action: { label: t('common.undo'), onClick: () => run(threadId, undo, () => {}) },
+        duration: 8000,
+      })
+    },
+    [run, setLastUndo, t]
+  )
 
   const act = useCallback(
     async (threadId: string, action: SingleAction) => {
@@ -102,26 +133,45 @@ export function useConversationActions(): ConversationActions {
         openLabels({ threadIds: [threadId] })
         return
       }
+      // asks until when first; the picker calls `snoozeUntil`
+      if (action === 'snooze') {
+        openSnooze({ threadId })
+        return
+      }
       if (spec.confirm) {
         setPendingDelete(threadId)
         return
       }
       run(threadId, action, () => {
-        offerSenderCorrection(threadId, action, getDefaultStore().get(authAtom)?.address ?? '')
-        const undo = spec.undo
-        if (undo) setLastUndo({ action: undo, threadId })
-        if (!spec.done) return
-        if (!undo) {
-          toast.success(t(spec.done))
+        if (!spec.done) {
+          offerSenderCorrection(threadId, action, getDefaultStore().get(authAtom)?.address ?? '')
+          const undo = spec.undo
+          if (undo) setLastUndo({ action: undo, threadId })
           return
         }
-        toast.success(t(spec.done), {
-          action: { label: t('common.undo'), onClick: () => run(threadId, undo, () => {}) },
-          duration: 8000,
-        })
+        finish(threadId, action, t(spec.done))
       })
     },
-    [openLabels, run, setLastUndo, t]
+    [finish, openLabels, openSnooze, run, setLastUndo, t]
+  )
+
+  const snoozeUntil = useCallback(
+    (threadId: string, until: number) => {
+      const when = new Date(until * 1000).toLocaleString(currentLocale(), {
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        month: 'short',
+        weekday: 'short',
+      })
+      run(
+        threadId,
+        'snooze',
+        () => finish(threadId, 'snooze', t('action.snooze.done', { when })),
+        until
+      )
+    },
+    [finish, run, t]
   )
 
   const confirmDelete = useCallback(() => {
@@ -133,13 +183,5 @@ export function useConversationActions(): ConversationActions {
 
   const cancelDelete = useCallback(() => setPendingDelete(null), [])
 
-  return { act, cancelDelete, confirmDelete, pendingDelete }
-}
-
-/** Tomorrow at 9:00 local time, in epoch seconds (what the handler takes). */
-function tomorrowMorning(): number {
-  const t = new Date()
-  t.setDate(t.getDate() + 1)
-  t.setHours(9, 0, 0, 0)
-  return Math.floor(t.getTime() / 1000)
+  return { act, cancelDelete, confirmDelete, pendingDelete, snoozeUntil }
 }
