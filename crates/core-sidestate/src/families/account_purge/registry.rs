@@ -20,7 +20,7 @@ use crate::families::{
     calendar_events, calendar_feeds, contact_cards, contact_sent, contacts, devices, email_groups,
     forwarding, local_forward, masked_email, notify, outbound::pause, permission_groups, prefs,
     recall_notices, rules, saved_searches, send, sender_lists, sender_rules, shared_inbox,
-    submitted, vacation,
+    submitted, swipe, vacation,
 };
 use crate::keys::{credentials, push, quota, reset, session};
 
@@ -92,6 +92,7 @@ pub const OWNED: &[Owned] = &[
     net("mailrs:forward:local:{user}", Shape::Key(local_forward::key)),
     net("mailrs:forward:local:*", Shape::Members { keys: || local_forward::key("*"), sep: None }),
     net("vacation:{user}", Shape::Key(vacation::key)),
+    net("swipe:{user}", Shape::Key(swipe::key)),
     net("mailrs:vacation:{user}:*", Shape::Globs(|a| under("mailrs:vacation:", a, ":"))),
     net("spam:{user}:whitelist", Shape::Key(sender_lists::whitelist_key)),
     net("spam:{user}:blacklist", Shape::Key(sender_lists::blacklist_key)),
@@ -144,6 +145,10 @@ pub const OWNED: &[Owned] = &[
     net("notify:{user}:*", Shape::Globs(|a| under("notify:", &a.to_lowercase(), ":"))),
     net("push:tokens:{user}", Shape::Key(push::tokens_key)),
     net("push:web:{user}", Shape::Key(push::web_subscriptions_key)),
+    net("push:unifiedpush:{user}", Shape::Key(push::unified_push_key)),
+    net("push:used:{user}", Shape::Key(push::used_key)),
+    net("push:upwindow:{user}", Shape::Key(push::unified_push_window_key)),
+    net("push:uptrailing:{user}", Shape::Key(push::unified_push_trailing_key)),
     net("push:stats:{user}:*", Shape::Globs(|a| under("push:stats:", &a.to_lowercase(), ":"))),
     net("mailrs:events:notify:*:{user}", Shape::Globs(|a| vec![format!("mailrs:events:notify:*:{}", glob_escape(&a.to_ascii_lowercase()))])),
     // what the user's account is allowed and counted

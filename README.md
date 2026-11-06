@@ -56,7 +56,7 @@ targets in their `fuzz/` directories.
 - **Anti-abuse** — greylisting, DNSBL, rate limits, login lockout, Bayesian spam filtering, inbox/notification/promotion triage, scripted fraud rules that can change without a release
 - **Search** — full text over headers, bodies and attachment text, including OCR of images and scanned PDFs; Chinese and Japanese searchable without a dictionary
 - **Web client** — conversation view with realtime updates; React 19, TypeScript, Vite, Tailwind CSS 4, TanStack Query
-- **Apps** — native iOS and Android clients; new mail is announced through APNs on iOS and by a background check on Android
+- **Apps** — native iOS and Android clients; new mail is announced through APNs on iOS, and on Android through a [UnifiedPush](https://unifiedpush.org) distributor the reader installs (see below), or else by a check about every 15 minutes while the app is closed
 - **MCP** — 125 tools for agents to read, triage and send mail
 - **Accounts** — Argon2 passwords, TOTP two-factor sign-in, OIDC
 - **AI assistance** — optional, off unless an OpenAI-compatible endpoint is configured (`MAILRS_AI_ANALYSIS_ENABLED`, `MAILRS_LLM_URL`)
@@ -74,6 +74,7 @@ starts the four processes and `kevy-server` from
 - `/apps/mailrs/certs` — the TLS certificate and key for SMTP, IMAP and POP3;
 - `/apps/mailrs/dkim` — DKIM private keys;
 - `/apps/mailrs/secrets` — the APNs key, if iOS push is used;
+- `/apps/mailrs/vapid/vapid-private.pem` — the Web Push key (PEM PKCS#8 P-256), if browser or Android push is used;
 - `/apps/mailrs/fraud-rules/active.lua` — the fraud rule set;
 - `/apps/mailrs/web` — the built web client (`cd web && bun run build`);
 - `/apps/mailrs/kevy.toml` — the `kevy-server` configuration (`deploy/kevy.toml`).
@@ -121,6 +122,39 @@ sets first:
 | `MAILRS_CORE_RPC_BASE`, `MAILRS_CORE_API_SECRET` | Where the other processes reach fastcore, and the secret they share |
 | `MAILRS_TLS_CERT`, `MAILRS_TLS_KEY` | TLS certificate and key, reloaded when the files change |
 | `MAILRS_DKIM_DOMAIN`, `MAILRS_DKIM_SELECTOR`, `MAILRS_DKIM_KEYS` | Outbound DKIM signing |
+
+### Notifications on Android
+
+The Android app has no Google push. For notifications as mail arrives,
+install a [UnifiedPush](https://unifiedpush.org) distributor app on the
+phone (for example ntfy, pointed at a ntfy server you trust), then turn it
+on in the app under Settings → Instant notifications. The server needs a
+Web Push key (`MAILRS_VAPID_PRIVATE_KEY_PATH`); the same key signs browser
+pushes.
+
+What reaches the distributor's server is only that something arrived: no
+sender, subject or count, encrypted to the phone. The app then fetches the
+details from your mail server over its own connection and shows the
+notification. The reader's notification settings (which mail rings, quiet
+hours, muted conversations) apply as on the other devices; Junk and held
+mail never push.
+
+A phone is pushed at most once every 5 seconds. When several messages
+arrive in that time, one more push follows when the 5 seconds are up, so
+the app always looks again after the last of them.
+
+Without a distributor, the app checks for new mail about every 15 minutes
+while it is closed, and Android may wait longer when the phone is idle.
+
+An account keeps at most 10 devices for push notifications: iPhones,
+browsers and Android phones together. Registering one more removes the
+device that least recently received a push; a device that has never
+received one counts from when it was registered. The same device
+registering again does not count twice.
+
+The distributor's endpoint must be `https` on port 443, and every address
+its host resolves to must be public; endpoints on private or loopback
+addresses are refused.
 
 ## License
 

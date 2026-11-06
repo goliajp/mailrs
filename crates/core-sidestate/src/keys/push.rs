@@ -12,6 +12,29 @@ pub fn web_subscriptions_key(user: &str) -> String {
     format!("push:web:{}", user.to_lowercase())
 }
 
+/// One user's phones on UnifiedPush: hash, field = the endpoint's sha256,
+/// value = the device JSON.
+pub fn unified_push_key(user: &str) -> String {
+    format!("push:unifiedpush:{}", user.to_lowercase())
+}
+
+/// When each of one user's devices, on any channel, last took a push:
+/// hash, field = `{channel}:{device id}`, value = epoch seconds.
+pub fn used_key(user: &str) -> String {
+    format!("push:used:{}", user.to_lowercase())
+}
+
+/// One user's open UnifiedPush window: a counter that lives as long as the
+/// window.
+pub fn unified_push_window_key(user: &str) -> String {
+    format!("push:upwindow:{}", user.to_lowercase())
+}
+
+/// Present while a ping at the end of one user's UnifiedPush window is due.
+pub fn unified_push_trailing_key(user: &str) -> String {
+    format!("push:uptrailing:{}", user.to_lowercase())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

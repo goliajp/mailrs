@@ -94,6 +94,7 @@ pub mod storage;
 pub mod system_config;
 pub mod totp_util;
 pub mod trash;
+pub mod unified_push;
 pub mod unsubscribe;
 pub mod upload_sweep;
 pub mod web_push;

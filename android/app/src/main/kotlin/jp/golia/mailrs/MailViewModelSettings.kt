@@ -1,8 +1,10 @@
 package jp.golia.mailrs
 
+import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.RemoteImages
 import jp.golia.mailrs.wire.SettingsWire
+import jp.golia.mailrs.wire.SwipeSetting
 import jp.golia.mailrs.wire.Texts
 import jp.golia.mailrs.wire.appPasswords
 import jp.golia.mailrs.wire.createMask
@@ -16,13 +18,18 @@ import jp.golia.mailrs.wire.notifySender
 import jp.golia.mailrs.wire.notifyThread
 import jp.golia.mailrs.wire.revokeAppPassword
 import jp.golia.mailrs.wire.saveNotifyPrefs
+import jp.golia.mailrs.wire.saveSwipeSetting
 import jp.golia.mailrs.wire.saveVacation
 import jp.golia.mailrs.wire.signedInSessions
+import jp.golia.mailrs.wire.swipeSetting
+import jp.golia.mailrs.wire.unifiedPushState
+import jp.golia.mailrs.wire.unregisterUnifiedPush
 import jp.golia.mailrs.wire.vacation
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 /** A settings page of its own, opened from a row in Settings. */
-enum class SettingsPage { Notifications, Sessions, AppPasswords, Vacation, Masked }
+enum class SettingsPage { Notifications, Push, Sessions, AppPasswords, Vacation, Masked }
 
 fun MailViewModel.openSettingsPage(page: SettingsPage) {
     _state.update { it.copy(settingsPage = page, error = null) }
@@ -89,3 +96,29 @@ suspend fun MailViewModel.fileSender(sender: String, bucket: SettingsWire.Bucket
     val moved = settings(R.string.settings_file_sender_failed) { client.fileSender(sender, bucket) } ?: return
     _state.update { it.copy(error = Texts.get(R.string.settings_file_sender_done, moved.moved)) }
 }
+
+/** The swipe setting from the server. A failure keeps what is there and says nothing: the swipes still work. */
+fun MailViewModel.loadSwipe() {
+    viewModelScope.launch {
+        when (val r = client.swipeSetting()) {
+            is MailrsClient.Outcome.Ok -> _state.update { it.copy(swipe = r.value) }
+            is MailrsClient.Outcome.Err -> Unit
+        }
+    }
+}
+
+/** Save the swipe setting; the swipes change at once and go back if the server does not take it. */
+fun MailViewModel.saveSwipe(s: SwipeSetting) {
+    val before = _state.value.swipe
+    _state.update { it.copy(swipe = s) }
+    viewModelScope.launch {
+        if (settings(R.string.swipe_save_failed) { client.saveSwipeSetting(s) } == null) {
+            _state.update { it.copy(swipe = before) }
+        }
+    }
+}
+
+suspend fun MailViewModel.loadUnifiedPush() = settings(R.string.settings_push_load_failed) { client.unifiedPushState() }
+
+suspend fun MailViewModel.removePushDevice(id: String) =
+    settings(R.string.settings_push_remove_failed) { client.unregisterUnifiedPush(id) } != null

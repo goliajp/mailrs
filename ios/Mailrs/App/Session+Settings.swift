@@ -78,4 +78,21 @@ extension Session {
     func fileSender(_ sender: String, to bucket: SettingsWire.Bucket) async -> Int? {
         await settingsCall("The sender's mail was not filed") { try await $0.fileSender(sender, to: bucket) }
     }
+
+    /// The swipe setting from the server. A failure keeps what is there
+    /// and says nothing: the swipes still work, as they did before.
+    func loadSwipe() async {
+        guard let client else { return }
+        if let found = try? await client.swipeSetting() { swipe = found }
+    }
+
+    /// Save the swipe setting; the swipes change at once and go back if
+    /// the server does not take it.
+    func saveSwipe(_ s: SwipeSetting) async {
+        let before = swipe
+        swipe = s
+        if await settingsCall("The swipe setting was not saved", { try await $0.saveSwipeSetting(s) }) == nil {
+            swipe = before
+        }
+    }
 }

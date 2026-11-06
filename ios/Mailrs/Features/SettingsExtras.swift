@@ -27,6 +27,7 @@ struct SettingsExtras: View {
             }
             .accessibilityIdentifier("settings.images")
         }
+        SwipeSettingsSection()
         Section("Security") {
             NavigationLink { SessionsView() } label: {
                 Label("Signed-in devices", systemImage: "iphone.and.arrow.forward")

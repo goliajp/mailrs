@@ -44,6 +44,7 @@ egress:refusals:;crates/core-sidestate/src/families/egress.rs
 inline:;crates/core-sidestate/src/families/inline_images.rs
 calendar_events?:;crates/core-sidestate/src/families/calendar_events/mod.rs
 push:tokens:;crates/core-sidestate/src/keys/push.rs
+push:(web|unifiedpush|used|upwindow|uptrailing):;crates/core-sidestate/src/keys/push.rs
 shared:;crates/core-sidestate/src/families/shared_inbox/mod.rs
 session:;crates/core-sidestate/src/keys/session.rs
 spam:[^"]*:(whitelist|blacklist);crates/core-sidestate/src/families/sender_lists.rs
@@ -53,6 +54,7 @@ rules:;crates/core-sidestate/src/families/rules.rs
 forwarding:;crates/core-sidestate/src/families/forwarding.rs
 owner-notices;crates/core-sidestate/src/families/owner_notices.rs
 vacation:;crates/core-sidestate/src/families/vacation.rs
+swipe:;crates/core-sidestate/src/families/swipe.rs
 devices:;crates/core-sidestate/src/families/devices.rs
 mailrs:domfirst;crates/core-sidestate/src/families/domain_first.rs
 mailrs:fraud:hits:;crates/core-sidestate/src/families/fraud_hits.rs
