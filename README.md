@@ -139,8 +139,18 @@ notification. The reader's notification settings (which mail rings, quiet
 hours, muted conversations) apply as on the other devices; Junk and held
 mail never push.
 
+A phone is pushed at most once every 5 seconds. When several messages
+arrive in that time, one more push follows when the 5 seconds are up, so
+the app always looks again after the last of them.
+
 Without a distributor, the app checks for new mail about every 15 minutes
 while it is closed, and Android may wait longer when the phone is idle.
+
+An account keeps at most 10 devices for push notifications: iPhones,
+browsers and Android phones together. Registering one more removes the
+device that least recently received a push; a device that has never
+received one counts from when it was registered. The same device
+registering again does not count twice.
 
 The distributor's endpoint must be `https` on port 443, and every address
 its host resolves to must be public; endpoints on private or loopback
