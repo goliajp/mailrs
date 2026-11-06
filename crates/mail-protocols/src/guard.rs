@@ -196,7 +196,7 @@ impl<D: Directory> Directory for Guarded<D> {
 /// has been cleared: for when the sign-out that would have closed them was
 /// published while nobody was listening.
 pub async fn end_cleared<D: Directory>(dir: &Guarded<D>) {
-    for account in dir.signins.accounts() {
+    for account in dir.signins.sweep() {
         if dir.dir.password_cleared(&account).await {
             let closed = dir.signins.end(&account);
             tracing::info!(
@@ -206,6 +206,23 @@ pub async fn end_cleared<D: Directory>(dir: &Guarded<D>) {
             );
         }
     }
+}
+
+/// Register a connection that has signed in as `account`, `None` when the
+/// directory keeps no registry. `since` is taken before the command that
+/// signed in was handled, so an end or a sweep landing between the
+/// credential check and the registration still closes it.
+pub(crate) async fn register<D: Directory>(
+    dir: &D,
+    account: &str,
+    since: std::time::Instant,
+) -> Option<mailrs_auth_guard::signins::SignedIn> {
+    let signins = dir.signins()?;
+    let signed_in = signins.enter_since(account, since);
+    if signed_in.missed_sweep() && dir.password_cleared(account).await {
+        signins.end(account);
+    }
+    Some(signed_in)
 }
 
 #[cfg(test)]
