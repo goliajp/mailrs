@@ -51,8 +51,7 @@ final class RoleFlowTests: MailrsUITestCase {
     }
 
     private func openSettings(_ app: XCUIApplication) {
-        app.buttons["Lists"].tap()
-        app.buttons["Settings"].tap()
+        tapInListsMenu(app, "Settings")
         scrollTo(app, button: "API keys")
     }
 

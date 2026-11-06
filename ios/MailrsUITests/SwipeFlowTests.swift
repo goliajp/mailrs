@@ -63,10 +63,7 @@ final class SwipeFlowTests: MailrsUITestCase {
     /// the next right swipe reads the row in place instead of archiving it.
     func testTheSettingChangesWhatASwipeDoes() {
         let app = launch(signedIn: true)
-        let lists = app.buttons["Lists"]
-        XCTAssertTrue(lists.waitForExistence(timeout: 15), "inbox never listed")
-        lists.tap()
-        app.buttons["open-settings"].tap()
+        tapInListsMenu(app, "open-settings")
         let picker = element(app, "settings.swipe.right")
         scrollTo(app, element: picker, named: "settings.swipe.right")
         picker.tap()

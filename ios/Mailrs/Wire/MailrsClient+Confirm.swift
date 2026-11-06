@@ -14,7 +14,7 @@ extension MailrsClient {
             body: try JSONSerialization.data(withJSONObject: body), authorized: true
         )
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         if http.statusCode == 204 { return }
         let json = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]

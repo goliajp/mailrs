@@ -120,6 +120,29 @@ abstract class ScreenShots(private val tag: String, private val theme: String) :
         }
     }
 
+    /** The composer's bar, the invite card, and Snooze's choices. */
+    @Test
+    fun the_compose_invite_and_snooze_screens() {
+        assumeTrue(InstrumentationRegistry.getArguments().getString("shots") == "true")
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.compose").performClick()
+        waitForTag("button.sendLater", "the composer has no send-later button")
+        shot("p11-compose")
+        compose.onNodeWithTag("button.cancel").performClick()
+        waitForTag("list.conversations", "the composer did not close")
+        compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+        waitForTag("invite.card", "the invite card did not mount")
+        compose.onNodeWithTag("invite.card").performScrollTo()
+        shot("p11-invite")
+        compose.onNodeWithTag("button.threadMore").performClick()
+        waitForTag("action.Snooze", "the thread menu did not open")
+        compose.onNodeWithTag("action.Snooze").performClick()
+        waitForTag("dialog.snooze", "Snooze did not ask until when")
+        compose.mainClock.advanceTimeBy(600)
+        shot("p11-snooze")
+    }
+
     private fun lastWebView(view: android.view.View): android.webkit.WebView? {
         if (view is android.webkit.WebView) return view
         if (view !is android.view.ViewGroup) return null

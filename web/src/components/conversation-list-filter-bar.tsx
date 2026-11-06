@@ -56,11 +56,12 @@ function sortOptions(query: string): SortOrder[] {
 function tabButtonClass(isActive: boolean): string {
   // `w-full`: the cell decides the width. A label longer than its column
   // wraps onto a second line rather than being cut: Japanese labels such
-  // as 通知・プロモーション do not fit a column at any width the tabs are
+  // as すべてのメール do not fit a column at any width the tabs are
   // shown at, and a cut label names no list. Every cell in a row takes
   // the tallest one's height (`h-full`), so the grid stays in line.
+  // `break-phrase` keeps a Japanese label from breaking mid-word.
   const base =
-    'h-full w-full cursor-pointer rounded-md px-2 py-1 text-xs leading-tight break-words transition-colors'
+    'break-phrase h-full w-full cursor-pointer rounded-md px-2 py-1 text-xs leading-tight break-words transition-colors'
   if (isActive) return `${base} bg-border-strong text-fg font-semibold`
   return `${base} bg-bg-secondary text-fg-muted hover:bg-bg-tertiary hover:text-fg-secondary font-medium`
 }

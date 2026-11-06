@@ -32,11 +32,15 @@ object InviteRepeat {
         "SU" to DayOfWeek.SUNDAY,
     )
 
-    /** The time line: the next occurrence of a series, else the event itself. */
+    /**
+     * The time line: the next occurrence of a series, else the event
+     * itself, from its start to its end as the web shows it.
+     */
     fun whenLine(invite: WireInvite, reader: ZoneId = ZoneId.systemDefault(), locale: Locale = Locale.getDefault()): String? {
         val next = invite.next
         val start = next?.start ?: invite.startsAt
-        val local = InviteRules.localTime(start, reader)
+        val end = next?.end ?: invite.endsAt
+        val local = span(start, end, reader, locale)
             ?: return allDay(invite)
         val line = when (next) {
             null -> local
@@ -83,6 +87,25 @@ object InviteRepeat {
         val wall = invite.next?.organiserLocal ?: wallClockOf(invite.dtstart) ?: return null
         if (!InviteRules.zoneDiffers(tzName, reader)) return null
         return "${wall.drop(11).take(5)} $tzName"
+    }
+
+    /**
+     * "Nov 13, 2026, 3:00 PM → 3:50 PM" in the reader's zone; the end
+     * carries its own date only when it falls on another day. Null when
+     * the start is not an instant (an all-day event).
+     */
+    private fun span(start: String?, end: String?, reader: ZoneId, locale: Locale): String? {
+        val from = start?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
+        val dateTime = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
+            .withLocale(locale).withZone(reader)
+        val first = dateTime.format(from)
+        val to = end?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return first
+        val sameDay = from.atZone(reader).toLocalDate() == to.atZone(reader).toLocalDate()
+        val last = when (sameDay) {
+            true -> DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale).withZone(reader).format(to)
+            false -> dateTime.format(to)
+        }
+        return "$first → $last"
     }
 
     private fun organiserZoneDiffers(invite: WireInvite, reader: ZoneId): Boolean {

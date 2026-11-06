@@ -93,4 +93,43 @@ struct InviteRepeatTests {
         // 30 October 05:00 UTC is daylight time in Santa Clara
         #expect(InviteRepeat.whenLine(single, reader: tokyo, locale: english)?.hasSuffix("PDT") == true)
     }
+
+    /// The web's "3:00 PM → 3:50 PM": the occurrence's end, a time only
+    /// when it is the same day for the reader.
+    @Test func theNextOccurrenceShowsItsEnd() throws {
+        let line = try #require(InviteRepeat.whenLine(try invite(next: Self.afterChange), reader: tokyo, locale: english))
+        // 06:00–07:00 UTC is 15:00–16:00 in Tokyo
+        #expect(line.contains(" → "), "no end: \(line)")
+        let end = String(line.split(separator: "→")[1])
+        #expect(hour(end, "16:00", "4:00"))
+        #expect(!end.contains("2026"), "a same-day end repeats the date: \(line)")
+    }
+
+    @Test func anEndOnAnotherDayKeepsItsDate() {
+        let start = Date(timeIntervalSince1970: 1_793_000_000)
+        let end = start.addingTimeInterval(36 * 3600)
+        let line = InviteRepeat.span(start, end, reader: tokyo, locale: english)
+        #expect(String(line.split(separator: "→")[1]).contains("2026"))
+    }
+
+    /// The reader's zone is the one passed in — the app's — and not the
+    /// phone's: a Windows `TZID` with no IANA name is compared against it.
+    @Test func aWindowsZoneIsComparedWithTheAppsZone() throws {
+        let json = """
+        {"uid":"x","summary":"x","attendees":[],"dtstart_utc":"2026-10-30T05:00:00+00:00",
+         "dtstart":{"Zoned":{"tz_name":"Tokyo Standard Time","local":"2026-10-30T14:00:00"}}}
+        """
+        let single = try JSONDecoder().decode(Wire.Invite.self, from: Data(json.utf8))
+        #expect(InviteRepeat.whenLine(single, reader: tokyo, locale: english)?.contains("Tokyo Standard Time") == false)
+        #expect(InviteRepeat.whenLine(single, reader: berlin, locale: english)?.hasSuffix("14:00 Tokyo Standard Time") == true)
+    }
+
+    @Test func theTimeLineIsInTheLanguagePassedIn() throws {
+        let japanese = Locale(identifier: "ja")
+        let line = try #require(InviteRepeat.whenLine(try invite(next: Self.afterChange), reader: tokyo, locale: japanese))
+        #expect(line.hasPrefix("次回："), "\(line)")
+        #expect(!line.contains("Next"))
+        #expect(InviteRepeat.ruleLine(try invite(next: Self.afterChange), reader: tokyo, locale: japanese)?
+            .hasPrefix("毎週木曜日") == true)
+    }
 }

@@ -37,7 +37,7 @@ extension MailrsClient {
         let (data, response) = try await send(
             "POST", "/api/conversations/batch", body: body, authorized: true)
         guard let http = response as? HTTPURLResponse else {
-            throw MailrsError.transport("No HTTP response.")
+            throw MailrsError.transport("No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)

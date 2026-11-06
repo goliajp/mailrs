@@ -1,6 +1,7 @@
 package jp.golia.mailrs
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -51,6 +52,9 @@ class InviteFlowTest : MailrsUiTest() {
         compose.onNodeWithText("PDT", substring = true).assertIsDisplayed()
         compose.onNodeWithText("8:00", substring = true).assertIsDisplayed()
         assertTrue(compose.onAllNodesWithText("Pacific Standard Time", substring = true).fetchSemanticsNodes().isEmpty())
+        // and when it ends, as the web's line says: 08:00 → 08:50
+        compose.onNodeWithTag("invite.when").assertTextContains("→", substring = true)
+        compose.onNodeWithTag("invite.when").assertTextContains(":50", substring = true)
 
         // The two things a reader does with a meeting.
         compose.onNodeWithTag("invite.join").assertIsDisplayed()

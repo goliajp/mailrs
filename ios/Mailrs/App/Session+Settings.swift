@@ -12,7 +12,7 @@ extension Session {
         do {
             return try await call(client)
         } catch {
-            banner = String(localized: failure)
+            banner = AppText.string(failure)
             return nil
         }
     }

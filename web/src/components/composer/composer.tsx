@@ -39,7 +39,7 @@ export function ComposerView({
   c: ComposerState
   /** Between the fields and the editor: what only one shell has, like carried attachments. */
   children?: ReactNode
-  /** The narrow shells: the action bar stays one row. */
+  /** The floating window: tighter padding on the action bar. */
   compact?: boolean
   /** The inline reply folds the fields away until asked. */
   fieldsOpen: boolean

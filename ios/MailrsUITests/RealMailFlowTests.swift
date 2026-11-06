@@ -40,10 +40,7 @@ final class RealMailFlowTests: MailrsUITestCase {
     }
 
     private func openMailboxes(_ app: XCUIApplication) {
-        XCTAssertTrue(app.buttons["Lists"].waitForExistence(timeout: 15), "no Lists button")
-        app.buttons["Lists"].tap()
-        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 10), "no Settings row")
-        app.buttons["Settings"].tap()
+        tapInListsMenu(app, "Settings")
         scrollTo(app, button: "Mailboxes")
         app.buttons["Mailboxes"].tap()
         XCTAssertTrue(

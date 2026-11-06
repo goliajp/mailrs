@@ -26,7 +26,7 @@ function words(lang: Lang, rule: Partial<RecurrenceRule>, firstDay: null | strin
 describe('a rule in words', () => {
   it('reads the Teams series in each language', () => {
     const rule = { by_day: ['TH'], until: '2027-04-29' }
-    expect(words('zh', rule)).toBe('每周四 · 到 2027年4月29日 为止')
+    expect(words('zh', rule)).toBe('每周四 · 到2027年4月29日为止')
     expect(words('en', rule)).toBe('Weekly on Thursday · until Apr 29, 2027')
     expect(words('ja', rule)).toBe('毎週木曜日 · 2027/04/29 まで')
   })

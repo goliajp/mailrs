@@ -225,8 +225,29 @@ case "$MODE" in
         smix sim install "$SMIX_EMULATOR" "$APK"
         ;;
 
+    release)
+        # Signs with the release key from SecretStore. The key and its
+        # password live only in this process's environment and in a 0600
+        # file that is removed when the lane ends, whichever way it ends.
+        say "[1/2] assemble release"
+        keystore=$(umask 077; mktemp -t mailrs-release-keystore.XXXXXX)
+        trap 'rm -f "$keystore"; stop_stub' EXIT
+        devops secrets get mailrs.android.release-keystore | tr -d '\n' | base64 -d > "$keystore"
+        MAILRS_ANDROID_KEYSTORE_PASSWORD=$(devops secrets get mailrs.android.release-keystore-password | tr -d '\n')
+        export MAILRS_ANDROID_KEYSTORE_PASSWORD
+        export MAILRS_ANDROID_KEYSTORE_FILE="$keystore"
+        (cd android && ./gradlew --no-daemon :app:assembleRelease)
+        rm -f "$keystore"
+        unset MAILRS_ANDROID_KEYSTORE_PASSWORD MAILRS_ANDROID_KEYSTORE_FILE
+        say "[2/2] verify the signature"
+        out=android/app/build/outputs/apk/release/app-release.apk
+        tools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+        "$tools/apksigner" verify --print-certs "$out" | grep -E "Signer: certificate (DN|SHA-256 digest)"
+        shasum -a 256 "$out"
+        ;;
+
     *)
-        echo "usage: $0 [build|test <filter>|device|all]" >&2
+        echo "usage: $0 [build|test <filter>|device|all|release]" >&2
         exit 1
         ;;
 esac

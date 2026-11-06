@@ -65,7 +65,7 @@ class VerdictFlowTest : MailrsUiTest() {
         assertTrue("content rule not listed", exists("verdict.layer.content", "The text asks you to send your own LINE QR code."))
         assertTrue("content rule's score not shown", exists("verdict.layer.content", "+6.0"))
         assertTrue("a passing layer did not say so", exists("verdict.layer.provenance", "Nothing found."))
-        assertTrue("no SPF/DKIM/DMARC line", exists("sender.checks", "DKIM: fail"))
+        assertTrue("no SPF/DKIM/DMARC line", exists("sender.checks", "DKIM: none"))
         assertTrue("no callback notice", exists("callback.notice", "+81 3-1234-5678"))
         assertTrue("no placement note on the filed message", exists("verdict.placement", "Promotions"))
 
@@ -75,6 +75,31 @@ class VerdictFlowTest : MailrsUiTest() {
             verbs = readStub("/debug/verbs")
             verbs.contains("release ")
         }
+    }
+
+    /**
+     * The iPhone's order on a message that has both: the meeting first,
+     * the verdict under it. And the sender line is a name, not the
+     * address it was sent from.
+     */
+    @Test
+    fun the_invite_comes_before_the_verdict_and_the_sender_is_a_name() {
+        armVerdicts()
+        openOrdinaryThread()
+        unfoldAll()
+        waitFor("no verdict panel on a held message") { exists("verdict.panel") }
+        waitFor("no invite card on the invitation") { exists("invite.card") }
+        compose.onAllNodesWithTag("invite.card").onFirst().performScrollTo()
+        compose.waitForIdle()
+        // positions, not bounds: bounds are clipped to the screen, and a
+        // panel below the fold reports a top of zero
+        val invite = compose.onAllNodesWithTag("invite.card").fetchSemanticsNodes().first().positionInRoot.y
+        val verdict = compose.onAllNodesWithTag("verdict.panel").fetchSemanticsNodes().first().positionInRoot.y
+        assertTrue("the card was not placed: $invite", invite > 0f)
+        assertTrue("the verdict ($verdict) sits above the invite ($invite)", invite < verdict)
+
+        assertTrue("the sender line is not the name", exists("message.header.2", "spoofed"))
+        assertTrue("the sender line shows the address", !exists("message.header.2", "spoofed@example.com"))
     }
 
     @Test

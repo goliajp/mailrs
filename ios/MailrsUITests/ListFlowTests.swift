@@ -132,10 +132,7 @@ final class ListFlowTests: MailrsUITestCase {
         XCTAssertTrue(
             app.staticTexts["Quarterly report and the follow-up notes"].waitForExistence(timeout: 15)
         )
-        app.buttons["Lists"].tap()
-        let signOut = app.buttons["Sign out"]
-        XCTAssertTrue(signOut.waitForExistence(timeout: 5), "no sign-out anywhere")
-        signOut.tap()
+        tapInListsMenu(app, "Sign out")
         XCTAssertTrue(app.textFields["you@example.com"].waitForExistence(timeout: 10),
                       "sign out did not return to the login form")
     }
@@ -274,6 +271,36 @@ final class ListFlowTests: MailrsUITestCase {
     }
 
 
+
+    /// The web's two team lists. Each asks the server for its own rows —
+    /// `section=awaiting` across folders, and `assigned_to_me` — so a
+    /// list that reused another list's query shows the wrong ones. Their
+    /// place in the menu is `MailListTests`'s.
+    func testTheWaitingAndAssignedListsListTheirOwnRows() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        // from Junk, where the Inbox's section tabs (one of them also
+        // "Waiting for a reply") are not on screen
+        app.buttons["Lists"].tap()
+        app.buttons["Junk"].tap()
+        XCTAssertTrue(app.staticTexts["You have won"].waitForExistence(timeout: 10), "Junk did not load")
+
+        app.buttons["Lists"].tap()
+        app.buttons["Waiting for a reply"].tap()
+        XCTAssertTrue(app.staticTexts["Contract draft sent"].waitForExistence(timeout: 10),
+                      "Waiting for a reply did not ask for the awaiting section")
+        XCTAssertFalse(app.staticTexts["You have won"].exists, "the previous list's rows stayed")
+
+        app.buttons["Lists"].tap()
+        app.buttons["Assigned to me"].tap()
+        XCTAssertTrue(app.staticTexts["Invoice dispute from the reseller"].waitForExistence(timeout: 10),
+                      "Assigned to me did not ask for the reader's assigned conversations")
+        // the one filed in Junk, which a list scoped to a folder would drop
+        XCTAssertTrue(app.staticTexts["Assigned: supplier onboarding"].exists)
+        XCTAssertFalse(app.staticTexts["Contract draft sent"].exists, "the previous list's rows stayed")
+    }
 
     /// Archived is cross-folder — it names no folder and sets a flag —
     /// so it is the list most likely to be built wrong.

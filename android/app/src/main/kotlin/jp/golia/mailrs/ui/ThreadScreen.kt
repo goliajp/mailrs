@@ -295,17 +295,18 @@ private fun MessageCard(
             }
             MessageSettingsMenu(m, threadId, vm)
         }
+        // Above the body, because the meeting is what the message is
+        // about and the HTML around it is packaging. The verdict comes
+        // after it, in the iPhone's order.
+        if (m.inviteMethod.isNotEmpty()) {
+            InviteCard(m.uid, m.inviteMethod, vm)
+        }
         VerdictPanel(m.messageId, vm)
         // HTML first, and not as a preference. A message that was
         // composed as HTML and shown as its `text_body` is a different
         // message: the fixture's plain part is the two words "plain
         // fallback" against a newsletter, which is what this client
         // showed until now.
-        // Above the body, because the meeting is what the message is
-        // about and the HTML around it is packaging.
-        if (m.inviteMethod.isNotEmpty()) {
-            InviteCard(m.uid, m.inviteMethod, vm)
-        }
         val html = m.htmlBody
         if (html.isNullOrBlank()) {
             Text(

@@ -17,10 +17,10 @@ enum SendSchedule: CaseIterable, Identifiable, Sendable {
 
     var label: String {
         switch self {
-        case .now: return String(localized: "Send now")
-        case .laterToday: return String(localized: "Later today")
-        case .tomorrowMorning: return String(localized: "Tomorrow morning")
-        case .mondayMorning: return String(localized: "Monday morning")
+        case .now: return AppText.string("Send now")
+        case .laterToday: return AppText.string("Later today")
+        case .tomorrowMorning: return AppText.string("Tomorrow morning")
+        case .mondayMorning: return AppText.string("Monday morning")
         }
     }
 

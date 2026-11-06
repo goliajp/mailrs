@@ -59,7 +59,7 @@ extension MailrsClient {
             query.append(URLQueryItem(name: "action", value: actionPrefix))
         }
         components?.queryItems = query
-        guard let url = components?.url else { throw MailrsError.transport("Bad audit URL.") }
+        guard let url = components?.url else { throw MailrsError.transport("Bad audit URL") }
         let (data, response) = try await send("GET", url: url, body: nil, authorized: true)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: (response as? HTTPURLResponse)?.statusCode ?? 0)

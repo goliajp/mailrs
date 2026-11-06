@@ -90,20 +90,20 @@ struct MailAccount: Codable, Equatable, Identifiable, Sendable {
     /// that a blank host does not resolve.
     var problem: String? {
         if !address.contains("@") || address.hasPrefix("@") || address.hasSuffix("@") {
-            return "That is not an email address"
+            return AppText.string("That is not an email address")
         }
         if imapHost.trimmingCharacters(in: .whitespaces).isEmpty {
-            return "The incoming server needs a name"
+            return AppText.string("The incoming server needs a name")
         }
-        if imapPort == 0 { return "A port must be between 1 and 65535" }
+        if imapPort == 0 { return AppText.string("A port must be between 1 and 65535") }
         // JMAP submits over the same API it reads from, so there is no
         // second server and demanding one refuses an account that is
         // perfectly well described. Every other kind has both.
         if incoming == .jmap { return nil }
         if smtpHost.trimmingCharacters(in: .whitespaces).isEmpty {
-            return "The outgoing server needs a name"
+            return AppText.string("The outgoing server needs a name")
         }
-        if smtpPort == 0 { return "A port must be between 1 and 65535" }
+        if smtpPort == 0 { return AppText.string("A port must be between 1 and 65535") }
         return nil
     }
 }
