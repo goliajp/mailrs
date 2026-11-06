@@ -217,7 +217,7 @@ services:
       # remote images in arriving mail, fetched by `fetch` below
       MAILRS_FETCH_URL: http://fetch:3500/fetch
       # Transparent tiering budget in MB, or `auto` for 70% of the
-      # cgroup limit. Unset = off (everything stays in RAM). Cold
+      # cgroup limit. Empty or unset = off (everything stays in RAM). Cold
       # values move to a vlog on disk and read back transparently.
       MAILRS_KEVY_TIER_MB: ${MAILRS_KEVY_TIER_MB:-}
       # Canary over (2026-07-26): 4.0 ran clean through four mail-flow

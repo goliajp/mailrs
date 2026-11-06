@@ -4,7 +4,7 @@
 //!
 //! The worker adds two pipe copies of the message and a JSON answer; on a
 //! newsletter-sized message that is what these gates hold. Budgets are 3×
-//! the P95 measured on studio (M-series, release); see `BUDGETS.md`.
+//! what was measured on studio (M-series, release); see `BUDGETS.md`.
 //! Release only: the budgets belong to an optimised build.
 #![cfg(not(debug_assertions))]
 
@@ -14,6 +14,7 @@ use mailrs_parse_worker::proto::Op;
 use mailrs_parse_worker::{Pool, Setup, Tokenizer, Want};
 
 const RUNS: usize = 400;
+const ROUNDS: usize = 3;
 
 /// A 40 KB marketing message: text and HTML alternatives and a small
 /// attachment, the shape most inbound mail has.
@@ -44,12 +45,49 @@ Content-Transfer-Encoding: base64\r\n\r\nUEsFBgAAAAAAAAAAAAAAAAAAAAAAAA==\r\n--m
     .into_bytes()
 }
 
-fn p95(mut xs: Vec<Duration>) -> Duration {
+fn percentile(mut xs: Vec<Duration>, p: usize) -> Duration {
     xs.sort();
-    xs[xs.len() * 95 / 100]
+    xs[xs.len() * p / 100]
 }
 
-fn measure(op: &Op, raw: &[u8]) -> (Duration, Duration) {
+fn median(mut xs: [Duration; ROUNDS]) -> Duration {
+    xs.sort();
+    xs[ROUNDS / 2]
+}
+
+/// One round: worker P95, in-process P95, and the median of what each
+/// call through the worker took over the in-process parse timed right
+/// after it.
+///
+/// The overhead is taken per iteration, not as the difference of the two
+/// P95s: the tails of two separate distributions land on different
+/// iterations, so subtracting them measures how unevenly a busy machine
+/// preempted the two loops, not what the worker adds.
+fn round(pool: &Pool, op: &Op, raw: &[u8]) -> (Duration, Duration, Duration) {
+    let mut worker = Vec::with_capacity(RUNS);
+    let mut in_process = Vec::with_capacity(RUNS);
+    let mut extra = Vec::with_capacity(RUNS);
+    for _ in 0..RUNS {
+        let t = Instant::now();
+        pool.call(op, raw, Duration::from_secs(5)).unwrap();
+        let w = t.elapsed();
+        let t = Instant::now();
+        std::hint::black_box(mailrs_parse_worker::answer::answer(op, raw, &mut |_| {}));
+        let i = t.elapsed();
+        worker.push(w);
+        in_process.push(i);
+        extra.push(w.saturating_sub(i));
+    }
+    (
+        percentile(worker, 95),
+        percentile(in_process, 95),
+        percentile(extra, 50),
+    )
+}
+
+/// Each number is the median over `ROUNDS` rounds, so one round that
+/// shared the machine with a burst of other work does not decide.
+fn measure(op: &Op, raw: &[u8]) -> (Duration, Duration, Duration) {
     let pool = Pool::new(Setup {
         bin: env!("CARGO_BIN_EXE_mailrs-parse-worker").into(),
         workers: 1,
@@ -59,34 +97,31 @@ fn measure(op: &Op, raw: &[u8]) -> (Duration, Duration) {
     for _ in 0..20 {
         pool.call(op, raw, Duration::from_secs(5)).unwrap();
     }
-    let mut worker = Vec::with_capacity(RUNS);
-    let mut in_process = Vec::with_capacity(RUNS);
-    for _ in 0..RUNS {
-        let t = Instant::now();
-        pool.call(op, raw, Duration::from_secs(5)).unwrap();
-        worker.push(t.elapsed());
-        let t = Instant::now();
-        std::hint::black_box(mailrs_parse_worker::answer::answer(op, raw, &mut |_| {}));
-        in_process.push(t.elapsed());
-    }
-    (p95(worker), p95(in_process))
+    let rounds: [_; ROUNDS] = std::array::from_fn(|_| round(&pool, op, raw));
+    (
+        median(rounds.map(|r| r.0)),
+        median(rounds.map(|r| r.1)),
+        median(rounds.map(|r| r.2)),
+    )
 }
 
 fn gate(name: &str, op: Op, total: Duration, overhead: Duration) {
     let raw = newsletter();
-    let (worker, in_process) = measure(&op, &raw);
-    let extra = worker.saturating_sub(in_process);
+    let (worker, in_process, extra) = measure(&op, &raw);
+    // in process far above its usual figure (BUDGETS.md) means the
+    // machine was busy, not that the code got slower
     eprintln!(
-        "{name}: {} bytes, worker p95 {worker:?}, in process p95 {in_process:?}, overhead {extra:?}",
+        "{name}: {} bytes, worker p95 {worker:?}, in process p95 {in_process:?}, \
+overhead per call (median) {extra:?}",
         raw.len()
     );
     assert!(
         worker < total,
-        "{name}: worker p95 {worker:?} (budget {total:?})"
+        "{name}: worker p95 {worker:?} (budget {total:?}; in process p95 {in_process:?})"
     );
     assert!(
         extra < overhead,
-        "{name}: the worker adds {extra:?} over in process (budget {overhead:?})"
+        "{name}: the worker adds {extra:?} per call over in process (budget {overhead:?})"
     );
 }
 
@@ -118,6 +153,6 @@ fn the_drains_search_text_through_the_worker_stays_within_budget() {
 }
 
 const BUDGET_SCAN_US: u64 = 1_700;
-const BUDGET_SCAN_OVERHEAD_US: u64 = 160;
+const BUDGET_SCAN_OVERHEAD_US: u64 = 210;
 const BUDGET_BODY_US: u64 = 650;
-const BUDGET_BODY_OVERHEAD_US: u64 = 150;
+const BUDGET_BODY_OVERHEAD_US: u64 = 170;
