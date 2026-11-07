@@ -29,3 +29,10 @@ fn a_draft_save_without_attachments_keeps_them() {
     let v: SaveDraftRequest = parse("draft-save");
     assert_eq!(v.attachments, None);
 }
+
+/// A send of a saved draft names it: the server attaches the draft's files.
+#[test]
+fn send_naming_a_draft_body_matches() {
+    let v: mailrs_webapi::handlers::compose::SendRequest = parse("send-draft");
+    assert_eq!(v.draft_id, Some(42));
+}
