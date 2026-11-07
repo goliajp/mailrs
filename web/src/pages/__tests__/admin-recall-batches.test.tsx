@@ -22,6 +22,7 @@ vi.mock('@goliapkg/gds', async () => {
 import { AdminSidebar } from '@/components/admin-sidebar'
 import { chosenLangAtom } from '@/i18n'
 import { registerConfirmAsker } from '@/lib/confirm-asker'
+import { formatFullDate } from '@/lib/format'
 import { AdminRecallBatches } from '@/pages/admin-recall-batches'
 import { authAtom } from '@/store/auth'
 
@@ -29,6 +30,7 @@ const LIST = '/api/admin/rejudge/batches'
 
 const batch = {
   at: 1_793_700_000,
+  confirmed_at: 0,
   conversations: 0,
   discarded_at: 0,
   pending: false,
@@ -39,12 +41,28 @@ const batch = {
 
 const ITEMS = [
   { ...batch, observation: 'r40', pending: true, rules: ['brand-lookalike'], would_hold: 80 },
-  { ...batch, conversations: 6, observation: 'r39', rules: ['payee-change'], would_hold: 6 },
+  {
+    ...batch,
+    confirmed_at: 1_793_650_000,
+    conversations: 6,
+    observation: 'r39',
+    rules: ['payee-change'],
+    would_hold: 6,
+  },
   { ...batch, conversations: 3, observation: 'r38', released_at: 1_793_750_000 },
   { ...batch, discarded_at: 1_793_760_000, observation: 'r37', would_hold: 90 },
 ]
 
 type Answer = { body: unknown; status: number }
+
+type Write = { button: string; dialog: boolean; observation: string }
+
+/** Click a row's button, and accept the dialog when it asks first. */
+function act(w: Write) {
+  fireEvent.click(within(row(w.observation)).getByRole('button', { name: w.button }))
+  if (!w.dialog) return
+  fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: w.button }))
+}
 
 function listReads(calls: string[]): number {
   return calls.filter((c) => c === `GET ${LIST}`).length
@@ -104,6 +122,55 @@ describe('recall batches', () => {
     expect(within(row('r37')).getByText('已放弃')).toBeDefined()
   })
 
+  it('counts what a discarded round would have held', async () => {
+    serve({})
+    show()
+    await screen.findByText('r37')
+    expect(within(row('r37')).getByText('90')).toBeDefined()
+  })
+
+  it('shows when each batch was confirmed, put back or discarded', async () => {
+    serve({})
+    show()
+    await screen.findByText('r39')
+    expect(within(row('r39')).getByText(formatFullDate(1_793_650_000))).toBeDefined()
+    expect(within(row('r38')).getByText(formatFullDate(1_793_750_000))).toBeDefined()
+    expect(within(row('r37')).getByText(formatFullDate(1_793_760_000))).toBeDefined()
+    expect(within(row('r40')).getByText('—', { selector: 'td' })).toBeDefined()
+  })
+
+  it('says how many it will hold before confirming, and sends nothing on cancel', async () => {
+    const calls = serve({})
+    show()
+    await screen.findByText('r40')
+    fireEvent.click(within(row('r40')).getByRole('button', { name: '确认撤回' }))
+    const dialog = screen.getByRole('alertdialog')
+    expect(dialog.textContent).toContain('80 个会话')
+    fireEvent.click(within(dialog).getByRole('button', { name: '取消' }))
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(calls.filter((c) => c.startsWith('POST'))).toEqual([])
+  })
+
+  it('says a discard cannot be undone before discarding, and sends nothing on cancel', async () => {
+    const calls = serve({})
+    show()
+    await screen.findByText('r40')
+    fireEvent.click(within(row('r40')).getByRole('button', { name: '放弃' }))
+    const dialog = screen.getByRole('alertdialog')
+    expect(dialog.textContent).toContain('80 个会话')
+    expect(dialog.textContent).toContain('放弃后这批不会再被撤回，也不能恢复')
+    fireEvent.click(within(dialog).getByRole('button', { name: '取消' }))
+    expect(calls.filter((c) => c.startsWith('POST'))).toEqual([])
+  })
+
+  it('puts a batch back without a second dialog', async () => {
+    serve({})
+    show()
+    await screen.findByText('r39')
+    fireEvent.click(within(row('r39')).getByRole('button', { name: '整批放回' }))
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+  })
+
   it('offers confirm and discard on a waiting batch, release on a held one, nothing on the rest', async () => {
     serve({})
     show()
@@ -116,9 +183,15 @@ describe('recall batches', () => {
   })
 
   const writes = [
-    { button: '确认撤回', done: { held: 78 }, observation: 'r40', verb: 'confirm' },
-    { button: '放弃', done: { would_hold: 80 }, observation: 'r40', verb: 'discard' },
-    { button: '整批放回', done: { released: 6 }, observation: 'r39', verb: 'release' },
+    { button: '确认撤回', dialog: true, done: { held: 78 }, observation: 'r40', verb: 'confirm' },
+    { button: '放弃', dialog: true, done: { would_hold: 80 }, observation: 'r40', verb: 'discard' },
+    {
+      button: '整批放回',
+      dialog: false,
+      done: { released: 6 },
+      observation: 'r39',
+      verb: 'release',
+    },
   ]
 
   for (const w of writes) {
@@ -129,7 +202,7 @@ describe('recall batches', () => {
       registerConfirmAsker(asker)
       show()
       await screen.findByText(w.observation)
-      fireEvent.click(within(row(w.observation)).getByRole('button', { name: w.button }))
+      act(w)
       await waitFor(() => expect(listReads(calls)).toBe(2))
       expect(asker).toHaveBeenCalledTimes(1)
       expect(calls.filter((c) => c === `POST ${path}`)).toHaveLength(2)
@@ -142,7 +215,7 @@ describe('recall batches', () => {
       const calls = serve({ [path]: [{ body: {}, status: 409 }] })
       show()
       await screen.findByText(w.observation)
-      fireEvent.click(within(row(w.observation)).getByRole('button', { name: w.button }))
+      act(w)
       await waitFor(() => expect(listReads(calls)).toBe(2))
       expect(toastError).toHaveBeenCalledWith('这个批次已经处理过')
     })

@@ -10,9 +10,9 @@ import type { WireRecallBatch } from '@/wire/schemas/rejudge'
 
 export type RecallBatchState = 'discarded' | 'held' | 'pending' | 'released'
 
-/** A waiting round has held nothing yet: count what it would hold. */
+/** A waiting or discarded round held nothing: count what it would have held. */
 export function recallBatchCount(b: WireRecallBatch): number {
-  if (b.pending) return b.would_hold
+  if (b.pending || b.discarded_at > 0) return b.would_hold
   return b.conversations
 }
 
