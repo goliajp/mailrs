@@ -18,6 +18,12 @@ impl<'a> Part<'a> {
     /// web hides from the attachment list for the same reason — they are
     /// already on screen, often a signature's logo.
     pub fn shown_attachment_count(&self) -> usize {
+        self.shown_attachments().count()
+    }
+
+    /// The attachments a reader is shown, in message order: the parts
+    /// [`shown_attachment_count`](Self::shown_attachment_count) counts.
+    pub fn shown_attachments(&self) -> impl Iterator<Item = &Part<'a>> {
         let html: String = self
             .walk()
             .filter(|p| p.content_type.type_ == "text" && p.content_type.subtype == "html")
@@ -25,15 +31,13 @@ impl<'a> Part<'a> {
             .collect::<Vec<_>>()
             .join("\n")
             .to_lowercase();
-        self.attachments()
-            .filter(|p| match &p.content_id {
-                Some(id) => {
-                    let id = id.trim().trim_start_matches('<').trim_end_matches('>');
-                    id.is_empty() || !html.contains(&format!("cid:{}", id.to_lowercase()))
-                }
-                None => true,
-            })
-            .count()
+        self.attachments().filter(move |p| match &p.content_id {
+            Some(id) => {
+                let id = id.trim().trim_start_matches('<').trim_end_matches('>');
+                id.is_empty() || !html.contains(&format!("cid:{}", id.to_lowercase()))
+            }
+            None => true,
+        })
     }
 
     /// Every leaf part a reader can open by index: the attachments, then

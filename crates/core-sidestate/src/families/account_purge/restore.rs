@@ -89,10 +89,11 @@ pub fn finish(
         }
         _ => "none".to_string(),
     };
-    let back = outbound::release(c, address, now, outbound::Lapsed::Draft)?;
+    let uploads = crate::families::uploads::root();
+    let back = outbound::release(c, address, now, outbound::Lapsed::Draft(&uploads))?;
     let detail = format!(
-        "parked={parked} rescheduled={} drafts={} attachments_not_included={}",
-        back.rescheduled, back.drafts, back.attachments_not_included
+        "parked={parked} rescheduled={} drafts={} attachments={}",
+        back.rescheduled, back.drafts, back.attachments
     );
     crate::families::audit::append(c, by, RESTORED, address, &detail, now)?;
     pending::clear(c, address)?;
