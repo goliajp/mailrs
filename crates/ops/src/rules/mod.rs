@@ -181,7 +181,7 @@ impl Rule {
 /// Repeat at the severity's default interval.
 pub(crate) const DEFAULT_REPEAT: Option<i64> = Some(0);
 
-/// The 17 rules of phase 1, then the rules that speak for a whole source
+/// The 17 rules of phase 1 and the fraud counter watch, then the rules that speak for a whole source
 /// or a dependency.
 pub fn all() -> Vec<&'static Rule> {
     let mut v: Vec<&'static Rule> = Vec::new();
