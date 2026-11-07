@@ -1,59 +1,96 @@
-//! The Zengin bank list a Japanese account's bank is checked against.
+//! The Japanese bank names a written bank name is checked against.
 //!
-//! Reference data compiled into the binary from `data/zengin-banks.tsv`
-//! (one bank per line, `code<TAB>name`, `#` lines are comments), never
-//! fetched at run time. Names are compared after [`normalize`], so the
-//! list's short forms (`三菱ＵＦＪ`, `北海道信金`, `横浜農協`) match what a
-//! letter writes (`三菱UFJ銀行`, `北海道信用金庫`, `JA横浜`).
+//! Reference data compiled into the binary, never fetched at run time:
+//! `data/jp-bank-names.tsv` (`kind<TAB>name<TAB>corporate number`, `#`
+//! lines are comments) lists the banks, foreign bank branches, shinkin
+//! banks, credit cooperatives and labour banks licensed in Japan, with
+//! their federations; `data/jp-bank-aliases.tsv` (`former<TAB>current<TAB>year`)
+//! maps former names mail still writes to the bank they became.
+//! ゆうちょ銀行 is added here, so it does not depend on the list.
 //!
-//! An empty list verifies nothing: every account structure found is then
-//! a suspected one.
+//! A name matches only after [`normalize`]: width, `株式会社`, a trailing
+//! `銀行` and the long and short forms of the institution type. Nothing
+//! looser: a name that does not match is not on the list, and an account
+//! at it is a suspected one. Agricultural cooperatives (JA) are not on the
+//! list.
 
+use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
-/// Bank codes by normalised name.
+/// Names added to the list.
+const EXTRA_NAMES: [&str; 1] = ["ゆうちょ銀行"];
+
+/// Bank names, normalised, and former names to current ones.
 #[derive(Debug, Default)]
 pub struct BankList {
-    names: Vec<(String, String)>,
+    names: HashSet<String>,
+    aliases: HashMap<String, String>,
 }
 
 impl BankList {
-    /// Read the list's text: `code<TAB>name` lines, `#` comments.
+    /// Read the name list (`kind<TAB>name…`) and the alias list
+    /// (`former<TAB>current<TAB>year`); `#` lines are comments.
     #[must_use]
-    pub fn parse(text: &str) -> Self {
-        let names = text
-            .lines()
-            .filter(|l| !l.starts_with('#'))
-            .filter_map(|l| {
-                let mut cols = l.split('\t');
-                let code = cols.next()?.trim();
-                let name = normalize(cols.next()?);
-                (!code.is_empty() && !name.is_empty()).then(|| (name, code.to_string()))
-            })
-            .collect();
-        Self { names }
+    pub fn parse(names: &str, aliases: &str) -> Self {
+        let rows = |text: &str| -> Vec<Vec<String>> {
+            text.lines()
+                .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
+                .map(|l| l.split('\t').map(str::to_string).collect())
+                .collect()
+        };
+        let mut list = Self::default();
+        for cols in rows(names) {
+            if let Some(name) = cols.get(1) {
+                list.names.insert(normalize(name));
+            }
+        }
+        list.names.extend(EXTRA_NAMES.iter().map(|n| normalize(n)));
+        for cols in rows(aliases) {
+            if let [former, current, ..] = &cols[..] {
+                list.aliases.insert(normalize(former), normalize(current));
+            }
+        }
+        list
     }
 
-    /// The code of the bank `written` names, if it is on the list.
+    /// The listed bank `written` names, as its normalised current name:
+    /// the same for every way of writing it and for a former name.
     #[must_use]
-    pub fn code_of(&self, written: &str) -> Option<&str> {
+    pub fn canonical(&self, written: &str) -> Option<String> {
         let name = normalize(written);
-        self.names
-            .iter()
-            .find(|(n, _)| *n == name)
-            .map(|(_, c)| c.as_str())
+        if self.names.contains(&name) {
+            return Some(name);
+        }
+        self.aliases.get(&name).cloned()
+    }
+
+    /// How many names the list holds.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.names.len()
+    }
+
+    /// The list holds no names.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.names.is_empty()
     }
 }
 
-static ZENGIN: LazyLock<BankList> =
-    LazyLock::new(|| BankList::parse(include_str!("../../data/zengin-banks.tsv")));
+static LIST: LazyLock<BankList> = LazyLock::new(|| {
+    BankList::parse(
+        include_str!("../../data/jp-bank-names.tsv"),
+        include_str!("../../data/jp-bank-aliases.tsv"),
+    )
+});
 
 /// The list compiled into this build.
-pub(super) fn zengin() -> &'static BankList {
-    &ZENGIN
+pub(super) fn listed() -> &'static BankList {
+    &LIST
 }
 
-/// Long forms a letter writes, and the short form the list uses.
+/// Long forms of the institution types, and the short forms mail and the
+/// list are both brought to.
 const SHORT_FORMS: [(&str, &str); 4] = [
     ("信用金庫", "信金"),
     ("信用組合", "信組"),
@@ -62,12 +99,12 @@ const SHORT_FORMS: [(&str, &str); 4] = [
 ];
 
 /// A bank name as the list compares it: full-width letters and digits
-/// made ASCII and upper case, spaces and `株式会社` dropped, a trailing
-/// `銀行` dropped, long forms of the other institution types shortened,
-/// and `JA` written in front made `農協` behind.
+/// made ASCII and upper case, half-width katakana made full-width, spaces
+/// and `株式会社` dropped, a trailing `銀行` dropped, and the long forms of
+/// the other institution types shortened.
 #[must_use]
 pub fn normalize(name: &str) -> String {
-    let mut s: String = name
+    let mut s: String = fold_kana(name)
         .chars()
         .map(fold_width)
         .filter(|c| !c.is_whitespace())
@@ -84,12 +121,6 @@ pub fn normalize(name: &str) -> String {
             s = format!("{rest}{short}");
         }
     }
-    if let Some(rest) = s.strip_prefix("JA")
-        && !rest.is_empty()
-        && !rest.ends_with("農協")
-    {
-        s = format!("{rest}農協");
-    }
     s
 }
 
@@ -103,35 +134,41 @@ pub(super) fn fold_width(c: char) -> char {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// Half-width katakana U+FF65..U+FF9D as full-width, in order.
+const HALF_KANA: &str = "・ヲァィゥェォャュョッーアイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン";
 
-    const SAMPLE: &str = "# sample\n0005\t三菱ＵＦＪ\n0009\t三井住友\n9900\tゆうちょ\n1001\t北海道信金\n5000\t横浜農協\n";
-
-    #[test]
-    fn written_forms_match_the_lists_short_forms() {
-        let list = BankList::parse(SAMPLE);
-        for (written, code) in [
-            ("三菱UFJ銀行", "0005"),
-            ("三菱ＵＦＪ銀行", "0005"),
-            ("株式会社三菱ＵＦＪ銀行", "0005"),
-            ("三菱UFJ", "0005"),
-            ("三井住友銀行", "0009"),
-            ("ゆうちょ銀行", "9900"),
-            ("ゆうちょ", "9900"),
-            ("北海道信用金庫", "1001"),
-            ("JA横浜", "5000"),
-            ("横浜農業協同組合", "5000"),
-        ] {
-            assert_eq!(list.code_of(written), Some(code), "{written}");
+/// Half-width katakana as full-width, a following voiced or semi-voiced
+/// mark joined to the letter before it (dropped where it cannot join).
+fn fold_kana(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '\u{FF9E}' | '\u{FF9F}' => {
+                let step = c as u32 - 0xFF9D;
+                if let Some(prev) = out.pop() {
+                    out.push(voiced(prev, step).unwrap_or(prev));
+                }
+            }
+            '\u{FF65}'..='\u{FF9D}' => out.extend(HALF_KANA.chars().nth(c as usize - 0xFF65)),
+            _ => out.push(c),
         }
-        assert_eq!(list.code_of("三菱銀行"), None);
-        assert_eq!(list.code_of("みずほ銀行"), None);
     }
-
-    #[test]
-    fn an_empty_list_verifies_nothing() {
-        assert_eq!(BankList::parse("# nothing\n").code_of("三菱UFJ銀行"), None);
-    }
+    out
 }
+
+/// `kana` with a voiced (`step` 1) or semi-voiced (2) mark, when it takes
+/// one.
+fn voiced(kana: char, step: u32) -> Option<char> {
+    if kana == 'ウ' && step == 1 {
+        return Some('ヴ');
+    }
+    let takes = match step {
+        1 => "カキクケコサシスセソタチツテトハヒフヘホ".contains(kana),
+        _ => "ハヒフヘホ".contains(kana),
+    };
+    takes.then(|| char::from_u32(kana as u32 + step)).flatten()
+}
+
+#[cfg(test)]
+#[path = "banks_tests.rs"]
+mod tests;
