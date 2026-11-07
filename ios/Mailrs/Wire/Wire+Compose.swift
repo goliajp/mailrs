@@ -30,6 +30,10 @@ extension Wire {
         /// When it is set to go, in epoch seconds. A draft scheduled on the
         /// web and resumed here must keep it, or Send would send at once.
         var scheduledAt: Int64?
+        /// Files kept with it; absent on a draft that has none.
+        var attachments: [DraftAttachment]?
+
+        var files: [DraftAttachment] { attachments ?? [] }
 
         enum CodingKeys: String, CodingKey {
             case id
@@ -43,6 +47,7 @@ extension Wire {
             case updatedAt = "updated_at"
             case from
             case scheduledAt = "scheduled_at"
+            case attachments
         }
     }
 
@@ -61,6 +66,9 @@ extension Wire {
         let replyToThreadId: String?
         var from: String = ""
         var scheduledAt: Int64?
+        /// The files the draft keeps, in the composer's order. Absent keeps
+        /// whatever the draft already has; `[]` removes them.
+        var attachments: [DraftAttachment]?
 
         enum CodingKeys: String, CodingKey {
             case id
@@ -72,6 +80,7 @@ extension Wire {
             case replyToThreadId = "reply_to_thread_id"
             case from
             case scheduledAt = "scheduled_at"
+            case attachments
         }
     }
 
@@ -136,8 +145,12 @@ extension Wire {
         /// The body rendered from its markdown (`MarkdownHtml`), or absent
         /// for text alone.
         var htmlBody: String?
+        /// The saved draft this send is. The server attaches the draft's
+        /// files ahead of the form's and deletes the draft once queued.
+        var draftId: Int64?
 
         enum CodingKeys: String, CodingKey {
+            case draftId = "draft_id"
             case from
             case undoSeconds = "undo_seconds"
             case htmlBody = "html_body"

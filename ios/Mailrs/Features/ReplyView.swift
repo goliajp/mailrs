@@ -46,7 +46,8 @@ struct ReplyView: View {
     /// upserted — a half-written reply must survive the app dying.
     @State private var draftId: Int64?
     @State private var autosave: Task<Void, Never>?
-    @State private var attachments: [MultipartForm.FilePart] = []
+    /// Kept with the draft, as compose keeps them.
+    @State private var files = DraftFiles()
     /// Copies the writer adds. A reply cannot derive them: the wire
     /// carries the original's To line and nothing else, so the Cc of the
     /// message being answered is not knowable here — inventing one from
@@ -130,14 +131,7 @@ struct ReplyView: View {
                     .focused($focus, equals: .body)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                if !attachments.isEmpty {
-                    Divider()
-                    VStack(spacing: 4) {
-                        AttachmentRows(attachments: $attachments)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                }
+                DraftFileRows(files: files)
                 if mode == .forward, replyingTo != nil {
                     Divider()
                     // The original does not appear here because it does
@@ -169,7 +163,7 @@ struct ReplyView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .primaryActions) {
-                    AttachMenu(attachments: $attachments)
+                    AttachMenu(count: files.entries.count) { session.attach($0, to: files) }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Send") { Task { await send() } }
@@ -187,6 +181,7 @@ struct ReplyView: View {
                 focus = .body
             }
             .onChange(of: body_) { _, _ in scheduleAutosave() }
+            .onChange(of: files.stored) { _, _ in scheduleAutosave() }
             .onDisappear {
                 autosave?.cancel()
                 // Cancel is not "discard", same as compose: closing the
@@ -224,6 +219,7 @@ struct ReplyView: View {
         showsCopies = !mine.cc.isEmpty || !mine.bcc.isEmpty
         draftId = mine.id
         if let saved = mine.from, !saved.isEmpty { from = saved }
+        files.restore(mine.files)
     }
 
     private func scheduleAutosave() {
@@ -235,30 +231,41 @@ struct ReplyView: View {
         }
     }
 
+    /// Body only: a reply's subject is always prefilled, so counting it
+    /// would file a draft for every sheet opened and closed. A file kept,
+    /// or one taken off a saved draft, counts.
+    private var worthSaving: Bool {
+        DraftRule.isWorthSaving(to: "", subject: "", body: body_)
+            || !files.stored.isEmpty || files.needsSave
+    }
+
     private func save() async {
-        // Body only: a reply's subject is always prefilled, so counting
-        // it would file a draft for every sheet opened and closed.
-        guard DraftRule.isWorthSaving(to: "", subject: "", body: body_) else { return }
-        draftId = await session.saveDraft(
+        guard worthSaving else { return }
+        let kept = files.stored
+        let saved = await session.saveDraft(
             id: draftId,
             to: recipients.joined(separator: ", "),
             cc: cc, bcc: bcc,
             subject: subject,
             body: body_,
-            replyToThreadId: thread.threadId, from: from
+            replyToThreadId: thread.threadId, from: from, attachments: kept
         )
+        guard let saved else { return }
+        draftId = saved
+        files.saved(kept)
     }
 
     private func saveNow() {
         guard !didSend else { return }
-        guard DraftRule.isWorthSaving(to: "", subject: "", body: body_) else { return }
+        guard worthSaving else { return }
         let (title, text, id, tid, addrs) =
             (subject, body_, draftId, thread.threadId, recipients.joined(separator: ", "))
-        let (copies, blind, sender) = (cc, bcc, from)
+        let (copies, blind, sender, kept) = (cc, bcc, from, files.stored)
         Task {
             _ = await session.saveDraft(
                 id: id, to: addrs, cc: copies, bcc: blind,
-                subject: title, body: text, replyToThreadId: tid, from: sender
+                subject: title, body: text, replyToThreadId: tid, from: sender,
+                attachments: kept
             )
             await session.loadDrafts()
         }
@@ -288,6 +295,14 @@ struct ReplyView: View {
     private func send() async {
         sending = true
         failure = nil
+        autosave?.cancel()
+        // the server attaches the draft's files: they must be the ones shown
+        if files.needsSave { await save() }
+        if files.needsSave {
+            failure = DraftFileText.notSaved
+            sending = false
+            return
+        }
         do {
             switch mode {
             case .reply, .replyAll:
@@ -299,7 +314,7 @@ struct ReplyView: View {
                     body: quotedBody,
                     inReplyTo: replyingTo?.messageId,
                     threadId: thread.threadId,
-                    attachments: attachments, from: from
+                    attachments: files.unsaved, from: from, draftId: draftId
                 )
             case .forward:
                 guard let replyingTo else { return }
@@ -311,17 +326,14 @@ struct ReplyView: View {
                     body: MailSignature.append(body: body_, signature: session.signature),
                     forwardMessageId: replyingTo.messageId,
                     forwardAttachmentsFrom: replyingTo.uid,
-                    attachments: attachments, from: from
+                    attachments: files.unsaved, from: from, draftId: draftId
                 )
             }
-            // Sent, so it is no longer a draft. Cancel the pending
-            // autosave first or it recreates the one just deleted.
+            // Sent, so it is no longer a draft: the server deleted the one
+            // the send named. The guard stops the closing save refiling it.
             didSend = true
-            autosave?.cancel()
-            if let draftId {
-                await session.deleteDraft(id: draftId)
-                self.draftId = nil
-            }
+            if let draftId { session.drafts.removeAll { $0.id == draftId } }
+            draftId = nil
             dismiss()
         } catch {
             failure = error.localizedDescription

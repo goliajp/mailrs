@@ -60,7 +60,8 @@ def delete(handler):
 def save_draft(handler, drafts, counter, posts):
     """`POST /api/mail/drafts`, as `SaveDraftRequest`: an `id` upserts,
     none allocates one. `from` and `scheduled_at` are kept, as the server
-    keeps them, so a resumed draft can be checked for both."""
+    keeps them, so a resumed draft can be checked for both, and so are
+    `attachments` (absent keeps the saved ones)."""
     length = int(handler.headers.get("Content-Length", "0"))
     body = {}
     if length:
@@ -71,12 +72,15 @@ def save_draft(handler, drafts, counter, posts):
         counter[0] += 1
         draft_id = counter[0]
     now = 1754400000 + draft_id
+    # absent keeps the draft's files, `[]` clears them
+    kept = drafts.get(draft_id, {}).get("attachments", [])
     drafts[draft_id] = {
         "id": draft_id, "to": body.get("to", ""), "cc": body.get("cc", ""),
         "bcc": body.get("bcc", ""), "subject": body.get("subject", ""),
         "body": body.get("body", ""),
         "reply_to_thread_id": body.get("reply_to_thread_id"),
         "from": body.get("from", ""), "scheduled_at": body.get("scheduled_at"),
+        "attachments": body.get("attachments", kept),
         "created_at": now, "updated_at": now,
     }
     handler._send({"id": draft_id})

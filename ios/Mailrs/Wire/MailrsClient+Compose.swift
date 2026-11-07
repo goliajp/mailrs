@@ -18,13 +18,13 @@ extension MailrsClient {
     func sendNew(
         to recipients: [String], cc: [String] = [], bcc: [String] = [],
         subject: String, body: String, scheduledAt: Int64? = nil,
-        from: String = "", htmlBody: String? = nil
+        from: String = "", htmlBody: String? = nil, draftId: Int64? = nil
     ) async throws -> Wire.SendResponse {
         try await post(Wire.SendRequest(
             to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
             inReplyTo: nil, replyToThreadId: nil,
             forwardMessageId: nil, forwardAttachmentsFrom: nil,
-            scheduledAt: scheduledAt, from: from, htmlBody: htmlBody
+            scheduledAt: scheduledAt, from: from, htmlBody: htmlBody, draftId: draftId
         ))
     }
 
@@ -38,13 +38,13 @@ extension MailrsClient {
         body: String,
         inReplyTo: String?,
         threadId: String,
-        from: String = "", htmlBody: String? = nil
+        from: String = "", htmlBody: String? = nil, draftId: Int64? = nil
     ) async throws -> Wire.SendResponse {
         return try await post(Wire.SendRequest(
             to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
             inReplyTo: inReplyTo, replyToThreadId: threadId,
             forwardMessageId: nil, forwardAttachmentsFrom: nil,
-            scheduledAt: nil, from: from, htmlBody: htmlBody
+            scheduledAt: nil, from: from, htmlBody: htmlBody, draftId: draftId
         ))
     }
 
@@ -68,7 +68,7 @@ extension MailrsClient {
         scheduledAt: Int64? = nil,
         redraftOf: String? = nil,
         redraftKeep: [Int]? = nil,
-        from: String = "", htmlBody: String? = nil
+        from: String = "", htmlBody: String? = nil, draftId: Int64? = nil
     ) async throws -> Wire.SendResponse {
         let boundary = "mailrs-\(UUID().uuidString)"
         // Repeated fields, one per address, exactly as `to` is — the
@@ -97,6 +97,7 @@ extension MailrsClient {
         // out at once.
         if let scheduledAt { fields.append(("scheduled_at", String(scheduledAt))) }
         fields.append(("undo_seconds", String(SendHold.seconds)))
+        if let draftId { fields.append(("draft_id", String(draftId))) }
         if let redraftOf { fields.append(("redraft_of", redraftOf)) }
         // **One comma-separated field, not a repeated one**, and the
         // handler says why: repeating it cannot express "keep none",
@@ -140,14 +141,14 @@ extension MailrsClient {
         body: String,
         forwardMessageId: String,
         forwardAttachmentsFrom: UInt32?,
-        from: String = "", htmlBody: String? = nil
+        from: String = "", htmlBody: String? = nil, draftId: Int64? = nil
     ) async throws -> Wire.SendResponse {
         return try await post(Wire.SendRequest(
             to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
             inReplyTo: nil, replyToThreadId: nil,
             forwardMessageId: forwardMessageId,
             forwardAttachmentsFrom: forwardAttachmentsFrom,
-            scheduledAt: nil, from: from, htmlBody: htmlBody
+            scheduledAt: nil, from: from, htmlBody: htmlBody, draftId: draftId
         ))
     }
 
@@ -178,9 +179,12 @@ extension MailrsClient {
 
 
     /// `GET /api/mail/drafts` — newest first, sorted server-side by
-    /// `updated_at`.
+    /// `updated_at`. Drafts with files are listed only to a client that
+    /// asks: one that does not name the draft when it sends would send it
+    /// without them.
     func drafts() async throws -> [Wire.Draft] {
-        let (data, response) = try await send("GET", "/api/mail/drafts", body: nil, authorized: true)
+        let (data, response) = try await send(
+            "GET", "/api/mail/drafts?with_attachments=true", body: nil, authorized: true)
         guard let http = response as? HTTPURLResponse else {
             throw MailrsError.transport("No HTTP response")
         }
