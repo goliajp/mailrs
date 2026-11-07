@@ -67,7 +67,8 @@ async fn the_policy_is_reported_and_its_reports_are_taken() {
     for cookie in [None, Some("mailrs_session=some-session-token")] {
         let mut req = Request::post("/api/csp-report")
             .header("content-type", "application/csp-report")
-            .header("origin", "https://mail.golia.ai");
+            .header("origin", "https://mail.golia.ai")
+            .header("user-agent", "Mozilla/5.0 (iPhone) Mobile/15E148");
         if let Some(c) = cookie {
             req = req.header("cookie", c);
         }
@@ -78,4 +79,21 @@ async fn the_policy_is_reported_and_its_reports_are_taken() {
             .unwrap();
         assert_eq!(res.status(), 204, "cookie {cookie:?}");
     }
+
+    // both reports are counted for the ops daemon, without the page's
+    // thread id or the blocked URL's path and query
+    let beat = mailrs_webapi::handlers::csp_tally::beat();
+    let entry = beat
+        .csp_distinct
+        .iter()
+        .find(|e| e.blocked == "https://cdn.example.com")
+        .expect("the report is in the beat");
+    assert_eq!(entry.directive, "script-src-elem");
+    assert_eq!(entry.page, "mail");
+    assert_eq!(entry.client, "mobile");
+    assert_eq!(entry.count, 2);
+    assert!(beat.csp_reports >= 2);
+    assert!(beat.csp_by_directive["script-src-elem"] >= 2);
+    let json = serde_json::to_string(&beat).unwrap();
+    assert!(!json.contains("thread") && !json.contains("x.js"), "{json}");
 }

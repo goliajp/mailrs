@@ -41,9 +41,46 @@ const opsMaintenanceSchema = z.object({
   until: z.number(),
 })
 
+// Backend: crates/ops-report/src/wire.rs — struct CspEntry
+const opsCspEntrySchema = z.object({
+  blocked: z.string(),
+  client: z.string(),
+  count: z.number(),
+  directive: z.string(),
+  first_at: z.number(),
+  last_at: z.number(),
+  page: z.string(),
+  violated_directive: z.string(),
+})
+
+export type WireOpsCspEntry = z.infer<typeof opsCspEntrySchema>
+
+// Backend: crates/ops/src/csp.rs — struct CspTotals
+const opsCspTotalsSchema = z.object({
+  by_directive: z.record(z.string(), z.number()),
+  distinct: z.array(opsCspEntrySchema),
+  distinct_dropped: z.number(),
+  from: z.number(),
+  pages_served: z.record(z.string(), z.number()),
+  reports: z.number(),
+  to: z.number(),
+})
+
+export type WireOpsCspTotals = z.infer<typeof opsCspTotalsSchema>
+
+// Backend: crates/ops/src/csp.rs — struct CspSummary
+const opsCspSchema = z.object({
+  counting_since: z.number().nullable(),
+  last_7_days: opsCspTotalsSchema.nullable(),
+  since_counting: opsCspTotalsSchema.nullable(),
+})
+
+export type WireOpsCsp = z.infer<typeof opsCspSchema>
+
 // Backend: crates/ops/src/app.rs — fn state
 const opsDaemonStateSchema = z.object({
   alerts: z.array(opsAlertSchema),
+  csp: opsCspSchema,
   external_channel: z.boolean(),
   last_cycle: z.object({ duration_ms: z.number(), started_at: z.number() }).nullable(),
   maintenance: opsMaintenanceSchema.nullable(),
@@ -51,6 +88,7 @@ const opsDaemonStateSchema = z.object({
     held_for_maintenance: z.number(),
     own_path_awaiting_acceptance_250: z.array(z.string()),
   }),
+  now: z.number(),
   rules: z.array(
     z.object({ name: z.string(), title_en: z.string(), title_ja: z.string(), title_zh: z.string() })
   ),

@@ -34,6 +34,7 @@ pub mod conversation_body;
 pub mod conversation_verbs;
 pub mod conversations;
 pub mod csp_report;
+pub mod csp_tally;
 pub mod dav;
 pub mod dav_auth;
 pub mod dmarc;
