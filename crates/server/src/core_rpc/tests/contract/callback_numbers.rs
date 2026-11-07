@@ -1,9 +1,9 @@
 //! Mail with phone numbers in its text and no QR code, on both cores.
 //!
-//! Only fastcore reads images for QR codes and reads attachments' text into
-//! the number history. For mail with neither, the two cores must leave the
-//! same history (the reading pane's callback hint reads it) and judge a
-//! report of it alike.
+//! Numbers in an attachment's text reach the history through the
+//! attachment-text worker (`attachment_text`). For mail with no attachment
+//! and no QR code, the two cores must leave the same history (the reading
+//! pane's callback hint reads it) and judge a report of it alike.
 
 use mailrs_core_sidestate::families::callback_numbers::{self, Given};
 
