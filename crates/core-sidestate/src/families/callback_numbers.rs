@@ -71,7 +71,30 @@ pub fn record(
     if numbers.is_empty() || user.trim().is_empty() || sender.trim().is_empty() {
         return Ok(0);
     }
-    let k = key(user, sender);
+    record_at(
+        conn,
+        &key(user, sender),
+        numbers,
+        at,
+        message_id,
+        MAX_PER_SENDER,
+        KEEP_DAYS,
+    )
+}
+
+/// [`record`] into the hash `k`, keeping at most `max` values, the whole
+/// hash expiring `keep_days` after the latest arrival recorded. Shared with
+/// the other per-sender histories built the same way.
+pub(super) fn record_at(
+    conn: &mut Connection,
+    k: &str,
+    numbers: &[String],
+    at: i64,
+    message_id: &str,
+    max: usize,
+    keep_days: u64,
+) -> io::Result<usize> {
+    let k = k.to_string();
     let (mut held, last) = read(conn, &k)?;
     let mut changed = 0;
     for n in numbers {
@@ -86,7 +109,7 @@ pub fn record(
                 // this one is not kept. Keeping the earliest is the same
                 // whatever order mail is recorded in, so a backfill run
                 // twice changes nothing the second time.
-                if held.len() >= MAX_PER_SENDER {
+                if held.len() >= max {
                     let Some(i) = (0..held.len())
                         .max_by_key(|&i| (held[i].first_seen, held[i].number.clone()))
                     else {
@@ -114,7 +137,7 @@ pub fn record(
             k.as_bytes(),
             &[(LAST.as_bytes(), at.to_string().as_bytes())],
         )?;
-        conn.expire(k.as_bytes(), Duration::from_secs(KEEP_DAYS * 86_400))?;
+        conn.expire(k.as_bytes(), Duration::from_secs(keep_days * 86_400))?;
     }
     Ok(changed)
 }
@@ -147,7 +170,8 @@ pub fn given(conn: &mut Connection, user: &str, sender: &str) -> io::Result<Vec<
     Ok(held)
 }
 
-fn read(conn: &mut Connection, k: &str) -> io::Result<(Vec<Given>, Option<i64>)> {
+/// Every value in the hash `k`, and the latest arrival recorded.
+pub(super) fn read(conn: &mut Connection, k: &str) -> io::Result<(Vec<Given>, Option<i64>)> {
     let flat = conn.hgetall(k.as_bytes())?;
     let mut last = None;
     let mut held = Vec::new();

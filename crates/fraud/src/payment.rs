@@ -1,42 +1,135 @@
 //! Payment identifiers a message carries, recognised only when their own
-//! check digits hold.
+//! check digits hold, or, for a Japanese domestic account, which has no
+//! check digit, when the whole structure of a transfer destination is
+//! written out.
 //!
 //! A sum, an "urgent transfer", "our new account" are words, and words
-//! are not evidence here. An IBAN whose mod-97 check passes, or a Bitcoin
-//! address whose checksum does, is something the message itself proves
-//! it contains. What it means depends on who sent it, which is the rules'
-//! business, not this module's.
+//! are not evidence here. An IBAN whose mod-97 check passes, a Bitcoin
+//! address whose checksum does, an Ethereum address whose EIP-55
+//! mixed-case checksum does, is something the message itself proves it
+//! contains. A Japanese account is recognised by its parts — bank, branch,
+//! account type, number — and its bank checked against the Zengin bank
+//! list ([`jp_account`]). What any of it means depends on who sent it,
+//! which is the rules' business, not this module's.
+//!
+//! Account numbers never leave this module whole: a Japanese account is
+//! carried as a masked form for the reader and, like an IBAN, as a hash
+//! for the per-sender history ([`PaymentIds::account_keys`]).
+
+pub mod banks;
+mod eth;
+pub mod jp_account;
 
 use sha2::{Digest, Sha256};
 
+pub use jp_account::JpAccount;
+
+/// Accounts whose keys one message carries, at most.
+pub const MAX_ACCOUNT_KEYS: usize = 8;
+
 /// The identifiers found in a text.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PaymentIds {
     /// An IBAN whose mod-97 check passes.
     pub iban: bool,
     /// The country code of the first such IBAN, for the reader.
     pub iban_country: Option<&'static str>,
-    /// A Bitcoin address whose checksum passes.
+    /// A Bitcoin address whose checksum passes, or an Ethereum address
+    /// whose EIP-55 mixed-case checksum does.
     pub crypto: bool,
+    /// Japanese domestic accounts written out as a transfer destination,
+    /// at most [`jp_account::MAX_ACCOUNTS`].
+    pub jp_accounts: Vec<JpAccount>,
+    /// A hash of each IBAN and Japanese account, at most
+    /// [`MAX_ACCOUNT_KEYS`]: what the per-sender account history records.
+    pub account_keys: Vec<String>,
 }
 
-/// Look for check-digit-valid IBANs and Bitcoin addresses in `text`.
+impl PaymentIds {
+    /// A Japanese account whose bank is on the Zengin list.
+    #[must_use]
+    pub fn account_verified(&self) -> bool {
+        self.jp_accounts.iter().any(|a| a.verified)
+    }
+
+    /// A Japanese account structure whose bank is not on the list: a
+    /// typo, a misread scan, or a name the list does not carry.
+    #[must_use]
+    pub fn account_suspected(&self) -> bool {
+        self.jp_accounts.iter().any(|a| !a.verified)
+    }
+
+    /// The masked form of the first verified Japanese account, else of
+    /// the first suspected one; empty without either.
+    #[must_use]
+    pub fn jp_masked(&self) -> &str {
+        self.jp_accounts
+            .iter()
+            .find(|a| a.verified)
+            .or(self.jp_accounts.first())
+            .map_or("", |a| a.masked.as_str())
+    }
+
+    /// Add what another text of the same message carries.
+    pub fn merge(&mut self, other: PaymentIds) {
+        if !self.iban {
+            self.iban_country = other.iban_country;
+        }
+        self.iban |= other.iban;
+        self.crypto |= other.crypto;
+        for a in other.jp_accounts {
+            if self.jp_accounts.len() < jp_account::MAX_ACCOUNTS
+                && !self.jp_accounts.iter().any(|b| b.key == a.key)
+            {
+                self.jp_accounts.push(a);
+            }
+        }
+        for k in other.account_keys {
+            push_key(&mut self.account_keys, k);
+        }
+    }
+}
+
+fn push_key(keys: &mut Vec<String>, key: String) {
+    if keys.len() < MAX_ACCOUNT_KEYS && !keys.contains(&key) {
+        keys.push(key);
+    }
+}
+
+/// The history key of an account identity: a hash, so the history holds
+/// no number. A seven-digit number hashed is not secret from someone who
+/// can read the store and try every number; it keeps the number out of
+/// every reading short of that.
+pub(crate) fn account_key(identity: &str) -> String {
+    let digest = Sha256::digest(identity.as_bytes());
+    digest[..16].iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Look for check-digit-valid IBANs and crypto addresses, and Japanese
+/// account structures, in `text`.
 #[must_use]
 pub fn find(text: &str) -> PaymentIds {
     let mut out = PaymentIds::default();
     for token in text.split(|c: char| !c.is_ascii_alphanumeric() && c != ' ') {
-        if out.iban {
-            break;
-        }
-        if let Some(country) = iban_in(token) {
-            out.iban = true;
-            out.iban_country = Some(country);
+        for (country, compact) in ibans_in(token) {
+            if !out.iban {
+                out.iban = true;
+                out.iban_country = Some(country);
+            }
+            let identity = format!("iban:{}", compact.to_ascii_uppercase());
+            push_key(&mut out.account_keys, account_key(&identity));
         }
     }
     for word in text.split(|c: char| !c.is_ascii_alphanumeric()) {
-        if !out.crypto && (is_base58_address(word) || is_bech32_address(word)) {
+        if !out.crypto
+            && (is_base58_address(word) || is_bech32_address(word) || eth::is_checksummed(word))
+        {
             out.crypto = true;
         }
+    }
+    for a in jp_account::find(text, banks::zengin()) {
+        push_key(&mut out.account_keys, a.key.clone());
+        out.jp_accounts.push(a);
     }
     out
 }
@@ -86,12 +179,12 @@ const IBAN_LENGTHS: &[(&str, usize)] = &[
     ("UA", 29),
 ];
 
-/// Whether a word of `chunk` begins an IBAN: from each word start, the
-/// spaces print groups use are taken out and the country's length read.
-/// The country of the first check-digit-valid IBAN starting a word of `chunk`.
-fn iban_in(chunk: &str) -> Option<&'static str> {
+/// The country and compact form of each check-digit-valid IBAN starting
+/// a word of `chunk`: from each word start, the spaces print groups use
+/// are taken out and the country's length read.
+fn ibans_in(chunk: &str) -> impl Iterator<Item = (&'static str, String)> + '_ {
     let bytes = chunk.as_bytes();
-    (0..bytes.len()).find_map(|start| {
+    (0..bytes.len()).filter_map(move |start| {
         let word_start = start == 0 || bytes[start - 1] == b' ';
         if !word_start || bytes.len() - start < 15 {
             return None;
@@ -106,7 +199,7 @@ fn iban_in(chunk: &str) -> Option<&'static str> {
             .take(len)
             .collect();
         match compact.len() == len && iban_checks(&compact) {
-            true => Some(cc),
+            true => Some((cc, String::from_utf8_lossy(&compact).into_owned())),
             false => None,
         }
     })
@@ -238,5 +331,35 @@ mod tests {
         assert!(!find("ref 3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLx is it").crypto);
         // a script address is an address too
         assert!(find("ref 3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy is it").crypto);
+    }
+
+    #[test]
+    fn a_checksummed_ethereum_address_is_a_crypto_address() {
+        assert!(find("wallet: 0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed.").crypto);
+        assert!(!find("wallet: 0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed").crypto);
+        assert!(!find("wallet: 0x5AAeb6053F3E94C9b9A09f33669435E7Ef1BeAed").crypto);
+    }
+
+    #[test]
+    fn each_iban_has_a_key_and_spacing_does_not_change_it() {
+        let a = find("DE89 3704 0044 0532 0130 00");
+        let b = find("de89370400440532013000");
+        assert_eq!(a.account_keys.len(), 1);
+        assert_eq!(a.account_keys, b.account_keys);
+        let two = find("DE89 3704 0044 0532 0130 00 or GB82WEST12345698765432");
+        assert_eq!(two.account_keys.len(), 2);
+        assert_eq!(two.iban_country, Some("DE"));
+        assert!(!format!("{two:?}").contains("370400440532013000"));
+    }
+
+    #[test]
+    fn merging_keeps_the_first_iban_country_and_every_key_once() {
+        let mut body = find("no account here");
+        body.merge(find("GB82WEST12345698765432"));
+        body.merge(find("DE89 3704 0044 0532 0130 00"));
+        body.merge(find("GB82 WEST 1234 5698 7654 32"));
+        assert!(body.iban);
+        assert_eq!(body.iban_country, Some("GB"));
+        assert_eq!(body.account_keys.len(), 2);
     }
 }

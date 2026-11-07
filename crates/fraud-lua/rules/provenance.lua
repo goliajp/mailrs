@@ -127,6 +127,27 @@ rule('bec-reply-diverted-unauthenticated', 'provenance', 4, false, function(m)
             {domain = m.from_domain})
     end
 end, {shadow = true})
+-- Japanese domestic accounts (bank + branch + type + seven-digit number,
+-- or ゆうちょ 記号・番号), and accounts that change.  Having an account is
+-- normal: our own invoices and every supplier's carry one, so neither
+-- rule reads `account_verified` / `account_suspected` alone.  What they
+-- express is a first message that asks for money, and a sender who gave
+-- the reader one account now giving another.  Both lean on the reader's
+-- history, so at most they score; in shadow until the 2026-12-07 review.
+-- An IBAN or Bitcoin address on a first contact is
+-- `bec-pay-to-a-stranger`'s.
+rule('bec-jp-account-from-a-stranger', 'provenance', 3, false, function(m)
+    if external(m) and m.first_contact and (m.account_verified or m.account_suspected) then
+        return found('the first message from this address carries a Japanese bank account',
+            {account = m.jp_account, domain = m.from_domain})
+    end
+end, {shadow = true})
+rule('bec-account-changed', 'provenance', 4, false, function(m)
+    if external(m) and m.account_changed and not m.first_contact then
+        return found('a payment account this sender has not given you before, where it gave you another one',
+            {account = shown_account(m), domain = m.from_domain})
+    end
+end, {shadow = true})
 
 -- A domain this deployment first saw within the week (after a week of
 -- watching), asking for money or sending the reader to log in somewhere

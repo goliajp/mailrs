@@ -39,6 +39,7 @@ pub fn after_store(
 ) {
     record_domains(net.as_mut(), a);
     record_callback_numbers(net.as_mut(), addr, a);
+    record_payment_accounts(net.as_mut(), addr, a);
     let quiet = held || in_review;
     if !quiet {
         push::maybe_notify(net.as_mut(), addr, a);
@@ -75,6 +76,34 @@ fn record_callback_numbers(net: Option<&mut kevy_client::Connection>, addr: &str
     }
 }
 
+/// The payment accounts in the message's text (their keys, never the
+/// numbers), into `addr`'s history with the sender at the arrival this
+/// deployment stamped: the fraud facts ask it whether a sender who gave
+/// one account now gives another. Not the reader's own mail. The
+/// attachments' accounts are added by the core that reads them.
+fn record_payment_accounts(net: Option<&mut kevy_client::Connection>, addr: &str, a: &Arrival<'_>) {
+    let Some(conn) = net else { return };
+    if a.is_own {
+        return;
+    }
+    let keys = mailrs_inbound::body::payment_ids(&a.parsed, "").account_keys;
+    if keys.is_empty() {
+        return;
+    }
+    let at = mailrs_inbound::dates::received_epoch(a.head)
+        .unwrap_or_else(|| chrono::Utc::now().timestamp());
+    if let Err(e) = mailrs_core_sidestate::families::payment_accounts::record(
+        conn,
+        addr,
+        &a.from,
+        &keys,
+        at,
+        &a.message_id,
+    ) {
+        tracing::warn!(error = %e, "payment accounts not recorded");
+    }
+}
+
 /// When the deployment first saw the sender's domain and its link domains;
 /// times already recorded stay. Best-effort, like the other side effects:
 /// a domain not recorded later reads as never seen.
@@ -89,5 +118,58 @@ fn record_domains(net: Option<&mut kevy_client::Connection>, a: &Arrival<'_>) {
     let now = chrono::Utc::now().timestamp();
     if let Err(e) = mailrs_core_sidestate::families::domain_first::record(conn, &hosts, now) {
         tracing::warn!(error = %e, "first-seen domains not recorded");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mailrs_core_sidestate::families::payment_accounts;
+
+    struct NoThreads;
+
+    impl crate::arrival::Threads for NoThreads {
+        fn thread_for_message_id(&self, _user: &str, _mid: &str) -> Option<String> {
+            None
+        }
+        fn thread_subject(&self, _user: &str, _tid: &str) -> Option<String> {
+            None
+        }
+    }
+
+    const ME: &str = "me@golia.example";
+    const ACCOUNT: &str = "三菱UFJ銀行 渋谷支店 普通 1234567";
+
+    fn message(from: &str) -> String {
+        format!(
+            "From: {from}\r\nTo: {ME}\r\nSubject: invoice\r\nMessage-ID: <inv@supplier.example>\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{ACCOUNT}\r\n"
+        )
+    }
+
+    /// Delivery writes the accounts' keys, which the fraud facts read back.
+    #[test]
+    fn delivery_records_the_accounts_a_sender_gives() {
+        let mut c = kevy_client::Connection::connect("mem://intake-payment-accounts").unwrap();
+        let from = "Billing <billing@supplier.example>";
+        let raw = message(from);
+        let a =
+            crate::arrival::derive(&NoThreads, None, ME, "1.eml", raw.as_bytes(), "INBOX", None);
+        assert!(!a.is_own);
+        record_payment_accounts(Some(&mut c), ME, &a);
+        let known = payment_accounts::known_before(&mut c, ME, from, i64::MAX).unwrap();
+        assert_eq!(known, mailrs_fraud::payment::find(ACCOUNT).account_keys);
+        assert_eq!(known.len(), 1);
+        assert!(known.iter().all(|k| !k.contains("1234567")));
+    }
+
+    #[test]
+    fn the_readers_own_mail_is_not_recorded() {
+        let mut c = kevy_client::Connection::connect("mem://intake-payment-own").unwrap();
+        let raw = message(ME);
+        let a = crate::arrival::derive(&NoThreads, None, ME, "2.eml", raw.as_bytes(), "Sent", None);
+        assert!(a.is_own);
+        record_payment_accounts(Some(&mut c), ME, &a);
+        let known = payment_accounts::known_before(&mut c, ME, ME, i64::MAX).unwrap();
+        assert!(known.is_empty());
     }
 }
