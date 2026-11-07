@@ -39,7 +39,7 @@ pub(super) async fn fingerprints(c: &Cores, mid: &str) -> (bool, bool) {
 }
 
 /// The message dave scheduled and whose time passes while he is deleted,
-/// with two attachments a draft cannot carry.
+/// with two attachments, which the draft it becomes carries.
 pub(super) const LAPSING: &[u8] = b"From: Dave <dave@example.test>\r\n\
 To: Erin <erin@outside.example>\r\nCc: fay@outside.example\r\n\
 Subject: =?UTF-8?B?44GK55+l44KJ44Gb?=\r\nMessage-ID: <lapsing@example.test>\r\n\
