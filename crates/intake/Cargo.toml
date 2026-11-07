@@ -41,6 +41,7 @@ mailrs-mailbox = { path = "../mailbox", default-features = false }
 mailrs-maildir = { path = "../storage-maildir", version = "2" }
 mailrs-mime = { path = "../mime", version = "2" }
 mailrs-parse-worker = { path = "../parse-worker" }
+mailrs-attachment-extract = { path = "../attachment-extract", version = "1" }
 mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 mailrs-triage = { path = "../triage" }
@@ -61,6 +62,8 @@ reqwest = { version = "0.13", default-features = false, features = ["rustls", "j
 
 [dev-dependencies]
 tempfile = "3"
+# builds the Office file an extraction test reads
+zip = { version = "9.0.4", default-features = false, features = ["deflate"] }
 mailrs-test-docker = { path = "../test-docker" }
 testcontainers = "0.27"
 tokio = { version = "1", features = ["sync", "time", "macros", "rt", "net", "io-util"] }
