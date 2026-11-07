@@ -14,6 +14,8 @@
 #![deny(missing_docs)]
 #![deny(rustdoc::broken_intra_doc_links)]
 
+/// What extracting a message's attachments came to, as every store keeps it.
+pub mod attachment_text;
 pub mod fixtures;
 /// A user's labels and the naming rules every core applies to them.
 pub mod labels;
@@ -47,6 +49,7 @@ pub mod threading;
 pub mod types;
 
 // Public re-exports for the trait surface and its types.
+pub use attachment_text::AttachmentTextState;
 pub use store::{MailboxStore, StoreError};
 pub use types::{
     ConversationSummary, EmailAnalysisRow, FLAG_ANSWERED, FLAG_DELETED, FLAG_DRAFT, FLAG_FLAGGED,

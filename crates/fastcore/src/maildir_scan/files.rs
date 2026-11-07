@@ -13,8 +13,13 @@ use crate::extract_headers;
 /// between them as flags change. `None` when the ref is empty or the
 /// file is gone.
 pub(crate) fn read_maildir_file(user: &str, blob_ref: &str) -> Option<Vec<u8>> {
-    let (local, domain) = user.split_once('@')?;
     let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
+    read_maildir_file_in(&root, user, blob_ref)
+}
+
+/// [`read_maildir_file`] under `root` rather than `MAILRS_MAILDIR`.
+pub(crate) fn read_maildir_file_in(root: &str, user: &str, blob_ref: &str) -> Option<Vec<u8>> {
+    let (local, domain) = user.split_once('@')?;
     let base = std::path::PathBuf::from(root).join(domain).join(local);
     // Both the reference convention and the `:2,FLAGS` matching live in the
     // stone. This function held its own version of each: it split on `/`

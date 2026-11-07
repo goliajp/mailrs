@@ -2,8 +2,9 @@
 //! embedded PDF text in a parse worker of their own, everything that
 //! needs OCR in the OCR child.
 
-use mailrs_mailbox_kevy::AttachmentTextState;
-use mailrs_mailbox_kevy::keys::{ATTACHMENT_TEXT_CAP, cap_text};
+use mailrs_mailbox::AttachmentTextState;
+
+use super::store::{TEXT_CAP as ATTACHMENT_TEXT_CAP, cap_text};
 
 use super::ocr::{Job, OcrSetup};
 
@@ -37,14 +38,14 @@ const FLAGS: [u32; 2] = [WITH_OFFICE, WITH_QR];
 /// Whether a message read at `done` already has everything a read at `now`
 /// would give. Not `done >= now`: a process without OCR would then read a
 /// message again that was read with OCR, and replace its text with less.
-pub(crate) fn covers(done: u32, now: u32) -> bool {
+pub fn covers(done: u32, now: u32) -> bool {
     let all = FLAGS.iter().fold(0, |acc, f| acc | f);
     FLAGS.iter().all(|f| done & f >= now & f) && done & !all >= now & !all
 }
 
 /// Whether a message read at `done` lacks only its QR codes: its text is
 /// current, and reading the codes alone brings it up to `now`.
-pub(crate) fn lacks_only_qr(done: u32, now: u32) -> bool {
+pub fn lacks_only_qr(done: u32, now: u32) -> bool {
     !covers(done, now) && covers(done | WITH_QR, now)
 }
 
@@ -101,7 +102,7 @@ pub(crate) fn readable_parts<'p, 'a>(
 /// Whether `raw` can hold a readable part at all, checked on the bytes
 /// before a full MIME parse. An octet-stream part counts: its file name
 /// may be an encoded word that hides the extension.
-pub(crate) fn may_carry_readable(raw: &[u8]) -> bool {
+pub fn may_carry_readable(raw: &[u8]) -> bool {
     const NEEDLES: [&[u8]; 8] = [
         b"application/pdf",
         b"application/octet-stream",

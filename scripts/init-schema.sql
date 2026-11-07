@@ -291,6 +291,35 @@ CREATE INDEX idx_attachment_content_extracted_trgm
 CREATE INDEX idx_attachment_content_message
     ON attachment_content(message_id) INCLUDE (attachment_index);
 
+-- what reading each copy's attachments came to, the queue of copies to
+-- read and the ones given up on (mirrors migrate-065)
+CREATE TABLE attachment_text_computed (
+    message_id BIGINT PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+    version    INTEGER NOT NULL,
+    parts      INTEGER NOT NULL DEFAULT 0,
+    pdfs       INTEGER NOT NULL DEFAULT 0,
+    images     INTEGER NOT NULL DEFAULT 0,
+    stored     INTEGER NOT NULL DEFAULT 0,
+    ocr        INTEGER NOT NULL DEFAULT 0,
+    failed     INTEGER NOT NULL DEFAULT 0,
+    too_large  INTEGER NOT NULL DEFAULT 0,
+    too_small  INTEGER NOT NULL DEFAULT 0,
+    truncated  INTEGER NOT NULL DEFAULT 0,
+    -- one address per line, in the order read; '' when none
+    qr_urls    TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE attachment_text_queue (
+    user_address TEXT NOT NULL,
+    message_id   TEXT NOT NULL,
+    attempts     INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_address, message_id)
+);
+CREATE TABLE attachment_text_set_aside (
+    user_address TEXT NOT NULL,
+    message_id   TEXT NOT NULL,
+    PRIMARY KEY (user_address, message_id)
+);
+
 CREATE TABLE email_analysis (
     message_id BIGINT PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
     category TEXT NOT NULL DEFAULT 'inbox',
@@ -894,4 +923,4 @@ CREATE INDEX idx_messages_clean_text_trgm ON messages USING gin (clean_text gin_
 -- The migration this schema is equal to; the core reads it at boot and
 -- applies whatever it carries beyond it.
 CREATE TABLE schema_version (version INTEGER NOT NULL);
-INSERT INTO schema_version (version) VALUES (64);
+INSERT INTO schema_version (version) VALUES (65);
