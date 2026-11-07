@@ -102,7 +102,7 @@ data class UiState(
     /** The last page carried nothing new, so there is no more to ask for. */
     val endOfList: Boolean = false,
     /** Saved drafts, newest first, and whether their list is showing. */
-    val drafts: List<Wire.Draft> = emptyList(),
+    val drafts: List<jp.golia.mailrs.wire.ServerDraft> = emptyList(),
     val draftsOpen: Boolean = false,
 
     /**
@@ -383,8 +383,8 @@ enum class AdminSection(
 /** Which recipient line a suggestion belongs to. */
 enum class RecipientField { To, Cc, Bcc }
 
-/** A file picked for the message being written. */
-data class Attached(val uri: android.net.Uri, val filename: String, val size: Long)
+/** A picked file the server does not keep yet: uploading, or refused with the server's reason. */
+data class Attached(val uri: android.net.Uri, val filename: String, val size: Long, val refusal: String? = null)
 
 /** How far a one-click unsubscribe has got. */
 enum class Unsubscribing { Working, Done, Failed }

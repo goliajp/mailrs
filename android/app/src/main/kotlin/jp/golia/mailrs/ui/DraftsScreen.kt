@@ -42,7 +42,7 @@ import jp.golia.mailrs.closeDrafts
 import jp.golia.mailrs.discardDraft
 import jp.golia.mailrs.editSavedDraft
 import jp.golia.mailrs.MailViewModel
-import jp.golia.mailrs.wire.Wire
+import jp.golia.mailrs.wire.ServerDraft
 
 /**
  * Messages that were started and not sent.
@@ -120,7 +120,7 @@ fun DraftsScreen(state: UiState, vm: MailViewModel) {
 }
 
 @Composable
-private fun DraftRow(d: Wire.Draft, onOpen: () -> Unit, onDiscard: () -> Unit) {
+private fun DraftRow(d: ServerDraft, onOpen: () -> Unit, onDiscard: () -> Unit) {
     val theme = LocalTheme.current
     Row(
         Modifier
@@ -156,7 +156,7 @@ private fun DraftRow(d: Wire.Draft, onOpen: () -> Unit, onDiscard: () -> Unit) {
 }
 
 /** Subject, else who it is to, else how it starts. */
-internal fun headline(d: Wire.Draft): String {
+internal fun headline(d: ServerDraft): String {
     d.subject.trim().takeIf { it.isNotEmpty() }?.let { return it }
     d.to.trim().takeIf { it.isNotEmpty() }?.let { return Texts.get(R.string.drafts_to, it) }
     val firstLine = d.body.lineSequence().firstOrNull { it.isNotBlank() }?.trim()

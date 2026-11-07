@@ -60,7 +60,6 @@ import jp.golia.mailrs.UiState
 import jp.golia.mailrs.attach
 import jp.golia.mailrs.cancelCompose
 import jp.golia.mailrs.clearSuggestions
-import jp.golia.mailrs.detach
 import jp.golia.mailrs.editDraft
 import jp.golia.mailrs.applyTemplate
 import jp.golia.mailrs.chooseFrom
@@ -91,6 +90,7 @@ import jp.golia.mailrs.MailViewModel
 fun ComposeScreen(state: UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
     val draft = state.composing ?: return
+    OpenFileEffect(state, vm)
 
     // **No local copy of the text.** It lives on the draft in the view
     // model, because the back gesture cancels through the shell — which
@@ -306,43 +306,7 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
                 }
             }
         }
-        if (draft.attachments.isNotEmpty()) {
-            Column(Modifier.fillMaxWidth().testTag("list.draftAttachments")) {
-                for (a in draft.attachments) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            Icons.Filled.AttachFile,
-                            contentDescription = null,
-                            tint = theme.fgMuted,
-                            modifier = Modifier.size(15.dp),
-                        )
-                        Text(
-                            a.filename,
-                            color = theme.fg,
-                            fontSize = 13.sp,
-                            maxLines = 1,
-                            modifier = Modifier.weight(1f).padding(start = 8.dp).testTag("row.draftAttachment"),
-                        )
-                        Text(humanSize(a.size), color = theme.fgMuted, fontSize = 11.sp)
-                        IconButton(
-                            onClick = { vm.detach(a) },
-                            modifier = Modifier.testTag("button.detach"),
-                        ) {
-                            Icon(
-                                Icons.Filled.Close,
-                                contentDescription = Texts.get(R.string.compose_remove_file, a.filename),
-                                tint = theme.fgMuted,
-                                modifier = Modifier.size(15.dp),
-                            )
-                        }
-                    }
-                }
-            }
-            HorizontalDivider(color = theme.border, thickness = 0.5.dp)
-        }
+        DraftFileList(draft, vm)
 
         if (state.error != null) {
             Text(

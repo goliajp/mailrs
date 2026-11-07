@@ -28,7 +28,7 @@ class DraftFilesContractTest {
         explicitNulls = false
     }
 
-    private val quote = Wire.DraftAttachment(
+    private val quote = DraftAttachment(
         blobId = "U3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7",
         name = "quote.pdf",
         contentType = "application/pdf",
@@ -37,7 +37,7 @@ class DraftFilesContractTest {
 
     @Test
     fun `a draft save with files is the shared fixture`() {
-        val req = Wire.SaveDraftRequest(
+        val req = SaveDraftRequest(
             id = 42,
             to = "nagata@nagatax.tokyo.jp",
             cc = "",
@@ -46,7 +46,7 @@ class DraftFilesContractTest {
             body = "The quote is attached.",
             attachments = listOf(quote),
         )
-        val sent = spelled.encodeToString(Wire.SaveDraftRequest.serializer(), req)
+        val sent = spelled.encodeToString(SaveDraftRequest.serializer(), req)
         assertEquals(fixture("draft-save-attachments"), Json.parseToJsonElement(sent))
     }
 
@@ -67,13 +67,13 @@ class DraftFilesContractTest {
 
     @Test
     fun `no files clears them and no list keeps them`() {
-        val base = Wire.SaveDraftRequest(to = "", cc = "", bcc = "", subject = "s", body = "")
+        val base = SaveDraftRequest(to = "", cc = "", bcc = "", subject = "s", body = "")
         val cleared = json.parseToJsonElement(
-            json.encodeToString(Wire.SaveDraftRequest.serializer(), base.copy(attachments = emptyList())),
+            json.encodeToString(SaveDraftRequest.serializer(), base.copy(attachments = emptyList())),
         ).jsonObject
         assertEquals(0, cleared["attachments"]?.jsonArray?.size)
         val kept = json.parseToJsonElement(
-            json.encodeToString(Wire.SaveDraftRequest.serializer(), base),
+            json.encodeToString(SaveDraftRequest.serializer(), base),
         ).jsonObject
         assertFalse("attachments" in kept)
     }
@@ -81,11 +81,11 @@ class DraftFilesContractTest {
     @Test
     fun `a listed draft reads its files, and one without has none`() {
         val with = json.decodeFromString(
-            Wire.Draft.serializer(),
+            ServerDraft.serializer(),
             """{"id":7,"subject":"Quote","attachments":[{"blob_id":"Uab","name":"quote.pdf","content_type":"application/pdf","size":3}]}""",
         )
-        assertEquals(listOf(Wire.DraftAttachment("Uab", "quote.pdf", "application/pdf", 3)), with.attachments)
-        assertTrue(json.decodeFromString(Wire.Draft.serializer(), """{"id":8}""").attachments.isEmpty())
+        assertEquals(listOf(DraftAttachment("Uab", "quote.pdf", "application/pdf", 3)), with.attachments)
+        assertTrue(json.decodeFromString(ServerDraft.serializer(), """{"id":8}""").attachments.isEmpty())
     }
 
     @Test
