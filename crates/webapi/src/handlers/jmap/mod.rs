@@ -261,8 +261,10 @@ pub(crate) async fn process(
     let ctx = Ctx::new(state.clone(), user.to_string(), key).with_session(session);
     let mut current: Option<Now> = None;
     let mut responses: Vec<(String, Value, String)> = Vec::new();
+    let mut created = mailrs_jmap::creation_ids::CreatedIds::default();
     for (method, mut args, call_id) in req.method_calls {
         mailrs_jmap::refs::resolve_references(&mut args, &responses);
+        created.resolve(&mut args);
         let answered = match masked::dispatch(state, user, &created_by, &method, &args).await {
             Some(done) => done.map(|r| vec![r]),
             None if masked_only => Err(JmapMethodError::Other {
@@ -281,10 +283,15 @@ pub(crate) async fn process(
             },
         };
         match answered {
-            Ok(list) => responses.extend(
-                list.into_iter()
-                    .map(|(name, value)| (name, value, call_id.clone())),
-            ),
+            Ok(list) => {
+                for (name, value) in &list {
+                    created.record(name, value);
+                }
+                responses.extend(
+                    list.into_iter()
+                        .map(|(name, value)| (name, value, call_id.clone())),
+                )
+            }
             Err(e) => responses.push(("error".to_string(), e.to_json(), call_id)),
         }
     }
