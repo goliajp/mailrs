@@ -36,7 +36,7 @@ pub(crate) async fn run() {
         mailbox_store,
     } = bootstrap::stores::build(&cfg, &pg_pool, &kevy_embedded_store).await;
 
-    let ldap_config = bootstrap::services::build(&cfg, &pg_pool, &mailbox_store, &event_bus);
+    let ldap_config = bootstrap::services::build(&cfg, &mailbox_store, &event_bus);
 
     background::spawn_spool_drain(&event_bus, &cfg, &domain_store, &mailbox_store);
 

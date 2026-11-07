@@ -31,8 +31,7 @@ pub struct HealthResponse {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spool: Option<SpoolHealthWire>,
     /// Work items this core gave up on because the process died on them
-    /// each time it tried. `None` from a core without those loops (the SQL
-    /// core) or one that predates it.
+    /// each time it tried. `None` from a core that predates it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub set_aside: Option<SetAsideWire>,
     /// This core's parse workers. `None` from a core that predates them.

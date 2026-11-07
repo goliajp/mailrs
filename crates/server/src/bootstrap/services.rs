@@ -1,5 +1,4 @@
-//! The optional services: the LLM analyzer, the content extraction worker,
-//! and LDAP.
+//! The optional services: the LLM analyzer and LDAP.
 
 use std::sync::Arc;
 
@@ -8,7 +7,6 @@ use crate::*;
 /// Start the background services and return the LDAP backend, if configured.
 pub(crate) fn build(
     cfg: &ServerConfig,
-    pg_pool: &Option<pg::BackendPool>,
     mailbox_store: &Option<Arc<PgMailboxStore>>,
     event_bus: &EventBus,
 ) -> Option<Arc<crate::ldap_auth::LdapConfig>> {
@@ -42,11 +40,6 @@ pub(crate) fn build(
             event_bus.clone(),
             cfg.maildir_root.clone(),
         );
-    }
-
-    // content extraction worker (OCR, PDF text)
-    if let Some(pool) = pg_pool {
-        content_worker::spawn_content_worker(pool.clone(), cfg.maildir_root.clone());
     }
 
     // LDAP authentication backend (optional)
