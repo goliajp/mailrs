@@ -178,3 +178,35 @@ rule('attachment-is-a-login-page', 'content', 6, true, function(m)
         return "an attached page asks for a password and sends it to another site than the sender's"
     end
 end)
+-- Where a QR code in an image or a scanned page goes, against what the
+-- message says.  The codes are read after delivery, so these only ever
+-- fire when stored mail is judged again; the live path has no codes.
+--
+-- **Shadow**: hits are counted and recorded, nothing is scored or held,
+-- until the measured hits on real mail say what they are worth.  An
+-- image printing one domain while its code goes to another is the
+-- strongest; a code as the only way out of a letter with no links, to a
+-- host the letter never names, or to a domain new here, are weaker:
+-- receipts and tickets carry codes too.
+--
+-- `qr-text-says-another-domain` is to be reviewed on 2026-12-07: its
+-- first measurement hit two conversations, one that reads as a scam and
+-- one an estate agent's letter, too few to decide on.
+rule('qr-text-says-another-domain', 'content', 6, false, function(m)
+    if external(m) and m.qr_text_mismatch then
+        return found('an image prints one domain while its QR code goes to another',
+            {domains = m.qr_domains})
+    end
+end, {shadow = true})
+rule('qr-only-way-out', 'content', 3, false, function(m)
+    if external(m) and m.qr_codes > 0 and not m.has_links and m.qr_host_not_in_message then
+        return found('no links, only a QR code to a host the message never names',
+            {domains = m.qr_domains})
+    end
+end, {shadow = true})
+rule('qr-to-a-new-domain', 'content', 3, false, function(m)
+    if external(m) and m.qr_domain_new and m.qr_host_not_in_message then
+        return found('a QR code to a domain first seen here this week that the message never names',
+            {domain = m.new_qr_domain})
+    end
+end, {shadow = true})

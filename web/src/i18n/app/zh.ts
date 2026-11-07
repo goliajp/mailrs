@@ -156,7 +156,7 @@ export const appZh: Record<AppKey, string> = {
   'palette.toggleTheme': '切换主题',
   'pdf.hidePreview': '收起预览',
   'read.callback':
-    '这封信里有一个发件人以前没用过的电话号码：{numbers}。为付款或账户的事打电话前，先自己核实这个号码',
+    '这封信里有一个发件人以前没给过你的电话号码：{numbers}。为付款或账户的事打电话前，先自己核实这个号码',
   'read.noText': '（没有文字内容）',
   'sends.all': '全部',
   'sends.cancelFailed': '取消失败',

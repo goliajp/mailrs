@@ -50,6 +50,7 @@ pub mod advance_fee;
 pub mod attachment;
 pub mod attachment_inside;
 pub mod brand;
+pub mod callback;
 mod checks;
 mod facts;
 pub mod finding;

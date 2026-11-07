@@ -126,7 +126,7 @@ fn pack_holds(pack: &str, raw: &[u8]) -> bool {
         raw,
         None,
         None,
-        &[],
+        Default::default(),
         &mailrs_fraud::Policy::default(),
         &mut None,
         &mut scan,

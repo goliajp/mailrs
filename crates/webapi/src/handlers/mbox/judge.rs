@@ -89,7 +89,7 @@ impl Judge {
             raw,
             Some((user, mailrs_fraud_lua::stored::relation::Counted::Before)),
             self.our_stamp.as_deref(),
-            &[],
+            Default::default(),
             &self.policy,
             &mut self.hist,
         ) {

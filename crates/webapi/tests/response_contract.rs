@@ -222,11 +222,31 @@ fn admin_push_stats_keys_match() {
     }
 }
 
+/// The numbers a sender gave the reader before: the reading pane reads each
+/// number's first message to tell the message being read from earlier ones.
+#[test]
+fn callback_numbers_keys_match() {
+    use handlers::callback_numbers::{CallbackNumbers, GivenNumber};
+    let sample = CallbackNumbers {
+        sender: "a@b.example".into(),
+        numbers: vec![GivenNumber {
+            number: "0312345678".into(),
+            first_seen: 1,
+            first_message_id: "<m@b.example>".into(),
+        }],
+    };
+    let serialized = serde_json::to_value(&sample).expect("serialize");
+    let from_prod = fixture("callback-numbers");
+    assert_eq!(keys(&serialized), keys(&from_prod));
+    assert_eq!(keys(&serialized["numbers"]), keys(&from_prod["numbers"]));
+}
+
 /// Every fixture is checked by a test above.
 #[test]
 fn every_response_fixture_has_a_test() {
     const CHECKED: &[&str] = &[
         "admin-push-stats",
+        "callback-numbers",
         "conversation-categories",
         "conversation-list",
         "notify-overrides",

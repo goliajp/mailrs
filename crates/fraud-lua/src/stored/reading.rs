@@ -19,6 +19,8 @@ pub struct Reading {
     pub link_hosts: Vec<String>,
     /// When this deployment received it, from its own stamp.
     pub arrived: Option<i64>,
+    /// The hosts the message's QR codes go to.
+    pub qr_hosts: Vec<String>,
     registrable: String,
     x_mailer: Option<String>,
     to_display: String,
@@ -42,9 +44,49 @@ pub struct Reading {
     html: mailrs_fraud::html_attachment::HtmlFeatures,
     dkim_signed_by_from_org: bool,
     dkim_from_org_passed: Option<bool>,
+    has_links: bool,
+    qr: mailrs_fraud::qr::QrFacts,
+    qr_domains: String,
 }
 
+/// What extraction stored for a message after delivery: the text read out
+/// of its attachments, and the web addresses its QR codes carry. Empty
+/// where nothing was read, and on a core that does not read images (no QR
+/// addresses).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Extracted<'a> {
+    /// The text read out of each attachment.
+    pub texts: &'a [String],
+    /// The web addresses its QR codes carry.
+    pub qr_urls: &'a [String],
+}
+
+/// Shared platforms, which a QR code to is never out of place.
+static NEVER: std::sync::LazyLock<mailrs_reputation::NeverList> =
+    std::sync::LazyLock::new(|| mailrs_reputation::NeverList::builtin(&[]));
+
 impl Reading {
+    /// Read `raw` with everything extraction stored for it.
+    pub fn of_extracted(raw: &[u8], our_stamp: Option<&str>, extracted: Extracted<'_>) -> Self {
+        Self::of(raw, our_stamp, extracted.texts).with_qr_urls(extracted.qr_urls)
+    }
+
+    /// The QR facts of the codes whose addresses are `urls`, against this
+    /// message's sender, its links and its attachments' text.
+    #[must_use]
+    pub fn with_qr_urls(mut self, urls: &[String]) -> Self {
+        self.qr = mailrs_fraud::qr::assess(
+            urls,
+            &self.host,
+            &self.link_hosts,
+            &self.attachment_text,
+            |d| NEVER.contains(d),
+        );
+        self.qr_hosts = mailrs_fraud::qr::code_hosts(urls);
+        self.qr_domains = mailrs_fraud::qr::code_domains(urls).join("\n");
+        self
+    }
+
     /// Read `raw`. `attachment_texts` is what extraction stored for this
     /// message, empty when it has none or has not been processed.
     pub fn of(raw: &[u8], our_stamp: Option<&str>, attachment_texts: &[String]) -> Self {
@@ -61,8 +103,14 @@ impl Reading {
         // `MAILRS_HOSTNAME` nothing reads as its, and the rules that need
         // it decline
         let stamp = super::stamp::read(raw, our_stamp, &host);
+        let attachment_text = mailrs_inbound::body::attachment_text_for_rules(attachment_texts);
+        let link_hosts = mailrs_inbound::scan_input::link_hosts(&parsed);
         Self {
-            link_hosts: mailrs_inbound::scan_input::link_hosts(&parsed),
+            has_links: !link_hosts.is_empty(),
+            link_hosts,
+            qr_hosts: Vec::new(),
+            qr: Default::default(),
+            qr_domains: String::new(),
             arrived: mailrs_inbound::dates::received_epoch(raw),
             registrable: mailrs_fraud::brand::registrable(&host),
             x_mailer: mailrs_inbound::x_mailer_header(raw),
@@ -100,11 +148,8 @@ impl Reading {
             // only rule that asks.
             peer_is_private: mailrs_inbound::identity::first_received_peer_ip(raw)
                 .is_some_and(mailrs_inbound::identity::address_is_private),
-            attachment_text: mailrs_inbound::body::attachment_text_for_rules(attachment_texts),
-            payment: mailrs_inbound::body::payment_ids(
-                &parsed,
-                &mailrs_inbound::body::attachment_text_for_rules(attachment_texts),
-            ),
+            payment: mailrs_inbound::body::payment_ids(&parsed, &attachment_text),
+            attachment_text,
             html: mailrs_inbound::body::html_attachments(&parsed, &host),
             dkim_signed_by_from_org: mailrs_fraud::org_domain::signed_only_by(
                 &host,
@@ -169,6 +214,10 @@ impl Reading {
             ),
             dkim_signed_by_from_org: self.dkim_signed_by_from_org,
             dkim_from_org_passed: self.dkim_from_org_passed,
+            has_links: self.has_links,
+            qr: self.qr,
+            qr_domains: &self.qr_domains,
+            new_qr_domain: None,
         }
     }
 }

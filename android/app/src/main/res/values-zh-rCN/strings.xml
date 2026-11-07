@@ -419,7 +419,7 @@
     <string name="verdict_rules">规则 %1$s</string>
     <string name="link_warning_confirm">这个链接可能不是它看上去的地方。\n\n%1$s\n\n仍然打开吗？</string>
     <string name="link_warning_open">打开</string>
-    <string name="read_callback">这封信里有一个发件人以前没用过的电话号码：%1$s。为付款或账户的事打电话前，先自己核实这个号码</string>
+    <string name="read_callback">这封信里有一个发件人以前没给过你的电话号码：%1$s。为付款或账户的事打电话前，先自己核实这个号码</string>
     <string name="compose_templates">模板</string>
     <string name="format_bold">粗体</string>
     <string name="format_italic">斜体</string>

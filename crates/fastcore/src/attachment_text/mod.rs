@@ -30,8 +30,8 @@ mod extract;
 mod ocr;
 mod qr_shadow;
 
-pub(crate) use extract::covers;
-pub use extract::{MAX_PDF_BYTES, VERSION_PDF_ONLY, VERSION_WITH_OCR, WITH_OFFICE};
+pub use extract::{MAX_PDF_BYTES, VERSION_PDF_ONLY, VERSION_WITH_OCR, WITH_OFFICE, WITH_QR};
+pub(crate) use extract::{covers, lacks_only_qr};
 pub(crate) use extract::{may_carry_readable, readable_parts};
 pub(crate) use ocr::OcrSetup;
 
@@ -116,6 +116,8 @@ pub struct Round {
     pub qr_host_not_in_message: u64,
     /// Of those, the image prints a domain the code does not go to.
     pub qr_text_mismatch: u64,
+    /// Messages whose text was current and whose QR codes alone were read.
+    pub qr_refreshed: u64,
     /// Items the process died reading [`ATTEMPTS`] times, given up on.
     pub set_aside: u64,
 }
@@ -202,30 +204,53 @@ async fn process(
         round.no_file += 1;
         return;
     };
-    if let Ok(Some(done)) = state.mailbox.attachment_text_state(mid)
-        && extract::covers(done.version, current_version(ocr))
-    {
-        round.already_done += 1;
-        return;
-    }
     let Some(raw) = crate::maildir_scan::read_maildir_file(user, &copy.blob_ref) else {
         round.no_file += 1;
         return;
     };
+    let now = current_version(ocr);
+    let done = state.mailbox.attachment_text_state(mid).ok().flatten();
+    if let Some(done) = done {
+        if extract::covers(done.version, now) {
+            round.already_done += 1;
+            // read for another recipient: this one's history still gets
+            // the numbers
+            numbers_from_stored(state, user, mid, raw).await;
+            return;
+        }
+        if let Some(setup) = ocr
+            && extract::lacks_only_qr(done.version, now)
+        {
+            refresh_qr(
+                state,
+                user,
+                mid,
+                raw,
+                setup,
+                done.version | extract::WITH_QR,
+                round,
+            )
+            .await;
+            return;
+        }
+    }
     let setup = ocr.cloned();
     let read = move || {
         let (texts, outcome, urls) = extract::extract_all(&raw, setup.as_ref());
         let qr = qr_shadow::assess(&raw, &texts, &urls);
-        (texts, outcome, qr)
+        (raw, texts, outcome, urls, qr)
     };
     // the parsers run in child processes; a panic here is this code's own
-    let (texts, outcome, qr) = match tokio::task::spawn_blocking(read).await {
+    let (raw, texts, outcome, urls, qr) = match tokio::task::spawn_blocking(read).await {
         Ok(done) => done,
         Err(e) => std::panic::resume_unwind(e.into_panic()),
     };
     if let Err(e) = state.mailbox.store_attachment_texts(mid, &texts, &outcome) {
         tracing::warn!(error = %e, %user, %mid, "attachment text: storing failed");
         return;
+    }
+    if let Err(e) = state.mailbox.store_attachment_qr(mid, &urls) {
+        tracing::warn!(error = %e, %user, %mid, "attachment text: storing qr codes failed");
     }
     round.extracted += 1;
     round.stored += u64::from(outcome.stored);
@@ -234,19 +259,106 @@ async fn process(
     round.too_large += u64::from(outcome.too_large);
     round.too_small += u64::from(outcome.too_small);
     round.truncated += u64::from(outcome.truncated);
-    if let Some(qr) = qr {
-        tracing::info!(
-            event = "qr_shadow",
-            %user,
-            %mid,
-            codes = qr.codes,
-            host_not_in_message = qr.host_not_in_message,
-            text_mismatch = qr.text_mismatch,
-            "attachment text: qr codes"
-        );
-        round.qr_codes += 1;
-        round.qr_host_not_in_message += u64::from(qr.host_not_in_message);
-        round.qr_text_mismatch += u64::from(qr.text_mismatch);
+    count_qr(user, mid, qr, round);
+    let texts: Vec<String> = texts.into_iter().map(|(_, t)| t).collect();
+    record_numbers(state, user, mid, raw, texts).await;
+}
+
+/// Read only the QR codes of a message whose text is current, store their
+/// addresses, and mark it read at `version`.
+async fn refresh_qr(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    mid: &str,
+    raw: Vec<u8>,
+    setup: &OcrSetup,
+    version: u32,
+    round: &mut Round,
+) {
+    let texts = state.mailbox.attachment_texts(mid).unwrap_or_default();
+    let setup = setup.clone();
+    let numbered: Vec<(usize, String)> = texts.iter().cloned().enumerate().collect();
+    let read = move || {
+        let urls = extract::qr_only(&raw, &setup);
+        let qr = qr_shadow::assess(&raw, &numbered, &urls);
+        (raw, urls, qr)
+    };
+    let (raw, urls, qr) = match tokio::task::spawn_blocking(read).await {
+        Ok(done) => done,
+        Err(e) => std::panic::resume_unwind(e.into_panic()),
+    };
+    if let Err(e) = state.mailbox.refresh_attachment_qr(mid, &urls, version) {
+        tracing::warn!(error = %e, %user, %mid, "attachment text: storing qr codes failed");
+        return;
+    }
+    round.qr_refreshed += 1;
+    count_qr(user, mid, qr, round);
+    record_numbers(state, user, mid, raw, texts).await;
+}
+
+fn count_qr(user: &str, mid: &str, qr: Option<mailrs_fraud::qr::QrFacts>, round: &mut Round) {
+    let Some(qr) = qr else { return };
+    tracing::info!(
+        event = "qr_shadow",
+        %user,
+        %mid,
+        codes = qr.codes,
+        host_not_in_message = qr.host_not_in_message,
+        text_mismatch = qr.text_mismatch,
+        "attachment text: qr codes"
+    );
+    round.qr_codes += 1;
+    round.qr_host_not_in_message += u64::from(qr.host_not_in_message);
+    round.qr_text_mismatch += u64::from(qr.text_mismatch);
+}
+
+async fn numbers_from_stored(state: &Arc<FastcoreState>, user: &str, mid: &str, raw: Vec<u8>) {
+    let texts = state.mailbox.attachment_texts(mid).unwrap_or_default();
+    record_numbers(state, user, mid, raw, texts).await;
+}
+
+/// The phone numbers in the attachments' text, into `user`'s history with
+/// the sender at the message's arrival, beside the ones delivery recorded
+/// from its text.
+async fn record_numbers(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    mid: &str,
+    raw: Vec<u8>,
+    texts: Vec<String>,
+) {
+    let text = mailrs_inbound::body::attachment_text_for_rules(&texts);
+    let numbers: Vec<String> = mailrs_fraud::callback::phone_numbers(&text)
+        .into_iter()
+        .take(mailrs_fraud::callback::MAX_NUMBERS)
+        .collect();
+    if numbers.is_empty() {
+        return;
+    }
+    let (state, user, mid) = (state.clone(), user.to_string(), mid.to_string());
+    let write = move || {
+        let from = mailrs_inbound::from_header(&raw);
+        // the reader's own mail, as delivery and the backfill leave it out
+        if mailrs_core_sidestate::families::correspondent::first_address(&from)
+            == user.to_ascii_lowercase()
+        {
+            return None;
+        }
+        let mut conn = state.net_conn()?;
+        let at = mailrs_inbound::dates::received_epoch(&raw)
+            .unwrap_or_else(|| chrono::Utc::now().timestamp());
+        Some(
+            mailrs_core_sidestate::families::callback_numbers::record_numbers(
+                &mut conn, &user, &from, &numbers, at, &mid,
+            ),
+        )
+    };
+    match tokio::task::spawn_blocking(write).await {
+        Ok(Some(Err(e))) => {
+            tracing::warn!(error = %e, "attachment text: callback numbers not recorded")
+        }
+        Ok(_) => {}
+        Err(e) => std::panic::resume_unwind(e.into_panic()),
     }
 }
 
@@ -254,7 +366,7 @@ async fn process(
 /// older one is read again.
 fn current_version(ocr: Option<&OcrSetup>) -> u32 {
     if ocr.is_some() {
-        return VERSION_WITH_OCR | extract::WITH_OFFICE;
+        return VERSION_WITH_OCR | extract::WITH_OFFICE | extract::WITH_QR;
     }
     VERSION_PDF_ONLY | extract::WITH_OFFICE
 }
