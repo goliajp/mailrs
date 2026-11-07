@@ -26,6 +26,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import stub_confirm, stub_invite, stub_paging, stub_triage, stub_verdict, stub_compose, stub_sections, stub_settings
 import stub_reset
+import stub_draft_files
 import stub_restart
 import stub_role
 import stub_login
@@ -548,7 +549,7 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
-        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.state(self) or stub_triage.get(self, VERBS) or stub_verdict.get(self, MESSAGES) or stub_compose.get(self) or stub_sections.get(self) or stub_settings.get(self) or stub_saved.get(self) or stub_upush.get(self):
+        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.state(self) or stub_triage.get(self, VERBS) or stub_verdict.get(self, MESSAGES) or stub_compose.get(self) or stub_draft_files.get(self, DRAFTS) or stub_sections.get(self) or stub_settings.get(self) or stub_saved.get(self) or stub_upush.get(self):
             return
         if self.path.split("?")[0] == "/api/conversations/search":
             query = parse_qs(urlparse(self.path).query)
@@ -871,7 +872,7 @@ class H(BaseHTTPRequestHandler):
             # the sheet shipped announcing "No drafts" over a full list.
             if LIST_DELAY_MS[0]:
                 time.sleep(LIST_DELAY_MS[0] / 1000)
-            self._send(sorted(DRAFTS.values(), key=lambda d: -d["updated_at"]))
+            self._send(stub_draft_files.listed(self, DRAFTS))
             return
         if self.path.split("?")[0] == "/debug/phish":
             PHISH_HITS[0] += 1
@@ -1133,7 +1134,7 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
-        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.handle(self) or stub_triage.post(self, VERBS) or stub_verdict.arm(self) or stub_invite.arm(self) or stub_compose.post(self) or stub_sections.post(self) or stub_settings.post(self) or stub_upush.post(self) or stub_block.post(self, SPAM_LISTS, VERBS):
+        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.handle(self) or stub_triage.post(self, VERBS) or stub_verdict.arm(self) or stub_invite.arm(self) or stub_compose.post(self) or stub_draft_files.post(self) or stub_sections.post(self) or stub_settings.post(self) or stub_upush.post(self) or stub_block.post(self, SPAM_LISTS, VERBS):
             return
         if self.path.split("?")[0] == "/api/auth/confirm":
             stub_confirm.answer(self)
@@ -1255,7 +1256,7 @@ class H(BaseHTTPRequestHandler):
             # would otherwise 401 every test after it, and the failure
             # would look like anything but a leftover flag.
             REJECT_SESSION[0] = False
-            for stub in (stub_confirm, stub_invite, stub_restart, stub_role, stub_reset, stub_verdict, stub_compose, stub_sections, stub_settings, stub_upush):
+            for stub in (stub_confirm, stub_invite, stub_restart, stub_role, stub_reset, stub_verdict, stub_compose, stub_draft_files, stub_sections, stub_settings, stub_upush):
                 stub.reset()
             VERB_REFUSE.clear()
             FETCHED.clear()
@@ -1476,6 +1477,8 @@ class H(BaseHTTPRequestHandler):
                     record["to"].append(payload.decode())
                 elif name:
                     record[name] = payload.decode()
+            if not stub_draft_files.sent(self, record, DRAFTS):
+                return
             SENT.append(record)
             self._send({"message_id": "<stub-multipart@golia.jp>", "success": True})
         elif self.path.startswith("/api/mail/send"):
@@ -1486,9 +1489,12 @@ class H(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", "0"))
             if length:
                 try:
-                    SENT.append(json.loads(self.rfile.read(length)))
+                    record = json.loads(self.rfile.read(length))
                 except ValueError:
-                    SENT.append({})
+                    record = {}
+                if not stub_draft_files.sent(self, record, DRAFTS):
+                    return
+                SENT.append(record)
             # `success` is part of the answer, not just the status code:
             # the handler returns 200 with `success: false` for a message
             # it accepted but could not queue.

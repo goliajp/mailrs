@@ -207,6 +207,8 @@ targets:
       - path: Mailrs/Features/AttachmentRow.swift
       - path: Mailrs/Features/AttachmentPicking.swift
       - path: Mailrs/Features/QuickLookSheet.swift
+      - path: Mailrs/Features/DraftFiles.swift
+      - path: Mailrs/Features/DraftFileRows.swift
       - path: Mailrs/Features/SenderAvatar.swift
       - path: Mailrs/Features/SenderBadges.swift
       - path: Mailrs/Features/SenderIcons.swift

@@ -70,14 +70,14 @@ class ComposeExtrasTest {
     @Test
     fun `a draft carries its address and time both ways`() {
         val draft = json.decodeFromString(
-            Wire.Draft.serializer(),
+            ServerDraft.serializer(),
             """{"id": 3, "subject": "s", "from": "sales@golia.jp", "scheduled_at": 1900000000}""",
         )
         assertEquals("sales@golia.jp", draft.from)
         assertEquals(1_900_000_000L, draft.scheduledAt)
         val saved = json.encodeToString(
-            Wire.SaveDraftRequest.serializer(),
-            Wire.SaveDraftRequest(to = "a@b.jp", cc = "", bcc = "", subject = "s", body = "b", from = "sales@golia.jp", scheduledAt = 1_900_000_000L),
+            SaveDraftRequest.serializer(),
+            SaveDraftRequest(to = "a@b.jp", cc = "", bcc = "", subject = "s", body = "b", from = "sales@golia.jp", scheduledAt = 1_900_000_000L),
         )
         val obj = json.parseToJsonElement(saved).jsonObject
         assertEquals("sales@golia.jp", obj["from"]?.jsonPrimitive?.content)
