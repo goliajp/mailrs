@@ -292,6 +292,7 @@ impl App {
             "admin_refusals": self.store.denial_counts().map_err(|e| e.0)?,
             "ops_status_polls": seen.polls,
             "processes": processes,
+            "csp": crate::csp::summary(&self.store, now).map_err(|e| e.0)?,
         }))
     }
 

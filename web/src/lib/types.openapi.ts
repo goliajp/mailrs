@@ -16115,6 +16115,79 @@ export interface operations {
                                 own_path_awaiting_acceptance_250?: string[];
                             };
                             warnings?: string[];
+                            /** @description Content security policy reports webapi counted, from its heartbeats. All three are null before the first heartbeat with counts. */
+                            csp?: {
+                                /** @description Unix seconds of the earliest kept heartbeat with counts */
+                                counting_since?: number | null;
+                                last_7_days?: {
+                                    /** @description Unix seconds */
+                                    from?: number;
+                                    /** @description Unix seconds */
+                                    to?: number;
+                                    reports?: number;
+                                    by_directive?: {
+                                        [key: string]: number;
+                                    };
+                                    /** @description Most reported first */
+                                    distinct?: {
+                                        /** @description Effective directive, or `other` */
+                                        directive?: string;
+                                        /** @description As the browser sent it, at most 200 characters */
+                                        violated_directive?: string;
+                                        /** @description Scheme and host of the blocked URL, or the browser's keyword (inline, eval, data) */
+                                        blocked?: string;
+                                        /** @description First path segment of the page; empty for the root */
+                                        page?: string;
+                                        /** @enum {string} */
+                                        client?: "desktop" | "mobile" | "android-webview" | "unknown";
+                                        count?: number;
+                                        /** @description Unix seconds */
+                                        first_at?: number;
+                                        /** @description Unix seconds */
+                                        last_at?: number;
+                                    }[];
+                                    /** @description Reports not listed because the distinct list was full */
+                                    distinct_dropped?: number;
+                                    /** @description Web pages served, by client class */
+                                    pages_served?: {
+                                        [key: string]: number;
+                                    };
+                                } | null;
+                                since_counting?: {
+                                    /** @description Unix seconds */
+                                    from?: number;
+                                    /** @description Unix seconds */
+                                    to?: number;
+                                    reports?: number;
+                                    by_directive?: {
+                                        [key: string]: number;
+                                    };
+                                    /** @description Most reported first */
+                                    distinct?: {
+                                        /** @description Effective directive, or `other` */
+                                        directive?: string;
+                                        /** @description As the browser sent it, at most 200 characters */
+                                        violated_directive?: string;
+                                        /** @description Scheme and host of the blocked URL, or the browser's keyword (inline, eval, data) */
+                                        blocked?: string;
+                                        /** @description First path segment of the page; empty for the root */
+                                        page?: string;
+                                        /** @enum {string} */
+                                        client?: "desktop" | "mobile" | "android-webview" | "unknown";
+                                        count?: number;
+                                        /** @description Unix seconds */
+                                        first_at?: number;
+                                        /** @description Unix seconds */
+                                        last_at?: number;
+                                    }[];
+                                    /** @description Reports not listed because the distinct list was full */
+                                    distinct_dropped?: number;
+                                    /** @description Web pages served, by client class */
+                                    pages_served?: {
+                                        [key: string]: number;
+                                    };
+                                } | null;
+                            };
                         };
                     };
                 };

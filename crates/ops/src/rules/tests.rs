@@ -90,6 +90,30 @@ fn there_are_seventeen_phase_one_rules_and_the_fraud_counter_watch_and_each_has_
     }
 }
 
+/// webapi's heartbeats carry its CSP counts and nothing any rule reads:
+/// a deployment where they arrive holds nothing either.
+#[test]
+fn webapi_heartbeats_change_no_rule() {
+    for fresh in [false, true] {
+        let mut s = healthy(NOW);
+        let p = s
+            .processes
+            .get_mut("webapi")
+            .expect("webapi in the fixture");
+        p.fresh = fresh;
+        p.latest.detail = Some(mailrs_ops_report::wire::Detail::Webapi(Default::default()));
+        for r in all() {
+            for (object, e) in (r.eval)(&s) {
+                assert!(
+                    matches!(e, Eval::Clear { .. }),
+                    "{}/{object}: {e:?}",
+                    r.name
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn a_healthy_deployment_holds_nothing() {
     let s = healthy(NOW);

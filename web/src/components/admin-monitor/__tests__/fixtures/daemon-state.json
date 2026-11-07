@@ -616,5 +616,10 @@
   "unmonitored": true,
   "warnings": [
     "no external notification channel is configured: if mailrs itself is down, nobody is alerted, and a whole-host failure goes unnoticed"
-  ]
+  ],
+  "csp": {
+    "counting_since": null,
+    "last_7_days": null,
+    "since_counting": null
+  }
 }

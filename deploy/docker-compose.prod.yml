@@ -346,6 +346,10 @@ services:
       # off (404), since the reverse proxy forwards the path publicly
       MAILRS_METRICS_TOKEN: ${MAILRS_METRICS_TOKEN:-}
       MAILRS_WEB_STATIC_DIR: /opt/mailrs/web
+      # the content security policy's header: report-only, or enforce once
+      # /admin/monitor counts 7 full days with no report; any other value
+      # stops webapi at start
+      MAILRS_CSP_MODE: report-only
       MAILRS_MAILDIR: /data/maildir
       MAILRS_MOCK_DOMAIN: mock.golia.jp
       MAILRS_HOSTNAME: mail.golia.ai

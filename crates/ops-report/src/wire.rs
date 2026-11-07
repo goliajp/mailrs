@@ -82,6 +82,7 @@ pub enum Detail {
     Fetch(FetchBeat),
     Backup(BackupBeat),
     BackupResult(BackupResult),
+    Webapi(WebapiBeat),
     /// fastcore's ready report: whether the boot replay came back intact.
     CoreReady {
         boot_intact: bool,
@@ -154,6 +155,57 @@ pub struct BackupResult {
     pub reason: String,
 }
 
+/// The most distinct CSP reports one webapi start keeps.
+pub const CSP_DISTINCT_MAX: usize = 300;
+
+/// webapi's counters since its start: the content security policy reports
+/// browsers sent, and the web pages it served, by client class.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WebapiBeat {
+    pub csp_reports: u64,
+    pub csp_by_directive: BTreeMap<String, u64>,
+    /// At most [`CSP_DISTINCT_MAX`] entries.
+    pub csp_distinct: Vec<CspEntry>,
+    /// Reports whose distinct key was new when the list was already full.
+    pub csp_distinct_dropped: u64,
+    pub pages_served: BTreeMap<String, u64>,
+}
+
+/// One distinct CSP report. Nothing here names a path past the first
+/// segment or a query: mail image URLs carry ids and tokens, and app paths
+/// carry thread ids.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CspEntry {
+    /// The effective directive, or `other` for a name no policy has.
+    pub directive: String,
+    /// As the browser sent it, at most 200 characters.
+    pub violated_directive: String,
+    /// Scheme and host of the blocked URL, or the browser's keyword
+    /// (`inline`, `eval`, `data`).
+    pub blocked: String,
+    /// The first path segment of the page, `""` for the root.
+    pub page: String,
+    /// `desktop`, `mobile`, `android-webview` or `unknown`.
+    pub client: String,
+    pub count: u64,
+    /// Unix seconds.
+    pub first_at: i64,
+    pub last_at: i64,
+}
+
+impl CspEntry {
+    /// What makes two reports the same entry.
+    pub fn key(&self) -> (&str, &str, &str, &str, &str) {
+        (
+            &self.directive,
+            &self.violated_directive,
+            &self.blocked,
+            &self.page,
+            &self.client,
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -181,5 +233,29 @@ mod tests {
         let json = serde_json::to_string(&r).unwrap();
         assert!(json.contains("\"type\":\"sender\""), "{json}");
         assert_eq!(serde_json::from_str::<Report>(&json).unwrap(), r);
+    }
+
+    #[test]
+    fn a_webapi_beat_round_trips() {
+        let beat = WebapiBeat {
+            csp_reports: 3,
+            csp_by_directive: BTreeMap::from([("img-src".into(), 3)]),
+            csp_distinct: vec![CspEntry {
+                directive: "img-src".into(),
+                violated_directive: "img-src".into(),
+                blocked: "https://cdn.example.com".into(),
+                page: "mail".into(),
+                client: "desktop".into(),
+                count: 3,
+                first_at: 10,
+                last_at: 20,
+            }],
+            csp_distinct_dropped: 1,
+            pages_served: BTreeMap::from([("mobile".into(), 9)]),
+        };
+        let detail = Detail::Webapi(beat);
+        let json = serde_json::to_string(&detail).unwrap();
+        assert!(json.contains("\"type\":\"webapi\""), "{json}");
+        assert_eq!(serde_json::from_str::<Detail>(&json).unwrap(), detail);
     }
 }
