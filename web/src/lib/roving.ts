@@ -21,3 +21,9 @@ export function rovingKeyDown(
   e.preventDefault()
   items[to].focus()
 }
+
+/** Only the active item is a Tab stop; arrows move among the rest. */
+export function tabStop(active: boolean): number {
+  if (active) return 0
+  return -1
+}
