@@ -54,19 +54,23 @@ pub fn link_has_kit_placeholder(parsed: &mailrs_mime::Part<'_>) -> bool {
     links::has_kit_placeholder(bodies(&texts))
 }
 
-/// Check-digit-valid payment identifiers in the message's text and in
-/// `attachment_text` (what extraction stored): the same parts as
-/// [`offers_the_reader_a_sum`].
+/// Payment identifiers in the message's text and in `attachment_text`
+/// (what extraction stored): the same parts as [`offers_the_reader_a_sum`],
+/// HTML read as its text, so a Japanese account laid out as a table reads
+/// one cell per line.
 pub fn payment_ids(
     parsed: &mailrs_mime::Part<'_>,
     attachment_text: &str,
 ) -> mailrs_fraud::payment::PaymentIds {
-    let mut found = mailrs_fraud::payment::find(attachment_text);
-    for (_, text) in texts(parsed) {
-        let more = mailrs_fraud::payment::find(&text);
-        found.iban |= more.iban;
-        found.crypto |= more.crypto;
+    let mut found = mailrs_fraud::payment::PaymentIds::default();
+    for (html, text) in texts(parsed) {
+        let text = match html {
+            true => mailrs_fraud::callback::html_text(&text),
+            false => text,
+        };
+        found.merge(mailrs_fraud::payment::find(&text));
     }
+    found.merge(mailrs_fraud::payment::find(attachment_text));
     found
 }
 

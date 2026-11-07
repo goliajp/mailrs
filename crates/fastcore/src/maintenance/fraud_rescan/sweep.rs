@@ -199,6 +199,16 @@ impl Sweep<'_> {
         let at = msg
             .arrived
             .unwrap_or_else(|| chrono::Utc::now().timestamp());
+        let rel = mailrs_fraud::relation::Relation {
+            account_changed: mailrs_fraud_lua::stored::relation::account_changed(
+                self.hist.as_mut(),
+                user,
+                &msg.from,
+                msg.account_keys(),
+                at,
+            ),
+            ..rel
+        };
         let novelty = mailrs_core_sidestate::families::domain_first::novelty(
             self.hist.as_mut(),
             &msg.host,

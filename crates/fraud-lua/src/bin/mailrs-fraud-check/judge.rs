@@ -145,6 +145,17 @@ pub(super) fn judge(
         mailrs_fraud_lua::stored::relation::Counted::After,
     );
     let arrived = mailrs_inbound::dates::received_epoch(&raw).unwrap_or(0);
+    let payment = mailrs_inbound::body::payment_ids(&parsed, "");
+    let relation = mailrs_fraud::relation::Relation {
+        account_changed: mailrs_fraud_lua::stored::relation::account_changed(
+            c.hist.as_mut(),
+            &reader,
+            &from,
+            &payment.account_keys,
+            arrived,
+        ),
+        ..relation
+    };
     let novelty = mailrs_core_sidestate::families::domain_first::novelty(
         c.hist.as_mut(),
         host,
@@ -197,7 +208,7 @@ pub(super) fn judge(
         peer_is_private,
         relation,
         novelty,
-        payment: mailrs_inbound::body::payment_ids(&parsed, ""),
+        payment,
         html: mailrs_inbound::body::html_attachments(&parsed, host),
         reply_to_outside: mailrs_fraud::reply_rotation::is_off_domain(
             host,

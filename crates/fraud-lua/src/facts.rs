@@ -70,6 +70,8 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
             "iban_country",
             f.payment.iban_country.unwrap_or("").to_string(),
         ),
+        // bank, branch, account type and the last three digits only
+        ("jp_account", f.payment.jp_masked().to_string()),
         (
             "lookalike_of",
             f.relation.lookalike_of.clone().unwrap_or_default(),
@@ -138,6 +140,9 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ),
         ("has_iban", f.payment.iban),
         ("has_crypto_address", f.payment.crypto),
+        ("account_verified", f.payment.account_verified()),
+        ("account_suspected", f.payment.account_suspected()),
+        ("account_changed", f.relation.account_changed),
         ("html_builds_a_download", f.html.builds_a_download),
         ("svg_runs_script", f.html.svg_runs_script),
         ("attachment_login_form_offsite", f.html.offsite_login_form),
