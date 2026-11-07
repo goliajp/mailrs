@@ -1,14 +1,11 @@
 use super::*;
 
-const SAMPLE: &str =
-    "# sample\n0001\tみずほ\n0005\t三菱ＵＦＪ\n0009\t三井住友\n9900\tゆうちょ\n1001\t北海道信金\n";
-
-fn list() -> BankList {
-    BankList::parse(SAMPLE)
+fn list() -> &'static BankList {
+    super::super::banks::listed()
 }
 
 fn one(text: &str) -> JpAccount {
-    let found = find(text, &list());
+    let found = find(text, list());
     assert_eq!(found.len(), 1, "{text}: {found:?}");
     found.into_iter().next().unwrap()
 }
@@ -67,16 +64,41 @@ fn a_bank_not_on_the_list_is_a_suspected_account() {
 fn the_same_account_written_twice_ways_is_one_key() {
     let a = one("三菱UFJ銀行 渋谷支店 普通 1234567");
     let b = one("三菱ＵＦＪ銀行\n支店名：渋谷\n普通預金\n１２３４５６７");
-    assert_eq!(a.key, b.key, "the bank's code and the number identify it");
+    assert_eq!(a.key, b.key, "the bank and the number identify it");
     let c = one("三菱UFJ銀行 渋谷支店 普通 1234568");
     assert_ne!(a.key, c.key);
+}
+
+#[test]
+fn a_former_name_is_the_bank_it_became_under_the_same_key() {
+    let now = one("三菱UFJ銀行 渋谷支店 普通 1234567");
+    let then = one("株式会社三菱東京UFJ銀行 渋谷支店 普通 1234567");
+    assert!(then.verified);
+    assert_eq!(then.key, now.key);
+    // the masked form shows the name the letter wrote
+    assert_eq!(then.masked, "三菱東京UFJ銀行 渋谷支店 普通 ****567");
+}
+
+#[test]
+fn verified_and_suspected_keys_meet_only_for_the_same_bank_name() {
+    let text = "三菱UFJ銀行 渋谷支店 普通 1234567";
+    let verified = one(text);
+    // the same bank before it is on the list keys the same, so a list
+    // update does not make its accounts read as new
+    let unlisted = find(text, &BankList::default()).remove(0);
+    assert!(!unlisted.verified);
+    assert_eq!(unlisted.key, verified.key);
+    // a misspelt bank is a different bank as far as the keys go
+    let typo = one("三菱UJF銀行 渋谷支店 普通 1234567");
+    assert!(!typo.verified);
+    assert_ne!(typo.key, verified.key);
 }
 
 #[test]
 fn two_accounts_in_one_text_are_both_found() {
     let text =
         "三菱UFJ銀行 渋谷支店 普通 1234567\n\n\n\n\n\n\n\n\n\n\nみずほ銀行 新宿支店 当座 7654321";
-    let found = find(text, &list());
+    let found = find(text, list());
     assert_eq!(found.len(), 2, "{found:?}");
 }
 
@@ -99,9 +121,9 @@ fn yucho_symbol_and_number_is_an_account() {
 
 #[test]
 fn a_yucho_number_without_yucho_named_is_not_an_account() {
-    assert!(find("記号 10120 番号 12345671", &list()).is_empty());
+    assert!(find("記号 10120 番号 12345671", list()).is_empty());
     // the symbol starts with 1
-    assert!(find("ゆうちょ銀行 記号 20120 番号 12345671", &list()).is_empty());
+    assert!(find("ゆうちょ銀行 記号 20120 番号 12345671", list()).is_empty());
 }
 
 #[test]
@@ -124,7 +146,7 @@ fn a_part_missing_is_not_an_account() {
         // 当 inside a word is not 当座
         "三菱UFJ銀行 渋谷支店 担当 1234567",
     ] {
-        assert!(find(text, &list()).is_empty(), "{text}");
+        assert!(find(text, list()).is_empty(), "{text}");
     }
 }
 
@@ -134,12 +156,12 @@ fn parts_outside_the_window_do_not_pair() {
         "三菱UFJ銀行 渋谷支店 普通 のご案内{}口座番号 1234567",
         "\n".repeat(LINES_BEFORE + 1)
     );
-    assert!(find(&far, &list()).is_empty());
+    assert!(find(&far, list()).is_empty());
     let long = format!(
         "三菱UFJ銀行 渋谷支店 普通 {} 1234567",
         "あ".repeat(CHARS_BEFORE)
     );
-    assert!(find(&long, &list()).is_empty());
+    assert!(find(&long, list()).is_empty());
 }
 
 #[test]

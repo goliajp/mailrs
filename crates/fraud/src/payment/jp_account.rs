@@ -21,7 +21,7 @@
 //! characters (or `記号番号 10120-12345671`), with ゆうちょ, 郵便局 or
 //! 郵便貯金 named inside the same window.
 //!
-//! **Two levels.** An account whose bank is on the Zengin list
+//! **Two levels.** An account whose bank is on the list of licensed banks
 //! ([`super::banks`]) is verified; a structure whose bank is not (a typo, a
 //! misread scan, a name the list lacks) is still recorded, as suspected.
 //!
@@ -52,7 +52,7 @@ const NAME_MAX: usize = 16;
 /// One account found.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JpAccount {
-    /// The bank is on the Zengin list.
+    /// The bank is on the list of licensed banks.
     pub verified: bool,
     /// Bank, branch, account type and the number's last three digits.
     pub masked: String,
@@ -142,15 +142,16 @@ fn domestic(chars: &[char], at: usize, banks: &BankList) -> Option<JpAccount> {
     let branch = nearest(branches(chars, lo, hi), at)?;
     let bank = nearest(bank_names(chars, lo, hi), at)?;
     let number: String = chars[at..at + 7].iter().collect();
-    let code = banks.code_of(&bank);
-    let identity = match code {
-        Some(c) => format!("jp:{c}:{number}"),
-        None => format!("jp:{}:{number}", normalize(&bank)),
-    };
+    // one key per bank and number: a listed bank under its current
+    // normalised name (so a former name keys like the current one), any
+    // other under its own normalised name, which is what the listed name
+    // would be, so a bank added to the list keeps its accounts' keys
+    let canonical = banks.canonical(&bank);
+    let name = canonical.clone().unwrap_or_else(|| normalize(&bank));
     Some(JpAccount {
-        verified: code.is_some(),
+        verified: canonical.is_some(),
+        key: account_key(&format!("jp:{name}:{number}")),
         masked: format!("{bank} {branch} {kind} ****{}", &number[4..]),
-        key: account_key(&identity),
     })
 }
 
@@ -186,7 +187,7 @@ fn yucho(chars: &[char], banks: &BankList) -> Vec<JpAccount> {
         let shown = &bangou[bangou.len().saturating_sub(3)..];
         let identity = format!("yucho:{kigou}:{}", bangou.trim_start_matches('0'));
         out.push(JpAccount {
-            verified: banks.code_of("ゆうちょ").is_some(),
+            verified: banks.canonical("ゆうちょ").is_some(),
             masked: format!("ゆうちょ銀行 記号{kigou} ****{shown}"),
             key: account_key(&identity),
         });
