@@ -66,6 +66,7 @@ are swapped in.
 | Team inboxes: which members' conversations are one team conversation, assignments, internal notes, reply claims | `kevy-server`, `shared:{group}:*` | webapi and fastcore |
 | Audit log and its hash chain | `kevy-server`; a copy of the chain in `MAILRS_AUDIT_REPLICA_DIR` when set | every process appends; fastcore alone seals |
 | Reputation observations and screening reports | `kevy-server`, `screening:*` | receiver, and webapi (failed sign-ins, an operator recording an incident) |
+| The payment accounts (IBANs, Japanese bank accounts) each sender has given each reader. Only a hash of each account is kept: that keeps account numbers out of plain text, but does not stop someone who can read kevy and is willing to try every 7-digit number | `kevy-server`, `mailrs:payacct:*` | delivery (the message's text) and fastcore (the attachments' text) |
 
 The two kevy stores are not interchangeable. Mailbox data is in fastcore's
 embedded store and nothing else opens it; a handler that needs it calls
