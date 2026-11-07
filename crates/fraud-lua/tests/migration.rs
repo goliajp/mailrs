@@ -69,7 +69,7 @@ fn all_existing_sender_fixtures_match_compiled_rules() {
         account_names: vec!["LI HAO".into(), "No Reply".into(), "李好".into()],
     };
     let mut rules = Rules::compile(DEFAULT_SOURCE).unwrap();
-    // Sixteen migrated rules plus twenty-eight written after the migration,
+    // Sixteen migrated rules plus thirty written after the migration,
     // which have no Rust counterpart to compare against — the oracle
     // below is frozen on purpose.  `reserved-sender-domain` is left out
     // of the comparison (see `AFTER_THE_MIGRATION`); the rest cannot
@@ -101,8 +101,10 @@ fn all_existing_sender_fixtures_match_compiled_rules() {
     // `reply-claim-without-thread` rules need a message's thread headers
     // and a reply-to elsewhere; theirs are in `tests/reply_claim_rule.rs`.
     // The three `qr-` rules need stored QR codes; theirs are in
-    // `tests/qr_rules.rs`.
-    assert_eq!(rules.rule_count(), 44);
+    // `tests/qr_rules.rs`. `bec-jp-account-from-a-stranger` and
+    // `bec-account-changed` need a payment account and the reader's
+    // history; theirs are in `tests/jp_account_rules.rs`.
+    assert_eq!(rules.rule_count(), 46);
     for from in &senders {
         for (subject, seen, to) in [
             (

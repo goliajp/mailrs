@@ -48,6 +48,7 @@ fn iban() -> PaymentIds {
         iban: true,
         iban_country: Some("NL"),
         crypto: false,
+        ..PaymentIds::default()
     }
 }
 

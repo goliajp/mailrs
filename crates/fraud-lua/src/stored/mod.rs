@@ -80,12 +80,6 @@ pub fn judge_with(
     let msg = Reading::of_extracted(raw, our_stamp, extracted);
     let seen = domain_seen(hist.as_mut(), &msg.from);
     let rotation = reply_rotation(hist, &msg.host, &msg.reply_to);
-    let rel = match reader {
-        Some((user, counted)) => {
-            relation::relation(hist.as_mut(), user, &msg.from, &msg.reply_to, counted)
-        }
-        None => Default::default(),
-    };
     // new as of when the message arrived, not as of the re-judging
     let at = msg.arrived.unwrap_or_else(|| {
         std::time::SystemTime::now()
@@ -93,6 +87,19 @@ pub fn judge_with(
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0)
     });
+    let rel = match reader {
+        Some((user, counted)) => mailrs_fraud::relation::Relation {
+            account_changed: relation::account_changed(
+                hist.as_mut(),
+                user,
+                &msg.from,
+                msg.account_keys(),
+                at,
+            ),
+            ..relation::relation(hist.as_mut(), user, &msg.from, &msg.reply_to, counted)
+        },
+        None => Default::default(),
+    };
     let novelty = mailrs_core_sidestate::families::domain_first::novelty(
         hist.as_mut(),
         &msg.host,

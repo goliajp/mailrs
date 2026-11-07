@@ -168,6 +168,7 @@ impl Evidence {
             &receive_ctx.recipient,
             &decoded_from,
             &reply_to,
+            payment.account_keys.clone(),
         )
         .await;
         let novelty = crate::spam_lists::novelty_async(
@@ -236,7 +237,7 @@ impl Evidence {
             is_bulk: mailrs_inbound::body::is_bulk(&receive_ctx.message),
             to_display: &self.to_display,
             reply_rotation: self.reply_rotation,
-            payment: self.payment,
+            payment: self.payment.clone(),
             html: self.html,
             reply_to_outside: self.reply_to_outside,
             reply_to_other_org: self.reply_to_other_org,

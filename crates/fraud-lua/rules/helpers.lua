@@ -82,6 +82,12 @@ local function account_of(m)
     if m.has_iban then return 'IBAN' end
     return 'Bitcoin'
 end
+-- The Japanese account the message carries, masked (bank, branch, type,
+-- last three digits), else the kind of account above.
+local function shown_account(m)
+    if m.jp_account ~= '' then return m.jp_account end
+    return account_of(m)
+end
 -- Helpers are lexical upvalues of the rule modules in the concatenated bundle.
 
 -- An impersonation claim convicts on "claims X and the domain is not X's".

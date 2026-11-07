@@ -19,6 +19,26 @@
     "ja": "{check}：{result}",
     "zh": "{check}：{result}"
   },
+  "bec-account-changed": {
+    "en": "This sender gives a payment account it has not given you before, after giving you another one.",
+    "ja": "この送信者は以前に別の振込先口座を伝えてきていましたが、今回はこれまでにない口座を書いています。",
+    "zh": "这个发件人以前给过你另一个收款账户，这次给的是一个以前没出现过的账户。",
+    "params": {
+      "en": "{domain} gives a payment account it has not given you before ({account}), after giving you another one.",
+      "ja": "{domain} は以前に別の振込先口座を伝えてきていましたが、今回はこれまでにない口座（{account}）を書いています。",
+      "zh": "{domain} 以前给过你另一个收款账户，这次给的是一个以前没出现过的账户（{account}）。"
+    }
+  },
+  "bec-jp-account-from-a-stranger": {
+    "en": "The first message from this address carries a Japanese bank account.",
+    "ja": "このアドレスからの最初のメールに国内の銀行口座が書かれています。",
+    "zh": "这个地址发来的第一封信里就带着日本国内的银行账户。",
+    "params": {
+      "en": "The first message from {domain} carries a Japanese bank account ({account}).",
+      "ja": "{domain} からの初めてのメールに国内の銀行口座（{account}）が書かれています。",
+      "zh": "{domain} 第一次来信就带着日本国内的银行账户（{account}）。"
+    }
+  },
   "bec-lookalike-reply-diverted": {
     "en": "Sent from a domain one or two letters away from one you write to, with replies going to another domain.",
     "ja": "やり取りのあるドメインと 1〜2 文字だけ違うドメインから届き、返信先が別のドメインになっています。",

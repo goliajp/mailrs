@@ -328,9 +328,14 @@ async fn correspondents_are_whom_the_user_wrote_to_on_both_paths() {
         (partner, "tanaka@partner.example", true),
         ("sato@partner.example", "sato@partner.example", false),
     ] {
-        let live =
-            mailrs_receiver::spam_lists::relation_async(Some(client.clone()), me, from, REPLY_TO)
-                .await;
+        let live = mailrs_receiver::spam_lists::relation_async(
+            Some(client.clone()),
+            me,
+            from,
+            REPLY_TO,
+            Vec::new(),
+        )
+        .await;
         assert_eq!(live.from_correspondent, wrote_to, "{from}");
         // the Reply-To half is read on the receive path too
         assert!(live.reply_to_correspondent, "{from}");
@@ -348,5 +353,38 @@ async fn correspondents_are_whom_the_user_wrote_to_on_both_paths() {
         .await
         .expect("rejudge");
         assert_eq!(later, live, "{from}");
+    }
+}
+
+/// The receive path reads the sender's account history too: an account the
+/// sender gave before is no change, another one is.
+#[tokio::test]
+async fn an_account_the_sender_never_gave_reads_as_a_change_on_the_receive_path() {
+    use mailrs_core_sidestate::families::payment_accounts;
+    let (_container, url) = setup_kevy().await;
+    let me = "me@golia.example";
+    let from = "Billing <billing@partner.example>";
+    {
+        let url = url.clone();
+        tokio::task::spawn_blocking(move || {
+            let mut c = kevy_client::Connection::connect(&url).expect("kevy");
+            payment_accounts::record(&mut c, me, from, &["k1".to_string()], 100, "<a@p>")
+                .expect("record");
+        })
+        .await
+        .expect("seed");
+    }
+    let client = Arc::new(KevyNetClient::new(url));
+    for (keys, changed) in [(vec!["k2"], true), (vec!["k1"], false), (vec![], false)] {
+        let keys: Vec<String> = keys.into_iter().map(String::from).collect();
+        let live = mailrs_receiver::spam_lists::relation_async(
+            Some(client.clone()),
+            me,
+            from,
+            "",
+            keys.clone(),
+        )
+        .await;
+        assert_eq!(live.account_changed, changed, "{keys:?}");
     }
 }

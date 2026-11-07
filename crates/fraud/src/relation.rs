@@ -53,6 +53,12 @@ pub struct Relation {
     /// The display name is a correspondent's, at an address that has
     /// never been in touch.
     pub name_borrowed: bool,
+    /// The message carries a payment account (an IBAN or a Japanese
+    /// account) this sender had not given the reader before it, and the
+    /// sender had given the reader another account before it. Set by the
+    /// host, which reads the per-sender account history; [`assess`] does
+    /// not.
+    pub account_changed: bool,
 }
 
 /// Weigh `from_address` (lowercased) and its folded `display` name
@@ -95,6 +101,7 @@ pub fn assess(
         lookalike_of,
         name_borrowed,
         reply_to_correspondent: false,
+        account_changed: false,
     }
 }
 

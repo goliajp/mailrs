@@ -317,9 +317,9 @@ async fn numbers_from_stored(state: &Arc<FastcoreState>, user: &str, mid: &str, 
     record_numbers(state, user, mid, raw, texts).await;
 }
 
-/// The phone numbers in the attachments' text, into `user`'s history with
-/// the sender at the message's arrival, beside the ones delivery recorded
-/// from its text.
+/// The phone numbers and payment accounts (their keys, never the numbers)
+/// in the attachments' text, into `user`'s histories with the sender at
+/// the message's arrival, beside the ones delivery recorded from its text.
 async fn record_numbers(
     state: &Arc<FastcoreState>,
     user: &str,
@@ -332,7 +332,8 @@ async fn record_numbers(
         .into_iter()
         .take(mailrs_fraud::callback::MAX_NUMBERS)
         .collect();
-    if numbers.is_empty() {
+    let accounts = mailrs_fraud::payment::find(&text).account_keys;
+    if numbers.is_empty() && accounts.is_empty() {
         return;
     }
     let (state, user, mid) = (state.clone(), user.to_string(), mid.to_string());
@@ -347,17 +348,24 @@ async fn record_numbers(
         let mut conn = state.net_conn()?;
         let at = mailrs_inbound::dates::received_epoch(&raw)
             .unwrap_or_else(|| chrono::Utc::now().timestamp());
-        Some(
-            mailrs_core_sidestate::families::callback_numbers::record_numbers(
-                &mut conn, &user, &from, &numbers, at, &mid,
-            ),
-        )
+        let numbers = mailrs_core_sidestate::families::callback_numbers::record_numbers(
+            &mut conn, &user, &from, &numbers, at, &mid,
+        );
+        let accounts = mailrs_core_sidestate::families::payment_accounts::record(
+            &mut conn, &user, &from, &accounts, at, &mid,
+        );
+        Some((numbers, accounts))
     };
     match tokio::task::spawn_blocking(write).await {
-        Ok(Some(Err(e))) => {
-            tracing::warn!(error = %e, "attachment text: callback numbers not recorded")
+        Ok(Some((numbers, accounts))) => {
+            if let Err(e) = numbers {
+                tracing::warn!(error = %e, "attachment text: callback numbers not recorded");
+            }
+            if let Err(e) = accounts {
+                tracing::warn!(error = %e, "attachment text: payment accounts not recorded");
+            }
         }
-        Ok(_) => {}
+        Ok(None) => {}
         Err(e) => std::panic::resume_unwind(e.into_panic()),
     }
 }
