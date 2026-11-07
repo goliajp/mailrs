@@ -23,6 +23,7 @@ pub mod auth_recovery;
 pub mod autodiscover;
 pub mod block_sender;
 pub mod calendar;
+pub mod callback_numbers;
 pub mod complete;
 pub mod compose;
 pub mod compose_attach;

@@ -40,6 +40,8 @@ pub(super) fn spawn_workers(state: &Arc<FastcoreState>, kevy_dir: &str) {
     crate::mailbox_watch::spawn(state.clone());
     crate::fraud_backfill::spawn(state.clone(), kevy_dir);
     crate::attachment_text::spawn(state.clone());
+    // the attachment-text backlog, if a run was going at shutdown
+    crate::maintenance::attachment_backlog::resume_on_boot(state.clone());
     crate::image_prefetch::spawn(state.clone());
     crate::routes::trash::spawn_purge(state.clone());
     crate::account_purge::spawn(state.clone());

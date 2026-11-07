@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import { adminResultSchema } from '../schemas/admin'
 import { adminPushStatsSchema } from '../schemas/admin-push-stats'
+import { callbackNumbersSchema } from '../schemas/callback-numbers'
 import { wireThreadListResponseSchema } from '../schemas/conversation'
 import { notifyOverridesSchema } from '../schemas/notify'
 import { sendsSchema } from '../schemas/sends'
@@ -129,6 +130,18 @@ describe('response contract', () => {
     })
   })
 
+  it('the numbers a sender gave before parse, each with the message that first gave it', () => {
+    const parsed = callbackNumbersSchema.parse(fixture('callback-numbers'))
+    expect(parsed.sender).toBe('desk@hotel.example')
+    expect(parsed.numbers).toEqual([
+      {
+        first_message_id: '<first@hotel.example>',
+        first_seen: 1790000000,
+        number: '0312345678',
+      },
+    ])
+  })
+
   it('every response fixture is checked by a case above', () => {
     const present = readdirSync(RESPONSES)
       .filter((f) => f.endsWith('.json'))
@@ -136,6 +149,7 @@ describe('response contract', () => {
       .sort()
     expect(present).toEqual([
       'admin-push-stats',
+      'callback-numbers',
       'conversation-categories',
       'conversation-list',
       'notify-overrides',

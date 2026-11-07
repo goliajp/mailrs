@@ -213,6 +213,37 @@ class CallbackNumbersTest {
     }
 
     @Test
+    fun `the sender history decodes as the server sends it`() {
+        val fixture = File("../../wire-contract/responses/callback-numbers.json").readText()
+        val r = Json.decodeFromString(WireCallbackNumbers.Response.serializer(), fixture)
+        assertEquals(listOf(WireCallbackNumbers.Given("0312345678", 1_790_000_000, "<first@hotel.example>")), r.numbers)
+    }
+
+    @Test
+    fun `a number the sender gave in another conversation is not pointed out`() {
+        val m = message(2, "desk@hotel.example", "Call 03-1234-5678 or 0120-111-222")
+        val history = listOf(WireCallbackNumbers.Given("0312345678", 1_790_000_000, "<first@hotel.example>"))
+        assertEquals(listOf("0120-111-222"), CallbackNumbers.new(m, emptyList(), history))
+    }
+
+    @Test
+    fun `a number first given by this very message is still pointed out`() {
+        val m = message(2, "desk@hotel.example", "Call +81 3-1234-5678 or 0120-111-222")
+        val history = listOf(
+            WireCallbackNumbers.Given("81312345678", 1_790_000_100, "<2>"),
+            WireCallbackNumbers.Given("0120111222", 1_790_000_000, "<older@hotel.example>"),
+        )
+        assertEquals(listOf("+81 3-1234-5678"), CallbackNumbers.new(m, emptyList(), history))
+    }
+
+    @Test
+    fun `the history is compared by digits however the number is written`() {
+        val m = message(2, "desk@hotel.example", "Call (03) 1234.5678 or 03 9999 0000")
+        val history = listOf(WireCallbackNumbers.Given("0312345678", 1_790_000_000, "<first@hotel.example>"))
+        assertEquals(listOf("03 9999 0000"), CallbackNumbers.new(m, emptyList(), history))
+    }
+
+    @Test
     fun `at most three are named, and an HTML-only message is read as text`() {
         assertEquals(3, CallbackNumbers.new(message(1, "x@y", "a 03-1111-1111 b 03-2222-2222 c 03-3333-3333 d 03-4444-4444"), emptyList()).size)
         assertEquals(

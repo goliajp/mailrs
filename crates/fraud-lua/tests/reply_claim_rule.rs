@@ -28,7 +28,7 @@ fn judge(raw: &[u8], store: Connection) -> (bool, Vec<String>) {
         raw,
         Some((ME, Counted::After)),
         None,
-        &[],
+        Default::default(),
         &mailrs_fraud::Policy::default(),
         &mut hist,
         &mut |facts, policy| {

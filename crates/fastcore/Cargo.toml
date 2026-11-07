@@ -141,4 +141,6 @@ testcontainers = "0.27"
 # builds the PDF attachments the extraction tests deliver
 lopdf = { version = "0.45", default-features = false }
 # encodes the images the OCR test delivers
-image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp"] }
+# draws the QR code the OCR test delivers
+qrcode = { version = "0.14", default-features = false }

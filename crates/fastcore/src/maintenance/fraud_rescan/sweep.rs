@@ -54,7 +54,14 @@ struct Tally {
     scored_samples: Vec<serde_json::Value>,
     // where each conversation is stored now against where this walk puts it
     from_stored: FromStored,
+    // shadow rules: conversations each one hit, and which, for measuring a
+    // rule before it may act; nothing else in the walk reads them
+    shadow_by_rule: HashMap<String, u64>,
+    shadow_samples: Vec<serde_json::Value>,
 }
+
+/// Shadow hits kept as samples, per walk.
+const SHADOW_SAMPLES: usize = 50;
 
 /// Judge `targets` (or all), blocking: run it off the async runtime. The
 /// background worker supplies an immutable batch and pins its rule version.
@@ -149,7 +156,12 @@ impl Sweep<'_> {
             .mailbox
             .attachment_texts(&message_id)
             .unwrap_or_default();
-        let msg = Reading::of(&raw, self.our_stamp, &attachment_texts);
+        let qr_urls = self
+            .state
+            .mailbox
+            .attachment_qr_urls(&message_id)
+            .unwrap_or_default();
+        let msg = Reading::of(&raw, self.our_stamp, &attachment_texts).with_qr_urls(&qr_urls);
         // The count as it stands, **not** minus this message.
         //
         // It was minus one, reasoning that the sweep re-plays the
@@ -193,8 +205,11 @@ impl Sweep<'_> {
             &msg.link_hosts,
             at,
         );
+        let new_qr_domain =
+            mailrs_fraud_lua::stored::qr_domain::new_domain(self.hist.as_mut(), &msg, at);
         let facts = mailrs_fraud::Facts {
             novelty,
+            new_qr_domain,
             ..msg.facts(seen, reply_rotation, rel)
         };
         let scan = match self.scan(&facts) {
@@ -211,6 +226,17 @@ impl Sweep<'_> {
         {
             self.t.verdict_failed += 1;
             return;
+        }
+        for rule in &scan.shadow {
+            *self.t.shadow_by_rule.entry(rule.clone()).or_default() += 1;
+            if self.t.shadow_samples.len() < SHADOW_SAMPLES {
+                self.t.shadow_samples.push(serde_json::json!({
+                    "user": user,
+                    "thread": tid,
+                    "message_id": &message_id,
+                    "rule": rule,
+                }));
+            }
         }
         let findings = scan.findings;
         // the rules' new view of the message, for the ledger: derived, and

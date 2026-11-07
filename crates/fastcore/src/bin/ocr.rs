@@ -7,8 +7,9 @@
 //! so the limits below are set before a byte of input is read.
 //!
 //! Usage: `mailrs-fastcore-ocr image` or `mailrs-fastcore-ocr pdf 0,2,5`
-//! (pages from 0). The attachment comes on stdin; one JSON object goes to
-//! stdout. The models are read from `MAILRS_OCR_MODEL_DIR`.
+//! (pages from 0); `qr-image` and `qr-pdf 0,2,5` read the QR codes alone,
+//! without loading the models. The attachment comes on stdin; one JSON
+//! object goes to stdout. The models are read from `MAILRS_OCR_MODEL_DIR`.
 
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -59,7 +60,9 @@ fn main() {
             input,
             args.get(1).map(String::as_str).unwrap_or(""),
         ),
-        _ => fail("usage: mailrs-fastcore-ocr image | pdf <pages>"),
+        Some("qr-image") => qr_image(&input),
+        Some("qr-pdf") => qr_pdf(input, args.get(1).map(String::as_str).unwrap_or("")),
+        _ => fail("usage: mailrs-fastcore-ocr image | pdf <pages> | qr-image | qr-pdf <pages>"),
     };
     match answer
         .map_err(|e| e.to_string())
@@ -126,6 +129,34 @@ fn image(models: &std::path::Path, bytes: &[u8]) -> Result<Answer, mailrs_ocr::O
         too_small: false,
         qr,
     })
+}
+
+/// The QR codes in an image, read as [`image`] reads them.
+fn qr_image(bytes: &[u8]) -> Result<Answer, mailrs_ocr::OcrError> {
+    let img = mailrs_ocr::input::decode_image(bytes, MAX_IMAGE_SIDE, MAX_DECODE_BYTES)?;
+    Ok(Answer {
+        qr: mailrs_ocr::qr::urls(&bounded(img)),
+        ..Answer::default()
+    })
+}
+
+/// The QR codes on these pages, rendered as [`pdf`] renders them.
+fn qr_pdf(bytes: Vec<u8>, pages: &str) -> Result<Answer, mailrs_ocr::OcrError> {
+    let doc = mailrs_ocr::input::PdfPages::open(bytes)?;
+    let mut qr = Vec::new();
+    for page in page_numbers(pages).filter(|&p| p < doc.len()) {
+        qr.extend(mailrs_ocr::qr::urls(&doc.render(page, PDF_DPI, MAX_SIDE)?));
+    }
+    Ok(Answer {
+        qr,
+        ..Answer::default()
+    })
+}
+
+fn page_numbers(pages: &str) -> impl Iterator<Item = usize> + '_ {
+    pages
+        .split(',')
+        .filter_map(|p| p.trim().parse::<usize>().ok())
 }
 
 /// Large photos are scaled down before recognition: the pipeline would

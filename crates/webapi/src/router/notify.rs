@@ -27,6 +27,10 @@ pub(super) fn sender_and_notify_routes() -> axum::Router<Arc<WebState>> {
             post(crate::handlers::sender_rules::undo),
         )
         .route(
+            "/api/senders/{address}/callback-numbers",
+            get(crate::handlers::callback_numbers::list),
+        )
+        .route(
             "/api/sender-rules",
             get(crate::handlers::sender_rules::list),
         )

@@ -149,7 +149,7 @@ fn the_receive_path_and_a_rejudgement_agree() {
             raw.as_bytes(),
             Some((ME, Counted::After)),
             None,
-            &[],
+            Default::default(),
             &mailrs_fraud::Policy::default(),
             &mut hist,
             &mut |facts, _| {

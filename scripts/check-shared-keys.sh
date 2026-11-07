@@ -58,6 +58,7 @@ swipe:;crates/core-sidestate/src/families/swipe.rs
 sectioned_inbox:;crates/core-sidestate/src/families/sectioned_inbox.rs
 devices:;crates/core-sidestate/src/families/devices.rs
 mailrs:domfirst;crates/core-sidestate/src/families/domain_first.rs
+mailrs:callnum:;crates/core-sidestate/src/families/callback_numbers.rs
 mailrs:fraud:hits:;crates/core-sidestate/src/families/fraud_hits.rs
 mailrs:recalled:;crates/core-sidestate/src/families/recall_notices.rs
 mailrs:submitted:;crates/core-sidestate/src/families/submitted.rs

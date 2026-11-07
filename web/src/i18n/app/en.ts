@@ -156,7 +156,7 @@ export const appEn = {
   'palette.toggleTheme': 'Toggle Theme',
   'pdf.hidePreview': 'Hide preview',
   'read.callback':
-    'This message gives a phone number its sender has not used before here: {numbers}. Before calling about a payment or an account, look the number up yourself.',
+    'This message gives a phone number its sender has not given you before: {numbers}. Before calling about a payment or an account, look the number up yourself.',
   'read.noText': '(no text content)',
   'sends.all': 'All',
   'sends.cancelFailed': 'Could not cancel',

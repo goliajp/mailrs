@@ -47,7 +47,12 @@ import jp.golia.mailrs.triageOpenThread
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.ReasonText
 import jp.golia.mailrs.wire.RowAction
+import jp.golia.mailrs.wire.CallbackNumbers
+import jp.golia.mailrs.wire.SenderIdentity
+import jp.golia.mailrs.wire.Wire
+import jp.golia.mailrs.wire.WireCallbackNumbers
 import jp.golia.mailrs.wire.WireVerdict
+import jp.golia.mailrs.wire.callbackNumbers
 import jp.golia.mailrs.wire.fraudVerdict
 
 /** The reasons table and the column for the interface language. */
@@ -274,9 +279,34 @@ private fun checkColor(check: WireVerdict.Reason): Color {
 }
 
 /**
- * The phone numbers a message gives that its sender has not written
- * before in this conversation. A notice, not a verdict: a number proves
- * nothing about who answers it, and invoices carry them too.
+ * The phone numbers [m] gives that its sender has not given the reader
+ * before, in this conversation ([earlier]) or any other. The sender's
+ * history is asked for only when this conversation leaves a number new;
+ * nothing is shown while it loads, and a failed read leaves the
+ * conversation's own answer, as on the web.
+ */
+@Composable
+fun CallbackNumbersNotice(m: Wire.Message, earlier: List<Wire.Message>, vm: MailViewModel) {
+    val unseenHere = remember(m, earlier) { CallbackNumbers.new(m, earlier) }
+    if (unseenHere.isEmpty()) return
+    val sender = SenderIdentity.emailOf(m.sender)
+    if (!sender.contains('@')) {
+        CallbackNotice(unseenHere)
+        return
+    }
+    var history by remember(m.messageId, sender) { mutableStateOf<List<WireCallbackNumbers.Given>?>(null) }
+    LaunchedEffect(m.messageId, sender) {
+        val read = vm.client.callbackNumbers(sender)
+        history = (read as? MailrsClient.Outcome.Ok)?.value ?: emptyList()
+    }
+    val given = history ?: return
+    CallbackNotice(CallbackNumbers.new(m, earlier, given))
+}
+
+/**
+ * Numbers a message gives that its sender has not given the reader
+ * before. A notice, not a verdict: a number proves nothing about who
+ * answers it, and invoices carry them too.
  */
 @Composable
 fun CallbackNotice(numbers: List<String>) {

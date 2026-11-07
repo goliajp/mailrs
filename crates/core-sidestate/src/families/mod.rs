@@ -8,6 +8,7 @@ pub mod audit;
 pub mod audit_chain;
 pub mod calendar_events;
 pub mod calendar_feeds;
+pub mod callback_numbers;
 pub mod contact_cards;
 pub mod contact_sent;
 pub mod contacts;

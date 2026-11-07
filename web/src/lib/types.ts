@@ -144,6 +144,14 @@ export type EventInfo = {
   url?: string
 }
 
+/** A phone number a sender gave the reader before, and the earliest message that gave it. */
+export type GivenNumber = {
+  first_message_id: string
+  first_seen: number
+  /** digits only */
+  number: string
+}
+
 export type GreylistLocalEntry = {
   created_at: number
   created_by: null | string
