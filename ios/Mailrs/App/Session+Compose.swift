@@ -14,7 +14,7 @@ extension Session {
         subject: String, body: String,
         inReplyTo: String?, threadId: String,
         attachments: [MultipartForm.FilePart] = [],
-        from: String = ""
+        from: String = "", draftId: Int64? = nil
     ) async throws {
         guard let client else { throw MailrsError.badCredentials }
         let html = MarkdownHtml.forSend(body)
@@ -22,7 +22,8 @@ extension Session {
             if attachments.isEmpty {
                 return try await client.sendReply(
                     to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
-                    inReplyTo: inReplyTo, threadId: threadId, from: from, htmlBody: html
+                    inReplyTo: inReplyTo, threadId: threadId, from: from, htmlBody: html,
+                    draftId: draftId
                 )
             }
             // The multipart route, with both threading fields riding
@@ -30,7 +31,8 @@ extension Session {
             return try await client.sendMultipart(
                 to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
                 attachments: attachments,
-                inReplyTo: inReplyTo, replyToThreadId: threadId, from: from, htmlBody: html
+                inReplyTo: inReplyTo, replyToThreadId: threadId, from: from, htmlBody: html,
+                draftId: draftId
             )
         }
     }
@@ -41,7 +43,7 @@ extension Session {
         subject: String, body: String,
         forwardMessageId: String, forwardAttachmentsFrom: UInt32?,
         attachments: [MultipartForm.FilePart] = [],
-        from: String = ""
+        from: String = "", draftId: Int64? = nil
     ) async throws {
         guard let client else { throw MailrsError.badCredentials }
         let html = MarkdownHtml.forSend(body, wrapped: !attachments.isEmpty)
@@ -50,7 +52,8 @@ extension Session {
                 return try await client.sendForward(
                     to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
                     forwardMessageId: forwardMessageId,
-                    forwardAttachmentsFrom: forwardAttachmentsFrom, from: from, htmlBody: html
+                    forwardAttachmentsFrom: forwardAttachmentsFrom, from: from, htmlBody: html,
+                    draftId: draftId
                 )
             }
             // The server appends the original and EXTENDS the file
@@ -60,7 +63,8 @@ extension Session {
                 to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
                 attachments: attachments,
                 forwardMessageId: forwardMessageId,
-                forwardAttachmentsFrom: forwardAttachmentsFrom, from: from, htmlBody: html
+                forwardAttachmentsFrom: forwardAttachmentsFrom, from: from, htmlBody: html,
+                draftId: draftId
             )
         }
     }
@@ -78,7 +82,7 @@ extension Session {
         scheduledAt: Int64? = nil,
         redraftOf: String? = nil,
         redraftKeep: [Int]? = nil,
-        from: String = ""
+        from: String = "", draftId: Int64? = nil
     ) async throws {
         guard let client else { throw MailrsError.badCredentials }
         let html = MarkdownHtml.forSend(body)
@@ -91,7 +95,7 @@ extension Session {
             if attachments.isEmpty && redraftOf == nil {
                 return try await client.sendNew(
                     to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
-                    scheduledAt: scheduledAt, from: from, htmlBody: html
+                    scheduledAt: scheduledAt, from: from, htmlBody: html, draftId: draftId
                 )
             }
             // Files ride the multipart route; the JSON route has no
@@ -99,7 +103,8 @@ extension Session {
             return try await client.sendMultipart(
                 to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
                 attachments: attachments, scheduledAt: scheduledAt,
-                redraftOf: redraftOf, redraftKeep: redraftKeep, from: from, htmlBody: html
+                redraftOf: redraftOf, redraftKeep: redraftKeep, from: from, htmlBody: html,
+                draftId: draftId
             )
         }
     }
@@ -140,12 +145,14 @@ extension Session {
     func saveDraft(
         id: Int64?, to: String, cc: String = "", bcc: String = "",
         subject: String, body: String, replyToThreadId: String?,
-        from: String = "", scheduledAt: Int64? = nil
+        from: String = "", scheduledAt: Int64? = nil,
+        attachments: [Wire.DraftAttachment]? = nil
     ) async -> Int64? {
         guard let client else { return nil }
         let request = Wire.SaveDraftRequest(
             id: id, to: to, cc: cc, bcc: bcc, subject: subject, body: body,
-            replyToThreadId: replyToThreadId, from: from, scheduledAt: scheduledAt
+            replyToThreadId: replyToThreadId, from: from, scheduledAt: scheduledAt,
+            attachments: attachments
         )
         return try? await client.saveDraft(request)
     }

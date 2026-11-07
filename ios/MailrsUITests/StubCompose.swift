@@ -30,6 +30,20 @@ extension MailrsUITestCase {
         return result
     }
 
+    /// The files a recorded send carried, by name and byte count: the
+    /// form's own, and the ones the stub attached from the draft it named.
+    /// A file uploaded when added goes the second way; one the send beat
+    /// to the server goes the first.
+    func sentFiles(_ sent: [String: Any]) -> [(name: String, bytes: Int)] {
+        let form = (sent["attachments"] as? [[String: Any]] ?? []).map {
+            (name: $0["filename"] as? String ?? "", bytes: $0["bytes"] as? Int ?? -1)
+        }
+        let kept = (sent["draft_attachments"] as? [[String: Any]] ?? []).map {
+            (name: $0["name"] as? String ?? "", bytes: $0["bytes"] as? Int ?? -1)
+        }
+        return kept + form
+    }
+
     /// A draft saved as another client would, straight to the stub.
     func storeDraft(_ fields: [String: Any]) {
         stubPost("/api/mail/drafts", json: fields)

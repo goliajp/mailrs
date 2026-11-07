@@ -292,12 +292,11 @@ final class ReplyFlowTests: MailrsUITestCase {
         guard let sent = sentMessages().last else {
             XCTFail("nothing reached the server"); return
         }
-        let files = sent["attachments"] as? [[String: Any]] ?? []
-        XCTAssertEqual(files.first?["filename"] as? String, "sample.txt")
+        XCTAssertEqual(sentFiles(sent).first?.name, "sample.txt", "\(sent)")
         XCTAssertEqual(sent["in_reply_to"] as? String, "<m2@x>",
-                       "the multipart route dropped in_reply_to")
+                       "the send with a file dropped in_reply_to")
         XCTAssertEqual(sent["reply_to_thread_id"] as? String, "t1",
-                       "the multipart route dropped reply_to_thread_id")
+                       "the send with a file dropped reply_to_thread_id")
     }
 
 
@@ -337,9 +336,8 @@ final class ReplyFlowTests: MailrsUITestCase {
         }
         XCTAssertEqual(sent["forward_message_id"] as? String, "<m2@x>",
                        "the file displaced the forward reference")
-        let files = sent["attachments"] as? [[String: Any]] ?? []
-        XCTAssertEqual(files.first?["filename"] as? String, "sample.txt",
-                       "the reference displaced the file")
+        XCTAssertEqual(sentFiles(sent).first?.name, "sample.txt",
+                       "the reference displaced the file: \(sent)")
         XCTAssertNil(sent["in_reply_to"] ?? nil, "a forward must not thread")
     }
 }
