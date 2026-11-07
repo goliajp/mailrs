@@ -59,6 +59,10 @@ struct Counts {
     walked: u64,
     already: u64,
     own: u64,
+    /// Never delivered here: a copy in a Sent folder, or a message no
+    /// Received line was ever added to (another sender name on mail the
+    /// account sent, for one).
+    not_received: u64,
     no_file: u64,
     recorded: u64,
     /// Of the messages read this walk, those that arrived in the last 90
@@ -108,7 +112,7 @@ fn walk(
                     c.already += 1;
                     continue;
                 }
-                let Some(raw) = state
+                let Some((path, raw)) = state
                     .mailbox
                     .user_message_facts(user, &mid)
                     .ok()
@@ -118,13 +122,17 @@ fn walk(
                             .get(crate::maildir_scan::base_id(&copy.blob_ref))
                             .cloned()
                     })
-                    .and_then(|path| std::fs::read(path).ok())
+                    .and_then(|path| std::fs::read(&path).ok().map(|raw| (path, raw)))
                 else {
                     c.no_file += 1;
                     continue;
                 };
                 if crate::ledger::is_own(user, &raw) {
                     c.own += 1;
+                    continue;
+                }
+                if !crate::ledger::was_received(&path, &raw) {
+                    c.not_received += 1;
                     continue;
                 }
                 match mailrs_inbound::dates::received_epoch(&raw) {
@@ -152,6 +160,7 @@ fn walk(
         walked = c.walked,
         already = c.already,
         own = c.own,
+        not_received = c.not_received,
         no_file = c.no_file,
         recorded = c.recorded,
         dry_run = q.dry_run,
@@ -163,6 +172,7 @@ fn walk(
         "messages_walked": c.walked,
         "already_recorded": c.already,
         "own_mail": c.own,
+        "not_received": c.not_received,
         "no_file": c.no_file,
         "recorded": c.recorded,
         "read_arrived_last_90_days": c.last_90_days,
