@@ -202,14 +202,15 @@ pub(crate) fn discard_batch(
 }
 
 /// Put every conversation of one batch back, each audited. A pending or a
-/// discarded batch holds nothing and is refused.
+/// discarded batch holds nothing and is refused, and so is one already put
+/// back: its time and its audit line say when that was, once.
 pub(crate) fn release_batch(
     state: &FastcoreState,
     observation: &str,
     actor: &str,
 ) -> Result<u64, Refused> {
     let mut e = entry(state, observation).ok_or(Refused::Missing)?;
-    if e.pending || e.discarded_at != 0 {
+    if e.pending || e.discarded_at != 0 || e.released_at != 0 {
         return Err(Refused::Conflict);
     }
     let store = state.mailbox.store_ref();
