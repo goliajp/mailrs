@@ -11,6 +11,7 @@ pub mod app;
 pub mod cli;
 pub mod clock;
 pub mod config;
+pub mod csp;
 pub mod daemon;
 pub mod engine;
 pub mod notify;

@@ -172,7 +172,7 @@ pub async fn get_attachment(
 fn attachment_policy(ct: &str) -> (axum::http::HeaderName, axum::http::HeaderValue) {
     match ct {
         "application/pdf" => (
-            crate::handlers::csp_report::HEADER,
+            crate::handlers::csp_report::header(),
             axum::http::HeaderValue::from_str(&crate::handlers::csp_report::framed_by_self())
                 .expect("the policy is ASCII"),
         ),
@@ -489,7 +489,7 @@ mod tests {
     fn only_a_pdf_may_be_framed_and_only_here() {
         let (name, pdf) = attachment_policy("application/pdf");
         let pdf = pdf.to_str().expect("ascii");
-        assert_eq!(name, crate::handlers::csp_report::HEADER);
+        assert_eq!(name, crate::handlers::csp_report::header());
         assert!(pdf.contains("frame-ancestors 'self'"), "{pdf}");
         assert!(!pdf.contains("frame-ancestors 'none'"), "{pdf}");
         assert_eq!(
