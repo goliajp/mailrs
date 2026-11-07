@@ -146,8 +146,12 @@ export async function wireDeletePendingSend(messageId: string): Promise<void> {
   })
 }
 
+/**
+ * Drafts with files are listed only to a client that asks: one that does
+ * not name the draft when it sends would send it without them.
+ */
 export async function wireListDrafts(): Promise<readonly WireDraft[]> {
-  const raw = await wireFetch(draftListSchema, { path: '/mail/drafts' })
+  const raw = await wireFetch(draftListSchema, { path: '/mail/drafts?with_attachments=true' })
   return raw.items
 }
 

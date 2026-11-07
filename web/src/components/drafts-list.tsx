@@ -46,6 +46,7 @@ export function DraftsList() {
   const openDraft = (d: Draft) => {
     setReplySource(null)
     setDraftSource({
+      attachments: d.attachments ?? [],
       attachmentsNotIncluded: d.attachments_not_included ?? [],
       bcc: d.bcc,
       body: d.body,
