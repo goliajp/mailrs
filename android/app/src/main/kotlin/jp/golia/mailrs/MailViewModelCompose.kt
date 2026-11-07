@@ -29,6 +29,7 @@ import jp.golia.mailrs.wire.RecentRecipients
 import jp.golia.mailrs.wire.RecipientAutocomplete
 import jp.golia.mailrs.wire.ReplyRecipients
 import jp.golia.mailrs.wire.ShareIntent
+import jp.golia.mailrs.wire.DraftSend
 import jp.golia.mailrs.wire.Wire
 
 /**
@@ -103,60 +104,6 @@ fun MailViewModel.compose(
 }
 
 /**
- * Take on a picked file.
- *
- * The name and size come from the content resolver rather than the
- * URI's last path segment: a document provider's URI is an opaque
- * id, and "msf:1000000042" is not a filename anybody wants to see
- * arrive in their mail.
- */
-fun MailViewModel.attach(uris: List<android.net.Uri>) {
-    val draft = _state.value.composing ?: return
-    val resolver = getApplication<Application>().contentResolver
-    val added = uris.mapNotNull { uri ->
-        runCatching {
-            resolver.query(uri, null, null, null, null)?.use { cursor ->
-                val nameAt = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                val sizeAt = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
-                if (!cursor.moveToFirst()) return@use null
-                Attached(
-                    uri = uri,
-                    filename = if (nameAt >= 0) cursor.getString(nameAt) else "attachment",
-                    size = if (sizeAt >= 0 && !cursor.isNull(sizeAt)) cursor.getLong(sizeAt) else 0,
-                )
-            }
-        }.getOrNull()
-    }
-    // **Say when one did not come through.** A provider can refuse to
-    // answer for a URI — a file on a share that has gone away, a
-    // document the granting app has since revoked — and picking three
-    // files to find two attached, with nothing said, is the reader
-    // being quietly lied to about what is going out.
-    val lost = uris.size - added.size
-    _state.update { state ->
-        state.copy(
-            composing = if (added.isEmpty()) {
-                state.composing
-            } else {
-                draft.copy(attachments = draft.attachments + added)
-            },
-            error = when (lost) {
-                0 -> state.error
-                1 -> Texts.get(R.string.compose_one_lost)
-                else -> Texts.get(R.string.compose_many_lost, lost)
-            },
-        )
-    }
-}
-
-fun MailViewModel.detach(a: Attached) {
-    val draft = _state.value.composing ?: return
-    _state.update { it.copy(
-        composing = draft.copy(attachments = draft.attachments.filterNot { it.uri == a.uri }),
-    ) }
-}
-
-/**
  * Start a message another app asked for.
  *
  * `mailto:` from a link, or the share sheet with text and files.
@@ -218,8 +165,17 @@ fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
     }
     _state.update { it.copy(sending = true, error = null) }
     viewModelScope.launch {
+        // the server attaches the draft's files, so they must be the ones shown
+        val draftId = when (val next = saveBeforeSend(draft)) {
+            is DraftSend.Next.Send -> next.draftId
+            DraftSend.Next.Stop -> {
+                _state.update { it.copy(sending = false, error = Texts.get(R.string.compose_files_not_saved)) }
+                return@launch
+            }
+        }
         val resolver = getApplication<Application>().contentResolver
         val (body, html) = outgoing(draft)
+        // files the server keeps go by draft_id; only the rest go in the form
         val r = if (draft.attachments.isEmpty()) {
             client.send(
                 recipients,
@@ -234,6 +190,7 @@ fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
                 redraftKeep = draft.keptCarried(),
                 from = draft.from,
                 htmlBody = html,
+                draftId = draftId,
             )
         } else {
             client.sendMultipart(
@@ -251,6 +208,7 @@ fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
                 redraftKeep = draft.keptCarried(),
                 from = draft.from,
                 htmlBody = html,
+                draftId = draftId,
             )
         }
         when (r) {

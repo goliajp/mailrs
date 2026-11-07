@@ -303,6 +303,9 @@
     <string name="compose_many_lost">%1$s 件のファイルを読み込めず、添付できませんでした</string>
     <string name="compose_no_recipient">宛先を入力してください</string>
     <string name="compose_could_not_save">%1$s を保存できませんでした：%2$s</string>
+    <string name="compose_files_not_saved">下書きの添付ファイルを保存できなかったため、送信していません。少し待ってからもう一度お試しください</string>
+    <string name="compose_uploading">アップロード中…</string>
+    <string name="compose_file_refused">下書きに保存されていません：%1$s</string>
     <string name="reset_mismatch">2 つのパスワードが一致しません</string>
     <string name="reset_done">新しいパスワードを設定しました。そのパスワードでサインインしてください</string>
     <string name="reset_ask_new_code">%1$s %2$s に新しいコードをもらってください</string>

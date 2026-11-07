@@ -71,13 +71,17 @@ data class Draft(
     val carried: List<Wire.RedraftAttachment> = emptyList(),
     val carriedDropped: Set<Int> = emptySet(),
     /**
-     * Files picked to go with it.
+     * Files the server keeps with this draft, uploaded when they were
+     * added. Every save names them and the send names the draft, so the
+     * server attaches them without this phone sending them again.
+     */
+    val stored: List<jp.golia.mailrs.wire.DraftAttachment> = emptyList(),
+    /**
+     * Picked files the server does not keep yet: still uploading, or
+     * refused. They go in the send's form.
      *
-     * In memory only, and deliberately: a server draft has nowhere
-     * to keep an attachment, and a `content://` URI granted to this
-     * activity does not survive the process — a draft reopened
-     * tomorrow with a file it can no longer read would be worse than
-     * one that says it has none.
+     * In memory only: a `content://` URI granted to this activity does
+     * not survive the process.
      */
     @kotlinx.serialization.Transient
     val attachments: List<Attached> = emptyList(),
@@ -87,8 +91,8 @@ data class Draft(
     @kotlinx.serialization.Transient
     val templates: List<jp.golia.mailrs.wire.Template> = emptyList(),
 ) {
-    /** Nothing typed and nothing quoted: not worth saving. */
+    /** Nothing typed, nothing quoted and no file kept: not worth saving. */
     val isEmpty: Boolean
         get() = to.isBlank() && cc.isBlank() && bcc.isBlank() &&
-            subject.isBlank() && body.isBlank()
+            subject.isBlank() && body.isBlank() && stored.isEmpty()
 }

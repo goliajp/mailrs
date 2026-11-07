@@ -26,7 +26,7 @@ data class SentNote(val messageId: String, val undo: Undo = Undo.Offered) {
  */
 internal fun MailViewModel.outgoing(draft: Draft): Pair<String, String?> {
     val body = MailSignature.append(draft.body, _state.value.signature)
-    return body to MarkdownHtml.forSend(body, wrapped = draft.forwardFrom == null || draft.attachments.isNotEmpty())
+    return body to MarkdownHtml.forSend(body, wrapped = draft.forwardFrom == null || draft.attachments.isNotEmpty() || draft.stored.isNotEmpty())
 }
 
 /** The composer closes and the list offers Undo while the server holds the send. */
