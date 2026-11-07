@@ -303,6 +303,9 @@
     <string name="compose_many_lost">有 %1$s 个文件无法读取，没有附上</string>
     <string name="compose_no_recipient">请填写收件人</string>
     <string name="compose_could_not_save">无法保存 %1$s：%2$s</string>
+    <string name="compose_files_not_saved">草稿的附件没能保存，邮件没有发出，请稍后再试</string>
+    <string name="compose_uploading">上传中…</string>
+    <string name="compose_file_refused">没有存进草稿：%1$s</string>
     <string name="reset_mismatch">两次输入的密码不一致</string>
     <string name="reset_done">新密码已设置，请用它登录</string>
     <string name="reset_ask_new_code">%1$s 请向 %2$s 要一个新的重置码</string>

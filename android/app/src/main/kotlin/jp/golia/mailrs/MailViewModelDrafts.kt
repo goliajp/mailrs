@@ -2,7 +2,7 @@ package jp.golia.mailrs
 
 import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.wire.MailrsClient
-import jp.golia.mailrs.wire.Wire
+import jp.golia.mailrs.wire.ServerDraft
 import jp.golia.mailrs.wire.deleteDraft
 import jp.golia.mailrs.wire.drafts
 import jp.golia.mailrs.wire.saveDraft
@@ -22,19 +22,7 @@ fun MailViewModel.cancelCompose() {
     _state.update { it.copy(composing = null, error = null) }
     if (draft == null || draft.isEmpty) return
     viewModelScope.launch {
-        val saved = client.saveDraft(
-            Wire.SaveDraftRequest(
-                id = draft.serverId,
-                to = draft.to,
-                cc = draft.cc,
-                bcc = draft.bcc,
-                subject = draft.subject,
-                body = draft.body,
-                replyToThreadId = draft.replyToThreadId,
-                from = draft.from,
-                scheduledAt = draft.scheduledAt,
-            ),
-        )
+        val saved = client.saveDraft(draft.saveRequest())
         if (saved is MailrsClient.Outcome.Ok) {
             _state.update { it.copy(draftSaved = true) }
         }
@@ -68,7 +56,7 @@ fun MailViewModel.closeDrafts() {
  * Its server id travels with it, so saving again updates the same
  * row rather than leaving a copy behind on every edit.
  */
-fun MailViewModel.editSavedDraft(d: Wire.Draft) {
+fun MailViewModel.editSavedDraft(d: ServerDraft) {
     _state.update { it.copy(
         draftsOpen = false,
         composing = Draft(
@@ -82,11 +70,12 @@ fun MailViewModel.editSavedDraft(d: Wire.Draft) {
             serverId = d.id,
             from = d.from,
             scheduledAt = d.scheduledAt,
+            stored = d.attachments,
         ),
     ) }
 }
 
-fun MailViewModel.discardDraft(d: Wire.Draft) {
+fun MailViewModel.discardDraft(d: ServerDraft) {
     // Optimistic, and rightly so — a discard that waits for the server
     // feels broken. But the answer has to be read: dropping it showed
     // a draft discarded and left it on the server, to reappear next

@@ -89,9 +89,9 @@ suspend fun MailrsClient.contacts(term: String): MailrsClient.Outcome<List<Strin
     kotlinx.serialization.serializer<String>(),
 )
 
-suspend fun MailrsClient.drafts(): MailrsClient.Outcome<List<Wire.Draft>> = decode(
-    get("/api/mail/drafts"),
-    Wire.Draft.serializer(),
+suspend fun MailrsClient.drafts(): MailrsClient.Outcome<List<ServerDraft>> = decode(
+    get(DraftSend.LIST_PATH),
+    ServerDraft.serializer(),
 )
 
 /**
@@ -102,11 +102,11 @@ suspend fun MailrsClient.drafts(): MailrsClient.Outcome<List<Wire.Draft>> = deco
  * the id on the second save would leave a trail of drafts behind
  * one message.
  */
-suspend fun MailrsClient.saveDraft(req: Wire.SaveDraftRequest): MailrsClient.Outcome<Long> {
-    val payload = json.encodeToString(Wire.SaveDraftRequest.serializer(), req)
+suspend fun MailrsClient.saveDraft(req: SaveDraftRequest): MailrsClient.Outcome<Long> {
+    val payload = json.encodeToString(SaveDraftRequest.serializer(), req)
     return when (val r = post(url("/api/mail/drafts"), payload, authorized = true)) {
         is MailrsClient.Outcome.Ok -> runCatching {
-            json.decodeFromString(Wire.SaveDraftResponse.serializer(), r.value).id
+            json.decodeFromString(SaveDraftResponse.serializer(), r.value).id
         }.fold(
             onSuccess = { MailrsClient.Outcome.Ok(it) },
             onFailure = { MailrsClient.Outcome.Err(Texts.get(R.string.error_shape, it.message)) },

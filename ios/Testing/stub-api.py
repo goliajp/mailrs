@@ -26,13 +26,13 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import stub_confirm, stub_invite, stub_paging, stub_triage, stub_verdict, stub_compose, stub_sections, stub_settings
 import stub_reset
+import stub_draft_files
 import stub_restart
 import stub_role
 import stub_login
 import stub_block
 import stub_saved
 import stub_upush
-import stub_draft_files
 
 WIDE = ('<table width="760" style="width:760px"><tr><td>'
         '<div style="width:760px;background:#eef;padding:8px">'
@@ -549,7 +549,7 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
-        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.state(self) or stub_triage.get(self, VERBS) or stub_verdict.get(self, MESSAGES) or stub_compose.get(self) or stub_draft_files.get(self) or stub_sections.get(self) or stub_settings.get(self) or stub_saved.get(self) or stub_upush.get(self):
+        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.state(self) or stub_triage.get(self, VERBS) or stub_verdict.get(self, MESSAGES) or stub_compose.get(self) or stub_draft_files.get(self, DRAFTS) or stub_sections.get(self) or stub_settings.get(self) or stub_saved.get(self) or stub_upush.get(self):
             return
         if self.path.split("?")[0] == "/api/conversations/search":
             query = parse_qs(urlparse(self.path).query)
@@ -872,12 +872,7 @@ class H(BaseHTTPRequestHandler):
             # the sheet shipped announcing "No drafts" over a full list.
             if LIST_DELAY_MS[0]:
                 time.sleep(LIST_DELAY_MS[0] / 1000)
-            # As the server: drafts with files only to a client that says
-            # it sends them with `draft_id`.
-            shown = list(DRAFTS.values())
-            if "with_attachments=true" not in self.path:
-                shown = [d for d in shown if not d.get("attachments")]
-            self._send(sorted(shown, key=lambda d: -d["updated_at"]))
+            self._send(stub_draft_files.listed(self, DRAFTS))
             return
         if self.path.split("?")[0] == "/debug/phish":
             PHISH_HITS[0] += 1
@@ -1261,7 +1256,7 @@ class H(BaseHTTPRequestHandler):
             # would otherwise 401 every test after it, and the failure
             # would look like anything but a leftover flag.
             REJECT_SESSION[0] = False
-            for stub in (stub_confirm, stub_invite, stub_restart, stub_role, stub_reset, stub_verdict, stub_compose, stub_sections, stub_settings, stub_upush, stub_draft_files):
+            for stub in (stub_confirm, stub_invite, stub_restart, stub_role, stub_reset, stub_verdict, stub_compose, stub_draft_files, stub_sections, stub_settings, stub_upush):
                 stub.reset()
             VERB_REFUSE.clear()
             FETCHED.clear()
@@ -1482,7 +1477,7 @@ class H(BaseHTTPRequestHandler):
                     record["to"].append(payload.decode())
                 elif name:
                     record[name] = payload.decode()
-            if not stub_draft_files.attach(self, record, DRAFTS):
+            if not stub_draft_files.sent(self, record, DRAFTS):
                 return
             SENT.append(record)
             self._send({"message_id": "<stub-multipart@golia.jp>", "success": True})
@@ -1497,7 +1492,7 @@ class H(BaseHTTPRequestHandler):
                     record = json.loads(self.rfile.read(length))
                 except ValueError:
                     record = {}
-                if not stub_draft_files.attach(self, record, DRAFTS):
+                if not stub_draft_files.sent(self, record, DRAFTS):
                     return
                 SENT.append(record)
             # `success` is part of the answer, not just the status code:

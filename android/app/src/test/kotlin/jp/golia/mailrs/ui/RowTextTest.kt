@@ -1,6 +1,6 @@
 package jp.golia.mailrs.ui
 
-import jp.golia.mailrs.wire.Wire
+import jp.golia.mailrs.wire.ServerDraft
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -35,7 +35,7 @@ class RowTextTest {
     /** Subject first — it is what the message is about. */
     @Test
     fun a_draft_row_leads_with_its_subject() {
-        val d = Wire.Draft(id = 1, to = "a@x.test", subject = "Lunch", body = "one")
+        val d = ServerDraft(id = 1, to = "a@x.test", subject = "Lunch", body = "one")
         assertEquals("Lunch", headline(d))
     }
 
@@ -46,19 +46,19 @@ class RowTextTest {
      */
     @Test
     fun a_draft_without_a_subject_names_who_it_is_to() {
-        val d = Wire.Draft(id = 1, to = "a@x.test", subject = "   ", body = "one")
+        val d = ServerDraft(id = 1, to = "a@x.test", subject = "   ", body = "one")
         assertEquals("To a@x.test", headline(d))
     }
 
     /** With neither, the first line that has anything on it. */
     @Test
     fun a_draft_with_only_a_body_shows_how_it_starts() {
-        val d = Wire.Draft(id = 1, body = "\n\n  the actual first line\nsecond")
+        val d = ServerDraft(id = 1, body = "\n\n  the actual first line\nsecond")
         assertEquals("the actual first line", headline(d))
     }
 
     @Test
     fun a_draft_with_nothing_at_all_says_so() {
-        assertEquals("Empty draft", headline(Wire.Draft(id = 1)))
+        assertEquals("Empty draft", headline(ServerDraft(id = 1)))
     }
 }
