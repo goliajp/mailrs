@@ -237,14 +237,17 @@ case "$MODE" in
         MAILRS_ANDROID_KEYSTORE_PASSWORD=$(devops secrets get mailrs.android.release-keystore-password | tr -d '\n')
         export MAILRS_ANDROID_KEYSTORE_PASSWORD
         export MAILRS_ANDROID_KEYSTORE_FILE="$keystore"
+        MAILRS_ANDROID_VERSION_CODE=$(git rev-list --count HEAD)
+        export MAILRS_ANDROID_VERSION_CODE
         (cd android && ./gradlew --no-daemon :app:assembleRelease)
         rm -f "$keystore"
-        unset MAILRS_ANDROID_KEYSTORE_PASSWORD MAILRS_ANDROID_KEYSTORE_FILE
+        unset MAILRS_ANDROID_KEYSTORE_PASSWORD MAILRS_ANDROID_KEYSTORE_FILE MAILRS_ANDROID_VERSION_CODE
         say "[2/2] verify the signature"
         out=android/app/build/outputs/apk/release/app-release.apk
         tools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
         "$tools/apksigner" verify --print-certs "$out" | grep -E "Signer: certificate (DN|SHA-256 digest)"
         shasum -a 256 "$out"
+        "$tools/aapt2" dump badging "$out" | head -1
         ;;
 
     *)
