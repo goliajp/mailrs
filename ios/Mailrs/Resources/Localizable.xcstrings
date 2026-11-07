@@ -1313,6 +1313,22 @@
         }
       }
     },
+    "Attach refused sample": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拒否されるサンプルを添付"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "附加会被拒绝的示例文件"
+          }
+        }
+      }
+    },
     "Attach sample file": {
       "localizations": {
         "ja": {
@@ -7676,6 +7692,22 @@
         }
       }
     },
+    "The draft’s attachments could not be saved, so the message was not sent. Try again in a moment": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下書きの添付ファイルを保存できなかったため、送信していません。少し待ってからもう一度お試しください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "草稿的附件没能保存，邮件没有发出，请稍后再试"
+          }
+        }
+      }
+    },
     "The incoming server needs a name": {
       "localizations": {
         "ja": {
@@ -8936,6 +8968,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "邀请已更新"
+          }
+        }
+      }
+    },
+    "Uploading…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップロード中…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上传中…"
           }
         }
       }

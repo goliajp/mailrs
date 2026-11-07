@@ -38,7 +38,9 @@ struct ComposeView: View {
     @State private var autosave: Task<Void, Never>?
     @State private var suggestions: [String] = []
     @State private var suggestionTask: Task<Void, Never>?
-    @State private var attachments: [MultipartForm.FilePart] = []
+    /// Uploaded when added and named by every save, so they outlive the
+    /// sheet; the send names the draft and the server attaches them.
+    @State private var files = DraftFiles()
     /// Which carried files the reader has taken off this re-edit.
     @State private var droppedCarried: Set<Int> = []
     /// The address it leaves by; empty is the account's own.
@@ -109,14 +111,7 @@ struct ComposeView: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                 }
-                if !attachments.isEmpty {
-                    Divider()
-                    VStack(spacing: 4) {
-                        AttachmentRows(attachments: $attachments)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                }
+                DraftFileRows(files: files)
                 if let failure {
                     Divider()
                     Text(failure)
@@ -136,7 +131,7 @@ struct ComposeView: View {
                         .accessibilityIdentifier("composer-cancel")
                 }
                 ToolbarItem(placement: .primaryActions) {
-                    AttachMenu(attachments: $attachments)
+                    AttachMenu(count: files.entries.count) { session.attach($0, to: files) }
                 }
                 ToolbarItem(placement: .primaryActions) {
                     TemplateMenu(templates: templates) { picked in
@@ -193,6 +188,7 @@ struct ComposeView: View {
                     draftId = resuming.id
                     from = resuming.from ?? ""
                     scheduledAt = resuming.scheduledAt
+                    files.restore(resuming.files)
                 }
                 if let redrafting {
                     to = redrafting.to.joined(separator: ", ")
@@ -205,6 +201,7 @@ struct ComposeView: View {
                 focus = .to
             }
             .onChange(of: [to, cc, bcc, subject, body_, from]) { _, _ in scheduleAutosave() }
+            .onChange(of: files.stored) { _, _ in scheduleAutosave() }
             .task {
                 // Read again: send-as rights can change while signed in,
                 // and the From list should say what is true now.
@@ -232,29 +229,39 @@ struct ComposeView: View {
         }
     }
 
+    /// A file kept, or one taken off a saved draft, is worth a save too.
+    private var worthSaving: Bool {
+        DraftRule.isWorthSaving(to: to, subject: subject, body: body_)
+            || !files.stored.isEmpty || files.needsSave
+    }
+
     private func saveNow() {
         guard !didSend else { return }
-        guard DraftRule.isWorthSaving(to: to, subject: subject, body: body_) else { return }
+        guard worthSaving else { return }
         let (recipients, copies, blind) = (to, cc, bcc)
         let (title, text, id) = (subject, body_, draftId)
-        let (sender, when) = (from, scheduledAt)
+        let (sender, when, kept) = (from, scheduledAt, files.stored)
         Task {
             _ = await session.saveDraft(
                 id: id, to: recipients, cc: copies, bcc: blind,
                 subject: title, body: text, replyToThreadId: nil,
-                from: sender, scheduledAt: when
+                from: sender, scheduledAt: when, attachments: kept
             )
             await session.loadDrafts()
         }
     }
 
     private func save() async {
-        guard DraftRule.isWorthSaving(to: to, subject: subject, body: body_) else { return }
-        draftId = await session.saveDraft(
+        guard worthSaving else { return }
+        let kept = files.stored
+        let saved = await session.saveDraft(
             id: draftId, to: to, cc: cc, bcc: bcc,
             subject: subject, body: body_, replyToThreadId: nil,
-            from: from, scheduledAt: scheduledAt
+            from: from, scheduledAt: scheduledAt, attachments: kept
         )
+        guard let saved else { return }
+        draftId = saved
+        files.saved(kept)
     }
 
     /// Which carried files survive the edit, or `nil` when nothing was
@@ -272,25 +279,30 @@ struct ComposeView: View {
     private func send(schedule: SendSchedule) async {
         sending = true
         failure = nil
+        autosave?.cancel()
+        // the server attaches the draft's files: they must be the ones shown
+        if files.needsSave { await save() }
+        if files.needsSave {
+            failure = DraftFileText.notSaved
+            sending = false
+            return
+        }
         do {
             try await session.sendNew(
                 to: AddressList.parse(to), cc: AddressList.parse(cc),
                 bcc: AddressList.parse(bcc), subject: subject,
                 body: MailSignature.append(body: body_, signature: session.signature),
-                attachments: attachments,
+                attachments: files.unsaved,
                 scheduledAt: SendSchedule.when(schedule, kept: scheduledAt),
                 redraftOf: redrafting?.redraftOf,
                 redraftKeep: keptCarried,
-                from: from
+                from: from, draftId: draftId
             )
-            // Sent, so it is no longer a draft. Cancel the pending
-            // autosave first or it recreates the one just deleted.
+            // Sent, so it is no longer a draft: the server deleted the one
+            // the send named. The guard stops the closing save refiling it.
             didSend = true
-            autosave?.cancel()
-            if let draftId {
-                await session.deleteDraft(id: draftId)
-                self.draftId = nil
-            }
+            if let draftId { session.drafts.removeAll { $0.id == draftId } }
+            draftId = nil
             dismiss()
         } catch {
             failure = error.localizedDescription
