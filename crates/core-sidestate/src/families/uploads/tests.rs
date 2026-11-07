@@ -143,6 +143,31 @@ fn the_same_bytes_are_one_file_and_an_account_has_a_limit() {
     assert_eq!(sha_of("B12"), None);
 }
 
+/// A full account takes no new upload, but a restore still keeps its files.
+#[test]
+fn a_full_account_refuses_an_upload_and_a_restore_keeps_its_file() {
+    let root = tempfile::tempdir().unwrap();
+    let dir = account_dir(root.path(), ALICE);
+    std::fs::create_dir_all(&dir).unwrap();
+    // sparse: counts toward the limit without taking the disk
+    std::fs::File::create(dir.join("filler"))
+        .unwrap()
+        .set_len(ACCOUNT_LIMIT)
+        .unwrap();
+    let now = SystemTime::now();
+    assert_eq!(
+        put(root.path(), ALICE, b"one more", now).unwrap(),
+        Put::Full
+    );
+    let sha = keep(root.path(), ALICE, b"one more", now).unwrap();
+    assert_eq!(std::fs::read(dir.join(&sha)).unwrap(), b"one more");
+    assert_eq!(
+        put(root.path(), ALICE, b"one more", now).unwrap(),
+        Put::Stored(sha),
+        "what is already there is used again"
+    );
+}
+
 #[test]
 fn the_account_purge_removes_the_directory_and_counts_its_files() {
     let root = tempfile::tempdir().unwrap();
