@@ -1,6 +1,6 @@
 //! What delivery records in the fact ledger about each message.
 
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 use std::time::Duration;
 
 use mailrs_mailbox_kevy::ledger::{IndexedLink, LedgerFacts, LedgerVerdict};
@@ -17,17 +17,7 @@ fn link_days() -> i64 {
         .unwrap_or(180)
 }
 
-/// The never-list with this server's domains: a host on it never gets an
-/// automatic reputation change, so mail is never found by it.
-pub(crate) static NEVER: LazyLock<mailrs_reputation::NeverList> = LazyLock::new(|| {
-    let own: Vec<String> = std::env::var("MAILRS_LOCAL_DOMAINS")
-        .unwrap_or_default()
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect();
-    mailrs_reputation::NeverList::builtin(&own)
-});
+pub(crate) use mailrs_intake::attachment_text::NEVER;
 
 /// The link hosts worth a row: not the sender's own domain (its domain index
 /// already finds that mail) and not on the never-list.

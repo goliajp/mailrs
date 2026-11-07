@@ -18,7 +18,7 @@ const DEFAULT_MODELS: &str = "/usr/share/mailrs/ocr";
 
 /// Where the child binary and the models are.
 #[derive(Debug, Clone)]
-pub(crate) struct OcrSetup {
+pub struct OcrSetup {
     /// The `mailrs-fastcore-ocr` executable.
     pub bin: PathBuf,
     /// Directory holding `det.onnx` and `rec.onnx`.

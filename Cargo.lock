@@ -4366,6 +4366,7 @@ dependencies = [
  "kevy-client",
  "mailrs-apns",
  "mailrs-arf",
+ "mailrs-attachment-extract",
  "mailrs-auth-guard",
  "mailrs-bayes",
  "mailrs-clean",
@@ -4406,6 +4407,7 @@ dependencies = [
  "testcontainers",
  "tokio",
  "tracing",
+ "zip",
 ]
 
 [[package]]
