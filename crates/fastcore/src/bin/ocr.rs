@@ -131,7 +131,7 @@ fn image(models: &std::path::Path, bytes: &[u8]) -> Result<Answer, mailrs_ocr::O
     })
 }
 
-/// The QR codes in an image, read as [`image`] reads them.
+/// The QR codes in an image, read as [`image()`] reads them.
 fn qr_image(bytes: &[u8]) -> Result<Answer, mailrs_ocr::OcrError> {
     let img = mailrs_ocr::input::decode_image(bytes, MAX_IMAGE_SIDE, MAX_DECODE_BYTES)?;
     Ok(Answer {
