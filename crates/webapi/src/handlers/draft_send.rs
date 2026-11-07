@@ -14,10 +14,18 @@
 //! lists drafts with files only to a client that asks for them with
 //! `with_attachments=true`. No client asks yet; the web composer and the
 //! apps do when they learn to keep files in drafts.
+//!
+//! An old client that loaded a draft before files were added to it
+//! elsewhere still holds it, and its send would go without them. So a send
+//! that names no draft is refused while a draft with files has exactly its
+//! recipients and subject: refusing a send that matched by chance costs a
+//! resend from a newer client, sending without the files cannot be undone.
 
 use mailrs_core_api::method::admin::DraftWire;
-use mailrs_core_sidestate::families::{draft_store, uploads};
+use mailrs_core_sidestate::families::correspondent::all_addresses;
+use mailrs_core_sidestate::families::{draft_store, prefs, uploads};
 use serde::Deserialize;
+use std::collections::BTreeSet;
 
 use crate::handlers::compose::{Attachment, ComposeParts};
 use crate::handlers::kevy_util::with_kevy;
@@ -86,6 +94,53 @@ pub(crate) async fn attach(
     }
     parts.attachments.splice(0..0, files);
     Ok(())
+}
+
+/// Refuse a send that names no draft while a draft with files has its
+/// recipients and subject.
+pub(crate) async fn refuse_files_left_behind(
+    user: &str,
+    id: Option<i64>,
+    parts: &ComposeParts,
+) -> Result<(), SendError> {
+    if id.is_some() {
+        return Ok(());
+    }
+    let key = prefs::drafts_key(user);
+    let values = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))?;
+    let drafts: Vec<DraftWire> = values
+        .iter()
+        .skip(1)
+        .step_by(2)
+        .filter_map(|v| serde_json::from_slice(v).ok())
+        .collect();
+    if !leaves_files_behind(&drafts, parts) {
+        return Ok(());
+    }
+    Err(SendError::new(
+        StatusCode::CONFLICT,
+        "this message is a draft with attachments that this app cannot send; update the app or send it from the web",
+    ))
+}
+
+fn leaves_files_behind(drafts: &[DraftWire], parts: &ComposeParts) -> bool {
+    let sent: BTreeSet<String> = parts
+        .to
+        .iter()
+        .chain(&parts.cc)
+        .chain(&parts.bcc)
+        .flat_map(|list| all_addresses(list))
+        .collect();
+    if sent.is_empty() {
+        return false;
+    }
+    drafts.iter().any(|d| {
+        let kept: BTreeSet<String> = [&d.to, &d.cc, &d.bcc]
+            .into_iter()
+            .flat_map(|list| all_addresses(list))
+            .collect();
+        !d.attachments.is_empty() && d.subject.trim() == parts.subject.trim() && kept == sent
+    })
 }
 
 /// What an attachment adds to the message: base64, lines of 76 + CRLF.
@@ -207,6 +262,74 @@ mod tests {
             to_drop(&[("a", 570), ("b", 5700), ("c", 2850)], 8000),
             vec!["b".to_string(), "c".to_string()]
         );
+    }
+
+    fn draft(to: &str, cc: &str, subject: &str, files: usize) -> DraftWire {
+        let mut d: DraftWire = serde_json::from_value(serde_json::json!({
+            "id": 1, "to": to, "cc": cc, "bcc": "", "subject": subject, "body": "",
+            "created_at": 1, "updated_at": 1,
+        }))
+        .unwrap();
+        for i in 0..files {
+            d.attachments
+                .push(mailrs_core_api::method::admin::DraftAttachment {
+                    blob_id: uploads::blob_id(&format!("{i}").repeat(64)),
+                    name: format!("f{i}.pdf"),
+                    content_type: "application/pdf".into(),
+                    size: 3,
+                });
+        }
+        d
+    }
+
+    fn send(to: &[&str], cc: &[&str], subject: &str) -> ComposeParts {
+        ComposeParts {
+            to: to.iter().map(|s| s.to_string()).collect(),
+            cc: cc.iter().map(|s| s.to_string()).collect(),
+            subject: subject.into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn a_send_matching_a_draft_with_files_is_refused() {
+        let drafts = [draft(
+            "Ann <ann@x.example>, bob@y.example",
+            "",
+            "Invoice",
+            1,
+        )];
+        // same people in another order and case, written another way
+        let p = send(&["BOB@y.example", "ann@x.example"], &[], " Invoice ");
+        assert!(leaves_files_behind(&drafts, &p));
+        // the same people split between to and cc is the same set
+        let p = send(&["ann@x.example"], &["bob@y.example"], "Invoice");
+        assert!(leaves_files_behind(&drafts, &p));
+    }
+
+    #[test]
+    fn a_send_differing_from_every_draft_with_files_goes() {
+        let drafts = [
+            draft("ann@x.example", "", "Invoice", 1),
+            draft("bob@y.example", "", "Notes", 0),
+        ];
+        assert!(!leaves_files_behind(
+            &drafts,
+            &send(&["ann@x.example"], &[], "Invoice 2")
+        ));
+        assert!(!leaves_files_behind(
+            &drafts,
+            &send(&["ann@x.example"], &["bob@y.example"], "Invoice")
+        ));
+        // a draft without files leaves nothing behind
+        assert!(!leaves_files_behind(
+            &drafts,
+            &send(&["bob@y.example"], &[], "Notes")
+        ));
+        assert!(!leaves_files_behind(
+            &[],
+            &send(&["ann@x.example"], &[], "Invoice")
+        ));
     }
 
     #[test]
