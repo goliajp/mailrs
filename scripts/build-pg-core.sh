@@ -76,8 +76,14 @@ docker run --rm --entrypoint sh "$FULL" -c 'ls -l /usr/local/bin/' | sed 's/^/  
 # only that it linked. A binary that panics on startup passes every build check
 # there is.
 echo
-echo "startup check (expected: a clear complaint about the missing backend)"
-docker run --rm "$FULL" 2>&1 | head -3 | sed 's/^/    /' || true
+echo "startup check: its first lines, then it is stopped"
+# Detached and removed by name: piping a foreground `docker run` into head
+# took the first lines and left the core running with nothing to stop it.
+check="mailrs-pg-core-startup-check-$$"
+docker run -d --rm --name "$check" "$FULL" >/dev/null
+sleep 5
+docker logs "$check" 2>&1 | head -5 | sed 's/^/    /'
+docker rm -f "$check" >/dev/null
 
 if [ "$PUSH" = 1 ]; then
     echo
