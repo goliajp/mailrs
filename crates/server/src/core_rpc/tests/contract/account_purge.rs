@@ -14,11 +14,13 @@ use mailrs_core_api::method::admin::{AddAccountRequest, RestoreAccountRequest};
 use mailrs_core_api::method::conversation::ListConversationsRequest;
 use mailrs_core_api::types::ConversationFilter;
 use mailrs_core_sidestate::families::account_purge::pending;
+use mailrs_core_sidestate::families::uploads;
 
 use super::ALICE;
 use super::harness::{Cores, Diffs, FASTCORE_KEVY, PG_CORE_KEVY};
 use super::intake::{Spools, envelope};
 use super::purge_fixture::*;
+use super::side_drafts::uploads_root;
 
 fn keys_naming(c: &mut kevy_client::Connection, address: &str) -> Vec<String> {
     c.keys(format!("*{address}*").as_bytes())
@@ -51,6 +53,34 @@ async fn answers(core: &Client) -> serde_json::Value {
         "dave": core.get_account_with_hash(DAVE).await.expect("dave"),
         "conversations": core.list_conversations(DAVE, &req).await.expect("conversations"),
     })
+}
+
+/// The files of the send returned as `draft`: both of the message's, in
+/// its order, each readable from dave's uploads.
+fn returned_files(draft: &serde_json::Value, url: &str) {
+    assert!(draft.get("attachments_not_included").is_none(), "{draft}");
+    let files = draft["attachments"].as_array().expect("attachments");
+    let listed: Vec<(&str, &str, u64)> = files
+        .iter()
+        .map(|f| {
+            let (name, ty) = (f["name"].as_str(), f["content_type"].as_str());
+            (name.unwrap(), ty.unwrap(), f["size"].as_u64().unwrap())
+        })
+        .collect();
+    assert_eq!(
+        listed,
+        [
+            ("agenda.pdf", "application/pdf", 9),
+            ("map.png", "image/png", 8)
+        ],
+        "{url}"
+    );
+    let root = uploads_root();
+    for f in files {
+        let path = uploads::path_of(&root, DAVE, f["blob_id"].as_str().unwrap()).unwrap();
+        let bytes = std::fs::read(&path).expect("the returned file is stored");
+        assert_eq!(bytes.len() as u64, f["size"].as_u64().unwrap(), "{url}");
+    }
 }
 
 /// Delete dave and restore him on both cores: each answers as before.
@@ -154,22 +184,21 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
             Some("see you on monday")
         );
         assert_eq!(draft["withheld_send_at"], 1_790_000_000);
-        assert_eq!(
-            draft["attachments_not_included"],
-            serde_json::json!(["agenda.pdf", "map.png"]),
-            "{}",
-            q.url
-        );
+        returned_files(draft, q.url);
         assert!(draft.get("scheduled_at").is_none(), "{draft}");
         let restored: Vec<String> = audit_details(q.url, "account.restore");
         assert!(
             restored
                 .iter()
-                .all(|r| r.contains("rescheduled=1 drafts=1 attachments_not_included=2")),
+                .all(|r| r.contains("rescheduled=1 drafts=1 attachments=2")),
             "{}: {restored:?}",
             q.url
         );
     }
+
+    // both cores share this one upload store, so whichever purged first
+    // would leave the other nothing to count
+    std::fs::remove_dir_all(uploads::account_dir(&uploads_root(), DAVE)).expect("dave's uploads");
 
     d.both(
         "remove_account dave",

@@ -94,19 +94,30 @@ pub enum Put {
 pub fn put(root: &Path, user: &str, bytes: &[u8], now: SystemTime) -> io::Result<Put> {
     let sha = hex(&Sha256::digest(bytes));
     let dir = account_dir(root, user);
+    if !dir.join(&sha).exists() && used(&dir) + bytes.len() as u64 > ACCOUNT_LIMIT {
+        return Ok(Put::Full);
+    }
+    store(&dir, sha, bytes, now).map(Put::Stored)
+}
+
+/// Store `bytes` for `user` past [`ACCOUNT_LIMIT`], for an account restore,
+/// which must not fail. Returns the SHA-256.
+pub fn keep(root: &Path, user: &str, bytes: &[u8], now: SystemTime) -> io::Result<String> {
+    let sha = hex(&Sha256::digest(bytes));
+    store(&account_dir(root, user), sha, bytes, now)
+}
+
+fn store(dir: &Path, sha: String, bytes: &[u8], now: SystemTime) -> io::Result<String> {
     let path = dir.join(&sha);
-    std::fs::create_dir_all(&dir)?;
+    std::fs::create_dir_all(dir)?;
     if path.exists() {
         touch(&path, now)?;
-        return Ok(Put::Stored(sha));
-    }
-    if used(&dir) + bytes.len() as u64 > ACCOUNT_LIMIT {
-        return Ok(Put::Full);
+        return Ok(sha);
     }
     let tmp = dir.join(format!(".{sha}.part"));
     std::fs::write(&tmp, bytes)?;
     std::fs::rename(&tmp, &path)?;
-    Ok(Put::Stored(sha))
+    Ok(sha)
 }
 
 /// Total bytes held, for /api/health.

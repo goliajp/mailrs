@@ -83,7 +83,8 @@ pub fn drafts_counter_key(user: &str) -> String {
 }
 
 /// What a draft an account's restore returned says about the message it
-/// was: when it was set to go, and the attachments it did not carry.
+/// was: when it was set to go, and, on a draft returned before restores
+/// copied attachments, the ones it did not carry.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct RestoreNotes {
     pub withheld_send_at: Option<i64>,

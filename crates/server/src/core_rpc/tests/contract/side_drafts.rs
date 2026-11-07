@@ -10,11 +10,18 @@ use super::harness::{Cores, Diffs};
 
 const MINTED: &[&str] = &["id", "created_at", "updated_at"];
 
+/// The upload store both cores read in this test: one directory, as in
+/// prod, where every process mounts the same volume.
+pub(super) fn uploads_root() -> std::path::PathBuf {
+    let root = std::env::temp_dir().join("mailrs-contract-uploads");
+    // SAFETY: always the same value, set before either core reads it
+    unsafe { std::env::set_var("MAILRS_JMAP_UPLOAD_DIR", &root) };
+    root
+}
+
 pub(super) async fn drafts_with_files(c: &Cores, d: &mut Diffs) {
     let (fc, pg) = (&c.fastcore, &c.pg_core);
-    let root = std::env::temp_dir().join("mailrs-contract-uploads");
-    // SAFETY: the only test that sets it, before either core reads it here
-    unsafe { std::env::set_var("MAILRS_JMAP_UPLOAD_DIR", &root) };
+    let root = uploads_root();
     let uploads::Put::Stored(sha) =
         uploads::put(&root, ALICE, b"the agenda", std::time::SystemTime::now()).unwrap()
     else {
