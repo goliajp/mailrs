@@ -29,12 +29,7 @@ pub fn assess(
     image_text: &str,
     never_listed: impl Fn(&str) -> bool,
 ) -> QrFacts {
-    let code_domains: Vec<String> = urls
-        .iter()
-        .filter_map(|u| host_of(u))
-        .map(|h| registrable(&h))
-        .filter(|d| !d.is_empty())
-        .collect();
+    let code_domains = code_domains(urls);
     if code_domains.is_empty() {
         return QrFacts::default();
     }
@@ -46,10 +41,38 @@ pub fn assess(
     let named = named_domains(image_text);
     let text_mismatch = !named.is_empty() && !named.iter().any(|n| code_domains.contains(n));
     QrFacts {
-        codes: code_domains.len(),
+        codes: urls
+            .iter()
+            .filter_map(|u| host_of(u))
+            .filter(|h| !registrable(h).is_empty())
+            .count(),
         host_not_in_message,
         text_mismatch,
     }
+}
+
+/// The registrable domains `urls` go to, once each, in order.
+#[must_use]
+pub fn code_domains(urls: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for d in code_hosts(urls).iter().map(|h| registrable(h)) {
+        if !d.is_empty() && !out.contains(&d) {
+            out.push(d);
+        }
+    }
+    out
+}
+
+/// The hosts `urls` go to, lowercased, once each, in order.
+#[must_use]
+pub fn code_hosts(urls: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for h in urls.iter().filter_map(|u| host_of(u)) {
+        if !out.contains(&h) {
+            out.push(h);
+        }
+    }
+    out
 }
 
 fn host_of(url: &str) -> Option<String> {
@@ -149,6 +172,22 @@ mod tests {
         assert!(!assess(&urls, "mail.example", &links, "", never).host_not_in_message);
         let maps = ["https://maps.google.com/x".to_string()];
         assert!(!assess(&maps, "mail.example", &[], "", never).host_not_in_message);
+    }
+
+    #[test]
+    fn the_domains_of_codes_are_listed_once_each() {
+        let urls = [
+            "https://a.shop.example/x".to_string(),
+            "https://b.shop.example/y".to_string(),
+            "HTTPS://Pay.Other.example:8443/z".to_string(),
+            "https://".to_string(),
+        ];
+        assert_eq!(code_domains(&urls), ["shop.example", "other.example"]);
+        assert_eq!(
+            code_hosts(&urls),
+            ["a.shop.example", "b.shop.example", "pay.other.example"]
+        );
+        assert_eq!(assess(&urls, "x.example", &[], "", never).codes, 3);
     }
 
     #[test]

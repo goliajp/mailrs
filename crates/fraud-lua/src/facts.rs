@@ -78,6 +78,8 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
             "new_link_domain",
             f.novelty.new_link_domain.clone().unwrap_or_default(),
         ),
+        ("qr_domains", f.qr_domains.to_string()),
+        ("new_qr_domain", f.new_qr_domain.clone().unwrap_or_default()),
     ] {
         if v.len() > 64 * 1024 {
             return Err(format!("fact {k} exceeds 64 KiB"));
@@ -94,6 +96,12 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         .map_err(|e| lua.vm().error_text(&e))?;
     t.set(lua, "date_ahead", f.date_ahead)
         .map_err(|e| lua.vm().error_text(&e))?;
+    t.set(
+        lua,
+        "qr_codes",
+        i64::try_from(f.qr.codes).unwrap_or(i64::MAX),
+    )
+    .map_err(|e| lua.vm().error_text(&e))?;
     // -1: no first-seen time recorded for the sender's domain
     t.set(
         lua,
@@ -155,6 +163,10 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ("sender_domain_established", f.novelty.established()),
         ("sender_domain_new", f.novelty.sender_new),
         ("link_domain_new", f.novelty.new_link_domain.is_some()),
+        ("has_links", f.has_links),
+        ("qr_host_not_in_message", f.qr.host_not_in_message),
+        ("qr_text_mismatch", f.qr.text_mismatch),
+        ("qr_domain_new", f.new_qr_domain.is_some()),
     ] {
         t.set(lua, k, v).map_err(|e| lua.vm().error_text(&e))?;
     }

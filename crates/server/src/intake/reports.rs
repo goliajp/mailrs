@@ -130,6 +130,8 @@ impl ReportStore for PgCore {
             policy: hold_rule::policy(names),
             our_stamp: self.dir.authserv_id.clone(),
             attachment_texts,
+            // this core reads no images for QR codes
+            qr_urls: Vec::new(),
         }
     }
 

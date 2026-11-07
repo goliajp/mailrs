@@ -66,7 +66,10 @@ class VerdictFlowTest : MailrsUiTest() {
         assertTrue("content rule's score not shown", exists("verdict.layer.content", "+6.0"))
         assertTrue("a passing layer did not say so", exists("verdict.layer.provenance", "Nothing found."))
         assertTrue("no SPF/DKIM/DMARC line", exists("sender.checks", "DKIM: none"))
-        assertTrue("no callback notice", exists("callback.notice", "+81 3-1234-5678"))
+        // the stub's history says the sender gave 0120-111-222 in another
+        // conversation, and +81 3-1234-5678 first in this very message
+        waitFor("no callback notice") { exists("callback.notice", "+81 3-1234-5678") }
+        assertTrue("a number given in another conversation was named", !exists("callback.notice", "0120-111-222"))
         assertTrue("no placement note on the filed message", exists("verdict.placement", "Promotions"))
 
         compose.onAllNodesWithTag("verdict.release").onFirst().performScrollTo().performClick()

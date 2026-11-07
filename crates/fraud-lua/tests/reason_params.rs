@@ -114,6 +114,9 @@ fn lookalike() -> Relation {
 
 /// One message per rule that names facts, and the params it should carry.
 /// A rule, a message it fires on, and the params it should carry.
+#[path = "reason_params/qr.rs"]
+mod qr;
+
 type Case = (
     &'static str,
     Facts<'static>,
@@ -409,7 +412,7 @@ fn each_shipped_rule_names_the_facts_its_sentence_needs() {
         serde_json::from_str(include_str!("../../inbound/src/reasons.json")).expect("reasons.json");
     let mut rules = Rules::compile(DEFAULT_SOURCE).expect("compiles");
     let mut covered = BTreeSet::new();
-    for (rule, facts, want) in cases() {
+    for (rule, facts, want) in cases().into_iter().chain(qr::cases(base())) {
         let out = rules.classify(&facts, &policy());
         assert!(out.errors.is_empty(), "{rule}: {:?}", out.errors);
         // shadow rules included: their sentences are needed the day they

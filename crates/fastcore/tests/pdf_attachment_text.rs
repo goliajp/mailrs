@@ -211,10 +211,10 @@ async fn rescan_dry(state: &Arc<mailrs_fastcore::FastcoreState>) -> serde_json::
     .await
 }
 
-async fn backfill(state: &Arc<mailrs_fastcore::FastcoreState>, dry: bool) -> serde_json::Value {
+async fn backfill(state: &Arc<mailrs_fastcore::FastcoreState>, query: &str) -> serde_json::Value {
     call(
         state,
-        &format!("/v1/admin/maintenance:backfill-attachment-text?dry_run={dry}"),
+        &format!("/v1/admin/maintenance:backfill-attachment-text?{query}"),
         serde_json::json!({}),
     )
     .await
@@ -420,23 +420,40 @@ async fn a_word_inside_a_pdf_finds_the_conversation() {
     );
     m.dequeue_attachment_text(BOB, "old1@example.org").unwrap();
 
-    let dry = backfill(&state, true).await;
+    let dry = backfill(&state, "select=text&dry_run=true").await;
     assert_eq!(dry["messages_walked"], 4, "{dry}");
     assert_eq!(dry["files_read"], 4, "{dry}");
     assert_eq!(dry["with_readable"], 3, "{dry}");
     assert_eq!(dry["already_done"], 2, "{dry}");
     assert_eq!(dry["already_done_failed"], 1, "{dry}");
+    assert_eq!(dry["never_read"], 1, "{dry}");
     assert_eq!(dry["queued"], 0, "{dry}");
     assert!(!m.attachment_text_queued(BOB, "old1@example.org").unwrap());
-    let wet = backfill(&state, false).await;
-    assert_eq!(wet["queued"], 1, "{wet}");
-    assert_eq!(backfill(&state, false).await["already_queued"], 1);
+    // never read is not the QR selector's
+    let qr = backfill(&state, "select=qr_only&dry_run=false").await;
     assert_eq!(
-        mailrs_fastcore::attachment_text::run_once(&state)
-            .await
-            .stored,
-        1
+        (qr["queued"].as_u64(), qr["qr_only"].as_u64()),
+        (Some(0), Some(0)),
+        "{qr}"
     );
+    let started = backfill(&state, "select=text&dry_run=false").await;
+    assert_eq!(started["state"], "running", "{started}");
+    let mut stored = 0;
+    let mut progress = serde_json::Value::Null;
+    for _ in 0..300 {
+        stored += mailrs_fastcore::attachment_text::run_once(&state)
+            .await
+            .stored;
+        progress = backfill(&state, "select=text&dry_run=true&limit=0").await["backlog"].clone();
+        if progress["state"] != "running" {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    assert_eq!(progress["state"], "done", "{progress}");
+    assert_eq!(progress["queued"], 1, "{progress}");
+    assert_eq!(progress["never_read"], 1, "{progress}");
+    assert_eq!(stored, 1);
     let mut both = search(&state, BOB).await;
     both.sort();
     assert_eq!(

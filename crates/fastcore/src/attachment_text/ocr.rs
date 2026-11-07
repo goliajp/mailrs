@@ -59,6 +59,10 @@ pub(crate) enum Job<'a> {
     Image,
     /// These pages, from 0.
     Pdf(&'a [usize]),
+    /// The QR codes in an image, no text.
+    QrImage,
+    /// The QR codes on these pages, no text.
+    QrPdf(&'a [usize]),
 }
 
 /// The child's answer.
@@ -76,10 +80,9 @@ pub(crate) fn run(setup: &OcrSetup, job: Job<'_>, bytes: &[u8]) -> Result<Answer
     let mut cmd = Command::new(&setup.bin);
     match job {
         Job::Image => cmd.arg("image"),
-        Job::Pdf(pages) => {
-            let list: Vec<String> = pages.iter().map(usize::to_string).collect();
-            cmd.arg("pdf").arg(list.join(","))
-        }
+        Job::Pdf(pages) => cmd.arg("pdf").arg(page_list(pages)),
+        Job::QrImage => cmd.arg("qr-image"),
+        Job::QrPdf(pages) => cmd.arg("qr-pdf").arg(page_list(pages)),
     };
     let mut child = cmd
         .env("MAILRS_OCR_MODEL_DIR", &setup.models)
@@ -134,6 +137,11 @@ pub(crate) fn run(setup: &OcrSetup, job: Job<'_>, bytes: &[u8]) -> Result<Answer
         return Err(format!("{status}: {}", msg.trim()));
     }
     serde_json::from_slice(&out).map_err(|e| format!("reading the answer: {e}"))
+}
+
+fn page_list(pages: &[usize]) -> String {
+    let list: Vec<String> = pages.iter().map(usize::to_string).collect();
+    list.join(",")
 }
 
 #[cfg(test)]

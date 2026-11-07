@@ -1,0 +1,10 @@
+{
+  "sender": "desk@hotel.example",
+  "numbers": [
+    {
+      "number": "0312345678",
+      "first_seen": 1790000000,
+      "first_message_id": "<first@hotel.example>"
+    }
+  ]
+}

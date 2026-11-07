@@ -33,6 +33,21 @@ pub fn attachment_text_state(message_id: &str) -> String {
     format!("mailrs:attstate:{message_id}")
 }
 
+/// The web addresses the QR codes in a message's images and scanned pages
+/// carry — hash with [`ATTACHMENT_QR_FIELD`], one address per line.
+/// Written with the message's [`attachment_text_state`] and removed with it.
+///
+/// Not under [`ATTTEXT_PREFIX`]: an address is not text to search.
+pub fn attachment_qr(message_id: &str) -> String {
+    format!("mailrs:attqr:{message_id}")
+}
+
+/// Field on an [`attachment_qr`] hash.
+pub const ATTACHMENT_QR_FIELD: &[u8] = b"urls";
+
+/// Addresses kept per message: four codes on each of ten images.
+pub const ATTACHMENT_QR_MAX: usize = 40;
+
 /// Messages waiting for extraction — set of `{user}\t{message_id}`.
 ///
 /// A queue, so it is kept by hand: delivery adds, the worker removes after
@@ -47,6 +62,14 @@ pub const ATTACHMENT_TEXT_ATTEMPTS: &[u8] = b"mailrs:attattempts";
 /// Queue members given up on because the process died reading them every
 /// time it tried: set of `{user}\t{message_id}`.
 pub const ATTACHMENT_TEXT_SET_ASIDE: &[u8] = b"mailrs:attsetaside";
+
+/// Where the run over mail read by an older extractor stands — hash with
+/// [`ATTACHMENT_BACKLOG_FIELD`], one JSON document written whole. Its
+/// cursor lets the run stop and resume, across restarts.
+pub const ATTACHMENT_BACKLOG: &[u8] = b"mailrs:attbacklog";
+
+/// Field on [`ATTACHMENT_BACKLOG`].
+pub const ATTACHMENT_BACKLOG_FIELD: &[u8] = b"progress";
 
 /// Truncate `text` to at most `cap` bytes without splitting a char.
 pub fn cap_text(text: &str, cap: usize) -> &str {

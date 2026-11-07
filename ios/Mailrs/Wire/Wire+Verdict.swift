@@ -107,6 +107,29 @@ extension Wire {
     struct FraudVerdictResponse: Decodable, Sendable {
         let verdict: FraudVerdict?
     }
+
+    /// A phone number a sender gave the reader, in any conversation.
+    ///
+    /// Backend: `list` in crates/webapi/src/handlers/callback_numbers.rs.
+    /// `number` is digits only; `firstMessageId` is the earliest message
+    /// that gave it, in the form of `Message.messageId`.
+    struct GivenNumber: Decodable, Equatable, Sendable {
+        let number: String
+        let firstSeen: Int64
+        let firstMessageId: String
+
+        enum CodingKeys: String, CodingKey {
+            case number
+            case firstSeen = "first_seen"
+            case firstMessageId = "first_message_id"
+        }
+    }
+
+    /// `GET /api/senders/{address}/callback-numbers`.
+    struct CallbackHistory: Decodable, Sendable {
+        let sender: String
+        let numbers: [GivenNumber]
+    }
 }
 
 extension MailrsClient {
@@ -121,5 +144,11 @@ extension MailrsClient {
         } catch {
             throw MailrsError.decoding("fraud verdict — \(error)")
         }
+    }
+
+    /// `GET /api/senders/{address}/callback-numbers`: the numbers `sender`
+    /// (a bare, lowercased address) gave the signed-in reader.
+    func callbackHistory(sender: String) async throws -> Wire.CallbackHistory {
+        try await getJSON("/api/senders/\(MailrsClient.segment(sender))/callback-numbers")
     }
 }

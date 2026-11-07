@@ -7,10 +7,11 @@
 //! live receive path owns every write to the history, so judging the same
 //! message twice cannot change what it is judged against.
 
+pub mod qr_domain;
 mod reading;
 pub mod relation;
 pub mod stamp;
-pub use reading::Reading;
+pub use reading::{Extracted, Reading};
 
 /// What the rules make of one stored message.
 pub struct Judged {
@@ -27,15 +28,16 @@ pub struct Judged {
 /// `our_stamp` is this deployment's `authserv-id`; `hist` the network
 /// store the receive path records sender history in, read and never
 /// written. Without it the history reads as empty, which [`domain_seen`]
-/// and [`reply_rotation`] explain.
+/// and [`reply_rotation`] explain. `extracted` is what the attachment
+/// reader stored for it.
 pub fn judge(
     raw: &[u8],
     our_stamp: Option<&str>,
-    attachment_texts: &[String],
+    extracted: Extracted<'_>,
     policy: &mailrs_fraud::Policy,
     hist: &mut Option<kevy_client::Connection>,
 ) -> Result<Judged, String> {
-    judge_for(raw, None, our_stamp, attachment_texts, policy, hist)
+    judge_for(raw, None, our_stamp, extracted, policy, hist)
 }
 
 /// [`judge`], for one reader: `reader` is `(user, when the message is
@@ -45,7 +47,7 @@ pub fn judge_for(
     raw: &[u8],
     reader: Option<(&str, relation::Counted)>,
     our_stamp: Option<&str>,
-    attachment_texts: &[String],
+    extracted: Extracted<'_>,
     policy: &mailrs_fraud::Policy,
     hist: &mut Option<kevy_client::Connection>,
 ) -> Result<Judged, String> {
@@ -53,7 +55,7 @@ pub fn judge_for(
         raw,
         reader,
         our_stamp,
-        attachment_texts,
+        extracted,
         policy,
         hist,
         &mut crate::scan,
@@ -70,12 +72,12 @@ pub fn judge_with(
     raw: &[u8],
     reader: Option<(&str, relation::Counted)>,
     our_stamp: Option<&str>,
-    attachment_texts: &[String],
+    extracted: Extracted<'_>,
     policy: &mailrs_fraud::Policy,
     hist: &mut Option<kevy_client::Connection>,
     scan: &mut Scanner<'_>,
 ) -> Result<Judged, String> {
-    let msg = Reading::of(raw, our_stamp, attachment_texts);
+    let msg = Reading::of_extracted(raw, our_stamp, extracted);
     let seen = domain_seen(hist.as_mut(), &msg.from);
     let rotation = reply_rotation(hist, &msg.host, &msg.reply_to);
     let rel = match reader {
@@ -97,8 +99,10 @@ pub fn judge_with(
         &msg.link_hosts,
         at,
     );
+    let new_qr_domain = qr_domain::new_domain(hist.as_mut(), &msg, at);
     let facts = mailrs_fraud::Facts {
         novelty,
+        new_qr_domain,
         ..msg.facts(seen, rotation, rel)
     };
     let scan = scan(&facts, policy)?;

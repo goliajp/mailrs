@@ -32,13 +32,7 @@ fn default_max_secs() -> u64 {
     300
 }
 
-/// This process's resident memory, in bytes, from `/proc/self/status`.
-fn rss() -> Option<u64> {
-    let status = std::fs::read_to_string("/proc/self/status").ok()?;
-    let line = status.lines().find(|l| l.starts_with("VmRSS:"))?;
-    let kb: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
-    Some(kb * 1024)
-}
+use super::attachment_backlog::own_rss as rss;
 
 /// `POST /v1/admin/maintenance:ledger-estimate?limit=10000`
 pub(crate) async fn ledger_estimate_route(

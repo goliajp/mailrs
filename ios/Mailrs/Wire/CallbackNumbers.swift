@@ -54,14 +54,22 @@ enum CallbackNumbers {
     }()
 
     /// Numbers in `message` that no earlier message from the same address
-    /// in `earlier` carried: a number a correspondent always signs with is
-    /// not worth pointing out, a new one asking to be called is.
-    static func new(in message: Wire.Message, earlier: [Wire.Message]) -> [String] {
+    /// in `earlier` carried, and that `history` (what the sender gave the
+    /// reader in any conversation) does not list: a number a correspondent
+    /// always signs with is not worth pointing out, a new one asking to be
+    /// called is.
+    static func new(
+        in message: Wire.Message, earlier: [Wire.Message], history: [Wire.GivenNumber] = []
+    ) -> [String] {
         let own = message.sender.lowercased()
-        let before = Set(
+        var before = Set(
             earlier
                 .filter { $0.sender.lowercased() == own }
                 .flatMap { phoneNumbers(in: plainText($0)).map(digits) })
+        // the history holds this message's own numbers too, first given by it
+        for given in history where given.firstMessageId != message.messageId {
+            before.insert(given.number)
+        }
         return Array(
             phoneNumbers(in: plainText(message))
                 .filter { !before.contains(digits($0)) }

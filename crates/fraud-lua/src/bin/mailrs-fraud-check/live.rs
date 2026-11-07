@@ -63,6 +63,8 @@ pub fn merge(pages: &str, candidate: &str) -> Result<Value, String> {
     let mut by_rule: Map<String, Value> = Map::new();
     let mut domains = BTreeSet::new();
     let mut samples = Vec::new();
+    let mut shadow = Map::new();
+    let mut shadow_samples = Vec::new();
     for (i, page) in pages.iter().enumerate() {
         if page["dry_run"] != true || page["candidate"] != candidate {
             return Err(format!(
@@ -118,6 +120,12 @@ pub fn merge(pages: &str, candidate: &str) -> Result<Value, String> {
                 samples.push(s.clone());
             }
         }
+        add_map(&mut shadow, &page["shadow_by_rule"]);
+        for s in page["shadow_samples"].as_array().into_iter().flatten() {
+            if shadow_samples.len() < 50 {
+                shadow_samples.push(s.clone());
+            }
+        }
     }
     let mut out = Map::new();
     out.insert("candidate".into(), candidate.into());
@@ -131,6 +139,10 @@ pub fn merge(pages: &str, candidate: &str) -> Result<Value, String> {
     );
     out.insert("by_rule".into(), Value::Object(by_rule));
     out.insert("samples".into(), samples.into());
+    // conversations each shadow rule hit; moves nothing, so it is apart
+    // from the counts above
+    out.insert("shadow_by_rule".into(), Value::Object(shadow));
+    out.insert("shadow_samples".into(), shadow_samples.into());
     out.insert("not_modelled".into(), serde_json::json!(NOT_MODELLED));
     Ok(Value::Object(out))
 }
@@ -178,6 +190,10 @@ pub fn summary(live: &Value) -> Vec<String> {
     }
     lines.push(format!("by rule: {}", live["by_rule"]));
     lines.push(format!(
+        "shadow hits by rule (conversations; nothing moved): {}",
+        live["shadow_by_rule"]
+    ));
+    lines.push(format!(
         "conversations: {} walked, {} without a file ({} of them held), {} failed, {} kept released by a person, {} whitelisted from Junk",
         n("threads_walked"),
         n("no_file"),
@@ -202,6 +218,8 @@ mod tests {
             "next_skip": skip + walked, "threads_walked": walked,
             "no_file": 1, "verdict_failed": 0, "kept_released": 0,
             "held_but_unreadable": 0, "scored_but_whitelisted": 0,
+            "shadow_by_rule": {"s": hold},
+            "shadow_samples": [{"rule": "s"}],
             "from_stored": {
                 "would_hold": hold, "would_release": 0, "would_move_to_junk": 0,
                 "would_move_out_of_junk": 0, "would_move_to_inbox": 0,
@@ -227,6 +245,9 @@ mod tests {
         assert_eq!(m["threads_walked"], 3);
         assert_eq!(m["no_file"], 2);
         assert_eq!(m["by_rule"]["hold"]["r"], 3);
+        // shadow hits are summed apart from what moves
+        assert_eq!(m["shadow_by_rule"]["s"], 3);
+        assert_eq!(m["shadow_samples"].as_array().map(Vec::len), Some(2));
         assert_eq!(
             m["out_of_inbox_sender_domains"],
             serde_json::json!(["a.invalid", "b.invalid"])
