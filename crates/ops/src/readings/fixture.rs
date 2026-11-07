@@ -59,6 +59,13 @@ pub fn webapi(now: i64) -> serde_json::Value {
         "kevy_server_memory": { "used_bytes": 100, "limit_bytes": 1000, "high": false },
         "quota": { "accounts": 5, "accounts_without_limit": 0, "over_80": 0, "computed_at": now, "stale": false },
         "new_domains": { "keys": 100, "added_24h": 3, "computed_at": now, "stale": false },
+        "fraud_hits": {
+            "version": "lua:abc",
+            "by_rule_today": { "brand-lookalike": 2, "report-no-fingerprint": 0 },
+            "by_rule_30d": { "brand-lookalike": 40, "report-no-fingerprint": 3 },
+            "computed_at": now,
+            "stale": false
+        },
         "jmap_uploads": { "volume_free_bytes": 500u64 << 30 },
         "set_aside": { "attachment_text": 0, "fraud_backfill": null, "sender": 0 },
     })

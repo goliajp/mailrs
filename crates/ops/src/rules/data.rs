@@ -7,14 +7,22 @@ use crate::readings::Snapshot;
 const MIN: i64 = 60;
 const GB: u64 = 1 << 30;
 
-pub(super) static RULES: &[&Rule] = &[&KEVY_MEMORY, &NO_QUOTA, &QUOTA_80, &NEW_DOMAINS, &VOLUME];
+pub(super) static RULES: &[&Rule] = &[
+    &KEVY_MEMORY,
+    &NO_QUOTA,
+    &QUOTA_80,
+    &NEW_DOMAINS,
+    &VOLUME,
+    &FRAUD_HITS,
+];
 
 fn one(object: &str, e: Eval) -> Vec<(String, Eval)> {
     vec![(object.to_string(), e)]
 }
 
-/// A counted block of webapi health (`quota`, `new_domains`), unless it is
-/// stale: counts older than 15 minutes are not a reading of now.
+/// A counted block of webapi health (`quota`, `new_domains`, `fraud_hits`),
+/// unless it is stale: counts older than 15 minutes are not a reading of
+/// now.
 fn counted<'a>(s: &'a Snapshot, field: &str) -> Result<&'a serde_json::Value, Eval> {
     let v = s.webapi_field(field)?;
     match v["stale"].as_bool() {
@@ -158,5 +166,30 @@ pub static VOLUME: Rule = Rule {
                 f => Eval::clear(format!("{f} bytes free")),
             });
         one("mailrs-data", e.unwrap_or_else(|e| e))
+    },
+};
+
+/// Only whether the fraud rule counters can be read: the counts themselves
+/// are a review feed, not a condition, so this rule never holds and its one
+/// notice is the "cannot read" one after the unknown wait.
+pub static FRAUD_HITS: Rule = Rule {
+    name: "fraud_hits_unreadable",
+    source: Source::Webapi,
+    severity: Severity::Warning,
+    for_secs: 0,
+    clear_secs: 0,
+    repeat_secs: None,
+    depends: Some(Dep::KevyServer),
+    during_maintenance: false,
+    object_kind: "counter",
+    text: &text::FRAUD_HITS,
+    eval: |s| {
+        let e = counted(s, "fraud_hits").and_then(|f| {
+            let rules = f["by_rule_30d"]
+                .as_object()
+                .ok_or_else(|| Eval::field("webapi fraud_hits.by_rule_30d is not an object"))?;
+            Ok(Eval::clear(format!("{} counters", rules.len())))
+        });
+        one("fraud_hits", e.unwrap_or_else(|e| e))
     },
 };
