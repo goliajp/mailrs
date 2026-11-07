@@ -10,6 +10,8 @@ mod live;
 mod blobs;
 #[path = "jmap_more_methods/creation.rs"]
 mod creation;
+#[path = "jmap_more_methods/filters.rs"]
+mod filters;
 #[path = "jmap_more_methods/sockets.rs"]
 mod sockets;
 
@@ -134,6 +136,7 @@ async fn scenario() {
     snippets(&live, &alice, &bob).await;
     submissions(&live, &alice, &bob).await;
     creation::draft_and_send_in_one_request(&live, &alice).await;
+    filters::header_filters_look_in_their_header(&live, &alice).await;
     copy(&live, &alice).await;
     sockets::websocket(&live, &alice).await;
     sockets::limits_alike(&live, &alice).await;
