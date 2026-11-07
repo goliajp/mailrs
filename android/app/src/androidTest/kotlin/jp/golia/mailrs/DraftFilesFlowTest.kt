@@ -69,6 +69,10 @@ class DraftFilesFlowTest : MailrsUiTest() {
             sent["attachments"]?.toString().orEmpty().contains("quote.txt"),
         )
         assertEquals("the file was uploaded a second time", 1, uploads().size)
+        assertTrue(
+            "the server did not attach the draft's file: $sent",
+            sent["draft_attachments"]?.toString().orEmpty().contains("quote.txt"),
+        )
     }
 
     @Test

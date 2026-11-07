@@ -4,7 +4,6 @@ import jp.golia.mailrs.wire.Texts
 import jp.golia.mailrs.R
 import jp.golia.mailrs.wire.RowAction
 import androidx.compose.ui.res.stringResource
-import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -52,7 +51,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
@@ -86,7 +84,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import jp.golia.mailrs.Draft
 import jp.golia.mailrs.UiState
-import jp.golia.mailrs.attachmentOpened
 import jp.golia.mailrs.compose
 import jp.golia.mailrs.draftNoticeShown
 import jp.golia.mailrs.openDrafts
@@ -102,7 +99,6 @@ import jp.golia.mailrs.toggleStar
 import jp.golia.mailrs.markOpenThreadUnread
 import jp.golia.mailrs.triageOpenThread
 import jp.golia.mailrs.closeThread
-import jp.golia.mailrs.reportFailure
 import jp.golia.mailrs.viewSource
 import jp.golia.mailrs.MailViewModel
 import jp.golia.mailrs.wire.MailrsClient
@@ -130,30 +126,7 @@ fun ThreadScreen(
 ) {
     val theme = LocalTheme.current
     val open = state.open ?: return
-    val context = LocalContext.current
-
-    // Handing the file on is an action, so it happens once per file and
-    // then the offer is cleared. Leaving it in state would re-open the
-    // same attachment on every recomposition.
-    LaunchedEffect(state.openFile) {
-        val ready = state.openFile ?: return@LaunchedEffect
-        val uri = androidx.core.content.FileProvider.getUriForFile(
-            context,
-            context.packageName + ".files",
-            ready.file,
-        )
-        val intent = Intent(Intent.ACTION_VIEW)
-            .setDataAndType(uri, ready.mimeType)
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-        // **And say so when nothing can open it.** The comment here used
-        // to promise this and the code did not: `runCatching` swallowed
-        // the ActivityNotFoundException and the tap did nothing at all,
-        // which reads as a broken button rather than as a phone with no
-        // PDF reader on it.
-        val opened = runCatching { context.startActivity(intent) }.isSuccess
-        vm.attachmentOpened()
-        if (!opened) vm.reportFailure(Texts.get(R.string.message_no_app, ready.filename))
-    }
+    OpenFileEffect(state, vm)
     val snackbars = remember { SnackbarHostState() }
     FailureSnackbar(state, vm, snackbars, hasContent = state.messages.isNotEmpty())
 

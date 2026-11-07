@@ -28,6 +28,7 @@ fn every_fixture_has_a_test() {
         "calendar-feed-create",
         "draft-save",
         "draft-save-attachments",
+        "send-draft",
         "email-group-create",
         "email-group-members-add",
         "feedback",

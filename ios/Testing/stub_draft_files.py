@@ -9,8 +9,9 @@ reason. `GET /api/mail/draft-attachments/{blob_id}` serves the bytes.
 
 A draft save without `attachments` keeps the draft's files and `[]`
 clears them; `GET /api/mail/drafts` lists drafts with files only when
-asked with `with_attachments=true`, and a send naming `draft_id` deletes
-that draft. After `POST /debug/refuse-draft-save` every draft save is
+asked with `with_attachments=true`, and a send naming `draft_id` records
+the draft's files under `draft_attachments` (apart from the form's own)
+and deletes that draft. After `POST /debug/refuse-draft-save` every draft save is
 refused with 500.
 
 `GET /debug/draft-files` answers the uploads, the downloads, and each
@@ -115,11 +116,19 @@ def kept(body, before):
 
 
 def sent(record, drafts):
-    """A send naming a draft deletes it, as the server does once it is queued."""
+    """A send naming a draft carries the draft's files and deletes it, as
+    the server does once it is queued. The files are recorded apart from
+    the form's, under `draft_attachments`, so a test can tell a file the
+    server attached from one the client uploaded again."""
     draft_id = record.get("draft_id")
     if draft_id is None:
         return
-    drafts.pop(int(draft_id), None)
+    draft = drafts.pop(int(draft_id), None) or {}
+    record["draft_attachments"] = [
+        {"filename": a["name"], "content_type": a["content_type"],
+         "bytes": len(BLOBS.get(a["blob_id"], b""))}
+        for a in draft.get("attachments", [])
+    ]
 
 
 def reset():
