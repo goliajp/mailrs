@@ -95,6 +95,13 @@ describe('list cache keys', () => {
     for (const k of sections) expect(plain).not.toContain(k)
   })
 
+  it('with no section chosen, asks for the whole inbox as it does with sections off', () => {
+    const none = filtersOf({ inboxSection: null, list: 'inbox', sectioned: true })
+    expect(none.section).toBeUndefined()
+    expect(none.followupDueBy).toBeUndefined()
+    expect(keyOf(none)).toBe(keyOf(filtersOf({ list: 'inbox', sectioned: false })))
+  })
+
   it('keys the follow-up section by how long it has waited', () => {
     const a = keyOf(filtersOf({ followupDays: 3, inboxSection: 'followup', sectioned: true }))
     const b = keyOf(filtersOf({ followupDays: 7, inboxSection: 'followup', sectioned: true }))

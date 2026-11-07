@@ -419,7 +419,7 @@ function listErrorMessage(error: unknown, noAnswer: string): string {
 }
 
 /** The Inbox section on screen, or none while the Inbox is shown whole. */
-function sectionShown(sectioned: boolean, section: InboxSection): InboxSection | null {
+function sectionShown(sectioned: boolean, section: InboxSection | null): InboxSection | null {
   if (!sectioned) return null
   return section
 }

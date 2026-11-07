@@ -51,10 +51,17 @@ export function InboxSectionChips({ className }: { className: string }) {
   if (!sectioned) return null
   if (activeList !== 'inbox' && activeList !== 'np') return null
   const inInbox = activeList === 'inbox'
-  const openSection = (s: InboxSection) => {
+  // in the Inbox the chosen chip clears the section and shows the whole inbox
+  const pick = (s: InboxSection) => {
+    if (inInbox && section === s) {
+      setSection(null)
+      return
+    }
     setSection(s)
     openList('inbox')
   }
+  // with nothing selected the first chip is the Tab stop
+  const noneSelected = inInbox && section === null
   return (
     <div className={className}>
       <div
@@ -63,16 +70,16 @@ export function InboxSectionChips({ className }: { className: string }) {
         onKeyDown={(e) => rovingKeyDown(e, '[role="tab"]', 'horizontal')}
         role="tablist"
       >
-        {INBOX_SECTIONS.map((s) => {
+        {INBOX_SECTIONS.map((s, i) => {
           const selected = inInbox && section === s
           return (
             <button
               aria-selected={selected}
               className={chipClass(selected)}
               key={s}
-              onClick={() => openSection(s)}
+              onClick={() => pick(s)}
               role="tab"
-              tabIndex={tabStop(selected)}
+              tabIndex={tabStop(selected || (noneSelected && i === 0))}
               type="button"
             >
               {sectionText(t(LABELS[s]), inInbox)}
