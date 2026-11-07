@@ -121,6 +121,11 @@ pub struct LoginEvent {
     /// The key's id, never the key.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub key_id: Option<String>,
+    /// The session a sign-in started, by the id the account's list of
+    /// sessions shows (a prefix of the token's hash, never the token), so an
+    /// ended session can be matched to the sign-in that left it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
 }
 
 impl LoginEvent {
@@ -146,6 +151,7 @@ impl LoginEvent {
             result,
             user_agent: None,
             key_id: None,
+            session_id: None,
         }
     }
 
@@ -158,6 +164,12 @@ impl LoginEvent {
     /// The key's id (never the key itself).
     pub fn with_key(mut self, key_id: &str) -> Self {
         self.key_id = Some(key_id.to_string());
+        self
+    }
+
+    /// The id of the session this sign-in started.
+    pub fn with_session(mut self, session_id: &str) -> Self {
+        self.session_id = Some(session_id.to_string());
         self
     }
 
