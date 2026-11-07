@@ -164,10 +164,21 @@ async fn a_held_verdict_takes_the_conversation_back_and_a_batch_puts_it_back() {
         fact.iter().map(|f| &f.detail).collect::<Vec<_>>()
     );
     let (_, list) = call(&w.state, Method::GET, "/v1/admin/rejudge-batches", None).await;
-    assert!(
-        list["items"][0]["released_at"].as_i64().unwrap() > 0,
-        "{list}"
-    );
+    let released_at = list["items"][0]["released_at"].as_i64().unwrap();
+    assert!(released_at > 0, "{list}");
+    // put back once: a second release is refused and changes nothing
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    let (again, body) = call(
+        &w.state,
+        Method::POST,
+        &format!("/v1/admin/rejudge-batches/{observation}/release"),
+        Some(serde_json::json!({ "actor": "root@x.com" })),
+    )
+    .await;
+    assert_eq!(again, StatusCode::CONFLICT, "{body}");
+    let (_, list) = call(&w.state, Method::GET, "/v1/admin/rejudge-batches", None).await;
+    assert_eq!(list["items"][0]["released_at"], released_at, "{list}");
+    assert_eq!(audit_rows(&mut w.kv, "rejudge.batch_release").len(), 1);
 
     // the screening match goes away (an allow) and comes back (the allow
     // withdrawn): the verdict changes each time, the rules that hold it do
