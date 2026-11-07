@@ -226,7 +226,8 @@ describe('listDrafts', () => {
         withheld_send_at: null,
       },
     ])
-    expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/mail/drafts')
+    // this client sends a draft's files by naming the draft, so it asks for those too
+    expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/mail/drafts?with_attachments=true')
   })
 })
 

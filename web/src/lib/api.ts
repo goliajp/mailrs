@@ -1,3 +1,5 @@
+import type { WireDraftAttachment } from '@/wire/schemas/mail'
+
 const API_BASE = '/api'
 
 // v2.1 §10-audit (2026-07-08): backend `DraftWire` uses short
@@ -5,6 +7,8 @@ const API_BASE = '/api'
 // `to_addresses` / `_addresses` variants shown in openapi.json /
 // llm-full.txt are stale documentation, never matched runtime.
 export type Draft = {
+  /** Files kept with the draft, in the order the composer shows them. */
+  attachments?: readonly WireDraftAttachment[]
   /** The attachments a draft a restore returned could not carry, by name. */
   attachments_not_included?: string[]
   bcc: string
@@ -32,6 +36,8 @@ export type FeedbackAction =
   'archive' | 'block' | 'mark_important' | 'mark_spam' | 'mark_vip' | 'unblock'
 
 export type SaveDraftRequest = {
+  /** Absent keeps the draft's files; `[]` removes them. */
+  attachments?: readonly WireDraftAttachment[]
   bcc?: string
   body?: string
   cc?: string

@@ -5,11 +5,6 @@ import { renderMarkdownForSend } from '@/lib/render-markdown'
 
 export function renderBlockHtml(block: AnyBlock): string {
   switch (block.type) {
-    case 'attachment':
-      // attachments travel as MIME parts and render in the dedicated panel —
-      // skip the body-decoration so it doesn't masquerade as a clickable link
-      return ''
-
     case 'code': {
       const d = block.data as { code: string; language: string }
       const lang = d.language ? ` (${escapeHtml(d.language)})` : ''
@@ -61,9 +56,6 @@ export function renderBlockHtml(block: AnyBlock): string {
 
 export function renderBlockText(block: AnyBlock): string {
   switch (block.type) {
-    case 'attachment':
-      return ''
-
     case 'code': {
       const d = block.data as { code: string; language: string }
       return `\`\`\`${d.language}\n${d.code}\n\`\`\``

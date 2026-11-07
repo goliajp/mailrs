@@ -1,16 +1,8 @@
 export type AnyBlock = Block<BlockType>
 
 export type AssembledEmail = {
-  readonly attachments: ReadonlyArray<File>
   readonly html: string
   readonly text: string
-}
-
-export type AttachmentBlockData = {
-  readonly file: File
-  readonly mimeType: string
-  readonly name: string
-  readonly size: number
 }
 
 export type Block<T extends BlockType = BlockType> = {
@@ -20,7 +12,6 @@ export type Block<T extends BlockType = BlockType> = {
 }
 
 export type BlockDataMap = {
-  attachment: AttachmentBlockData
   code: CodeBlockData
   divider: DividerBlockData
   quote: QuoteBlockData
@@ -29,7 +20,7 @@ export type BlockDataMap = {
   text: TextBlockData
 }
 
-export type BlockType = 'attachment' | 'code' | 'divider' | 'quote' | 'signature' | 'task' | 'text'
+export type BlockType = 'code' | 'divider' | 'quote' | 'signature' | 'task' | 'text'
 
 export type CodeBlockData = {
   readonly code: string

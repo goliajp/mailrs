@@ -1,5 +1,6 @@
 import type { ComposerCarry } from '@/components/composer/start'
 import type { PickedItem, SelectableRow } from '@/lib/list-selection'
+import type { WireDraftAttachment } from '@/wire/schemas/mail'
 import type { WireSendStatus } from '@/wire/schemas/sends'
 
 import { atom } from 'jotai'
@@ -202,6 +203,8 @@ export const composeReplySourceAtom = atom<ComposeReplySource | null>(null)
 // tracks its id so autosave upserts the same draft and send/discard
 // deletes it. cleared when the composer closes.
 export type ComposeDraftSource = {
+  /** Files kept with the draft; absent is none. */
+  attachments?: readonly WireDraftAttachment[]
   /**
    * The attachments the message a restore returned as this draft had,
    * which the draft does not carry; shown, never sent.
