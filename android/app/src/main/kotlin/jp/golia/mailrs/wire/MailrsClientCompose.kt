@@ -103,6 +103,8 @@ data class SendRequest(
     @SerialName("undo_seconds") val undoSeconds: Int? = null,
     /** The body rendered from its markdown (`MarkdownHtml`), or absent for text alone. */
     @SerialName("html_body") val htmlBody: String? = null,
+    /** The saved draft this is; the server attaches its files and deletes it once queued. */
+    @SerialName("draft_id") val draftId: Long? = null,
 )
 
 /**
@@ -139,6 +141,7 @@ suspend fun MailrsClient.send(
     redraftKeep: List<Int>? = null,
     from: String = "",
     htmlBody: String? = null,
+    draftId: Long? = null,
 ): MailrsClient.Outcome<String> {
     val payload = json.encodeToString(
         SendRequest.serializer(),
@@ -156,6 +159,7 @@ suspend fun MailrsClient.send(
             redraftKeep = redraftKeep,
             undoSeconds = SendHold.SECONDS,
             htmlBody = htmlBody,
+            draftId = draftId,
         ),
     )
     return sentId(post(url("/api/mail/send"), payload, authorized = true))
@@ -182,6 +186,7 @@ suspend fun MailrsClient.sendMultipart(
     redraftKeep: List<Int>? = null,
     from: String = "",
     htmlBody: String? = null,
+    draftId: Long? = null,
 ): MailrsClient.Outcome<String> = withContext(Dispatchers.IO) {
     val s = session ?: return@withContext MailrsClient.Outcome.Err(Texts.get(R.string.error_not_signed_in))
     val form = MultipartBody.Builder().setType(MultipartBody.FORM)
@@ -207,6 +212,7 @@ suspend fun MailrsClient.sendMultipart(
     // express "keep none", because zero occurrences and an empty selection
     // both arrive as no field at all and they mean opposite things.
     redraftKeep?.let { form.addFormDataPart("redraft_keep", it.joinToString(",")) }
+    draftId?.let { form.addFormDataPart("draft_id", it.toString()) }
     for (a in attachments) {
         form.addFormDataPart("attachments", a.filename, a.body)
     }

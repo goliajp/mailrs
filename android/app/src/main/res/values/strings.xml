@@ -308,6 +308,9 @@
     <string name="compose_many_lost">%1$s files could not be read and were not attached.</string>
     <string name="compose_no_recipient">A message needs somebody to go to.</string>
     <string name="compose_could_not_save">Could not save %1$s: %2$s</string>
+    <string name="compose_files_not_saved">The draft’s attachments could not be saved, so the message was not sent. Try again in a moment</string>
+    <string name="compose_uploading">Uploading…</string>
+    <string name="compose_file_refused">Not saved with the draft: %1$s</string>
     <string name="reset_mismatch">The two passwords are not the same.</string>
     <string name="reset_done">Your new password is set. Sign in with it.</string>
     <string name="reset_ask_new_code">%1$s Ask %2$s for a new code.</string>

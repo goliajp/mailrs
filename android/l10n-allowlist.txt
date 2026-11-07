@@ -372,3 +372,9 @@ ui/MessageSettingsMenu.kt	sender.file.${bucket.wire}
 ui/SettingsPages.kt	notify.hideContent
 ui/SettingsPages.kt	notify.quietStart
 ui/SettingsPages.kt	notify.quietEnd
+MailViewModelDraftFiles.kt	attachments/draft-
+wire/MailrsClientDraftFiles.kt	${s.server}/api/mail/draft-attachments
+wire/MailrsClientDraftFiles.kt	Authorization
+wire/MailrsClientDraftFiles.kt	Bearer ${s.token}
+wire/MailrsClientDraftFiles.kt	?name=
+wire/MailrsClientDraftFiles.kt	&type=
