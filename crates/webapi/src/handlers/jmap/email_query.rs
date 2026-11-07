@@ -51,9 +51,30 @@ fn epoch(v: Option<&Value>) -> Option<i64> {
         .map(|t| t.timestamp())
 }
 
+#[derive(Debug, Default)]
+struct FieldText {
+    subject: Option<String>,
+    from: Option<String>,
+    to: Option<String>,
+}
+
+impl FieldText {
+    // `to` reads the stored recipients, which hold Cc as well as To
+    fn admits(&self, w: &MessageWire) -> bool {
+        let has = |want: &Option<String>, field: &str| {
+            want.as_ref()
+                .is_none_or(|t| field.to_lowercase().contains(t.as_str()))
+        };
+        has(&self.subject, &w.subject) && has(&self.from, &w.sender) && has(&self.to, &w.recipients)
+    }
+}
+
 struct Filter {
     place: Option<Place>,
     search: Option<String>,
+    /// `subject`, `from` and `to` look in their own header (RFC 8621
+    /// §4.4.1), lowercased; the search above only narrows the candidates.
+    fields: FieldText,
     before: Option<i64>,
     after: Option<i64>,
     has: Option<u32>,
@@ -95,9 +116,15 @@ fn filter_of(v: Option<&Value>) -> Result<Filter, JmapMethodError> {
         .iter()
         .filter_map(|k| s(k))
         .collect::<Vec<_>>();
+    let lower = |k: &str| s(k).map(|t| t.to_lowercase());
     Ok(Filter {
         place,
         search: (!search.is_empty()).then(|| search.join(" ")),
+        fields: FieldText {
+            subject: lower("subject"),
+            from: lower("from"),
+            to: lower("to"),
+        },
         before: epoch(f.get("before")),
         after: epoch(f.get("after")),
         has: keyword("hasKeyword")?,
@@ -118,6 +145,7 @@ impl Filter {
         self.place
             .as_ref()
             .is_none_or(|p| view.places(m).contains(p))
+            && self.fields.admits(w)
             && self.before.is_none_or(|b| w.internal_date < b)
             && self.after.is_none_or(|a| w.internal_date >= a)
             && self.has.is_none_or(|bit| m.flags & bit != 0)
