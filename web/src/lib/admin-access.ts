@@ -24,6 +24,7 @@ export const PAGE_NEED: Record<string, Need> = {
   '/admin/password-clear': 'super',
   '/admin/protocol-sign-ins': 'super',
   '/admin/queues': 'super',
+  '/admin/recall-batches': 'super',
   '/admin/reports': 'super',
   '/admin/screening': 'super',
   '/admin/sign-ins': 'super',

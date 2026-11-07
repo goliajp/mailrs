@@ -36,7 +36,7 @@ pub(crate) use unheld::{leave_unheld, unheld_by_another};
 pub(crate) const ACT_ENV: &str = "MAILRS_REJUDGE_ACT";
 
 /// Every batch: observation id → JSON `{at, released_at, pending,
-/// would_hold, rules, discarded_at}`.
+/// would_hold, rules, discarded_at, confirmed_at}`.
 const BATCHES: &[u8] = b"rejudge:batches";
 
 pub(crate) fn acting() -> bool {

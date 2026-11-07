@@ -90,6 +90,11 @@ export const navGroups: { items: NavItem[]; label: Key }[] = [
       },
       { icon: <Flag className="h-4 w-4" />, label: 'admin.nav.reports', to: '/admin/reports' },
       {
+        icon: <ShieldAlert className="h-4 w-4" />,
+        label: 'admin.nav.recallBatches',
+        to: '/admin/recall-batches',
+      },
+      {
         icon: <KeyRound className="h-4 w-4" />,
         label: 'admin.nav.protocolSignIns',
         to: '/admin/protocol-sign-ins',
