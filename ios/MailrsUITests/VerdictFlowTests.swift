@@ -86,8 +86,11 @@ final class VerdictFlowTests: MailrsUITestCase {
         XCTAssertTrue(mark.waitForExistence(timeout: 15), "no mark beside the flagged link")
 
         let notice = element(app, "callback-notice")
-        XCTAssertTrue(notice.exists, "no callback notice")
+        // drawn once the sender's history has answered
+        XCTAssertTrue(notice.waitForExistence(timeout: 10), "no callback notice")
         XCTAssertTrue(notice.label.contains("+81 3-1234-5678"), notice.label)
+        // given to this reader in another conversation, by the history route
+        XCTAssertFalse(notice.label.contains("0120-111-222"), notice.label)
 
         let flagged = app.webViews.links["www.golia.jp/login"]
         bringIntoView(app, flagged, named: "the flagged link")

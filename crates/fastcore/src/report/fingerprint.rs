@@ -90,6 +90,7 @@ impl ReportStore for Reports<'_> {
             policy: hold_rule::policy(config::account_display_names(self.0)),
             our_stamp: config::our_authserv_id(),
             attachment_texts: self.0.mailbox.attachment_texts(mid).unwrap_or_default(),
+            qr_urls: self.0.mailbox.attachment_qr_urls(mid).unwrap_or_default(),
         }
     }
 

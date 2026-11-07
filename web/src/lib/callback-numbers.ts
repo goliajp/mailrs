@@ -1,14 +1,22 @@
 // Phone numbers a message asks the reader to call, and which of them the
-// same sender has not written before in this conversation.
+// same sender has not given the reader before: in this conversation, or in
+// any other (the server keeps each reader's history per sender).
 //
 // A number proves nothing about who answers it, so this only points it
 // out; it never judges the message. Pure, so it unit-tests as .test.ts.
 // The labels and the samples it is held to are `callback-numbers.json`,
 // which iOS and Android test their own copies of this rule against.
 
+import type { GivenNumber } from '@/lib/types'
+
 import table from './callback-numbers.json'
 
-type Sourced = { html_body: null | string; sender: string; text_body: null | string }
+type Sourced = {
+  html_body: null | string
+  message_id: string
+  sender: string
+  text_body: null | string
+}
 
 // One phone number, by its structure: an optional `+` and country code,
 // an optional bracketed area code, then digit groups of at most six joined
@@ -44,17 +52,27 @@ const MAX_DIGITS = 15
 const MAX_SHOWN = 3
 
 /**
- * Numbers in `message` that no earlier message from the same address in
- * `earlier` carried: a number a correspondent always signs with is not
+ * Numbers in `message` that the same address gave in no earlier message:
+ * neither in `earlier` (this conversation) nor in `history` (the numbers
+ * the sender gave the reader in any conversation, each with the earliest
+ * message that gave it). A number a correspondent always signs with is not
  * worth pointing out, a new one asking to be called is.
  */
-export function newCallbackNumbers(message: Sourced, earlier: readonly Sourced[]): string[] {
+export function newCallbackNumbers(
+  message: Sourced,
+  earlier: readonly Sourced[],
+  history: readonly GivenNumber[] = []
+): string[] {
   const own = message.sender.toLowerCase()
   const before = new Set(
     earlier
       .filter((e) => e.sender.toLowerCase() === own)
       .flatMap((e) => phoneNumbers(plainText(e)).map(digits))
   )
+  // the history holds this message's own numbers too, first given by it
+  for (const g of history) {
+    if (g.first_message_id !== message.message_id) before.add(g.number)
+  }
   return phoneNumbers(plainText(message))
     .filter((n) => !before.has(digits(n)))
     .slice(0, MAX_SHOWN)

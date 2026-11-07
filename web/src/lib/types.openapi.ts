@@ -7257,6 +7257,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/senders/{address}/callback-numbers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Phone numbers a sender gave you before
+         * @description The signed-in reader's own history of the phone numbers `address` gave them, in any conversation: each number's digits, when the earliest message carrying it arrived here (unix seconds) and that message's id. Earliest first; empty when the sender gave none. The reading pane compares a message's numbers against it: a number whose first message is another one is not new. Read only; delivery and the attachment reader write it, and a sender's history is let go 400 days after its latest message, at most 32 numbers kept per sender.
+         */
+        get: operations["listCallbackNumbers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/contacts/important": {
         parameters: {
             query?: never;
@@ -18334,6 +18354,52 @@ export interface operations {
             };
             /** @description The store could not be reached */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listCallbackNumbers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The sender's address, compared case-insensitively */
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The address, lowercased */
+                        sender: string;
+                        numbers: {
+                            /** @description Digits only */
+                            number: string;
+                            first_seen: number;
+                            first_message_id: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Not an address */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description kevy unavailable */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

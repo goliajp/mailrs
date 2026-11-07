@@ -113,6 +113,24 @@ async fn sender_rules_and_push_settings_through_mcp() {
     let (_, rules) = call(Method::GET, "/api/sender-rules").await;
     assert_eq!(rules, json!([]));
 
+    let numbers = mcp
+        .tool(
+            "list_callback_numbers",
+            json!({"address": "Shop@Example.test"}),
+        )
+        .await
+        .expect("list_callback_numbers");
+    let (_, rest) = call(
+        Method::GET,
+        "/api/senders/shop%40example.test/callback-numbers",
+    )
+    .await;
+    assert_eq!(numbers, rest);
+    assert_eq!(
+        numbers,
+        json!({"sender": "shop@example.test", "numbers": []})
+    );
+
     let moved = mcp
         .tool(
             "reclassify_sender",

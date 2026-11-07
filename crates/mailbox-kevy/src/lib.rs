@@ -64,6 +64,7 @@ use kevy_embedded::Store;
 
 mod account;
 mod alias;
+mod attachment_backlog;
 mod attachment_text;
 mod count_shadow;
 mod delete_thread;

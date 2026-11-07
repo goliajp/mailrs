@@ -265,6 +265,40 @@ struct CallbackNumbersTests {
         #expect(CallbackNumbers.new(in: other, earlier: [first]) == ["03-1234-5678"])
     }
 
+    private func given(_ number: String, first: String) -> Wire.GivenNumber {
+        Wire.GivenNumber(number: number, firstSeen: 1, firstMessageId: first)
+    }
+
+    @Test("a number the sender gave in another conversation is not pointed out")
+    func history() {
+        let m = message(2, "desk@hotel.example", "Call 03-1234-5678 or 0120-111-222")
+        let elsewhere = [given("0120111222", first: "<older@hotel.example>")]
+        #expect(CallbackNumbers.new(in: m, earlier: [], history: elsewhere) == ["03-1234-5678"])
+    }
+
+    @Test("a number first given by this very message is still new")
+    func historyOfThisMessage() {
+        let m = message(2, "desk@hotel.example", "Call +81 3-1234-5678")
+        let own = [given("81312345678", first: "<2>")]
+        #expect(CallbackNumbers.new(in: m, earlier: [], history: own) == ["+81 3-1234-5678"])
+    }
+
+    @Test("the history is compared by digits, however the number is written")
+    func historyDigits() {
+        let m = message(2, "desk@hotel.example", "Call (03) 1234 5678 or 03.9999.0000")
+        let elsewhere = [given("0312345678", first: "<older@hotel.example>")]
+        #expect(CallbackNumbers.new(in: m, earlier: [], history: elsewhere) == ["03.9999.0000"])
+    }
+
+    @Test("the history answer decodes as the server sends it")
+    func historyDecodes() throws {
+        let json = #"{"sender":"desk@hotel.example","numbers":[{"number":"0312345678","first_seen":1790000000,"first_message_id":"<first@hotel.example>"}]}"#
+        let answer = try JSONDecoder().decode(Wire.CallbackHistory.self, from: Data(json.utf8))
+        #expect(answer.numbers == [
+            Wire.GivenNumber(number: "0312345678", firstSeen: 1790000000, firstMessageId: "<first@hotel.example>"),
+        ])
+    }
+
     @Test("at most three are named")
     func capped() {
         let m = message(1, "x@y", "a 03-1111-1111 b 03-2222-2222 c 03-3333-3333 d 03-4444-4444")

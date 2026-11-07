@@ -86,6 +86,7 @@ pub(super) struct Evidence {
     dkim_signed_by_from_org: bool,
     relation: mailrs_fraud::relation::Relation,
     novelty: mailrs_fraud::novelty::Novelty,
+    has_links: bool,
 }
 
 impl Evidence {
@@ -175,7 +176,9 @@ impl Evidence {
             mailrs_inbound::scan_input::link_hosts(&parsed),
         )
         .await;
+        let has_links = !mailrs_inbound::scan_input::link_hosts(&parsed).is_empty();
         Self {
+            has_links,
             novelty,
             decoded_from,
             sender_host,
@@ -240,6 +243,7 @@ impl Evidence {
             dkim_signed_by_from_org: self.dkim_signed_by_from_org,
             relation: self.relation.clone(),
             novelty: self.novelty.clone(),
+            has_links: self.has_links,
             date_ahead: mailrs_inbound::dates::date_ahead_of(
                 &receive_ctx.message,
                 Some(chrono::Utc::now().timestamp()),

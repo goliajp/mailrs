@@ -289,6 +289,36 @@
     "ja": "このメールの一部を読み取れなかったため、すべてを確認できませんでした。",
     "zh": "这封信有一部分读不出来，没能全部检查。"
   },
+  "qr-only-way-out": {
+    "en": "No links, only a QR code to a host the message never names.",
+    "ja": "リンクがなく、本文に出てこないホストへの QR コードだけがあります。",
+    "zh": "信里没有链接，只有一个二维码，指向信中没有出现过的主机。",
+    "params": {
+      "en": "No links, only a QR code to {domains}, which the message never names.",
+      "ja": "リンクがなく、本文に出てこない {domains} への QR コードだけがあります。",
+      "zh": "信里没有链接，只有一个指向 {domains} 的二维码，信中没有提到这个域名。"
+    }
+  },
+  "qr-text-says-another-domain": {
+    "en": "An image prints one domain while its QR code goes to another.",
+    "ja": "画像に印刷されたドメインと、QR コードの行き先のドメインが違います。",
+    "zh": "图片上印的是一个域名，图里的二维码却指向另一个域名。",
+    "params": {
+      "en": "An image prints one domain while its QR code goes to {domains}.",
+      "ja": "画像に印刷されたドメインと違い、QR コードは {domains} に向かっています。",
+      "zh": "图片上印的是一个域名，图里的二维码却指向 {domains}。"
+    }
+  },
+  "qr-to-a-new-domain": {
+    "en": "A QR code to a domain first seen here this week that the message never names.",
+    "ja": "今週初めて見たドメインへの QR コードで、そのドメインは本文に出てきません。",
+    "zh": "二维码指向一个本周才第一次出现的域名，信中也没有提到它。",
+    "params": {
+      "en": "A QR code to {domain}, first seen here this week and never named in the message.",
+      "ja": "今週初めて見た {domain} への QR コードで、本文にはそのドメインが出てきません。",
+      "zh": "二维码指向本周才第一次出现的 {domain}，信中也没有提到它。"
+    }
+  },
   "reply-claim-without-thread": {
     "en": "The subject says this is a reply, but it answers no earlier message, and replies go to another domain.",
     "ja": "件名は返信を装っていますが、どのメールへの返信でもなく、返信先も別のドメインになっています。",

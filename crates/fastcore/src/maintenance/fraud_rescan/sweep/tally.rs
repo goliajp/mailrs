@@ -65,6 +65,8 @@ impl Tally {
             // what the walk changes against the stored state; in a dry run,
             // what applying it would change
             "from_stored": self.from_stored.json(),
+            "shadow_by_rule": self.shadow_by_rule,
+            "shadow_samples": self.shadow_samples,
         })
     }
 }

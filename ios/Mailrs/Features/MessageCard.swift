@@ -13,7 +13,8 @@ struct MessageCard: View {
     /// URL from the client.
     let threadId: String
     /// The messages before this one in the conversation: a phone number
-    /// the same sender gave there is not pointed out again.
+    /// the same sender gave there, or in any other conversation, is not
+    /// pointed out again.
     var earlier: [Wire.Message] = []
     /// "Block x@y" was chosen: the thread asks first, since a menu cannot.
     var onBlockSender: (String) -> Void = { _ in }
@@ -30,6 +31,8 @@ struct MessageCard: View {
     /// The flagged link waiting for the reader's answer.
     @State private var warned: LinkWarnings.Target?
     @State private var verdict: Wire.FraudVerdict?
+    /// Empty until the sender's history has answered.
+    @State private var callbackNumbers: [String] = []
 
     private func describe(_ warning: Wire.LinkWarning) -> String {
         let lang = ReasonText.Lang.of(locale)
@@ -310,7 +313,7 @@ struct MessageCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            CallbackNotice(numbers: CallbackNumbers.new(in: message, earlier: earlier))
+            CallbackNotice(numbers: callbackNumbers)
             UnsubscribeFooter(threadId: threadId, message: message)
         }
         .padding(12)
@@ -340,6 +343,9 @@ struct MessageCard: View {
             BlockSenderItem(address: sender) { onBlockSender(sender.lowercased()) }
         }
         .task(id: message.messageId) { verdict = await session.fraudVerdict(messageId: message.messageId) }
+        .task(id: message.messageId) {
+            callbackNumbers = await session.callbackNumbers(in: message, earlier: earlier)
+        }
         .sheet(isPresented: $showingSource) {
             MessageSourceSheet(uid: message.uid)
         }

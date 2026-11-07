@@ -265,8 +265,8 @@ struct SenderChecksLine: View {
     }
 }
 
-/// The phone numbers a message gives that its sender has not written
-/// before in this conversation. A notice, not a verdict: a number proves
+/// The phone numbers a message gives that its sender has not given the
+/// reader before, in this conversation or any other. A notice, not a verdict: a number proves
 /// nothing about who answers it, and invoices carry them too.
 struct CallbackNotice: View {
     let numbers: [String]
@@ -274,7 +274,7 @@ struct CallbackNotice: View {
     var body: some View {
         if !numbers.isEmpty {
             Label {
-                Text("This message gives a phone number its sender has not used before here: \(numbers.joined(separator: ", ")). Before calling about a payment or an account, look the number up yourself.")
+                Text("This message gives a phone number its sender has not given you before: \(numbers.joined(separator: ", ")). Before calling about a payment or an account, look the number up yourself.")
             } icon: {
                 Image(systemName: "phone")
             }
