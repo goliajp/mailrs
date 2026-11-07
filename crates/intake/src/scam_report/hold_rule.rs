@@ -20,6 +20,9 @@ pub struct Inputs {
     pub our_stamp: Option<String>,
     /// The text read out of the message's attachments.
     pub attachment_texts: Vec<String>,
+    /// The web addresses its QR codes carry. Always empty on the SQL core,
+    /// which does not read images for them.
+    pub qr_urls: Vec<String>,
 }
 
 /// The hold rule that made the third ground, and the rule set it is in.
@@ -66,7 +69,10 @@ pub(super) fn in_force<S: ReportStore + ?Sized>(
         raw,
         Some((user, Counted::After)),
         inputs.our_stamp.as_deref(),
-        &inputs.attachment_texts,
+        mailrs_fraud_lua::stored::Extracted {
+            texts: &inputs.attachment_texts,
+            qr_urls: &inputs.qr_urls,
+        },
         &inputs.policy,
         &mut hist,
         &mut |facts, policy| core.scan(facts, policy),

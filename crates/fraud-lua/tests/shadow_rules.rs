@@ -119,13 +119,16 @@ fn the_enforced_rules_are_every_rule_but_the_shadow_ones() {
 /// correspondent facts cut its hits to one campaign; it scores and never
 /// holds. The other two still run in shadow.
 #[test]
-fn two_bec_rules_ship_in_shadow() {
+fn two_bec_rules_and_the_qr_rules_ship_in_shadow() {
     let rules = Rules::compile(DEFAULT_SOURCE).unwrap();
     assert_eq!(
         rules.shadow_rules(),
         [
             "bec-lookalike-reply-diverted",
-            "bec-reply-diverted-unauthenticated"
+            "bec-reply-diverted-unauthenticated",
+            "qr-text-says-another-domain",
+            "qr-only-way-out",
+            "qr-to-a-new-domain"
         ]
     );
     assert!(

@@ -15,7 +15,8 @@ POST /v1/admin/threads:split-message | move one message out of its conversation 
 POST /v1/admin/maintenance:allocate-missing-uids | give a UID to every per-user message row that has none, so raw view and attachments resolve
 POST /v1/admin/maintenance:axis-shadow | read-only: the two declared columns that pick a thread's list, against the engine's per-user counts
 POST /v1/admin/maintenance:backfill-attachment-counts | count the attachments of mail stored before delivery counted them, for has:attachment
-POST /v1/admin/maintenance:backfill-attachment-text | queue stored mail carrying a PDF or image for the attachment-text worker
+POST /v1/admin/maintenance:backfill-callback-numbers | record the phone numbers each sender gave each reader from stored mail, for the reading pane's callback-number hint
+POST /v1/admin/maintenance:backfill-attachment-text | queue stored mail carrying a PDF or image for the attachment-text worker: select=qr_only queues the QR-only refresh, select=text starts, stops or reports the resumable backlog run
 POST /v1/admin/maintenance:backfill-sections | decide the sectioned inbox's section for mail delivered before sections existed
 POST /v1/admin/maintenance:backfill-contact-relationships | rebuild per-sender received/sent counters from history for importance scoring
 POST /v1/admin/maintenance:backfill-domain-seen | record sending-domain familiarity from stored mail for the brand-impersonation check

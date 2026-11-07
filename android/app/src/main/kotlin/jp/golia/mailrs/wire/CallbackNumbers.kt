@@ -8,7 +8,8 @@ import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Phone numbers a message asks the reader to call, and which of them the
- * same sender has not written before in this conversation.
+ * same sender has not given the reader before: in this conversation, or in
+ * any other (the server keeps each reader's history per sender).
  *
  * A number proves nothing about who answers it, so this only points it
  * out; it never judges the message. The rule and its limits are the web
@@ -62,16 +63,27 @@ object CallbackNumbers {
     }
 
     /**
-     * Numbers in [message] that no earlier message from the same address
-     * in [earlier] carried: a number a correspondent always signs with is
-     * not worth pointing out, a new one asking to be called is.
+     * Numbers in [message] that the same address gave in no earlier
+     * message: neither in [earlier] (this conversation) nor in [history]
+     * (the numbers the sender gave the reader in any conversation, each
+     * with the earliest message that gave it). A number a correspondent
+     * always signs with is not worth pointing out, a new one asking to be
+     * called is.
      */
-    fun new(message: Wire.Message, earlier: List<Wire.Message>): List<String> {
+    fun new(
+        message: Wire.Message,
+        earlier: List<Wire.Message>,
+        history: List<WireCallbackNumbers.Given> = emptyList(),
+    ): List<String> {
         val own = message.sender.lowercase()
         val before = earlier
             .filter { it.sender.lowercase() == own }
             .flatMap { phoneNumbers(plainText(it)).map(::digits) }
-            .toSet()
+            .toMutableSet()
+        // the history holds this message's own numbers too, first given by it
+        for (g in history) {
+            if (g.firstMessageId != message.messageId) before += g.number
+        }
         return phoneNumbers(plainText(message))
             .filterNot { digits(it) in before }
             .take(MAX_SHOWN)

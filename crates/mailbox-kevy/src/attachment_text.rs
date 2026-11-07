@@ -227,7 +227,63 @@ impl KevyMailboxStore {
         Ok(out)
     }
 
-    /// Every key extraction wrote for a message: its rows and its state.
+    /// Store the web addresses the message's QR codes carry, replacing any
+    /// stored before; at most [`keys::ATTACHMENT_QR_MAX`]. Call after
+    /// [`Self::store_attachment_texts`], which removes the old ones with
+    /// the rest of the message's rows.
+    pub fn store_attachment_qr(&self, message_id: &str, urls: &[String]) -> io::Result<()> {
+        let key = keys::attachment_qr(message_id);
+        let kept: Vec<&str> = urls
+            .iter()
+            .map(|u| u.trim())
+            .filter(|u| !u.is_empty() && !u.contains('\n'))
+            .take(keys::ATTACHMENT_QR_MAX)
+            .collect();
+        if kept.is_empty() {
+            self.store().del(&[key.as_bytes()])?;
+            return Ok(());
+        }
+        self.store().hset(
+            key.as_bytes(),
+            &[(keys::ATTACHMENT_QR_FIELD, kept.join("\n").as_bytes())],
+        )?;
+        Ok(())
+    }
+
+    /// Replace only the QR addresses of a message whose text is current,
+    /// and record that the `version` that read them did so.
+    pub fn refresh_attachment_qr(
+        &self,
+        message_id: &str,
+        urls: &[String],
+        version: u32,
+    ) -> io::Result<()> {
+        self.store_attachment_qr(message_id, urls)?;
+        self.store().hset(
+            keys::attachment_text_state(message_id).as_bytes(),
+            &[(b"version" as &[u8], version.to_string().as_bytes())],
+        )?;
+        Ok(())
+    }
+
+    /// The web addresses stored for a message's QR codes, in the order
+    /// they were read; empty when it has none or was not read for them.
+    pub fn attachment_qr_urls(&self, message_id: &str) -> io::Result<Vec<String>> {
+        let Some(v) = self.store().hget(
+            keys::attachment_qr(message_id).as_bytes(),
+            keys::ATTACHMENT_QR_FIELD,
+        )?
+        else {
+            return Ok(Vec::new());
+        };
+        Ok(String::from_utf8_lossy(&v)
+            .lines()
+            .map(str::to_string)
+            .collect())
+    }
+
+    /// Every key extraction wrote for a message: its rows, its QR
+    /// addresses and its state.
     pub(crate) fn attachment_text_keys(&self, message_id: &str) -> io::Result<Vec<String>> {
         let Some(state) = self.attachment_text_state(message_id)? else {
             return Ok(Vec::new());
@@ -235,6 +291,7 @@ impl KevyMailboxStore {
         let mut out: Vec<String> = (0..state.parts as usize)
             .map(|n| keys::attachment_text(message_id, n))
             .collect();
+        out.push(keys::attachment_qr(message_id));
         out.push(keys::attachment_text_state(message_id));
         Ok(out)
     }
@@ -344,6 +401,48 @@ mod tests {
             let key = keys::attachment_text("m1", n);
             assert_eq!(s.store().exists(&[key.as_bytes()]).unwrap(), 0);
         }
+    }
+
+    #[test]
+    fn qr_addresses_are_stored_replaced_and_deleted_with_the_thread() {
+        let s = store();
+        deliver(&s, "bob@x.com", "t1", "m1");
+        s.store_attachment_texts("m1", &[(0, "scan me".into())], &done(1))
+            .unwrap();
+        let urls = vec![
+            "https://a.example/x".to_string(),
+            "https://b.example/y".to_string(),
+        ];
+        s.store_attachment_qr("m1", &urls).unwrap();
+        assert_eq!(s.attachment_qr_urls("m1").unwrap(), urls);
+        // a second read replaces the first, its text and its codes
+        s.store_attachment_texts("m1", &[(0, "again".into())], &done(1))
+            .unwrap();
+        assert!(s.attachment_qr_urls("m1").unwrap().is_empty());
+        s.store_attachment_qr("m1", &urls[..1]).unwrap();
+        assert_eq!(s.attachment_qr_urls("m1").unwrap(), urls[..1].to_vec());
+        assert!(s.delete_thread("bob@x.com", "t1").unwrap().0);
+        assert!(s.attachment_qr_urls("m1").unwrap().is_empty());
+        let key = keys::attachment_qr("m1");
+        assert_eq!(s.store().exists(&[key.as_bytes()]).unwrap(), 0);
+    }
+
+    #[test]
+    fn a_qr_refresh_keeps_the_text_and_records_the_version() {
+        let s = store();
+        s.store_attachment_texts("m1", &[(0, "kept".into())], &done(1))
+            .unwrap();
+        let many: Vec<String> = (0..keys::ATTACHMENT_QR_MAX + 5)
+            .map(|n| format!("https://h{n}.example/"))
+            .collect();
+        s.refresh_attachment_qr("m1", &many, 10).unwrap();
+        assert_eq!(s.attachment_texts("m1").unwrap(), vec!["kept".to_string()]);
+        assert_eq!(
+            s.attachment_qr_urls("m1").unwrap().len(),
+            keys::ATTACHMENT_QR_MAX
+        );
+        let state = s.attachment_text_state("m1").unwrap().unwrap();
+        assert_eq!((state.version, state.stored), (10, 1));
     }
 
     #[test]

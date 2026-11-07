@@ -38,12 +38,41 @@ pub fn after_store(
     in_review: bool,
 ) {
     record_domains(net.as_mut(), a);
+    record_callback_numbers(net.as_mut(), addr, a);
     let quiet = held || in_review;
     if !quiet {
         push::maybe_notify(net.as_mut(), addr, a);
     }
     webhook_delivery::enqueue_for_arrival(net, addr, a, held);
     live_sync::publish_new_mail(addr, &a.thread_id, &a.from, &a.subject, "", quiet);
+}
+
+/// The phone numbers in the message's text, into `addr`'s history with the
+/// sender, at the arrival this deployment stamped on it: the reading pane
+/// asks the history whether the sender gave a number before this message.
+/// Not the reader's own mail. The attachments' numbers are added by the
+/// core that reads them.
+fn record_callback_numbers(net: Option<&mut kevy_client::Connection>, addr: &str, a: &Arrival<'_>) {
+    let Some(conn) = net else { return };
+    if a.is_own {
+        return;
+    }
+    let numbers = mailrs_inbound::body::callback_numbers(&a.parsed);
+    if numbers.is_empty() {
+        return;
+    }
+    let at = mailrs_inbound::dates::received_epoch(a.head)
+        .unwrap_or_else(|| chrono::Utc::now().timestamp());
+    if let Err(e) = mailrs_core_sidestate::families::callback_numbers::record_numbers(
+        conn,
+        addr,
+        &a.from,
+        &numbers,
+        at,
+        &a.message_id,
+    ) {
+        tracing::warn!(error = %e, "callback numbers not recorded");
+    }
 }
 
 /// When the deployment first saw the sender's domain and its link domains;

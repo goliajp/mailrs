@@ -160,6 +160,7 @@
 /api/push/web	read only, the public key
 /api/push/unifiedpush	read only, devices by id, name and host, never the endpoint
 /api/sender-rules	read only
+/api/senders/{address}/callback-numbers	read only
 /api/shared/{gid}/{conv}	read only
 /api/shared/{gid}/{conv}/draft	read only
 /api/shared/{gid}/{conv}/notes	read only
