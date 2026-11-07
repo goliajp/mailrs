@@ -47,6 +47,17 @@ fn current_ref(headers: &HeaderMap) -> Option<String> {
 }
 
 /// GET /api/auth/sessions — most recently used first.
+/// The id a session goes by in the account's list: a prefix of its
+/// reference (the token's hash), never the token.
+pub(crate) fn list_id(reference: &str) -> String {
+    reference.chars().take(ID_LEN).collect()
+}
+
+/// [`list_id`] of the session `token` names.
+pub(crate) fn list_id_of_token(token: &str) -> String {
+    list_id(&session_ref(token))
+}
+
 pub async fn list(
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
@@ -59,7 +70,7 @@ pub async fn list(
         .map(|(reference, blob)| {
             let s: Stored = serde_json::from_slice(&blob).unwrap_or_default();
             SessionView {
-                id: reference.chars().take(ID_LEN).collect(),
+                id: list_id(&reference),
                 created_at: s.created_at_unix,
                 last_seen: s.last_seen_unix.max(s.created_at_unix),
                 ip: s.ip,
@@ -101,7 +112,7 @@ fn ended_detail(reference: &str, blob: &[u8]) -> String {
     let ua: String = s.user_agent.chars().take(120).collect();
     format!(
         "id={} created={} last_used={} ip={} ua={}",
-        reference.chars().take(ID_LEN).collect::<String>(),
+        list_id(reference),
         s.created_at_unix,
         s.last_seen_unix.max(s.created_at_unix),
         ip_prefix(&s.ip),
@@ -110,7 +121,7 @@ fn ended_detail(reference: &str, blob: &[u8]) -> String {
 }
 
 fn audit_ended(user: &str, reference: &str, blob: &[u8]) {
-    let id: String = reference.chars().take(ID_LEN).collect();
+    let id = list_id(reference);
     crate::handlers::audit::record(
         user,
         "auth.session.end",

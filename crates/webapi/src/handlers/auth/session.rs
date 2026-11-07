@@ -140,10 +140,15 @@ pub async fn login(
     // never read from the request body: a caller naming somebody else's
     // address must not be able to attach their own Google account to it.
     guard.succeeded(source, &req.address).await;
-    guard.record(event(Credential::Password, Outcome::Ok)).await;
     claim_pending_link(&headers, &acct.public.address).await;
     let origin = crate::handlers::owner_notice::origin_of(&headers, &source.to_string());
-    issue_session(&state, &acct, origin).await
+    issue_session(
+        &state,
+        &acct,
+        origin,
+        Some(event(Credential::Password, Outcome::Ok)),
+    )
+    .await
 }
 
 /// Link the identity parked by an external login, if one is waiting.
@@ -217,6 +222,7 @@ pub(crate) async fn issue_session(
     state: &Arc<WebState>,
     acct: &mailrs_core_api::method::admin::AccountWithHashWire,
     origin: crate::handlers::owner_notice::Origin,
+    signed_in: Option<LoginEvent>,
 ) -> axum::response::Response {
     // Permissions for the login response — fastcore-only.
     let perms = state
@@ -229,6 +235,11 @@ pub(crate) async fn issue_session(
     let mut bytes = [0u8; 32];
     rand_core::OsRng.fill_bytes(&mut bytes);
     let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+    if let Some(e) = signed_in {
+        crate::login_guard::GUARD
+            .record(e.with_session(&super::sessions::list_id_of_token(&token)))
+            .await;
+    }
 
     let empty_strings: Vec<String> = Vec::new();
     let perms_obj = match perms.as_ref() {
