@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # Bundle, review a read-only corpus diff, then activate without rebuilding.
 # Usage: deploy-fraud-rules.sh BUNDLE [--activate]
-# Build a bundle: cat crates/fraud-lua/rules/{brands,helpers,identity,provenance,content}.lua > /tmp/fraud.lua
+# Build a bundle the way DEFAULT_SOURCE is built, each file followed by a newline:
+#   for f in brands helpers identity provenance content; do
+#     cat "crates/fraud-lua/rules/$f.lua"; printf '\n'; done > /tmp/fraud.lua
+# --check takes any bundle. --activate takes only the bundle committed on
+# develop, so production never runs a rule the repository does not have.
 set -euo pipefail
 BUNDLE="${1:?usage: deploy-fraud-rules.sh BUNDLE [--activate]}"
 MODE="${2:---check}"
@@ -9,6 +13,19 @@ MODE="${2:---check}"
 PROD="${PROD:-root@t02.golia.jp}"
 HASH=$(shasum -a 256 "$BUNDLE" | awk '{print $1}')
 [[ "$HASH" =~ ^[0-9a-f]{64}$ ]] || exit 2
+if [ "$MODE" = --activate ]; then
+    ROOT="$(dirname "$0")/.."
+    COMMIT=$(git -C "$ROOT" rev-parse --verify develop)
+    REPO=$(for f in brands helpers identity provenance content; do
+        git -C "$ROOT" show "$COMMIT:crates/fraud-lua/rules/$f.lua"
+        printf '\n'
+    done | shasum -a 256 | awk '{print $1}')
+    if [ "$REPO" != "$HASH" ]; then
+        echo "refusing to activate lua:$HASH: develop ($COMMIT) bundles lua:$REPO." >&2
+        echo 'Commit the rules to crates/fraud-lua/rules/ and merge them into develop first.' >&2
+        exit 1
+    fi
+fi
 ssh "$PROD" 'mkdir -p /apps/mailrs/fraud-rules'
 scp -q "$BUNDLE" "$PROD:/apps/mailrs/fraud-rules/candidate-$HASH.lua"
 ssh "$PROD" bash -s -- "$HASH" "$MODE" <<'REMOTE'

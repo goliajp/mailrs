@@ -83,3 +83,11 @@ local function account_of(m)
     return 'Bitcoin'
 end
 -- Helpers are lexical upvalues of the rule modules in the concatenated bundle.
+
+-- An impersonation claim convicts on "claims X and the domain is not X's".
+-- The one thing that spares it: the reader has sent mail to this exact
+-- From address (`from_correspondent`, B55). A binary without the fact
+-- reads nil here, so nothing is spared.
+local function reader_wrote_to(m)
+    return m.from_correspondent == true
+end
