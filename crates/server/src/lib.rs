@@ -4,11 +4,11 @@
 
 mod acme;
 mod ai_analyzer;
+mod attachment_text;
 mod body;
 mod boot;
 mod bootstrap;
 mod config;
-mod content_worker;
 mod core_rpc;
 mod domain_store;
 mod event_bus;

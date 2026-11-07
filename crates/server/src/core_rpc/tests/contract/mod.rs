@@ -13,6 +13,7 @@
 mod account_audit;
 mod account_purge;
 mod accounts;
+mod attachment_text;
 mod callback_numbers;
 mod coverage;
 mod deleted_rows;
