@@ -29,6 +29,12 @@ pub(super) fn spawn_spool_drain(
     let net_url = std::env::var("MAILRS_KEVY_URL")
         .ok()
         .filter(|s| !s.is_empty());
+    // attachments of arriving mail, read after delivery as in the kevy core
+    mailrs_intake::attachment_text::spawn(Arc::new(crate::attachment_text::PgAttachmentText {
+        mailbox: mailbox.clone(),
+        maildir_root: cfg.maildir_root.clone(),
+        net_url: net_url.clone(),
+    }));
     let core = Arc::new(crate::intake::PgCore {
         dir: crate::intake::PgDirectory {
             authserv_id: authserv_id(cfg),

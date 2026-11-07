@@ -38,8 +38,9 @@ different entrypoint (`deploy/docker-compose.prod.yml`).
 | ops | `mailrs-ops` | `crates/ops` | The operations daemon. Reads fastcore's and webapi's health over HTTP every minute, takes the signed start, ready and heartbeat reports the other processes push (`crates/ops-report`), and keeps a state per alert rule in its own SQLite file on its own volume: ok, pending, firing, recovering, or unknown when a source cannot be read. Notifies by webhook, an ntfy-style push and an external SMTP relay, never through this server's own outbound queue, and sends a heartbeat to an outside "alert when silent" check after every completed round. It never connects to kevy-server and mounts no mail data. `mailrs-ops status` inside its container shows the alerts. |
 | kevy-server | — | `ghcr.io/goliajp/kevy` | The network key-value store the others share. |
 
-fastcore starts `mailrs-fastcore-ocr` as a short-lived child process per
-attachment that needs OCR, with its own memory and CPU limits.
+fastcore (and the SQL core, which runs the same attachment-text worker
+from `mailrs-intake`) starts `mailrs-fastcore-ocr` as a short-lived child
+process per attachment that needs OCR, with its own memory and CPU limits.
 The receiver keeps one `mailrs-parse-worker` child, fastcore and the SQL
 core two each (`crates/parse-worker`), and they read untrusted message bytes
 in them:
@@ -139,7 +140,7 @@ libraries are published on [crates.io](https://crates.io/users/golia-jp).
 | `mailrs-core-api` | The core-api: request and response types, paths, client and server stubs |
 | `mailrs-core-sidestate` | Network-kevy state shared by more than one process — key names and the functions that read and write them |
 | `mailrs-core` | The SMTP event bus and spool envelope shared by the receiver and fastcore |
-| `mailrs-intake` | The spool drain both cores run: recipient routing, groups, mock addresses, Sieve, report ingestion, what a message says about itself, and the network-kevy side effects of an arrival; each core supplies its directory and its store writes |
+| `mailrs-intake` | The spool drain both cores run: recipient routing, groups, mock addresses, Sieve, report ingestion, what a message says about itself, the network-kevy side effects of an arrival, and the workers that read attachment text and prefetch remote images; each core supplies its directory and its store writes |
 
 ### Mailbox storage
 

@@ -181,6 +181,7 @@ async fn over_the_cap_a_round_waits_for_a_decision_and_under_it_tells_each_reade
     assert_eq!(b["pending"], true, "{b}");
     assert_eq!(b["would_hold"], 5, "{b}");
     assert_eq!(b["conversations"], 0, "{b}");
+    assert_eq!(b["confirmed_at"], 0, "not confirmed yet: {b}");
     assert!(
         b["rules"]
             .as_array()
@@ -240,6 +241,10 @@ async fn over_the_cap_a_round_waits_for_a_decision_and_under_it_tells_each_reade
         (false.into(), 4.into()),
         "{b}"
     );
+    assert!(
+        b["confirmed_at"].as_i64().is_some_and(|t| t > 0),
+        "the list says when it was confirmed: {b}"
+    );
     assert_eq!(
         decide(&w, &obs, "confirm").await.0,
         StatusCode::CONFLICT,
@@ -259,6 +264,10 @@ async fn over_the_cap_a_round_waits_for_a_decision_and_under_it_tells_each_reade
     let b = batch(&w, &obs).await;
     assert_eq!(b["pending"], false, "{b}");
     assert!(b["discarded_at"].as_i64().unwrap() > 0, "{b}");
+    assert_eq!(
+        b["confirmed_at"], 0,
+        "a discarded batch was not confirmed: {b}"
+    );
     assert_eq!(notices(&mut w.kv, USER).len(), 1);
     assert_eq!(audit_rows(&mut w.kv, "rejudge.recall").len(), 4);
     let discarded = audit_rows(&mut w.kv, "rejudge.batch_discard");

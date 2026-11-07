@@ -19,6 +19,8 @@ pub(super) struct Entry {
     pub(super) rules: Vec<String>,
     #[serde(default)]
     pub(super) discarded_at: i64,
+    #[serde(default)]
+    pub(super) confirmed_at: i64,
 }
 
 impl Entry {
@@ -30,6 +32,7 @@ impl Entry {
             would_hold,
             rules: rules.to_vec(),
             discarded_at: 0,
+            confirmed_at: 0,
         }
     }
 }
@@ -65,6 +68,7 @@ pub(crate) struct Batch {
     pub(crate) would_hold: u64,
     pub(crate) rules: Vec<String>,
     pub(crate) discarded_at: i64,
+    pub(crate) confirmed_at: i64,
 }
 
 /// Why a decision on a batch was refused.
@@ -101,6 +105,7 @@ pub(crate) fn batches(state: &FastcoreState) -> Vec<Batch> {
                 would_hold: e.would_hold,
                 rules: e.rules,
                 discarded_at: e.discarded_at,
+                confirmed_at: e.confirmed_at,
             })
         })
         .collect();
@@ -159,6 +164,7 @@ pub(crate) fn confirm_batch(
         .collect();
     let held = hold_all(state, observation, &recorded);
     e.pending = false;
+    e.confirmed_at = now();
     if let Err(error) = put_entry(state, observation, &e) {
         tracing::error!(%error, %observation, "rejudge: the confirmed batch was not marked");
     }

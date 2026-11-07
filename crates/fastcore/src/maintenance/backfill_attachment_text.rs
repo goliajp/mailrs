@@ -152,9 +152,7 @@ pub(super) fn classify(
         return Found::NoFile;
     };
     if !crate::attachment_text::may_carry_readable(&raw)
-        || crate::attachment_text::readable_parts(&mailrs_mime::parse(&raw))
-            .next()
-            .is_none()
+        || !crate::attachment_text::reads_anything(&raw)
     {
         return Found::NothingReadable;
     }

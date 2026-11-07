@@ -13,6 +13,7 @@
 
 mod analysis_ops;
 mod attachment_ops;
+mod attachment_text;
 mod flag_ops;
 pub(crate) mod helpers;
 mod mailbox_ops;

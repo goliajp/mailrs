@@ -18,7 +18,7 @@ pub(crate) fn assess(raw: &[u8], texts: &[(usize, String)], urls: &[String]) -> 
     let links = mailrs_inbound::scan_input::link_hosts(&parsed);
     let image_text: Vec<&str> = texts.iter().map(|(_, t)| t.as_str()).collect();
     let facts = mailrs_fraud::qr::assess(urls, sender_host, &links, &image_text.join("\n"), |d| {
-        crate::ledger::NEVER.contains(d)
+        super::NEVER.contains(d)
     });
     (facts.codes > 0).then_some(facts)
 }

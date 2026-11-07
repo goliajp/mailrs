@@ -136,6 +136,7 @@ export const adminKeys = {
   overviewStatus: () => [...adminKeys.all(), 'overview-status'] as const,
   permissions: () => [...adminKeys.all(), 'permissions'] as const,
   queues: () => [...adminKeys.all(), 'queues'] as const,
+  recallBatches: () => [...adminKeys.all(), 'recall-batches'] as const,
   signIns: (query: string) => [...adminKeys.all(), 'sign-ins', query] as const,
   systemConfig: () => [...adminKeys.all(), 'system-config'] as const,
 }

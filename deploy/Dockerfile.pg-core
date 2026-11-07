@@ -29,7 +29,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates/ crates/
 # the core creates its schema from this file on an empty database
-COPY scripts/init-schema.sql scripts/init-schema.sql
+# the core embeds the schema and every migration after it (pg_schema.rs)
+COPY scripts/init-schema.sql scripts/migrate-*.sql scripts/
 ARG FEATURES=""
 # the release version, written where the binary reports it from
 ARG VERSION=0.0.0
@@ -43,9 +44,20 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo build --release -p mailrs-server --bin mailrs-pg-core ${FEATURES:+--features "$FEATURES"} \
     && cargo build --release -p mailrs-core-sync \
     && cargo build --release -p mailrs-parse-worker --bin mailrs-parse-worker \
+    && cargo build --release -p mailrs-fastcore --bin mailrs-fastcore-ocr \
     && cp /build/target/release/mailrs-pg-core /usr/local/bin/mailrs-pg-core \
     && cp /build/target/release/mailrs-parse-worker /usr/local/bin/mailrs-parse-worker \
+    && cp /build/target/release/mailrs-fastcore-ocr /usr/local/bin/mailrs-fastcore-ocr \
     && cp /build/target/release/mailrs-core-sync /usr/local/bin/mailrs-core-sync
+
+# OCR models, fetched and checked against the sha256 in the manifest. Its
+# own stage so the download is cached until the manifest changes.
+FROM debian:trixie-slim AS ocr-models
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+COPY crates/ocr/models.tsv /tmp/models.tsv
+COPY scripts/fetch-ocr-models.sh /tmp/fetch-ocr-models.sh
+RUN sh /tmp/fetch-ocr-models.sh /usr/share/mailrs/ocr /tmp/models.tsv
 
 FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -55,6 +67,10 @@ COPY --from=rust-builder /usr/local/bin/mailrs-pg-core /usr/local/bin/mailrs-pg-
 COPY --from=rust-builder /usr/local/bin/mailrs-core-sync /usr/local/bin/mailrs-core-sync
 # the core parses message bytes in it and will not start without it
 COPY --from=rust-builder /usr/local/bin/mailrs-parse-worker /usr/local/bin/mailrs-parse-worker
+# reads text in image and scanned-PDF attachments, one process per
+# attachment, found next to the core with its models in the default place
+COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-ocr /usr/local/bin/mailrs-fastcore-ocr
+COPY --from=ocr-models /usr/share/mailrs/ocr /usr/share/mailrs/ocr
 # mailrs-core-sync rides along on purpose: the switch this image exists for is
 # "bring the other core up, sync, flip MAILRS_CORE_RPC_BASE", and the sync has
 # to be runnable from beside the core it is syncing.
