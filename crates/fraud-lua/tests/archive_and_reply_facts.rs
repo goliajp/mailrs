@@ -102,7 +102,14 @@ fn holds(raw: &[u8]) -> Vec<String> {
 #[test]
 fn the_sweep_reads_an_encrypted_archive_of_documents() {
     let statement = message("statement", "", Some(&[("statement.pdf", true)]));
-    assert_eq!(holds(&statement), ["probe-encrypted-documents"]);
+    // the default bundle carries the rule that reads this fact as well
+    assert_eq!(
+        holds(&statement),
+        [
+            "encrypted-archive-of-documents",
+            "probe-encrypted-documents"
+        ]
+    );
     let script = message("statement", "", Some(&[("statement.hta", true)]));
     assert_eq!(holds(&script), ["executable-attachment"]);
     let open = message("statement", "", Some(&[("statement.pdf", false)]));

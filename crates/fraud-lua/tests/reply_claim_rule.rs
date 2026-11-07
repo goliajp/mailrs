@@ -1,4 +1,4 @@
-//! The deployed "claims to be a reply, belongs to no thread" rule, judged
+//! The shipped "claims to be a reply, belongs to no thread" rules, judged
 //! on whole messages with the reader's history: a helpdesk whose replies
 //! go to a vendor the reader writes to is scored, not held; the same shape
 //! from nobody the reader knows is held.
@@ -8,29 +8,6 @@ use mailrs_fraud_lua::stored::relation::Counted;
 use mailrs_fraud_lua::{DEFAULT_SOURCE, Rules};
 
 const ME: &str = "me@golia.example";
-
-/// The two rules as the deployed pack writes them, on top of the shipped
-/// bundle's helpers (`external`, `found`).
-const RULE_A: &str = r#"
-local function wrote_to_either(m)
-    return m.from_correspondent == true or m.reply_to_correspondent == true
-end
-local function reply_claim_without_thread(m)
-    return external(m) and m.reply_marker_without_thread == true and m.reply_to_outside
-end
-rule('reply-claim-without-thread', 'provenance', 6, true, function(m)
-    if reply_claim_without_thread(m) and not wrote_to_either(m) then
-        return found('the subject says this is a reply, it answers no earlier message, and replies go to another domain',
-            {domain = m.from_domain})
-    end
-end)
-rule('reply-claim-without-thread-correspondent', 'provenance', 3, false, function(m)
-    if reply_claim_without_thread(m) and wrote_to_either(m) then
-        return found('the subject says this is a reply and it answers no earlier message; replies go to another domain, one you have written to',
-            {domain = m.from_domain})
-    end
-end)
-"#;
 
 fn helpdesk(subject: &str, thread: &str) -> Vec<u8> {
     format!(
@@ -45,7 +22,7 @@ Your request has been updated.\r\n"
 
 /// `(held, the rules that fired)` for `raw`, read by `ME` against `store`.
 fn judge(raw: &[u8], store: Connection) -> (bool, Vec<String>) {
-    let mut rules = Rules::compile(&format!("{DEFAULT_SOURCE}{RULE_A}")).expect("compiles");
+    let mut rules = Rules::compile(DEFAULT_SOURCE).expect("compiles");
     let mut hist = Some(store);
     let j = mailrs_fraud_lua::stored::judge_with(
         raw,

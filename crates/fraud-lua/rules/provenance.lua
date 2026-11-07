@@ -2,7 +2,7 @@ local vendors = {'outlook','thunderbird','apple','iphone','ipad','mail','zimbra'
     'sendgrid','mailchimp','amazon','postfix','exim','zoho','gmail','yahoo','becky','shuriken','edmax',
     'salesforce','marketo','sendinblue','klaviyo','mailer','smtp','python','ruby','java','node','swift',
     'sparkpost','mandrill','system','server','notes','groupware','cybozu','desknet','sakura','xserver'}
-rule('x-mailer-generated', 'provenance', 5, true, function(m)
+rule('x-mailer-generated', 'provenance', 5, false, function(m)
     local v = trim(m.x_mailer)
     if #v == 0 or #v > 120 then return end
     for _, vendor in ipairs(vendors) do if contains(v:lower(), vendor) then return end end
@@ -18,9 +18,39 @@ rule('x-mailer-generated', 'provenance', 5, true, function(m)
     end
     return found('X-Mailer is one no mail client writes', {mailer = v})
 end)
+-- A message that says it is a reply, answers no message, and sends the
+-- answer somewhere else. A client that writes `Re:` also writes
+-- In-Reply-To / References, from the same button; a `Re:` with neither
+-- was typed to look like a conversation already under way, and replies
+-- to another registrable domain than the sender's take the conversation
+-- off the address that was shown. Every part is read off the message.
+--
+-- One exemption: the reader has written to the From address or to the
+-- Reply-To address (a helpdesk that sends from its ticket system and
+-- takes replies at the vendor's own domain). Then it only scores. A
+-- binary without the facts reads nil: no hold for the first, no
+-- exemption for the second.
+local function wrote_to_either(m)
+    return m.from_correspondent == true or m.reply_to_correspondent == true
+end
+local function reply_claim_without_thread(m)
+    return external(m) and m.reply_marker_without_thread == true and m.reply_to_outside
+end
+rule('reply-claim-without-thread', 'provenance', 6, true, function(m)
+    if reply_claim_without_thread(m) and not wrote_to_either(m) then
+        return found('the subject says this is a reply, it answers no earlier message, and replies go to another domain',
+            {domain = m.from_domain})
+    end
+end)
+rule('reply-claim-without-thread-correspondent', 'provenance', 3, false, function(m)
+    if reply_claim_without_thread(m) and wrote_to_either(m) then
+        return found('the subject says this is a reply and it answers no earlier message; replies go to another domain, one you have written to',
+            {domain = m.from_domain})
+    end
+end)
 rule('reply-domain-rotation', 'provenance', 6, true, function(m)
     if m.reply_rotation >= 4 then
-        return found('replies go to a domain that ' .. m.reply_rotation .. ' different sending domains use',
+        return found('replies go to one address that ' .. m.reply_rotation .. ' different sending domains send for',
             {count = tostring(m.reply_rotation)})
     end
 end)
@@ -67,15 +97,18 @@ rule('bec-pay-to-a-lookalike', 'provenance', 4, false, function(m)
             {account = account_of(m), domain = m.from_domain, like = m.lookalike_of})
     end
 end)
--- The three rules below run in shadow: their hits are recorded and
--- counted, but add nothing to the score and hold nothing, until a month
--- of live hits shows how often they land on real mail.
+-- Scored, out of shadow since the B55 correspondent facts: its hits
+-- fell from 316 to 54, all one campaign. It leans on whom the reader
+-- writes to, so it scores and never holds.
 rule('bec-name-borrowed', 'provenance', 4, false, function(m)
     if m.name_borrowed and (m.reply_to_outside or pays(m)) then
         return found("a correspondent's name at an address that has never written to you, sending replies elsewhere or carrying a payment account",
             {domain = m.from_domain})
     end
-end, {shadow = true})
+end)
+-- The two rules below run in shadow: their hits are recorded and
+-- counted, but add nothing to the score and hold nothing, until a month
+-- of live hits shows how often they land on real mail.
 -- Replies count as sent elsewhere only to another organisation by the
 -- public suffix list.  A sender whose own aligned DKIM verified and whose
 -- domain has a history here is left alone; DKIM alone is not enough,
