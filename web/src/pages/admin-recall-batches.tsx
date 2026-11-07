@@ -2,6 +2,7 @@ import type { WireRecallBatch } from '@/wire/schemas/rejudge'
 
 import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 
 import {
   AdminEmptyState,
@@ -10,6 +11,7 @@ import {
   AdminTable,
   AdminTableSkeleton,
   type Column,
+  ConfirmAction,
 } from '@/components/admin-page'
 import { type Key, type Translate, useT } from '@/i18n'
 import { formatFullDate } from '@/lib/format'
@@ -25,7 +27,12 @@ import { isWireError } from '@/wire/errors'
 
 const EMPTY: WireRecallBatch[] = []
 
+type Asking = { batch: WireRecallBatch; decision: Weighed }
+
 type Decision = 'confirm' | 'discard' | 'release'
+
+/** The two decisions on a waiting round, which a second dialog asks about first. */
+type Weighed = Exclude<Decision, 'release'>
 
 const STATE_LABEL: Record<RecallBatchState, Key> = {
   discarded: 'admin.recall.state.discarded',
@@ -46,6 +53,11 @@ const DONE: Record<Decision, Key> = {
   release: 'admin.recall.released',
 }
 
+const ASK: Record<Weighed, { consequence: Key; title: Key }> = {
+  confirm: { consequence: 'admin.recall.ask.confirm', title: 'admin.recall.ask.confirmTitle' },
+  discard: { consequence: 'admin.recall.ask.discard', title: 'admin.recall.ask.discardTitle' },
+}
+
 const SEND: Record<Decision, (observation: string) => Promise<number>> = {
   confirm: wireConfirmRecallBatch,
   discard: wireDiscardRecallBatch,
@@ -64,8 +76,9 @@ const HEADERS: Key[] = [
 /**
  * The batches re-judging took back into Review, one per round, and the
  * three decisions a super administrator makes on them: hold or drop a
- * round that waits over the cap, and put a held batch back whole. Each
- * write asks for the password again when the server wants it.
+ * round that waits over the cap, and put a held batch back whole. Holding
+ * or dropping a round is asked about first; each write asks for the
+ * password again when the server wants it.
  */
 export function AdminRecallBatches() {
   const t = useT()
@@ -74,6 +87,7 @@ export function AdminRecallBatches() {
     queryFn: ({ signal }) => fetchRecallBatches(signal),
   })
   const items = data ?? EMPTY
+  const [asking, setAsking] = useState<Asking | null>(null)
   const reload = () => void refetch()
   const decide = async (decision: Decision, observation: string) => {
     try {
@@ -84,6 +98,13 @@ export function AdminRecallBatches() {
     } finally {
       reload()
     }
+  }
+  const choose = (decision: Decision, batch: WireRecallBatch) => {
+    if (decision === 'release') {
+      void decide(decision, batch.observation)
+      return
+    }
+    setAsking({ batch, decision })
   }
 
   const columns: Column<WireRecallBatch>[] = [
@@ -112,10 +133,7 @@ export function AdminRecallBatches() {
       hideHeader: true,
       key: 'actions',
       cell: (b) => (
-        <Actions
-          decisions={decisionsFor(recallBatchState(b))}
-          onDecide={(d) => void decide(d, b.observation)}
-        />
+        <Actions decisions={decisionsFor(recallBatchState(b))} onDecide={(d) => choose(d, b)} />
       ),
     },
   ]
@@ -140,6 +158,20 @@ export function AdminRecallBatches() {
           label={t('admin.recall.title')}
           rowKey={(b) => b.observation}
           rows={items}
+        />
+      )}
+      {asking && (
+        <ConfirmAction
+          confirmLabel={t(BUTTON[asking.decision])}
+          consequence={t(ASK[asking.decision].consequence, {
+            count: recallBatchCount(asking.batch),
+          })}
+          onCancel={() => setAsking(null)}
+          onConfirm={() => {
+            setAsking(null)
+            void decide(asking.decision, asking.batch.observation)
+          }}
+          title={t(ASK[asking.decision].title)}
         />
       )}
     </AdminPageShell>
@@ -171,10 +203,11 @@ function Actions({
   )
 }
 
-/** When the batch was put back or discarded; a confirmation is not timed by the server. */
+/** When the batch was put back, discarded or confirmed; one that held on its own was never decided. */
 function decidedAt(b: WireRecallBatch): string {
   if (b.released_at > 0) return formatFullDate(b.released_at)
   if (b.discarded_at > 0) return formatFullDate(b.discarded_at)
+  if (b.confirmed_at > 0) return formatFullDate(b.confirmed_at)
   return '—'
 }
 

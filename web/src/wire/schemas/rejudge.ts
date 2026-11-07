@@ -12,6 +12,8 @@ import { z } from '@/lib/zod'
 export const wireRecallBatchSchema = z.object({
   /** When the first conversation was taken back, epoch seconds. */
   at: z.number(),
+  /** When a waiting batch was confirmed; 0 while it has not been, and for one that held on its own. */
+  confirmed_at: z.number(),
   /** Conversations the batch took back. */
   conversations: z.number(),
   /** When a waiting batch was discarded; 0 while it has not been. */

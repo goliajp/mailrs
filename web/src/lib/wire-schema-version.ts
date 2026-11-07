@@ -13,7 +13,7 @@
  */
 export const WIRE_SCHEMA_VERSION = 25
 
-export const WIRE_SCHEMAS_HASH = '528b2d36'
+export const WIRE_SCHEMAS_HASH = 'adfcb29c'
 
 /** FNV-1a over the files' names and contents, in name order. */
 export function hashSchemas(files: Record<string, string>): string {

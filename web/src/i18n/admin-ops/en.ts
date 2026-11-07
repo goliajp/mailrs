@@ -228,6 +228,12 @@ export const adminOpsEn = {
   'admin.queue.title': 'Outbound queue',
   'admin.queue.to': 'To',
   'admin.recall.actions': 'Actions',
+  'admin.recall.ask.confirm':
+    'Takes the {count} conversations this batch recorded back into Review. Any put back or already in Review since are left as they are.',
+  'admin.recall.ask.confirmTitle': 'Hold this batch',
+  'admin.recall.ask.discard':
+    'This batch recorded {count} conversations. Once discarded, it will not be taken back and cannot be restored.',
+  'admin.recall.ask.discardTitle': 'Discard this batch',
   'admin.recall.at': 'Taken back',
   'admin.recall.batch': 'Batch',
   'admin.recall.confirm': 'Hold them',

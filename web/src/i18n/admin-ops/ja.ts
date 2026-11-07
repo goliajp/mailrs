@@ -231,6 +231,12 @@ export const adminOpsJa: Record<AdminOpsKey, string> = {
   'admin.queue.title': '送信キュー',
   'admin.queue.to': '宛先',
   'admin.recall.actions': '操作',
+  'admin.recall.ask.confirm':
+    'このバッチが記録した {count} 件の会話を確認待ちに取り下げます。その後戻された会話や、すでに確認待ちにある会話はそのままです。',
+  'admin.recall.ask.confirmTitle': 'このバッチを取り下げる',
+  'admin.recall.ask.discard':
+    'このバッチは {count} 件の会話を記録しています。破棄すると、このバッチは取り下げられず、元にも戻せません。',
+  'admin.recall.ask.discardTitle': 'このバッチを破棄する',
   'admin.recall.at': '取り下げた日時',
   'admin.recall.batch': 'バッチ',
   'admin.recall.confirm': '取り下げる',

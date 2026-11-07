@@ -224,6 +224,11 @@ export const adminOpsZh: Record<AdminOpsKey, string> = {
   'admin.queue.title': '外发队列',
   'admin.queue.to': '收件人',
   'admin.recall.actions': '操作',
+  'admin.recall.ask.confirm':
+    '会把这一批记下的 {count} 个会话撤回到待审。其间已被放回或已在待审的会话保持原样。',
+  'admin.recall.ask.confirmTitle': '撤回这一批',
+  'admin.recall.ask.discard': '这一批记下了 {count} 个会话。放弃后这批不会再被撤回，也不能恢复。',
+  'admin.recall.ask.discardTitle': '放弃这一批',
   'admin.recall.at': '撤回时间',
   'admin.recall.batch': '批次',
   'admin.recall.confirm': '确认撤回',

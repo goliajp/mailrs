@@ -8,6 +8,7 @@ import { recallBatchCount, recallBatchState } from '@/lib/recall-batch'
 
 const base = {
   at: 1_793_700_000,
+  confirmed_at: 0,
   conversations: 0,
   discarded_at: 0,
   observation: 'r12',
@@ -40,11 +41,11 @@ describe('recall batch state', () => {
 })
 
 describe('recall batch count', () => {
-  it('counts what a waiting round would hold, and what any other batch took back', () => {
+  it('counts what a waiting or discarded round would hold, and what a held batch took back', () => {
     expect(recallBatchCount({ ...base, conversations: 0, pending: true, would_hold: 80 })).toBe(80)
     expect(recallBatchCount({ ...base, conversations: 4, would_hold: 4 })).toBe(4)
     expect(
       recallBatchCount({ ...base, conversations: 0, discarded_at: 1_793_800_000, would_hold: 80 })
-    ).toBe(0)
+    ).toBe(80)
   })
 })
