@@ -70,6 +70,27 @@ pub fn payment_ids(
     found
 }
 
+/// The phone numbers in the message's text, as written, once each by
+/// their digits and at most [`mailrs_fraud::callback::MAX_NUMBERS`]: the
+/// same parts as [`offers_the_reader_a_sum`], HTML read as its text.
+pub fn callback_numbers(parsed: &mailrs_mime::Part<'_>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for (html, text) in texts(parsed) {
+        let text = match html {
+            true => mailrs_fraud::callback::html_text(&text),
+            false => text,
+        };
+        for n in mailrs_fraud::callback::phone_numbers(&text) {
+            let d = mailrs_fraud::callback::digits(&n);
+            if !out.iter().any(|o| mailrs_fraud::callback::digits(o) == d) {
+                out.push(n);
+            }
+        }
+    }
+    out.truncate(mailrs_fraud::callback::MAX_NUMBERS);
+    out
+}
+
 /// What the message's HTML and SVG attachments are built to do, for a
 /// sender at `sender_host`.
 pub fn html_attachments(

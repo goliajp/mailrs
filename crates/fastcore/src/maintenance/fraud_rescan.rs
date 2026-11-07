@@ -104,11 +104,18 @@ impl FraudJudge {
             .mailbox
             .attachment_texts(message_id)
             .unwrap_or_default();
+        let qr_urls = state
+            .mailbox
+            .attachment_qr_urls(message_id)
+            .unwrap_or_default();
         let j = mailrs_fraud_lua::stored::judge_for(
             raw,
             Some((user, mailrs_fraud_lua::stored::relation::Counted::After)),
             self.our_stamp.as_deref(),
-            &texts,
+            mailrs_fraud_lua::stored::Extracted {
+                texts: &texts,
+                qr_urls: &qr_urls,
+            },
             &self.policy,
             &mut self.hist,
         )?;

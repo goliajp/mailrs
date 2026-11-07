@@ -17,10 +17,10 @@
 use super::shape::{Shape, glob_escape};
 use super::{custom, last_reader, rejudge};
 use crate::families::{
-    calendar_events, calendar_feeds, contact_cards, contact_sent, contacts, devices, email_groups,
-    forwarding, local_forward, masked_email, notify, outbound::pause, permission_groups, prefs,
-    recall_notices, rules, saved_searches, sectioned_inbox, send, sender_lists, sender_rules,
-    shared_inbox, submitted, swipe, vacation,
+    calendar_events, calendar_feeds, callback_numbers, contact_cards, contact_sent, contacts,
+    devices, email_groups, forwarding, local_forward, masked_email, notify, outbound::pause,
+    permission_groups, prefs, recall_notices, rules, saved_searches, sectioned_inbox, send,
+    sender_lists, sender_rules, shared_inbox, submitted, swipe, vacation,
 };
 use crate::keys::{credentials, push, quota, reset, session};
 
@@ -129,6 +129,7 @@ pub const OWNED: &[Owned] = &[
     // people, calendar
     net("mailrs:contact:{user}:*", Shape::Globs(|a| vec![contacts::contact_key(&glob_escape(a), "*")])),
     net("mailrs:contact_vips:{user}", Shape::Key(contacts::vips_key)),
+    net("mailrs:callnum:{user}:*", Shape::Globs(|a| vec![callback_numbers::key(&glob_escape(a), "*")])),
     net("mailrs:contact_sent:{user}", Shape::Key(contact_sent::sent_to_key)),
     net("mailrs:user:{user}:contacts", Shape::Key(contact_cards::autocomplete_key)),
     net("mailrs:user:{user}:contacts:ts", Shape::Key(contact_cards::autocomplete_ts_key)),
@@ -244,6 +245,7 @@ pub const KEPT: &[Kept] = &[
     Kept { name: "oidc:pending:*", why: "a sign-in waiting to be linked, keyed by a random handle; expires in 10 minutes and names the address only in its value" },
     Kept { name: "bayes:trained:*", why: "which conversations trained the spam model, by conversation id, not by user" },
     Kept { name: "mailrs:contact:*:{user}", why: "another account's record of its mail with this address: that account's data" },
+    Kept { name: "mailrs:callnum:*:{user}", why: "the numbers this address gave another account: that account's data" },
     Kept { name: "L:r:*:{user}", why: "another account's relationship row for this correspondent: that account's data" },
     Kept { name: "mailrs:vacation:*:{user}", why: "another account's memory of having auto-replied to this address: that account's data" },
     Kept { name: "acct:{user}", why: "the SQL core's own cache of the account row, in its process store; dropped at the delete" },

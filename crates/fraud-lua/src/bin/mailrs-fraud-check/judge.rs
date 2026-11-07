@@ -212,6 +212,7 @@ pub(super) fn judge(
             &mailrs_inbound::dkim_signers::of(&raw),
         ),
         dkim_from_org_passed: stamp.dkim_from_org_passed,
+        has_links: !mailrs_inbound::scan_input::link_hosts(&parsed).is_empty(),
         ..Facts::default()
     };
     let (old, old_shadow) = match before {

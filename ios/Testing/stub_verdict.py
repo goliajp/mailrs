@@ -6,10 +6,18 @@ almost every message. `POST /debug/verdict` arms the suspicious case for
 the ordinary thread (`t1` and the threads served like it): the second
 message, from a suspicious sender, then carries a held verdict across the
 four layers, its SPF/DKIM/DMARC results, a link whose text shows another
-host and a callback number; the first message carries only why it was
+host and two phone numbers; the first message carries only why it was
 filed where it was. Armed only on request, so the suites that read this
 thread for other reasons see it unchanged. `/debug/reset` disarms it, and
 so does `POST /debug/verdict?on=0`.
+
+`GET /api/senders/{address}/callback-numbers` answers the numbers the
+sender gave the reader before. Armed, the held message's sender gave
+`0120-111-222` in another conversation (so the callback notice leaves it
+out), and the history already holds `+81 3-1234-5678` as first given by
+the held message itself (so the notice still names it: a client that took
+every number in the history as old would hide it). Unarmed, every sender
+gave none.
 """
 
 import copy
@@ -60,11 +68,12 @@ LINKS_HTML = (
     '<p>Sign in at <a href="https://webmail-oauth.wzldq.com/auth">www.golia.jp/login</a></p>'
     '<p><a href="https://example.org/help">the help page</a></p>'
     "<p>Questions? Call +81 3-1234-5678.</p>"
+    "<p>Our office: 0120-111-222.</p>"
 )
 
 SUSPICIOUS = {
     "html_body": LINKS_HTML,
-    "text_body": "Short reply, narrow body. Questions? Call +81 3-1234-5678.",
+    "text_body": "Short reply, narrow body. Questions? Call +81 3-1234-5678. Our office: 0120-111-222.",
     # what `nothing-vouches-for-the-sender` in the identity layer fires on:
     # no DKIM signature and an SPF that did not pass, under a DMARC record
     # (the forged sender of 2026-10-24 had exactly these three)
@@ -93,9 +102,26 @@ def arm(handler):
     return True
 
 
+# as `GET /api/senders/{address}/callback-numbers` answers it
+# (crates/webapi/src/handlers/callback_numbers.rs)
+GIVEN_BEFORE = [
+    {"number": "0120111222", "first_seen": 1754300000, "first_message_id": "<older@x>"},
+    {"number": "81312345678", "first_seen": 1754400000, "first_message_id": HELD_MESSAGE},
+]
+
+
 def get(handler, messages):
-    """The verdict route, and the armed thread; True when this answered."""
+    """The verdict route, the senders' numbers, and the armed thread; True
+    when this answered."""
     path = handler.path.split("?")[0]
+    numbers = re.match(r"^/api/senders/([^/]+)/callback-numbers$", path)
+    if numbers:
+        sender = unquote(numbers.group(1)).lower()
+        given = []
+        if ARMED[0] and sender == "spoofed@example.com":
+            given = copy.deepcopy(GIVEN_BEFORE)
+        handler._send({"sender": sender, "numbers": given})
+        return True
     m = re.match(r"^/api/messages/([^/]+)/fraud-verdict$", path)
     if m:
         handler._send({"verdict": _verdict(unquote(m.group(1)))})

@@ -17,7 +17,7 @@ use super::params_senders::{
 };
 use super::{MailrsMcpService, ok_result};
 use crate::handlers::conversations::AuthedUser;
-use crate::handlers::{notify, sender_rules, senders};
+use crate::handlers::{callback_numbers, notify, sender_rules, senders};
 
 fn json(v: impl serde::Serialize) -> CallToolResult {
     CallToolResult::success(vec![ContentBlock::text(
@@ -92,6 +92,20 @@ impl MailrsMcpService {
             .await
             .map_err(|c| map_status(c, "list_sender_rules"))?;
         Ok(json(serde_json::json!({ "items": rows })))
+    }
+
+    #[tool(
+        description = "List the phone numbers a sender gave you before, in any conversation: each number's digits, when the first message carrying it arrived, and that message's id. Read only."
+    )]
+    async fn list_callback_numbers(
+        &self,
+        Parameters(p): Parameters<SenderAddressParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        let Json(a) = callback_numbers::list(axum::Extension(AuthedUser(user)), Path(p.address))
+            .await
+            .map_err(|c| map_status(c, "list_callback_numbers"))?;
+        Ok(json(a))
     }
 
     #[tool(

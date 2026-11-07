@@ -20,20 +20,32 @@ const THIN_PAGE: usize = 50;
 /// Pages of one PDF that go through OCR.
 const MAX_OCR_PAGES: usize = 20;
 
-/// Extractor generations, stored with each message's outcome. Two
-/// independent things: how far PDFs and images were read (the low bits:
-/// 1 embedded PDF text only, 2 with OCR), and whether Office files were
-/// read (the `WITH_OFFICE` bit). A message is read again when either falls
-/// short of what this process does; see `covers`.
+/// Extractor generations, stored with each message's outcome. Independent
+/// things: how far PDFs and images were read (the low bits: 1 embedded PDF
+/// text only, 2 with OCR), whether Office files were read (the
+/// `WITH_OFFICE` bit), and whether the QR codes' addresses were stored
+/// (the `WITH_QR` bit; the OCR child reads codes, so only a process with
+/// OCR sets it). A message is read again when any falls short of what
+/// this process does; see `covers`.
 pub const VERSION_PDF_ONLY: u32 = 1;
 pub const VERSION_WITH_OCR: u32 = 2;
 pub const WITH_OFFICE: u32 = 4;
+pub const WITH_QR: u32 = 8;
+
+const FLAGS: [u32; 2] = [WITH_OFFICE, WITH_QR];
 
 /// Whether a message read at `done` already has everything a read at `now`
 /// would give. Not `done >= now`: a process without OCR would then read a
 /// message again that was read with OCR, and replace its text with less.
 pub(crate) fn covers(done: u32, now: u32) -> bool {
-    done & WITH_OFFICE >= now & WITH_OFFICE && done & !WITH_OFFICE >= now & !WITH_OFFICE
+    let all = FLAGS.iter().fold(0, |acc, f| acc | f);
+    FLAGS.iter().all(|f| done & f >= now & f) && done & !all >= now & !all
+}
+
+/// Whether a message read at `done` lacks only its QR codes: its text is
+/// current, and reading the codes alone brings it up to `now`.
+pub(crate) fn lacks_only_qr(done: u32, now: u32) -> bool {
+    !covers(done, now) && covers(done | WITH_QR, now)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -137,7 +149,7 @@ pub(crate) fn extract_all(
         ..Default::default()
     };
     if ocr.is_some() {
-        state.version = VERSION_WITH_OCR | WITH_OFFICE;
+        state.version = VERSION_WITH_OCR | WITH_OFFICE | WITH_QR;
     }
     for (n, (kind, part)) in readable_parts(&parsed).enumerate() {
         state.parts += 1;
@@ -202,10 +214,7 @@ fn read_pdf(body: &[u8], ocr: Option<&OcrSetup>, n: usize, qr: &mut Vec<String>)
         .filter(|p| !p.is_empty())
         .map(str::to_string)
         .collect();
-    let thin: Vec<usize> = (0..pages.len())
-        .filter(|&i| pages[i].chars().filter(|c| !c.is_whitespace()).count() < THIN_PAGE)
-        .take(MAX_OCR_PAGES)
-        .collect();
+    let thin = thin_pages(&pages);
     let mut by_ocr = false;
     if let Some(setup) = ocr
         && !thin.is_empty()
@@ -222,6 +231,15 @@ fn read_pdf(body: &[u8], ocr: Option<&OcrSetup>, n: usize, qr: &mut Vec<String>)
         text: parts.join("\n"),
         by_ocr,
     }
+}
+
+/// The pages too thin on embedded text to be anything but scans, which OCR
+/// reads; at most [`MAX_OCR_PAGES`].
+fn thin_pages(pages: &[String]) -> Vec<usize> {
+    (0..pages.len())
+        .filter(|&i| pages[i].chars().filter(|c| !c.is_whitespace()).count() < THIN_PAGE)
+        .take(MAX_OCR_PAGES)
+        .collect()
 }
 
 /// Embedded text of each page, or `None` when the file is too large to
@@ -294,6 +312,41 @@ fn read_image(body: &[u8], ocr: Option<&OcrSetup>, n: usize, qr: &mut Vec<String
     }
 }
 
+/// The web addresses of the QR codes in `raw`'s images and in the pages of
+/// its PDFs that a full read sends to OCR, without reading any text: the
+/// same parts and pages as [`extract_all`], the codes only.
+pub(crate) fn qr_only(raw: &[u8], setup: &OcrSetup) -> Vec<String> {
+    let parsed = mailrs_mime::parse(raw);
+    let mut qr = Vec::new();
+    for (n, (kind, part)) in readable_parts(&parsed).enumerate() {
+        let body = &part.body[..];
+        let pages: Vec<usize>;
+        let job = match kind {
+            Kind::Image if (MIN_IMAGE_BYTES..=MAX_IMAGE_BYTES).contains(&body.len()) => {
+                Job::QrImage
+            }
+            Kind::Pdf if body.len() <= MAX_OCR_PDF_BYTES => {
+                pages = match embedded_pages(body, n) {
+                    Some(text) => thin_pages(&text),
+                    None => (0..MAX_OCR_PAGES).collect(),
+                };
+                if pages.is_empty() {
+                    continue;
+                }
+                Job::QrPdf(&pages)
+            }
+            _ => continue,
+        };
+        match super::ocr::run(setup, job, body) {
+            Ok(a) => qr.extend(a.qr),
+            Err(error) => {
+                tracing::info!(%error, attachment = n, "attachment text: reading qr codes failed")
+            }
+        }
+    }
+    qr
+}
+
 fn ocr_text(
     setup: &OcrSetup,
     job: Job<'_>,
@@ -330,6 +383,19 @@ mod tests {
         readable_parts(&mailrs_mime::parse(raw.as_bytes()))
             .map(|(k, _)| k)
             .collect()
+    }
+
+    #[test]
+    fn a_read_without_its_qr_codes_lacks_only_those() {
+        let before_qr = VERSION_WITH_OCR | WITH_OFFICE;
+        let now = VERSION_WITH_OCR | WITH_OFFICE | WITH_QR;
+        assert!(!covers(before_qr, now));
+        assert!(lacks_only_qr(before_qr, now));
+        assert!(covers(now, now) && !lacks_only_qr(now, now));
+        // read without OCR: the text is behind too, so it is read in full
+        assert!(!lacks_only_qr(VERSION_PDF_ONLY | WITH_OFFICE, now));
+        // a process without OCR reads no codes and asks for none
+        assert!(covers(before_qr, VERSION_PDF_ONLY | WITH_OFFICE));
     }
 
     #[test]

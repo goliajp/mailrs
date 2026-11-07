@@ -15735,6 +15735,78 @@
         }
       }
     },
+    "/api/senders/{address}/callback-numbers": {
+      "get": {
+        "operationId": "listCallbackNumbers",
+        "summary": "Phone numbers a sender gave you before",
+        "description": "The signed-in reader's own history of the phone numbers `address` gave them, in any conversation: each number's digits, when the earliest message carrying it arrived here (unix seconds) and that message's id. Earliest first; empty when the sender gave none. The reading pane compares a message's numbers against it: a number whose first message is another one is not new. Read only; delivery and the attachment reader write it, and a sender's history is let go 400 days after its latest message, at most 32 numbers kept per sender.",
+        "tags": [
+          "Senders"
+        ],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The sender's address, compared case-insensitively"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "sender",
+                    "numbers"
+                  ],
+                  "properties": {
+                    "sender": {
+                      "type": "string",
+                      "description": "The address, lowercased"
+                    },
+                    "numbers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "number",
+                          "first_seen",
+                          "first_message_id"
+                        ],
+                        "properties": {
+                          "number": {
+                            "type": "string",
+                            "description": "Digits only"
+                          },
+                          "first_seen": {
+                            "type": "integer"
+                          },
+                          "first_message_id": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an address"
+          },
+          "500": {
+            "description": "kevy unavailable"
+          }
+        }
+      }
+    },
     "/api/contacts/important": {
       "get": {
         "summary": "Important contacts",

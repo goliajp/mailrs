@@ -178,4 +178,17 @@ pub struct Facts<'a> {
     /// recorded with one result for all signatures, where only the
     /// strict reading above can answer.
     pub dkim_from_org_passed: Option<bool>,
+    /// The message links anywhere at all: a host in its HTML or text.
+    pub has_links: bool,
+    /// Where the message's QR codes point, against what it says —
+    /// [`crate::qr::assess`]. Read after delivery from the addresses the
+    /// attachment reader stored; all empty on the live path, and on a core
+    /// that does not read images.
+    pub qr: crate::qr::QrFacts,
+    /// The registrable domains the QR codes go to, one per line —
+    /// [`crate::qr::code_domains`].
+    pub qr_domains: &'a str,
+    /// The first QR code domain that is new to this deployment
+    /// ([`crate::novelty::is_new`]); `None` without the store.
+    pub new_qr_domain: Option<String>,
 }

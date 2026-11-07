@@ -108,7 +108,6 @@ import jp.golia.mailrs.MailViewModel
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.SenderIdentity
 import jp.golia.mailrs.wire.Wire
-import jp.golia.mailrs.wire.CallbackNumbers
 import jp.golia.mailrs.wire.LinkWarnings
 import androidx.compose.material3.AlertDialog
 
@@ -325,7 +324,7 @@ private fun MessageCard(
                 onWarnedLink = { warned = it },
             )
         }
-        CallbackNotice(CallbackNumbers.new(m, earlier))
+        CallbackNumbersNotice(m, earlier, vm)
         AttachmentList(m.uid, m.attachments, state, vm)
         UnsubscribeFooter(threadId, m, state, vm)
 

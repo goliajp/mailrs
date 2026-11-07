@@ -8316,18 +8316,18 @@
         }
       }
     },
-    "This message gives a phone number its sender has not used before here: %@. Before calling about a payment or an account, look the number up yourself.": {
+    "This message gives a phone number its sender has not given you before: %@. Before calling about a payment or an account, look the number up yourself.": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "このメールには、この送信者がこれまで使っていない電話番号があります：%@。支払いやアカウントの件で電話する前に、番号をご自身で確かめてください"
+            "value": "このメールには、この送信者がこれまで知らせてこなかった電話番号があります：%@。支払いやアカウントの件で電話する前に、番号をご自身で確かめてください"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "这封信里有一个发件人以前没用过的电话号码：%@。为付款或账户的事打电话前，先自己核实这个号码"
+            "value": "这封信里有一个发件人以前没给过你的电话号码：%@。为付款或账户的事打电话前，先自己核实这个号码"
           }
         }
       }

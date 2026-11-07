@@ -139,6 +139,28 @@ fn half_scanned_pdf(png: &[u8]) -> Vec<u8> {
 
 /// A PNG whose header claims 20000 x 20000 pixels: a decompression bomb
 /// as far as anything that trusts the header is concerned.
+/// `text` as a QR code, eight pixels a module with a quiet zone, as an
+/// uncompressed BMP, so the file is never small enough to pass for an icon.
+fn qr_bmp(text: &str) -> Vec<u8> {
+    let qr = qrcode::QrCode::new(text.as_bytes()).unwrap();
+    let width = qr.width() as u32;
+    let colors = qr.to_colors();
+    let scale = 8;
+    let side = (width + 8) * scale;
+    let img = image::RgbImage::from_fn(side, side, |x, y| {
+        let (mx, my) = (x / scale, y / scale);
+        let inside = (4..width + 4).contains(&mx) && (4..width + 4).contains(&my);
+        let dark = inside && colors[((my - 4) * width + (mx - 4)) as usize] == qrcode::Color::Dark;
+        match dark {
+            true => image::Rgb([0, 0, 0]),
+            false => image::Rgb([255, 255, 255]),
+        }
+    });
+    let mut out = Cursor::new(Vec::new());
+    img.write_to(&mut out, image::ImageFormat::Bmp).unwrap();
+    out.into_inner()
+}
+
 fn bomb_png() -> Vec<u8> {
     let mut png = Vec::new();
     image::RgbImage::new(1, 1)
@@ -162,6 +184,42 @@ fn crc32(bytes: &[u8]) -> u32 {
         }
     }
     !c
+}
+
+/// A call to the attachment-text backfill with `query`.
+async fn backfill(state: &Arc<mailrs_fastcore::FastcoreState>, query: &str) -> serde_json::Value {
+    let res = mailrs_fastcore::build_router(state.clone())
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri(format!(
+                    "/v1/admin/maintenance:backfill-attachment-text?{query}"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK, "{query}");
+    serde_json::from_slice(
+        &axum::body::to_bytes(res.into_body(), 1 << 20)
+            .await
+            .unwrap(),
+    )
+    .unwrap()
+}
+
+/// Work the queue until the backlog run is no longer running; its progress.
+async fn backlog_settles(state: &Arc<mailrs_fastcore::FastcoreState>) -> serde_json::Value {
+    for _ in 0..300 {
+        mailrs_fastcore::attachment_text::run_once(state).await;
+        let p = backfill(state, "select=text&dry_run=true&limit=0").await["backlog"].clone();
+        if p["state"] != "running" {
+            return p;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+    panic!("the backlog run did not settle");
 }
 
 async fn search(state: &Arc<mailrs_fastcore::FastcoreState>, word: &str) -> Vec<String> {
@@ -245,6 +303,15 @@ async fn words_in_images_and_scans_find_the_conversation() {
             "bomb1@example.org",
             attached("bomb1@example.org", "image/png", "huge.png", &bomb_png()),
         ),
+        (
+            "qr1@example.org",
+            attached(
+                "qr1@example.org",
+                "image/bmp",
+                "pay.bmp",
+                &qr_bmp("https://pay.elsewhere.example/v?id=7"),
+            ),
+        ),
     ];
     for (i, (_, raw)) in mails.iter().enumerate() {
         let env = mailrs_core::spool::SpoolEnvelope {
@@ -267,7 +334,7 @@ async fn words_in_images_and_scans_find_the_conversation() {
     }
     assert_eq!(
         mailrs_fastcore::spool_drain::drain_once(&incoming, maildir.to_str().unwrap(), &state).0,
-        5
+        6
     );
     let m = &state.mailbox;
     for (mid, _) in &mails {
@@ -279,8 +346,15 @@ async fn words_in_images_and_scans_find_the_conversation() {
     assert!(search(&state, "增值税").await.is_empty());
 
     let round = mailrs_fastcore::attachment_text::run_once(&state).await;
-    assert_eq!(round.taken, 5, "{round:?}");
+    assert_eq!(round.taken, 6, "{round:?}");
     assert_eq!((round.stored, round.ocr), (3, 3), "{round:?}");
+    assert_eq!(round.qr_codes, 1, "{round:?}");
+    // the code's address is kept for the rules, the others have none
+    assert_eq!(
+        m.attachment_qr_urls("qr1@example.org").unwrap(),
+        ["https://pay.elsewhere.example/v?id=7"]
+    );
+    assert!(m.attachment_qr_urls("img1@example.org").unwrap().is_empty());
     assert_eq!(round.failed, 2, "the broken image and the bomb: {round:?}");
 
     // Chinese, English, vertical Japanese, and text from a scanned page
@@ -304,7 +378,8 @@ async fn words_in_images_and_scans_find_the_conversation() {
         (scan.version, scan.pdfs, scan.stored, scan.ocr),
         (
             mailrs_fastcore::attachment_text::VERSION_WITH_OCR
-                | mailrs_fastcore::attachment_text::WITH_OFFICE,
+                | mailrs_fastcore::attachment_text::WITH_OFFICE
+                | mailrs_fastcore::attachment_text::WITH_QR,
             1,
             1,
             1
@@ -329,39 +404,93 @@ async fn words_in_images_and_scans_find_the_conversation() {
     )
     .unwrap();
     assert!(search(&state, "remit").await == ["scan1@example.org"]);
-    let res = mailrs_fastcore::build_router(state.clone())
-        .oneshot(
-            Request::builder()
-                .method(Method::POST)
-                .uri("/v1/admin/maintenance:backfill-attachment-text?dry_run=false")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let report: serde_json::Value = serde_json::from_slice(
-        &axum::body::to_bytes(res.into_body(), 1 << 20)
-            .await
-            .unwrap(),
-    )
-    .unwrap();
+    // the QR selector leaves it alone: its text is behind, not only its codes
+    let qr = backfill(&state, "select=qr_only&dry_run=false").await;
     assert_eq!(
-        (report["queued"].as_u64(), report["outdated"].as_u64()),
-        (Some(1), Some(1)),
-        "{report}"
+        (qr["queued"].as_u64(), qr["outdated_text"].as_u64()),
+        (Some(0), Some(1)),
+        "{qr}"
     );
+    let report = backfill(&state, "select=text&dry_run=true").await;
+    assert_eq!(report["outdated_text"].as_u64(), Some(1), "{report}");
+    assert_eq!(report["queued"].as_u64(), Some(0), "{report}");
     assert_eq!(
         report["version"],
         mailrs_fastcore::attachment_text::VERSION_WITH_OCR
-            | mailrs_fastcore::attachment_text::WITH_OFFICE,
+            | mailrs_fastcore::attachment_text::WITH_OFFICE
+            | mailrs_fastcore::attachment_text::WITH_QR,
         "{report}"
     );
+    // a run that pauses at once: past its memory limit, nothing queued
+    let paused = backfill(&state, "select=text&dry_run=false&max_rss_mb=1").await;
+    assert_eq!(paused["state"], "running", "{paused}");
+    let paused = backlog_settles(&state).await;
+    assert_eq!(paused["state"], "paused_memory", "{paused}");
+    assert_eq!(paused["queued"], 0, "{paused}");
+    assert!(
+        paused["rss_bytes"].as_u64().unwrap() > 1024 * 1024,
+        "{paused}"
+    );
+    // started again under the real limit, it reads the message with OCR
+    backfill(&state, "select=text&dry_run=false").await;
+    let done = backlog_settles(&state).await;
+    assert_eq!(done["state"], "done", "{done}");
     assert_eq!(
-        mailrs_fastcore::attachment_text::run_once(&state).await.ocr,
-        1
+        (done["queued"].as_u64(), done["outdated_text"].as_u64()),
+        (Some(1), Some(1)),
+        "{done}"
     );
     assert_eq!(
         search(&state, "remit").await,
         ["img1@example.org", "scan1@example.org"]
+    );
+    // and a second run finds nothing left
+    backfill(&state, "select=text&dry_run=false").await;
+    let again = backlog_settles(&state).await;
+    assert_eq!(again["state"], "done", "{again}");
+    assert_eq!(again["queued"], 0, "{again}");
+    assert!(again["messages_walked"].as_u64().unwrap() > 0, "{again}");
+
+    // A message read before QR addresses were kept: its codes alone are
+    // read again, and its text stays as it was
+    let before_qr = mailrs_fastcore::attachment_text::VERSION_WITH_OCR
+        | mailrs_fastcore::attachment_text::WITH_OFFICE;
+    m.refresh_attachment_qr("qr1@example.org", &[], before_qr)
+        .unwrap();
+    m.refresh_attachment_qr("img1@example.org", &[], before_qr)
+        .unwrap();
+    assert!(m.attachment_qr_urls("qr1@example.org").unwrap().is_empty());
+    // the text selector leaves them alone: only their codes are behind
+    let text = backfill(&state, "select=text&dry_run=true").await;
+    assert_eq!(
+        (text["qr_only"].as_u64(), text["outdated_text"].as_u64()),
+        (Some(2), Some(0)),
+        "{text}"
+    );
+    let report = backfill(&state, "select=qr_only&dry_run=false").await;
+    assert_eq!(report["queued"].as_u64(), Some(2), "{report}");
+    assert_eq!(report["qr_only"].as_u64(), Some(2), "{report}");
+    let round = mailrs_fastcore::attachment_text::run_once(&state).await;
+    assert_eq!((round.qr_refreshed, round.ocr), (2, 0), "{round:?}");
+    // a second run finds nothing left, and says what it walked
+    let again = backfill(&state, "select=qr_only&dry_run=false").await;
+    assert_eq!(again["queued"].as_u64(), Some(0), "{again}");
+    assert_eq!(again["qr_only"].as_u64(), Some(0), "{again}");
+    assert!(again["with_readable"].as_u64().unwrap() > 0, "{again}");
+    assert_eq!(
+        m.attachment_qr_urls("qr1@example.org").unwrap(),
+        ["https://pay.elsewhere.example/v?id=7"]
+    );
+    assert_eq!(
+        search(&state, "remit").await,
+        ["img1@example.org", "scan1@example.org"]
+    );
+    let img = m
+        .attachment_text_state("img1@example.org")
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        img.version,
+        before_qr | mailrs_fastcore::attachment_text::WITH_QR
     );
 }
