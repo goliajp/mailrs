@@ -57,6 +57,7 @@ pub(crate) async fn send_message(
         attachments: Vec::new(),
     };
     draft_send::attach(&user, req.draft_id, &mut parts).await?;
+    draft_send::refuse_files_left_behind(&user, req.draft_id, &parts).await?;
     // If the compose is a forward, look up the original message and
     // prepend its body onto what the user typed. Pre-2.9.38 the field
     // was passed through untouched and build_rfc5322 ignored it, so
@@ -295,6 +296,7 @@ pub(crate) async fn send_message_multipart(
     ensure_from_allowed(&state, &user, &parts.from).await?;
     super::send_queue::ensure_not_paused(&user, &parts.from)?;
     draft_send::attach(&user, draft_id, &mut parts).await?;
+    draft_send::refuse_files_left_behind(&user, draft_id, &parts).await?;
     parts.scheduled_at = super::compose::hold_for_undo(
         parts.scheduled_at,
         undo_seconds,
