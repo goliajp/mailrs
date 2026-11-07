@@ -32,6 +32,7 @@ pub(crate) async fn batches(State(state): State<Arc<FastcoreState>>) -> Response
                     would_hold: b.would_hold,
                     rules: b.rules,
                     discarded_at: b.discarded_at,
+                    confirmed_at: b.confirmed_at,
                 })
                 .collect(),
         })
