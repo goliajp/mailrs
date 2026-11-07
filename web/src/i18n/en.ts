@@ -103,6 +103,9 @@ export const en = {
   'attachment.showText': 'Show extracted text',
   'autosave.body':
     'The last few attempts failed, so this text exists only in this window — copy it before closing.',
+  'autosave.fileBody':
+    'It is only in this window: it still goes with the message if you send from here, and is lost if you close it.',
+  'autosave.fileTitle': 'Attachment not saved with the draft.',
   'autosave.title': 'Draft not saved.',
   'badge.action': 'Action',
   'badge.claimMismatch':
@@ -133,6 +136,8 @@ export const en = {
   'compose.clearSchedule': 'Clear schedule',
   'compose.dismiss': 'Dismiss',
   'compose.draftRestored': 'Draft restored',
+  'compose.filesNotSaved':
+    'The draft’s attachments could not be saved, so the message was not sent. Try again in a moment',
   'compose.forwarded': 'Forwarded',
   'compose.forwardPlaceholder': 'Add a message…',
   'compose.fromOriginal': 'From the original',

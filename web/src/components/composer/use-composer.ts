@@ -5,11 +5,9 @@ import type { WireTemplate } from '@/wire/schemas/templates'
 import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useAtomValue } from 'jotai'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
-import { useAutosaveStatus } from '@/hooks/use-autosave-status'
 import { useDefaultSignature } from '@/hooks/use-default-signature'
-import { useDeleteDraftMutation, useSaveDraftMutation } from '@/hooks/use-drafts'
 import { applyOptimisticSent } from '@/hooks/use-mail-mutations'
 import { useT } from '@/i18n'
 import { errorText } from '@/lib/error-text'
@@ -27,21 +25,21 @@ import { wireDeletePendingSend } from '@/wire/endpoints/mail'
 import { wireListTemplates } from '@/wire/endpoints/templates'
 
 import {
+  initialAttachments,
   initialBcc,
-  initialBody,
   initialCc,
-  initialDraftId,
   initialSubject,
   initialTo,
   inReplyToOf,
   isForward,
-  isPrefilled,
   isReplyLike,
   modeSubject,
   modeTo,
   replyThreadOf,
   sentLabel,
 } from './start'
+import { useComposerDraft } from './use-composer-draft'
+import { filesKey, useDraftFiles } from './use-draft-files'
 import { useReplyMask } from './use-reply-mask'
 import { useRestoreInlineDraft } from './use-restore-inline-draft'
 import { useTeamReply } from './use-team-reply'
@@ -111,20 +109,28 @@ export function useComposer(start: ComposerStart, opts: Options) {
     queryFn: ({ signal }) => wireListTemplates(signal),
   })
 
+  const files = useDraftFiles(initialAttachments(start))
   const {
     autosave,
-    deleteDraftMut,
     draftIdRef,
     lastSavedRef,
     prefilled,
+    savedFilesRef,
     saveNow,
     sentRef,
     threadId,
-  } = useComposerDraft(start, editorRef, { bcc, cc, from, scheduledAt, subject, to }, team.saved)
+  } = useComposerDraft(
+    start,
+    editorRef,
+    { bcc, cc, from, scheduledAt, subject, to },
+    files,
+    team.saved
+  )
 
-  useRestoreInlineDraft(start, editorRef, draftIdRef, lastSavedRef, {
+  useRestoreInlineDraft(start, editorRef, draftIdRef, lastSavedRef, savedFilesRef, {
     setBcc,
     setCc,
+    setFiles: files.replace,
     setFrom,
     setScheduledAt,
     setTo,
@@ -145,15 +151,24 @@ export function useComposer(start: ComposerStart, opts: Options) {
     setError('')
     setSending(true)
     try {
+      // the server attaches the draft's files: they must be the ones shown
+      await saveNow()
+      if (filesKey(files.stored) !== savedFilesRef.current) {
+        setError(t('compose.filesNotSaved'))
+        return
+      }
       const forward = forwardSource(start)
       // forwarding through the server with nothing attached here: the body
       // carries only what was typed, and the server appends the original
-      const viaServer = forward !== null && content.attachments.length === 0
+      const viaServer = forward !== null && files.all.length === 0
+      const draftId = draftIdRef.current
       const result = await sendMail({
-        attachments: content.attachments,
+        // files the server has are in the draft; only the rest go in the form
+        attachments: files.unsaved,
         bcc: parseAddressList(bcc),
         body: pick(viaServer, content.compose.text, content.fullText),
         cc: parseAddressList(cc),
+        draftId,
         forwardAttachmentsFrom: forward?.uid,
         forwardMessageId: forward?.messageId,
         from,
@@ -189,11 +204,13 @@ export function useComposer(start: ComposerStart, opts: Options) {
       toast.success(t(sentLabel(start)), undoOption(sentId, t))
       team.sent()
       sentRef.current = true
-      const draftId = draftIdRef.current
+      // the server deleted the draft it sent
       draftIdRef.current = null
-      if (draftId !== null) deleteDraftMut.mutate(draftId)
+      savedFilesRef.current = ''
+      void queryClient.invalidateQueries({ queryKey: mailKeys.drafts() })
       void queryClient.invalidateQueries({ queryKey: conversationKeys.all() })
       editorRef.current?.clearCompose()
+      files.replace([])
       setScheduledAt('')
       lastSavedRef.current = ''
       // the inline reply stays open for the next one; every other shell closes
@@ -220,6 +237,7 @@ export function useComposer(start: ComposerStart, opts: Options) {
   const carry = async (): Promise<ComposerCarry> => {
     await saveNow()
     return {
+      attachments: files.stored,
       bcc,
       body: editorRef.current?.getMarkdown() ?? '',
       cc,
@@ -240,6 +258,7 @@ export function useComposer(start: ComposerStart, opts: Options) {
     cc,
     editorRef,
     error,
+    files,
     from,
     fromOptions,
     mode,
@@ -320,91 +339,5 @@ function undoOption(sentId: string | undefined, t: ReturnType<typeof useT>) {
       },
     },
     duration: 8000,
-  }
-}
-
-/**
- * The server draft of a session: the first save allocates an id, later
- * saves reuse it, a send deletes it; `sent` stops a trailing tick from
- * bringing it back. Saved every three seconds while something changed.
- */
-function useComposerDraft(
-  start: ComposerStart,
-  editorRef: React.RefObject<null | StructuredComposeHandle>,
-  fields: {
-    bcc: string
-    cc: string
-    from: string
-    scheduledAt: string
-    subject: string
-    to: string
-  },
-  onSaved: (draftId: null | number) => void
-) {
-  const draftIdRef = useRef<null | number>(initialDraftId(start))
-  const sentRef = useRef(false)
-  const lastSavedRef = useRef('')
-  const saveDraftMut = useSaveDraftMutation()
-  const deleteDraftMut = useDeleteDraftMutation()
-  const autosave = useAutosaveStatus()
-  const latest = useRef(fields)
-  latest.current = fields
-  const prefilled = isPrefilled(start)
-  const threadId = replyThreadOf(start)
-
-  const saveNow = useCallback(async () => {
-    if (sentRef.current) return
-    const body = editorRef.current?.getMarkdown() ?? ''
-    const { bcc, cc, from, scheduledAt, subject, to } = latest.current
-    const fieldsTyped = !prefilled && Boolean(to.trim() || subject.trim())
-    if (!body.trim() && !fieldsTyped) return
-    const snapshot = JSON.stringify({ bcc, body, cc, from, scheduledAt, subject, to })
-    if (snapshot === lastSavedRef.current) return
-    // a failure retries on the next tick, and says so once retrying has
-    // stopped being an explanation — see use-autosave-status
-    await autosave.record(async () => {
-      const res = await saveDraftMut.mutateAsync({
-        bcc,
-        body,
-        cc,
-        from,
-        id: draftIdRef.current ?? undefined,
-        reply_to_thread_id: threadId,
-        scheduled_at: epochSecondsFromLocalInput(scheduledAt) ?? undefined,
-        subject,
-        to,
-      })
-      if (res.id !== undefined) draftIdRef.current = Number(res.id)
-      lastSavedRef.current = snapshot
-      onSaved(draftIdRef.current)
-    })
-  }, [autosave, editorRef, onSaved, prefilled, saveDraftMut, threadId])
-
-  const saveNowRef = useRef(saveNow)
-  saveNowRef.current = saveNow
-  useEffect(() => {
-    const timer = setInterval(() => void saveNowRef.current(), 3000)
-    return () => clearInterval(timer)
-  }, [])
-
-  // a reopened session's body goes in once the lazy editor has mounted
-  useEffect(() => {
-    const body = initialBody(start)
-    if (!body) return
-    const timer = setTimeout(() => editorRef.current?.setMarkdown(body), 250)
-    return () => clearTimeout(timer)
-    // the start is read once, as the fields' initial state is
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  return {
-    autosave,
-    deleteDraftMut,
-    draftIdRef,
-    lastSavedRef,
-    prefilled,
-    saveNow,
-    sentRef,
-    threadId,
   }
 }

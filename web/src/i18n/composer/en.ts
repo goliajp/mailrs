@@ -11,6 +11,7 @@ export const composerEn = {
   'composer.format.toolbar': 'Formatting',
   'composer.from': 'From',
   'composer.hideFields': 'Hide recipients and subject',
+  'composer.uploading': 'Uploading…',
   'composer.window.expand': 'Open as a full page',
   'composer.window.expandBusy': 'Close the message open on the page first',
   'composer.window.minimize': 'Minimize',

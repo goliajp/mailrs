@@ -109,4 +109,15 @@ describe('a reply keeps its threading on both transports', () => {
     expect(fd.get('html_body')).toBe('<p>text</p>')
     expect(fd.getAll('attachments')).toHaveLength(1)
   })
+
+  /// A send of a draft names it on the multipart path too: the server puts
+  /// the draft's files ahead of the ones in the form.
+  it('sends draft_id as multipart', async () => {
+    await sendMail({
+      ...REPLY,
+      attachments: [new File(['x'], 'a.png', { type: 'image/png' })],
+      draftId: 7,
+    })
+    expect(form().get('draft_id')).toBe('7')
+  })
 })

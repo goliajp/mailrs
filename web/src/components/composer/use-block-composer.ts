@@ -31,9 +31,6 @@ export function useBlockComposer(options: Options) {
 
   const addBlock = useCallback((type: BlockType, position?: number) => {
     const defaults: Record<BlockType, () => AnyBlock> = {
-      attachment: () => {
-        throw new Error('use addAttachment')
-      },
       code: () => createBlock('code', { code: '', language: 'javascript' }),
       divider: () => createBlock('divider', {}),
       quote: () =>
@@ -58,21 +55,6 @@ export function useBlockComposer(options: Options) {
       return next
     })
     return block.id
-  }, [])
-
-  const addAttachment = useCallback((file: File) => {
-    const block = createBlock('attachment', {
-      file,
-      mimeType: file.type,
-      name: file.name,
-      size: file.size,
-    })
-    setBlocks((prev) => {
-      const next = [...prev]
-      const idx = findInsertPosition(next)
-      next.splice(idx, 0, block)
-      return next
-    })
   }, [])
 
   const removeBlock = useCallback((id: string) => {
@@ -101,7 +83,6 @@ export function useBlockComposer(options: Options) {
   }, [blocks])
 
   return {
-    addAttachment,
     addBlock,
     blocks,
     clearCompose,

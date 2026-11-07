@@ -10,6 +10,7 @@ import { type Key, useT } from '@/i18n'
 
 import { ComposerActions } from './composer-actions'
 import { ComposerFields } from './composer-fields'
+import { DraftFileList } from './draft-file-list'
 import { PreviewDialog } from './preview-dialog'
 import { quoteOf } from './quote'
 import { attachmentsNotIncluded, isReplyLike } from './start'
@@ -79,6 +80,7 @@ export function ComposerView({
           <StructuredCompose
             disabled={c.sending}
             mode={editorMode(c)}
+            onAttach={c.files.add}
             onSubmit={() => void c.send()}
             placeholder={t(placeholderOf(c))}
             quotedHeader={quote.header}
@@ -90,7 +92,12 @@ export function ComposerView({
           />
         </Suspense>
       </div>
-      <AutosaveWarning error={c.autosave.lastError} show={c.autosave.shouldWarn} />
+      <DraftFileList files={c.files} />
+      <AutosaveWarning
+        error={c.autosave.lastError}
+        refused={c.files.refused}
+        show={c.autosave.shouldWarn}
+      />
       <ComposerActions
         ai={ai}
         c={c}

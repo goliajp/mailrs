@@ -100,6 +100,9 @@ export const ja: Record<Key, string> = {
   'attachment.showText': '抽出したテキストを表示',
   'autosave.body':
     '直近の保存がすべて失敗したため、この文章はこのウィンドウにしかありません。閉じる前にコピーしてください。',
+  'autosave.fileBody':
+    'このウィンドウにしかありません。ここから送信すれば一緒に送られますが、閉じると失われます。',
+  'autosave.fileTitle': '添付ファイルが下書きに保存されていません。',
   'autosave.title': '下書きが保存されていません。',
   'badge.action': '要対応',
   'badge.claimMismatch':
@@ -130,6 +133,8 @@ export const ja: Record<Key, string> = {
   'compose.clearSchedule': '予約を解除',
   'compose.dismiss': '閉じる',
   'compose.draftRestored': '下書きを復元しました',
+  'compose.filesNotSaved':
+    '下書きの添付ファイルを保存できなかったため、送信していません。少し待ってからもう一度お試しください',
   'compose.forwarded': '転送しました',
   'compose.forwardPlaceholder': 'メッセージを追加…',
   'compose.fromOriginal': '元のメールから',
