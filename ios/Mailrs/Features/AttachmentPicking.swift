@@ -39,9 +39,23 @@ struct AttachmentRows: View {
 /// the keyboard covers the form mid-compose and a tap on a covered
 /// menu opens nothing.
 struct AttachMenu: View {
-    @Binding var attachments: [MultipartForm.FilePart]
+    /// How many files the composer has, for naming a picked photo.
+    let count: Int
+    let add: (MultipartForm.FilePart) -> Void
     @State private var pickedPhoto: PhotosPickerItem?
     @State private var importingFile = false
+
+    init(attachments: Binding<[MultipartForm.FilePart]>) {
+        count = attachments.wrappedValue.count
+        add = { attachments.wrappedValue.append($0) }
+    }
+
+    /// For a composer that keeps its files somewhere other than a list of
+    /// parts — the draft file store.
+    init(count: Int, add: @escaping (MultipartForm.FilePart) -> Void) {
+        self.count = count
+        self.add = add
+    }
 
     var body: some View {
         Menu {
@@ -58,10 +72,19 @@ struct AttachMenu: View {
                 // XCUITest cannot reach, so the wire path gets its own
                 // way in.
                 Button("Attach sample file") {
-                    attachments.append(.init(
+                    add(.init(
                         name: "attachments", filename: "sample.txt",
                         contentType: "text/plain",
                         data: Data("sample attachment".utf8)
+                    ))
+                }
+                // the test stub refuses a file by this name, as the server
+                // refuses one over its limit
+                Button("Attach refused sample") {
+                    add(.init(
+                        name: "attachments", filename: "too-large.bin",
+                        contentType: "application/octet-stream",
+                        data: Data("refused".utf8)
                     ))
                 }
             }
@@ -77,9 +100,9 @@ struct AttachMenu: View {
                 let type = item.supportedContentTypes.first
                 let ext = type?.preferredFilenameExtension ?? "jpg"
                 withAnimation {
-                    attachments.append(.init(
+                    add(.init(
                         name: "attachments",
-                        filename: "photo-\(attachments.count + 1).\(ext)",
+                        filename: "photo-\(count + 1).\(ext)",
                         contentType: type?.preferredMIMEType ?? "image/jpeg",
                         data: data
                     ))
@@ -97,7 +120,7 @@ struct AttachMenu: View {
             guard let data = try? Data(contentsOf: url) else { return }
             let type = UTType(filenameExtension: url.pathExtension)
             withAnimation {
-                attachments.append(.init(
+                add(.init(
                     name: "attachments",
                     filename: url.lastPathComponent,
                     contentType: type?.preferredMIMEType ?? "application/octet-stream",

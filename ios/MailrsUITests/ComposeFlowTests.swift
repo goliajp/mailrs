@@ -100,9 +100,10 @@ final class ComposeFlowTests: MailrsUITestCase {
 
 
 
-    /// A compose with a file goes out the multipart door, and the file
-    /// arrives — filename, declared type, and its actual bytes counted
-    /// server-side. The stub records what it parsed out of the form,
+    /// A compose with a file sends it, and the file arrives — filename and
+    /// its actual bytes counted server-side. The file goes up as a
+    /// multipart form when it is added (or with the send, if the send
+    /// beats the upload); the stub records what it parsed out of the form,
     /// so an encoder that drops the CRLF before the boundary (the file
     /// silently truncates) or misquotes the filename (the field parses
     /// as empty) fails here rather than on a real mailbox.
@@ -133,18 +134,17 @@ final class ComposeFlowTests: MailrsUITestCase {
             XCTFail("nothing reached the server"); return
         }
         XCTAssertEqual(sent["to"] as? [String], ["file@example.com"])
-        let files = sent["attachments"] as? [[String: Any]] ?? []
+        let files = sentFiles(sent)
         XCTAssertEqual(files.count, 1, "expected one file: \(sent)")
-        XCTAssertEqual(files.first?["filename"] as? String, "sample.txt")
-        XCTAssertEqual(files.first?["content_type"] as? String, "text/plain")
-        XCTAssertEqual(files.first?["bytes"] as? Int, "sample attachment".utf8.count,
+        XCTAssertEqual(files.first?.name, "sample.txt")
+        XCTAssertEqual(files.first?.bytes, "sample attachment".utf8.count,
                        "the file's bytes did not survive the form encoding")
     }
 
 
 
     /// Removing an attachment before sending means it does not travel —
-    /// the send falls back to the JSON route, which has no file field.
+    /// not in the form, and not from the draft either.
     func testARemovedAttachmentDoesNotTravel() {
         resetStub()
         let app = launch(signedIn: true)
@@ -169,7 +169,7 @@ final class ComposeFlowTests: MailrsUITestCase {
         guard let sent = sentMessages().last else {
             XCTFail("nothing reached the server"); return
         }
-        XCTAssertNil(sent["attachments"], "a removed file still travelled: \(sent)")
+        XCTAssertTrue(sentFiles(sent).isEmpty, "a removed file still travelled: \(sent)")
     }
 
 
