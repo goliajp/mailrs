@@ -29,7 +29,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates/ crates/
 # the core creates its schema from this file on an empty database
-COPY scripts/init-schema.sql scripts/init-schema.sql
+# the core embeds the schema and every migration after it (pg_schema.rs)
+COPY scripts/init-schema.sql scripts/migrate-*.sql scripts/
 ARG FEATURES=""
 # the release version, written where the binary reports it from
 ARG VERSION=0.0.0
