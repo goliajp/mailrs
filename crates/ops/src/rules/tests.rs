@@ -62,7 +62,7 @@ fn fastcore(s: &mut Snapshot, f: impl Fn(&mut mailrs_core_api::types::HealthResp
 }
 
 #[test]
-fn there_are_seventeen_phase_one_rules_and_each_has_text() {
+fn there_are_seventeen_phase_one_rules_and_the_fraud_counter_watch_and_each_has_text() {
     let symptoms: Vec<_> = all()
         .into_iter()
         .filter(|r| {
@@ -71,7 +71,7 @@ fn there_are_seventeen_phase_one_rules_and_each_has_text() {
                 && r.name != NO_REPORTS
         })
         .collect();
-    assert_eq!(symptoms.len(), 17, "{symptoms:?}");
+    assert_eq!(symptoms.len(), 18, "{symptoms:?}");
     for r in all() {
         assert!(
             [r.text.title_en, r.text.title_zh, r.text.title_ja]
@@ -391,4 +391,61 @@ fn source_and_dependency_rules() {
         p.fresh = false;
     }
     holds(NO_REPORTS, &s, "reports");
+}
+
+#[test]
+fn fraud_hits_is_clear_while_fresh_and_unknown_when_stale_absent_or_null() {
+    let unknown = |s: &Snapshot| {
+        let e = eval_of("fraud_hits_unreadable", s, "fraud_hits");
+        assert!(
+            matches!(
+                e,
+                Eval::Unreadable {
+                    source_down: false,
+                    ..
+                }
+            ),
+            "{e:?}"
+        );
+    };
+    let s = healthy(NOW);
+    clear("fraud_hits_unreadable", &s, "fraud_hits");
+    // high counts are a review feed, not a condition
+    let mut s = healthy(NOW);
+    webapi(
+        &mut s,
+        &["fraud_hits", "by_rule_today", "brand-lookalike"],
+        100_000.into(),
+    );
+    clear("fraud_hits_unreadable", &s, "fraud_hits");
+    let mut s = healthy(NOW);
+    webapi(&mut s, &["fraud_hits", "stale"], true.into());
+    unknown(&s);
+    let mut s = healthy(NOW);
+    if let Reading::Got(h) = &mut s.webapi {
+        h.as_object_mut().unwrap().remove("fraud_hits");
+    }
+    unknown(&s);
+    let mut s = healthy(NOW);
+    webapi(&mut s, &["fraud_hits"], serde_json::Value::Null);
+    unknown(&s);
+    let mut s = healthy(NOW);
+    if let Reading::Got(h) = &mut s.webapi {
+        h["fraud_hits"].as_object_mut().unwrap().remove("stale");
+    }
+    unknown(&s);
+    // webapi itself down is the source's notice, not this rule's
+    let mut s = healthy(NOW);
+    s.webapi = Reading::Unreadable("refused".into());
+    let e = eval_of("fraud_hits_unreadable", &s, "fraud_hits");
+    assert!(
+        matches!(
+            e,
+            Eval::Unreadable {
+                source_down: true,
+                ..
+            }
+        ),
+        "{e:?}"
+    );
 }
