@@ -28,12 +28,17 @@ fn scam(name: &str, addr: &str, message_id: &str) -> Vec<u8> {
     .into_bytes()
 }
 
-/// The template, written by a mailer that the rules in force hold
-/// (`x-mailer-generated`).
-fn mailer_scam(name: &str, addr: &str, message_id: &str) -> Vec<u8> {
-    let mut raw = b"X-Mailer: Dispatch Agent 3.4.1\r\n".to_vec();
-    raw.extend(scam(name, addr, message_id));
-    raw
+/// The template posing as a reply to no earlier message, with replies
+/// sent to another domain, which the rules in force hold
+/// (`reply-claim-without-thread`).
+fn reply_scam(name: &str, addr: &str, message_id: &str) -> Vec<u8> {
+    let raw = String::from_utf8(scam(name, addr, message_id)).expect("utf-8");
+    raw.replacen(
+        "Subject: Your parcel is held",
+        "Reply-To: claims@parcel-office.example\r\nSubject: Re: Your parcel is held",
+        1,
+    )
+    .into_bytes()
 }
 
 /// The same scam again, replying into the first one's conversation, with
@@ -446,7 +451,7 @@ async fn a_hold_rule_in_force_is_a_ground_on_both_cores() {
     } = one_reader_reports(
         "mem://reports-rule-in-force-fastcore",
         "mem://reports-rule-in-force-pg-core",
-        mailer_scam,
+        reply_scam,
         None,
     )
     .await;
@@ -463,10 +468,10 @@ async fn a_hold_rule_in_force_is_a_ground_on_both_cores() {
         .to_string();
     assert_eq!(
         (pg.hold_rule.as_deref(), pg.rules_version.as_deref()),
-        (Some("x-mailer-generated"), Some(version.as_str()))
+        (Some("reply-claim-without-thread"), Some(version.as_str()))
     );
     assert_eq!(bob_held, vec!["r2@parcel-desk.example".to_string()]);
-    let audited = format!("rule=x-mailer-generated rules_version={version}");
+    let audited = format!("rule=reply-claim-without-thread rules_version={version}");
     for rows in &audits {
         assert_eq!(rows.len(), 1, "{audits:?}");
         assert!(rows[0].ends_with(&audited), "{audits:?}");
