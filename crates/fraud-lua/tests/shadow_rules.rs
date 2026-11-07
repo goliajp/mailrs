@@ -115,16 +115,23 @@ fn the_enforced_rules_are_every_rule_but_the_shadow_ones() {
     }
 }
 
+/// `bec-name-borrowed` left shadow in production's pack once the
+/// correspondent facts cut its hits to one campaign; it scores and never
+/// holds. The other two still run in shadow.
 #[test]
-fn the_three_bec_rules_ship_in_shadow() {
+fn two_bec_rules_ship_in_shadow() {
     let rules = Rules::compile(DEFAULT_SOURCE).unwrap();
     assert_eq!(
         rules.shadow_rules(),
         [
-            "bec-name-borrowed",
             "bec-lookalike-reply-diverted",
             "bec-reply-diverted-unauthenticated"
         ]
+    );
+    assert!(
+        rules
+            .enforced_rules()
+            .contains(&"bec-name-borrowed".to_string())
     );
 }
 
@@ -181,7 +188,7 @@ fn compare_counts_shadow_hits_apart_from_rule_changes() {
         "{report}"
     );
     assert_eq!(
-        report["shadow_hits_by_rule"]["bec-name-borrowed"], 0,
+        report["shadow_hits_by_rule"]["bec-lookalike-reply-diverted"], 0,
         "a shadow rule that never fired is listed at zero: {report}"
     );
     assert!(

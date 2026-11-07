@@ -8,7 +8,9 @@ use mailrs_fraud_lua::{DEFAULT_SOURCE, Rules};
 /// `tests/unvouched_sender.rs`.
 const AFTER_THE_MIGRATION: &[&str] = &["reserved-sender-domain"];
 
-fn comparable(f: &Findings) -> Vec<(String, String, u64, bool, String)> {
+type Row = (String, String, u64, bool, String);
+
+fn comparable(f: &Findings) -> Vec<Row> {
     let mut rows: Vec<_> = f
         .iter()
         .filter(|f| !AFTER_THE_MIGRATION.contains(&f.rule.as_str()))
@@ -20,6 +22,33 @@ fn comparable(f: &Findings) -> Vec<(String, String, u64, bool, String)> {
                 f.holds,
                 f.detail.clone(),
             )
+        })
+        .collect();
+    rows.sort();
+    rows
+}
+
+/// What the frozen oracle says, with the changes production's pack made
+/// to migrated rules since: `x-mailer-generated` and `minted-address`
+/// score and no longer hold (each was the sole hold on mail that only
+/// looked machine-made), and `reply-domain-rotation` says what it counts,
+/// one reply address that several sending domains send for. The rule
+/// ids, layers, scores and conditions are the oracle's.
+fn as_decided_since(f: &Findings) -> Vec<Row> {
+    let mut rows: Vec<Row> = comparable(f)
+        .into_iter()
+        .map(|(rule, layer, score, holds, detail)| match rule.as_str() {
+            "x-mailer-generated" | "minted-address" => (rule, layer, score, false, detail),
+            "reply-domain-rotation" => {
+                let detail = detail
+                    .replace(
+                        "replies go to a domain that",
+                        "replies go to one address that",
+                    )
+                    .replace("sending domains use", "sending domains send for");
+                (rule, layer, score, holds, detail)
+            }
+            _ => (rule, layer, score, holds, detail),
         })
         .collect();
     rows.sort();
@@ -40,7 +69,7 @@ fn all_existing_sender_fixtures_match_compiled_rules() {
         account_names: vec!["LI HAO".into(), "No Reply".into(), "李好".into()],
     };
     let mut rules = Rules::compile(DEFAULT_SOURCE).unwrap();
-    // Sixteen migrated rules plus eighteen written after the migration,
+    // Sixteen migrated rules plus twenty-five written after the migration,
     // which have no Rust counterpart to compare against — the oracle
     // below is frozen on purpose.  `reserved-sender-domain` is left out
     // of the comparison (see `AFTER_THE_MIGRATION`); the rest cannot
@@ -67,7 +96,11 @@ fn all_existing_sender_fixtures_match_compiled_rules() {
     // the parse worker to have failed; its tests are in
     // `tests/parser_failed_rule.rs`. `archive-names-unreadable` needs an
     // attachment; its tests are in `tests/unreadable_archive_rule.rs`.
-    assert_eq!(rules.rule_count(), 38);
+    // `encrypted-archive-of-documents` needs an attachment too; its tests
+    // are in `tests/archive_and_reply_facts.rs`. The two
+    // `reply-claim-without-thread` rules need a message's thread headers
+    // and a reply-to elsewhere; theirs are in `tests/reply_claim_rule.rs`.
+    assert_eq!(rules.rule_count(), 41);
     for from in &senders {
         for (subject, seen, to) in [
             (
@@ -99,7 +132,7 @@ fn all_existing_sender_fixtures_match_compiled_rules() {
             assert!(actual.errors.is_empty(), "{:?}", actual.errors);
             assert_eq!(
                 comparable(&actual.findings),
-                comparable(&expected),
+                as_decided_since(&expected),
                 "from={from}, subject={subject}, seen={seen}"
             );
         }
@@ -139,7 +172,7 @@ fn all_sixteen_rules_have_positive_parity_coverage() {
                 assert!(actual.errors.is_empty(), "{:?}", actual.errors);
                 assert_eq!(
                     comparable(&actual.findings),
-                    comparable(&mailrs_fraud::scan(&f, &p))
+                    as_decided_since(&mailrs_fraud::scan(&f, &p))
                 );
                 covered.extend(
                     actual

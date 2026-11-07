@@ -1,4 +1,5 @@
 rule('claims-our-name', 'identity', 4.5, true, function(m)
+    if reader_wrote_to(m) then return end
     if not external(m) or m.display == '' then return end
     for _, n in ipairs(m.org_names) do
         if trim(n) ~= '' and contains(m.display, fold(n)) then
@@ -16,6 +17,7 @@ rule('impersonates-one-of-us', 'identity', 6, true, function(m)
     end
 end)
 rule('subject-is-our-name', 'identity', 6, true, function(m)
+    if reader_wrote_to(m) then return end
     if not external(m) or m.subject_folded == '' then return end
     for _, n in ipairs(m.org_names) do
         n = fold(n)
@@ -32,6 +34,7 @@ rule('subject-is-our-name', 'identity', 6, true, function(m)
     end
 end)
 rule('brand-is-the-display-name', 'identity', 6, true, function(m)
+    if reader_wrote_to(m) then return end
     if m.from_domain == '' or m.display == '' then return end
     local brand = brand_claim(BRANDS, bare_name(m.display), m.from_domain, true)
     if brand then
@@ -57,6 +60,7 @@ rule('subject-claims-brand', 'identity', 4.5, false, function(m)
     end
 end)
 rule('hostname-claims-company', 'identity', 5, true, function(m)
+    if reader_wrote_to(m) then return end
     for _, b in ipairs(HOSTED_CLAIMS) do
         for label in m.host_prefix:gmatch('[^.]+') do
             if label == b.name and not owns(b.domains, m.host_registrable) then
@@ -145,7 +149,7 @@ rule('nothing-vouches-for-the-sender', 'identity', 6, true, function(m)
             .. m.spf .. '`', {domain = m.from_domain, spf = m.spf})
     end
 end)
-rule('minted-address', 'identity', 6, true, function(m)
+rule('minted-address', 'identity', 6, false, function(m)
     if minted(m.minted_local) and minted(m.minted_sld) then
         return found('neither the mailbox nor the domain is a word anybody chose',
             {address = m.minted_local .. '@' .. m.from_domain})

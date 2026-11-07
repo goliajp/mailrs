@@ -9,9 +9,24 @@ rule('zero-width-inside-a-word', 'content', 6, true, function(m)
         return 'invisible characters are wedged inside a word, which defeats a filter while rendering unchanged to the reader'
     end
 end)
+-- An archive whose entries are encrypted but are all documents: the
+-- password-in-the-letter habit banks and accountants share with malware.
+-- Documents include the legacy Office formats and RTF, which may carry a
+-- macro nobody can see while encrypted; the macro-enabled forms (docm…)
+-- do not. It scores and never holds; an executable or script entry holds through
+-- the rule below, encrypted or not, since an archive's entry names are
+-- readable either way. A binary without `has_encrypted_document_archive`
+-- reads nil here and fires on nothing (and there encryption alone still
+-- sets has_executable_attachment).
+rule('encrypted-archive-of-documents', 'content', 3, false, function(m)
+    if m.has_encrypted_document_archive == true then
+        return 'an attached archive is encrypted; the entries it names are documents'
+    end
+end)
 rule('executable-attachment', 'content', 6, true, function(m)
     if m.has_executable_attachment then return 'carries an attachment the operating system would run' end
 end)
+
 -- An attachment whose signature says archive but whose entry names
 -- cannot all be read: a 7z, a RAR with header encryption, a RAR whose
 -- headers break off or that has more entries than are read.  Nothing
@@ -27,6 +42,23 @@ end)
 rule('archive-names-unreadable', 'content', 3, false, function(m)
     if m.has_unreadable_archive then
         return 'the names of the files inside an attached archive could not be read, so what it holds was not checked'
+    end
+end)
+
+-- The parse worker died, was killed or ran out of time while reading
+-- this message's parts (HTML, attachments, the Bayes tokens), so what
+-- those readings would have shown is missing.  A message built to take
+-- a parser down is one an attacker made; a mailer's honest oddity can
+-- do it too, and the message is delivered either way.
+--
+-- **Scored, not held**, and asked of every sender: a crash says nothing
+-- about who wrote the letter, and a sender cannot step around it by
+-- leaving out its `From:`.  3 is below the Junk threshold (5), so alone
+-- it leaves the inbox alone; with another signal it adds up.  A worker
+-- that was down for its own reasons sets nothing.
+rule('parser-failed-on-message', 'content', 3, false, function(m)
+    if m.parser_failed_on_message then
+        return 'a parser failed while reading this message, so part of it could not be checked'
     end
 end)
 -- A letter that offers its reader part of a sum in the millions: the
@@ -144,21 +176,5 @@ end)
 rule('attachment-is-a-login-page', 'content', 6, true, function(m)
     if m.attachment_login_form_offsite then
         return "an attached page asks for a password and sends it to another site than the sender's"
-    end
-end)
--- The parse worker died, was killed or ran out of time while reading
--- this message's parts (HTML, attachments, the Bayes tokens), so what
--- those readings would have shown is missing.  A message built to take
--- a parser down is one an attacker made; a mailer's honest oddity can
--- do it too, and the message is delivered either way.
---
--- **Scored, not held**, and asked of every sender: a crash says nothing
--- about who wrote the letter, and a sender cannot step around it by
--- leaving out its `From:`.  3 is below the Junk threshold (5), so alone
--- it leaves the inbox alone; with another signal it adds up.  A worker
--- that was down for its own reasons sets nothing.
-rule('parser-failed-on-message', 'content', 3, false, function(m)
-    if m.parser_failed_on_message then
-        return 'a parser failed while reading this message, so part of it could not be checked'
     end
 end)

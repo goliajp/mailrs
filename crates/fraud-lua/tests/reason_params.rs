@@ -252,6 +252,28 @@ fn cases() -> Vec<Case> {
             &[("mailer", "Bluewave Courier 3.1")],
         ),
         (
+            "reply-claim-without-thread",
+            Facts {
+                reply_marker_without_thread: true,
+                reply_to_outside: true,
+                ..base()
+            },
+            &[("domain", "sender.example")],
+        ),
+        (
+            "reply-claim-without-thread-correspondent",
+            Facts {
+                reply_marker_without_thread: true,
+                reply_to_outside: true,
+                relation: Relation {
+                    from_correspondent: true,
+                    ..Relation::default()
+                },
+                ..base()
+            },
+            &[("domain", "sender.example")],
+        ),
+        (
             "reply-domain-rotation",
             Facts {
                 reply_rotation: 5,
