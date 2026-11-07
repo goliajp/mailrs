@@ -119,6 +119,11 @@
       "zh": "信上的日期比到达时间晚 {days} 天，会一直排在后来的信前面。"
     }
   },
+  "encrypted-archive-of-documents": {
+    "en": "An attached archive is encrypted, and the files it lists are documents.",
+    "ja": "添付の圧縮ファイルは暗号化されており、中のファイルはどれも文書です。",
+    "zh": "附件里的压缩包加了密，里面列出的文件都是文档。"
+  },
   "executable-attachment": {
     "en": "Carries an attachment the operating system would run.",
     "ja": "OS が実行できる添付ファイルがあります。",
@@ -284,14 +289,34 @@
     "ja": "このメールの一部を読み取れなかったため、すべてを確認できませんでした。",
     "zh": "这封信有一部分读不出来，没能全部检查。"
   },
-  "reply-domain-rotation": {
-    "en": "Replies go to a domain that many different sending domains use.",
-    "ja": "返信先のドメインが、多くの異なる送信ドメインで使い回されています。",
-    "zh": "回复地址的域名被很多不同的发信域名共用。",
+  "reply-claim-without-thread": {
+    "en": "The subject says this is a reply, but it answers no earlier message, and replies go to another domain.",
+    "ja": "件名は返信を装っていますが、どのメールへの返信でもなく、返信先も別のドメインになっています。",
+    "zh": "主题写着是回复，却没有回复任何一封之前的信，回复还会发到另一个域名。",
     "params": {
-      "en": "Replies go to a domain that {count} different sending domains use.",
-      "ja": "返信先のドメインは、{count} 個の異なる送信元ドメインで使われています。",
-      "zh": "回复地址所在的域名被 {count} 个不同的发信域名共用。"
+      "en": "The subject says this is a reply, but it answers no earlier message, and replies go to a domain other than {domain}.",
+      "ja": "件名は返信を装っていますが、どのメールへの返信でもなく、返信先も {domain} 以外のドメインです。",
+      "zh": "主题写着是回复，却没有回复任何一封之前的信，回复还会发到 {domain} 以外的域名。"
+    }
+  },
+  "reply-claim-without-thread-correspondent": {
+    "en": "The subject says this is a reply, but it answers no earlier message, and replies go to another domain. You have written to the sender or to the reply address before.",
+    "ja": "件名は返信を装っていますが、どのメールへの返信でもなく、返信先も別のドメインです。ただし、差出人か返信先のアドレスには以前メールを送ったことがあります。",
+    "zh": "主题写着是回复，却没有回复任何一封之前的信，回复还会发到另一个域名。不过你以前给发件人或回复地址写过信。",
+    "params": {
+      "en": "The subject says this is a reply, but it answers no earlier message, and replies go to a domain other than {domain}. You have written to the sender or to the reply address before.",
+      "ja": "件名は返信を装っていますが、どのメールへの返信でもなく、返信先も {domain} 以外のドメインです。ただし、差出人か返信先のアドレスには以前メールを送ったことがあります。",
+      "zh": "主题写着是回复，却没有回复任何一封之前的信，回复还会发到 {domain} 以外的域名。不过你以前给发件人或回复地址写过信。"
+    }
+  },
+  "reply-domain-rotation": {
+    "en": "Replies go to one address that many different sending domains send for.",
+    "ja": "返信先は一つのアドレスで、多くの異なる送信ドメインが同じアドレスを返信先にしています。",
+    "zh": "回复都发到同一个地址，很多不同的发信域名都把它设为回复地址。",
+    "params": {
+      "en": "Replies go to one address that {count} different sending domains send for.",
+      "ja": "返信先は一つのアドレスで、{count} 個の異なる送信元ドメインが同じアドレスを返信先にしています。",
+      "zh": "回复都发到同一个地址，有 {count} 个不同的发信域名都把它设为回复地址。"
     }
   },
   "reserved-sender-domain": {
