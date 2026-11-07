@@ -39,6 +39,11 @@ pub struct RejudgeBatchWire {
     pub rules: Vec<String>,
     /// When a pending batch was discarded; 0 while it has not been.
     pub discarded_at: i64,
+    /// When a pending batch was confirmed; 0 while it has not been, and
+    /// for a batch that held on its own or was confirmed before this
+    /// was recorded.
+    #[serde(default)]
+    pub confirmed_at: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
