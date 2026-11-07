@@ -14,7 +14,10 @@ android {
         applicationId = "jp.golia.mailrs"
         minSdk = 29
         targetSdk = 37
-        versionCode = 1
+        // release builds pass the commit count of the tree they build, so
+        // every package that reaches a phone says which build it is and a
+        // later one installs over an earlier one
+        versionCode = System.getenv("MAILRS_ANDROID_VERSION_CODE")?.toInt() ?: 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // A test that hangs must come back as a failure with a name.
