@@ -115,7 +115,7 @@ async fn sessions_are_listed_and_ended_and_the_owner_is_told() {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    let day = format!("auth:events:{}", mailrs_auth_guard::events::day(now));
+    let day = mailrs_auth_guard::events::day_key(now);
     let raw = kevy_client::Connection::connect(&kevy)
         .unwrap()
         .lrange(day.as_bytes(), 0, -1)

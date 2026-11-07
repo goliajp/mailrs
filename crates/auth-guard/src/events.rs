@@ -291,7 +291,8 @@ pub fn day(unix: u64) -> u32 {
     (y * 10_000 + m * 100 + d) as u32
 }
 
-pub(crate) fn day_key(unix: u64) -> String {
+/// The key of the day's events.
+pub fn day_key(unix: u64) -> String {
     format!("auth:events:{}", day(unix))
 }
 
