@@ -15578,6 +15578,8 @@ export interface operations {
                             rules?: string[];
                             /** @description When a waiting round was discarded, epoch seconds; 0 while it has not been */
                             discarded_at?: number;
+                            /** @description When a waiting round was confirmed, epoch seconds; 0 while it has not been, and for a round that held on its own */
+                            confirmed_at?: number;
                         }[];
                     };
                 };

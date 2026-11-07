@@ -10749,6 +10749,10 @@
                           "discarded_at": {
                             "type": "integer",
                             "description": "When a waiting round was discarded, epoch seconds; 0 while it has not been"
+                          },
+                          "confirmed_at": {
+                            "type": "integer",
+                            "description": "When a waiting round was confirmed, epoch seconds; 0 while it has not been, and for a round that held on its own"
                           }
                         }
                       }
