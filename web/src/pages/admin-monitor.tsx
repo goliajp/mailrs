@@ -3,6 +3,7 @@ import type { WireOpsHistory, WireOpsState } from '@/wire/schemas/ops'
 import { useQuery } from '@tanstack/react-query'
 
 import { AlertsTable } from '@/components/admin-monitor/alerts-table'
+import { CspPanel } from '@/components/admin-monitor/csp-panel'
 import { DaemonUnreached, DaemonWarnings } from '@/components/admin-monitor/daemon-banners'
 import { OwnPath, Transitions } from '@/components/admin-monitor/history-panel'
 import { MaintenancePanel } from '@/components/admin-monitor/maintenance-panel'
@@ -60,6 +61,7 @@ function Body({ history, state }: { history: Query<WireOpsHistory>; state: Query
         history={history}
         rules={daemon.rules}
       />
+      <CspPanel csp={daemon.csp} now={daemon.now} />
       <SilencesPanel state={daemon} />
       <MaintenancePanel state={daemon} />
     </div>

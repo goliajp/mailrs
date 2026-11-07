@@ -91,7 +91,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         axum::middleware::from_fn_with_state(state.clone(), handlers::mcp::mcp_auth_middleware),
     );
 
-    let mut app = unauth
+    let app = unauth
         .merge(authenticated)
         .merge(dav)
         .merge(jmap)
@@ -118,16 +118,17 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         )
         .with_state(state);
 
-    // Serve the React UI from `MAILRS_WEB_STATIC_DIR` (defaults to
-    // `/opt/mailrs/web` to match the monolith's bind-mount layout).
-    // SPA fallback: any non-API path serves index.html so client-side
-    // routing works.
     let static_dir =
         std::env::var("MAILRS_WEB_STATIC_DIR").unwrap_or_else(|_| "/opt/mailrs/web".to_string());
-    if std::path::Path::new(&static_dir)
-        .join("index.html")
-        .exists()
-    {
+    with_security_headers(with_static_ui(app, &static_dir))
+}
+
+/// Serve the React UI from `static_dir` (`MAILRS_WEB_STATIC_DIR`, by
+/// default `/opt/mailrs/web` to match the monolith's bind-mount layout).
+/// SPA fallback: any non-API path serves index.html so client-side
+/// routing works.
+pub(crate) fn with_static_ui(mut app: axum::Router, static_dir: &str) -> axum::Router {
+    if std::path::Path::new(static_dir).join("index.html").exists() {
         use tower_http::services::{ServeDir, ServeFile};
         let index = format!("{static_dir}/index.html");
         // `/assets/*` is served without the SPA fallback. Those filenames
@@ -138,9 +139,16 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         // boundary: "Something went wrong", with nothing pointing at the
         // real cause. A 404 says what happened (2026-07-30).
         let assets = format!("{static_dir}/assets");
+        // index.html answers the root and every client-side route; each
+        // answer is one page load, counted for the ops daemon
+        // a method router, not a Router: `route_service` panics at start
+        // when handed a Router
+        let page = axum::routing::any_service(ServeFile::new(index))
+            .layer(axum::middleware::from_fn(count_page));
         app = app
             .nest_service("/assets", ServeDir::new(&assets))
-            .fallback_service(ServeDir::new(&static_dir).fallback(ServeFile::new(index)));
+            .route_service("/", page.clone())
+            .fallback_service(ServeDir::new(static_dir).fallback(page));
         tracing::info!(dir = %static_dir, "webapi serving static UI");
     } else {
         tracing::info!(
@@ -148,7 +156,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             "MAILRS_WEB_STATIC_DIR missing index.html — webapi will 404 non-API paths"
         );
     }
-    with_security_headers(app)
+    app
 }
 
 /// The headers every response carries, unless the handler set its own.
@@ -170,7 +178,7 @@ pub fn with_security_headers(app: axum::Router) -> axum::Router {
     // may be framed by this site
     .layer(
         tower_http::set_header::SetResponseHeaderLayer::if_not_present(
-            handlers::csp_report::HEADER,
+            handlers::csp_report::header(),
             axum::http::HeaderValue::from_static(handlers::csp_report::POLICY),
         ),
     )
@@ -194,6 +202,28 @@ async fn retry_after_when_unavailable(
     res
 }
 
+/// Count a page load: a GET answered with index.html, fresh (200) or
+/// unchanged since the browser's copy (304).
+async fn count_page(
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let get = req.method() == axum::http::Method::GET;
+    let user_agent = req
+        .headers()
+        .get(axum::http::header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    let res = next.run(req).await;
+    let status = res.status();
+    if get
+        && (status == axum::http::StatusCode::OK || status == axum::http::StatusCode::NOT_MODIFIED)
+    {
+        handlers::csp_tally::page_served(user_agent.as_deref());
+    }
+    res
+}
+
 async fn api_not_found(uri: axum::http::Uri) -> impl axum::response::IntoResponse {
     (
         axum::http::StatusCode::NOT_FOUND,
@@ -209,4 +239,57 @@ fn loggable_path(path: &str) -> &str {
         return "/api/mail/inline/{id}";
     }
     path
+}
+
+#[cfg(test)]
+mod tests {
+    use tower::ServiceExt;
+
+    use crate::handlers::csp_tally;
+
+    fn served(class: &str) -> u64 {
+        csp_tally::beat()
+            .pages_served
+            .get(class)
+            .copied()
+            .unwrap_or(0)
+    }
+
+    /// The root and client-side routes are page loads; a hashed asset, a
+    /// missing asset and a file beside index.html are not.
+    #[tokio::test]
+    async fn only_index_html_answers_count_as_pages() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("index.html"), "<html></html>").expect("index");
+        std::fs::write(dir.path().join("manifest.json"), "{}").expect("manifest");
+        std::fs::create_dir(dir.path().join("assets")).expect("assets");
+        std::fs::write(dir.path().join("assets/a.js"), "x").expect("asset");
+        let app = super::with_static_ui(
+            axum::Router::new(),
+            dir.path().to_str().expect("utf-8 path"),
+        );
+        // a class no other test in this binary sends, so they cannot move it
+        let ua = "Mozilla/5.0 (Linux; Android 14; wv) Mobile";
+        for (path, status, counted) in [
+            ("/", 200, 1),
+            ("/mail/thread/42", 200, 1),
+            ("/assets/a.js", 200, 0),
+            ("/assets/gone.js", 404, 0),
+            ("/manifest.json", 200, 0),
+        ] {
+            let before = served("android-webview");
+            let res = app
+                .clone()
+                .oneshot(
+                    axum::http::Request::get(path)
+                        .header("user-agent", ua)
+                        .body(axum::body::Body::empty())
+                        .expect("request"),
+                )
+                .await
+                .expect("response");
+            assert_eq!(res.status().as_u16(), status, "{path}");
+            assert_eq!(served("android-webview") - before, counted, "{path}");
+        }
+    }
 }

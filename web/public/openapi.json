@@ -11540,6 +11540,181 @@
                           "items": {
                             "type": "string"
                           }
+                        },
+                        "csp": {
+                          "type": "object",
+                          "description": "Content security policy reports webapi counted, from its heartbeats. All three are null before the first heartbeat with counts.",
+                          "properties": {
+                            "counting_since": {
+                              "type": [
+                                "integer",
+                                "null"
+                              ],
+                              "description": "Unix seconds of the earliest kept heartbeat with counts"
+                            },
+                            "last_7_days": {
+                              "type": [
+                                "object",
+                                "null"
+                              ],
+                              "properties": {
+                                "from": {
+                                  "type": "integer",
+                                  "description": "Unix seconds"
+                                },
+                                "to": {
+                                  "type": "integer",
+                                  "description": "Unix seconds"
+                                },
+                                "reports": {
+                                  "type": "integer"
+                                },
+                                "by_directive": {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "integer"
+                                  }
+                                },
+                                "distinct": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "directive": {
+                                        "type": "string",
+                                        "description": "Effective directive, or `other`"
+                                      },
+                                      "violated_directive": {
+                                        "type": "string",
+                                        "description": "As the browser sent it, at most 200 characters"
+                                      },
+                                      "blocked": {
+                                        "type": "string",
+                                        "description": "Scheme and host of the blocked URL, or the browser's keyword (inline, eval, data)"
+                                      },
+                                      "page": {
+                                        "type": "string",
+                                        "description": "First path segment of the page; empty for the root"
+                                      },
+                                      "client": {
+                                        "type": "string",
+                                        "enum": [
+                                          "desktop",
+                                          "mobile",
+                                          "android-webview",
+                                          "unknown"
+                                        ]
+                                      },
+                                      "count": {
+                                        "type": "integer"
+                                      },
+                                      "first_at": {
+                                        "type": "integer",
+                                        "description": "Unix seconds"
+                                      },
+                                      "last_at": {
+                                        "type": "integer",
+                                        "description": "Unix seconds"
+                                      }
+                                    }
+                                  },
+                                  "description": "Most reported first"
+                                },
+                                "distinct_dropped": {
+                                  "type": "integer",
+                                  "description": "Reports not listed because the distinct list was full"
+                                },
+                                "pages_served": {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "integer"
+                                  },
+                                  "description": "Web pages served, by client class"
+                                }
+                              }
+                            },
+                            "since_counting": {
+                              "type": [
+                                "object",
+                                "null"
+                              ],
+                              "properties": {
+                                "from": {
+                                  "type": "integer",
+                                  "description": "Unix seconds"
+                                },
+                                "to": {
+                                  "type": "integer",
+                                  "description": "Unix seconds"
+                                },
+                                "reports": {
+                                  "type": "integer"
+                                },
+                                "by_directive": {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "integer"
+                                  }
+                                },
+                                "distinct": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "directive": {
+                                        "type": "string",
+                                        "description": "Effective directive, or `other`"
+                                      },
+                                      "violated_directive": {
+                                        "type": "string",
+                                        "description": "As the browser sent it, at most 200 characters"
+                                      },
+                                      "blocked": {
+                                        "type": "string",
+                                        "description": "Scheme and host of the blocked URL, or the browser's keyword (inline, eval, data)"
+                                      },
+                                      "page": {
+                                        "type": "string",
+                                        "description": "First path segment of the page; empty for the root"
+                                      },
+                                      "client": {
+                                        "type": "string",
+                                        "enum": [
+                                          "desktop",
+                                          "mobile",
+                                          "android-webview",
+                                          "unknown"
+                                        ]
+                                      },
+                                      "count": {
+                                        "type": "integer"
+                                      },
+                                      "first_at": {
+                                        "type": "integer",
+                                        "description": "Unix seconds"
+                                      },
+                                      "last_at": {
+                                        "type": "integer",
+                                        "description": "Unix seconds"
+                                      }
+                                    }
+                                  },
+                                  "description": "Most reported first"
+                                },
+                                "distinct_dropped": {
+                                  "type": "integer",
+                                  "description": "Reports not listed because the distinct list was full"
+                                },
+                                "pages_served": {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "integer"
+                                  },
+                                  "description": "Web pages served, by client class"
+                                }
+                              }
+                            }
+                          }
                         }
                       }
                     }

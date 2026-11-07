@@ -139,4 +139,54 @@ describe('admin monitoring page', () => {
     expect(screen.queryByText('No external notification channel is configured')).toBeNull()
     expect(screen.queryByText(/MAILRS_OPS_HEARTBEAT_URL is not set/)).toBeNull()
   })
+
+  it('says CSP counting has not started instead of showing zeros', async () => {
+    stub(reached())
+    renderPage()
+    await screen.findByText(/Counting has not started/)
+    expect(screen.queryByRole('table', { name: 'CSP report counts' })).toBeNull()
+  })
+
+  it('shows the CSP counts of the last 7 days and since counting began', async () => {
+    const entry = {
+      blocked: 'https://cdn.example.com',
+      client: 'android-webview',
+      count: 3,
+      directive: 'img-src',
+      first_at: daemon.now - 3600,
+      last_at: daemon.now - 60,
+      page: 'mail',
+      violated_directive: '',
+    }
+    const totals = (reports: number, distinct: (typeof entry)[], pages: number) => ({
+      by_directive: { 'img-src': reports },
+      distinct,
+      distinct_dropped: 0,
+      from: daemon.now - 7 * 86_400,
+      pages_served: { desktop: pages },
+      reports,
+      to: daemon.now,
+    })
+    const csp = {
+      counting_since: daemon.now - 3 * 86_400,
+      last_7_days: totals(3, [entry], 40),
+      since_counting: totals(5, [entry], 90),
+    }
+    stub(reached((d) => ({ ...d, csp })))
+    renderPage()
+    const counts = await screen.findByRole('table', { name: 'CSP report counts' })
+    const row = within(counts).getByText('All CSP reports').closest('tr') as HTMLElement
+    expect(within(row).getByText('3')).toBeTruthy()
+    expect(within(row).getByText('5')).toBeTruthy()
+    const pages = within(counts).getByText('Pages served to Desktop browser').closest('tr')
+    expect(within(pages as HTMLElement).getByText('90')).toBeTruthy()
+    // under a week of counting, the page says the week is not full
+    expect(screen.getByText(/less than 7 full days/)).toBeTruthy()
+    const distinct = screen.getByRole('table', { name: 'Distinct reports, last 7 days' })
+    expect(within(distinct).getByText('https://cdn.example.com')).toBeTruthy()
+    expect(within(distinct).getByText('/mail')).toBeTruthy()
+    expect(within(distinct).getByText('Android in-app web view')).toBeTruthy()
+    // the browser sent no violated directive: unknown, not blank
+    expect(within(distinct).getByText('—')).toBeTruthy()
+  })
 })

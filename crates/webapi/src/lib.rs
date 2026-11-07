@@ -134,6 +134,19 @@ pub async fn run() {
         .init();
 
     let ops = mailrs_ops_report::push::Reporter::start("webapi");
+    // the counts behind the decision to enforce the content security policy
+    ops.spawn_heartbeat(std::time::Duration::from_secs(60), || {
+        Some(mailrs_ops_report::wire::Detail::Webapi(
+            handlers::csp_tally::beat(),
+        ))
+    });
+    match handlers::csp_report::configure_from_env() {
+        Ok(mode) => tracing::info!(mode = ?mode, "content security policy"),
+        Err(why) => {
+            tracing::error!("{why}");
+            std::process::exit(1);
+        }
+    }
 
     // Prometheus recorder must be installed before any counter is
     // emitted; do it as early as possible in the boot sequence.
@@ -240,13 +253,13 @@ mod router_tests {
     #[tokio::test]
     async fn a_response_with_its_own_policy_keeps_it() {
         use tower::ServiceExt;
-        let header = handlers::csp_report::HEADER;
+        let header = handlers::csp_report::header();
         let own = axum::Router::new()
             .route(
                 "/own",
                 axum::routing::get(|| async {
                     (
-                        [(handlers::csp_report::HEADER, "frame-ancestors 'self'")],
+                        [(handlers::csp_report::header(), "frame-ancestors 'self'")],
                         "x",
                     )
                 }),

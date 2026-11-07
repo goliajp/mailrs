@@ -201,3 +201,39 @@ async fn channels_are_tested_on_the_first_cycle_then_weekly_and_after_a_change()
     app.cycle().await;
     assert_eq!(tests(), 3);
 }
+
+/// webapi's heartbeat, sent by the real sender, comes back in the state
+/// the monitor page reads.
+#[tokio::test]
+async fn webapi_csp_counts_reach_the_state() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app(dir.path(), Clock::System);
+    let url = serve(app.clone()).await;
+    let reporter = mailrs_ops_report::push::Reporter::start_with(
+        "webapi",
+        mailrs_ops_report::push::Config {
+            url: Some(url),
+            reports_url: None,
+            key: mailrs_ops_report::key::derive(b"test-master", "webapi"),
+            state_dir: Some(dir.path().join("webapi")),
+        },
+    );
+    let beat = mailrs_ops_report::wire::WebapiBeat {
+        csp_reports: 4,
+        pages_served: [("mobile".to_string(), 7)].into(),
+        ..Default::default()
+    };
+    reporter.heartbeat(Some(mailrs_ops_report::wire::Detail::Webapi(beat)));
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while app.book.latest().first().map(|r| r.report.seq) != Some(2)
+        && std::time::Instant::now() < until
+    {
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+    let state = app.state().await.unwrap();
+    let csp = &state["csp"];
+    assert!(csp["counting_since"].is_i64(), "{csp}");
+    assert_eq!(csp["last_7_days"]["reports"], 4);
+    assert_eq!(csp["last_7_days"]["pages_served"]["mobile"], 7);
+    assert_eq!(csp["since_counting"]["reports"], 4);
+}
