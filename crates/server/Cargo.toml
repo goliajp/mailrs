@@ -39,7 +39,6 @@ axum = "0.8"
 dashmap = "6"
 mailrs-smtp-codec = { path = "../smtp-codec", version = "1" }
 mailrs-mail-protocols = { path = "../mail-protocols" }
-mailrs-attachment-extract = { path = "../attachment-extract", version = "1" }
 mailrs-imap-proto = { path = "../imap-proto", version = "2" }
 mailrs-intelligence = { path = "../intelligence", version = "4" }
 mailrs-mailbox = { path = "../mailbox", version = "2" }
@@ -93,6 +92,8 @@ kevy-embedded = { workspace = true }
 # the contract tests read a filed message the way the stored re-judge does
 mailrs-fraud-lua = { path = "../fraud-lua" }
 mailrs-fraud = { path = "../fraud" }
+# builds the PDF attachments the attachment-text contract test delivers
+lopdf = { version = "0.45", default-features = false }
 # signs the Web Push key the held-mail push test pushes with
 aws-lc-rs = "1"
 

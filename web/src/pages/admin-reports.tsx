@@ -68,7 +68,7 @@ export function AdminReports() {
           <li className="border-border rounded-md border p-3" key={r.outcome.report_id}>
             <p className="text-sm font-medium">{r.subject}</p>
             <p className="text-fg-muted text-xs">
-              {r.from} · {r.sender_domain} · {formatFullDate(r.outcome.at * 1000)}
+              {r.from} · {r.sender_domain} · {formatFullDate(r.outcome.at)}
             </p>
             <p className="mt-1 text-xs">
               {t('admin.reports.summary', { count: r.outcome.inboxes, reporter: r.reporter })}

@@ -77,7 +77,7 @@ impl Handler for CoreRpcState {
             ready: true,
             memory: mailrs_core_api::memory::cgroup(),
             spool: Some(self.spool_health()),
-            set_aside: None,
+            set_aside: Some(self.set_aside().await),
             parsing: Some(mailrs_core_sidestate::parsing::health()),
         }
     }
@@ -127,13 +127,27 @@ impl Handler for CoreRpcState {
             ready,
             memory: mailrs_core_api::memory::cgroup(),
             spool: Some(self.spool_health()),
-            set_aside: None,
+            set_aside: Some(self.set_aside().await),
             parsing: Some(mailrs_core_sidestate::parsing::health()),
         }
     }
 }
 
 impl CoreRpcState {
+    /// What the background loops gave up on.
+    async fn set_aside(&self) -> mailrs_core_api::types::SetAsideWire {
+        mailrs_core_api::types::SetAsideWire {
+            attachment_text: self
+                .mailbox
+                .attachment_texts_set_aside()
+                .await
+                .ok()
+                .map(|n| n as u64),
+            // the fraud backfill runs in the kevy core only
+            fraud_backfill: None,
+        }
+    }
+
     /// The spool this core drains, as the health probe reports it.
     fn spool_health(&self) -> mailrs_core_api::types::SpoolHealthWire {
         let root = mailrs_core::spool::spool_root(&self.maildir_root);

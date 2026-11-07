@@ -23,6 +23,7 @@ mod group;
 mod mail_settings;
 
 pub mod arrival;
+pub mod attachment_text;
 pub mod domains;
 pub mod dsn;
 pub mod effects;

@@ -12,6 +12,7 @@ vi.mock('@/wire/endpoints/report', () => ({
   wireDismissReport: vi.fn(),
 }))
 
+import { formatFullDate } from '@/lib/format'
 import { AdminReports } from '@/pages/admin-reports'
 import { fetchPendingReports, wireConfirmReport, wireDismissReport } from '@/wire/endpoints/report'
 
@@ -71,6 +72,23 @@ describe('scam reports', () => {
     fireEvent.click(screen.getByText('Take them back'))
     await waitFor(() => expect(wireConfirmReport).toHaveBeenCalledWith('rp1'))
     expect(wireDismissReport).not.toHaveBeenCalled()
+  })
+
+  // `at` is epoch seconds and formatFullDate takes seconds
+  it('shows when it was reported', async () => {
+    vi.mocked(fetchPendingReports).mockResolvedValue([
+      {
+        from: 'Parcel Desk <notice@parcel-desk.example>',
+        outcome,
+        reporter: 'alice@example.test',
+        samples: [],
+        sender_domain: 'parcel-desk.example',
+        subject: 'Your parcel is held',
+      },
+    ])
+    show()
+    const line = await screen.findByText(/parcel-desk.example ·/)
+    expect(line.textContent).toContain(formatFullDate(outcome.at))
   })
 
   it('says so when nothing waits', async () => {

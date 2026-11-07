@@ -104,6 +104,16 @@ impl PgCore {
             let q = mailrs_intake::image_prefetch::NetworkQueue { url };
             mailrs_intake::image_prefetch::queue(&q, addr, &a.message_id, &a.parsed);
         }
+        // a PDF, image or Office file is only noted here; the attachment
+        // text worker reads it, off this path
+        if mailrs_intake::attachment_text::has_readable_parts(&a.parsed)
+            && let Err(e) = self
+                .dir
+                .rt
+                .block_on(self.mailbox.queue_attachment_text(addr, &a.message_id))
+        {
+            tracing::warn!(error = %e, %addr, message_id = %a.message_id, "queueing attachment text failed");
+        }
         // the user's rules, before the clients hear of the mail
         let in_junk = folder == "Junk"
             || mailrs_mailbox::scope::bucket_of(a.category) == mailrs_mailbox::scope::Bucket::Junk;
