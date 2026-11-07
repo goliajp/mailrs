@@ -106,7 +106,7 @@ fn kevy_down(now: i64) -> Snapshot {
     s.kevy = Reading::Got(false);
     if let Reading::Got(h) = &mut s.webapi {
         h["kevy"] = false.into();
-        for f in ["kevy_server_memory", "quota", "new_domains"] {
+        for f in ["kevy_server_memory", "quota", "new_domains", "fraud_hits"] {
             h[f] = serde_json::Value::Null;
         }
         h["set_aside"]["sender"] = serde_json::Value::Null;
@@ -217,4 +217,49 @@ fn every_transition_is_recorded() {
         .map(|t| format!("{}>{}", t.from, t.to))
         .collect();
     assert_eq!(path, ["ok>pending", "pending>firing"]);
+}
+
+#[test]
+fn stale_fraud_counts_are_unknown_then_one_unreadable_notice_after_the_wait() {
+    let (mut e, _) = engine();
+    let mut at = START;
+    let stale = |now| {
+        let mut s = healthy(now);
+        if let Reading::Got(h) = &mut s.webapi {
+            h["fraud_hits"]["stale"] = true.into();
+        }
+        s
+    };
+    // webapi answers throughout, so nothing speaks for the source
+    assert!(run(&mut e, &mut at, 10, stale).is_empty());
+    assert_eq!(
+        e.state("fraud_hits_unreadable", "fraud_hits")
+            .unwrap()
+            .phase,
+        Phase::Unknown
+    );
+    let n = run(&mut e, &mut at, 5, stale);
+    assert_eq!(
+        n,
+        [(
+            "fraud_hits_unreadable".into(),
+            "fraud_hits".into(),
+            NoticeKind::Unreadable
+        )]
+    );
+    let n = run(&mut e, &mut at, 1, healthy);
+    assert_eq!(
+        n,
+        [(
+            "fraud_hits_unreadable".into(),
+            "fraud_hits".into(),
+            NoticeKind::Readable
+        )]
+    );
+    assert_eq!(
+        e.state("fraud_hits_unreadable", "fraud_hits")
+            .unwrap()
+            .phase,
+        Phase::Ok
+    );
 }

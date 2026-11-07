@@ -93,6 +93,17 @@ pub const VOLUME: Text = Text {
     step_ja: "maildir、kevy、spool のどれが増えているかを調べます。容量が尽きる前に receiver は一時的に受信を拒否し始めるはずです",
 };
 
+pub const FRAUD_HITS: Text = Text {
+    title_en: "Fraud rule counts cannot be read",
+    title_zh: "读不到诈骗规则的命中计数",
+    title_ja: "詐欺ルールのヒット数を読み取れない",
+    meaning_en: "webapi answers, but its fraud_hits block (hits per enforced fraud rule, today and over 30 days) is missing, null or older than 15 minutes, so a rule firing too often or never cannot be seen.",
+    meaning_zh: "webapi 有回答，但其中的 fraud_hits（每条生效诈骗规则今天和 30 天的命中数）缺失、为 null 或已超过 15 分钟没更新，规则命中过多或从不命中都看不出来。",
+    step_en: "Check whether webapi can read kevy-server and whether the receiver is writing its daily fraud counters.",
+    step_zh: "看 webapi 能不能读 kevy-server，以及 receiver 有没有在写每天的诈骗命中计数。",
+    step_ja: "webapi が kevy-server を読めるか、receiver が日ごとの詐欺ヒット数を書き込んでいるかを確認します",
+};
+
 pub const SPOOL_STALLED: Text = Text {
     title_en: "The spool is not moving",
     title_zh: "spool 不再推进",

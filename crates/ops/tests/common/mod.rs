@@ -45,6 +45,7 @@ pub async fn webapi(kevy: bool) -> String {
         "kevy_server_memory": { "used_bytes": 100, "limit_bytes": 1000 },
         "quota": { "accounts": 1, "accounts_without_limit": 0, "over_80": 0, "computed_at": now, "stale": false },
         "new_domains": { "keys": 100, "added_24h": 0, "computed_at": now, "stale": false },
+        "fraud_hits": { "version": "lua:abc", "by_rule_today": {}, "by_rule_30d": {}, "computed_at": now, "stale": false },
         "jmap_uploads": { "volume_free_bytes": 500u64 << 30 },
         "set_aside": { "sender": 0 },
     });
