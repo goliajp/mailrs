@@ -19,8 +19,8 @@ use super::{custom, last_reader, rejudge};
 use crate::families::{
     calendar_events, calendar_feeds, callback_numbers, contact_cards, contact_sent, contacts,
     devices, email_groups, forwarding, local_forward, masked_email, notify, outbound::pause,
-    permission_groups, prefs, recall_notices, rules, saved_searches, sectioned_inbox, send,
-    sender_lists, sender_rules, shared_inbox, submitted, swipe, vacation,
+    payment_accounts, permission_groups, prefs, recall_notices, rules, saved_searches,
+    sectioned_inbox, send, sender_lists, sender_rules, shared_inbox, submitted, swipe, vacation,
 };
 use crate::keys::{credentials, push, quota, reset, session};
 
@@ -130,6 +130,7 @@ pub const OWNED: &[Owned] = &[
     net("mailrs:contact:{user}:*", Shape::Globs(|a| vec![contacts::contact_key(&glob_escape(a), "*")])),
     net("mailrs:contact_vips:{user}", Shape::Key(contacts::vips_key)),
     net("mailrs:callnum:{user}:*", Shape::Globs(|a| vec![callback_numbers::key(&glob_escape(a), "*")])),
+    net("mailrs:payacct:{user}:*", Shape::Globs(|a| vec![payment_accounts::key(&glob_escape(a), "*")])),
     net("mailrs:contact_sent:{user}", Shape::Key(contact_sent::sent_to_key)),
     net("mailrs:user:{user}:contacts", Shape::Key(contact_cards::autocomplete_key)),
     net("mailrs:user:{user}:contacts:ts", Shape::Key(contact_cards::autocomplete_ts_key)),

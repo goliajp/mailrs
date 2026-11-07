@@ -7,7 +7,7 @@
 
 use std::sync::LazyLock;
 
-use mailrs_core_sidestate::families::{contact_cards, contact_sent, contacts};
+use mailrs_core_sidestate::families::{contact_cards, contact_sent, contacts, payment_accounts};
 use mailrs_fraud::impersonation::{display_name_of, fold};
 use mailrs_fraud::relation::{Correspondent, History, Relation};
 
@@ -71,6 +71,28 @@ pub fn relation(
             |d| NEVER.contains(d),
         )
     }
+}
+
+/// Whether the message from `from` that arrived at `at`, carrying the
+/// payment accounts `keys`, gives `user` an account its sender had not
+/// given before, from a sender that had given another
+/// ([`payment_accounts::changed`]). Read by arrival, so the live path and
+/// a sweep over stored mail, already recorded, read it alike. Without a
+/// store, or when it cannot be read, no.
+pub fn account_changed(
+    conn: Option<&mut kevy_client::Connection>,
+    user: &str,
+    from: &str,
+    keys: &[String],
+    at: i64,
+) -> bool {
+    let Some(conn) = conn else {
+        return false;
+    };
+    if user.is_empty() {
+        return false;
+    }
+    payment_accounts::changed(conn, user, from, keys, at).unwrap_or(false)
 }
 
 /// Every address `user` has sent mail to (`sent_count` above zero), with

@@ -118,12 +118,15 @@ pub async fn novelty_async(
 }
 
 /// `user`'s history with the sender of `from`, before this message is
-/// counted. Without a store, nothing is known: all false.
+/// counted, and whether the payment accounts `account_keys` it carries
+/// change the ones that sender gave before. Without a store, nothing is
+/// known: all false.
 pub async fn relation_async(
     client: Option<Arc<KevyNetClient>>,
     user: &str,
     from: &str,
     reply_to: &str,
+    account_keys: Vec<String>,
 ) -> mailrs_fraud::relation::Relation {
     let Some(client) = client else {
         return Default::default();
@@ -133,16 +136,27 @@ pub async fn relation_async(
         from.to_string(),
         reply_to.to_string(),
     );
+    let now = chrono::Utc::now().timestamp();
     tokio::task::spawn_blocking(move || {
         client
             .with_conn(|c| {
-                Ok(mailrs_fraud_lua::stored::relation::relation(
-                    Some(c),
+                let relation = mailrs_fraud_lua::stored::relation::relation(
+                    Some(&mut *c),
                     &user,
                     &from,
                     &reply_to,
                     mailrs_fraud_lua::stored::relation::Counted::Before,
-                ))
+                );
+                Ok(mailrs_fraud::relation::Relation {
+                    account_changed: mailrs_fraud_lua::stored::relation::account_changed(
+                        Some(c),
+                        &user,
+                        &from,
+                        &account_keys,
+                        now,
+                    ),
+                    ..relation
+                })
             })
             .unwrap_or_default()
     })

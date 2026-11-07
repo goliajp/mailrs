@@ -37,6 +37,7 @@ pub mod ops_alerts;
 pub mod outbound;
 pub mod owner_notices;
 pub mod password_clear;
+pub mod payment_accounts;
 pub mod permission_groups;
 pub mod prefs;
 pub mod push_devices;

@@ -161,6 +161,12 @@ impl Reading {
         }
     }
 
+    /// The keys of the payment accounts in the message's text and its
+    /// attachments' text, for the per-sender account history.
+    pub fn account_keys(&self) -> &[String] {
+        &self.payment.account_keys
+    }
+
     /// The facts, with the three that come from the history store.
     pub fn facts(
         &self,
@@ -200,7 +206,7 @@ impl Reading {
             attachment_text: &self.attachment_text,
             attachment_offers_the_reader_a_sum:
                 mailrs_inbound::body::attachment_offers_the_reader_a_sum(&self.attachment_text),
-            payment: self.payment,
+            payment: self.payment.clone(),
             html: self.html,
             relation,
             novelty: Default::default(),
