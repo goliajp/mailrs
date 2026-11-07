@@ -144,4 +144,35 @@ describe('InboxSectionBar', () => {
     store.set(inboxSectionAtom, 'new')
     expect(await screen.findByText('Accept all')).toBeTruthy()
   })
+
+  it('clears the chosen section when its chip is clicked again, and chooses it on the next click', () => {
+    const store = show(true)
+    const [first, second] = screen.getAllByRole('tab')
+    fireEvent.click(second)
+    expect(store.get(inboxSectionAtom)).toBe('followup')
+    fireEvent.click(second)
+    expect(store.get(inboxSectionAtom)).toBeNull()
+    for (const tab of screen.getAllByRole('tab')) {
+      expect(tab.getAttribute('aria-selected')).toBe('false')
+    }
+    expect(first.tabIndex).toBe(0)
+    expect(second.tabIndex).toBe(-1)
+    fireEvent.click(second)
+    expect(store.get(inboxSectionAtom)).toBe('followup')
+    expect(second.getAttribute('aria-selected')).toBe('true')
+    expect(first.tabIndex).toBe(-1)
+  })
+
+  it('opens the Inbox at Reply by default', () => {
+    const store = show(true)
+    expect(store.get(inboxSectionAtom)).toBe('reply')
+  })
+
+  it('from Notifications and promotions, a section chip opens that section even when none was chosen', () => {
+    const store = show(true, 'np')
+    store.set(inboxSectionAtom, null)
+    fireEvent.click(screen.getByRole('tab', { name: '← Other' }))
+    expect(store.get(inboxSectionAtom)).toBe('other')
+    expect(openList).toHaveBeenCalledWith('inbox')
+  })
 })
