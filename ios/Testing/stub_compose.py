@@ -13,6 +13,8 @@ import json
 import re
 from urllib.parse import unquote
 
+import stub_draft_files
+
 TEMPLATES = [
     {"id": 1, "name": "Thanks", "subject": "Thank you",
      "text_body": "Thank you for your message.", "html_body": "", "category": "general"},
@@ -60,7 +62,10 @@ def delete(handler):
 def save_draft(handler, drafts, counter, posts):
     """`POST /api/mail/drafts`, as `SaveDraftRequest`: an `id` upserts,
     none allocates one. `from` and `scheduled_at` are kept, as the server
-    keeps them, so a resumed draft can be checked for both."""
+    keeps them, so a resumed draft can be checked for both. `attachments`
+    follows `stub_draft_files.kept`."""
+    if stub_draft_files.refused_save(handler):
+        return
     length = int(handler.headers.get("Content-Length", "0"))
     body = {}
     if length:
@@ -78,6 +83,7 @@ def save_draft(handler, drafts, counter, posts):
         "reply_to_thread_id": body.get("reply_to_thread_id"),
         "from": body.get("from", ""), "scheduled_at": body.get("scheduled_at"),
         "created_at": now, "updated_at": now,
+        "attachments": stub_draft_files.kept(body, drafts.get(draft_id)),
     }
     handler._send({"id": draft_id})
 
