@@ -244,6 +244,66 @@ pub(crate) fn is_own(user: &str, raw: &[u8]) -> bool {
     mailrs_rfc5322::list_contains(&from, user)
 }
 
+/// Whether the file at `path` is mail that arrived here: not a copy kept in
+/// a Sent folder, and carrying a Received line, which delivery always adds.
+/// Mail an account sent under another of our names passes [`is_own`] and is
+/// caught here.
+pub(crate) fn was_received(path: &std::path::Path, raw: &[u8]) -> bool {
+    let in_sent = path
+        .components()
+        .any(|c| c.as_os_str().eq_ignore_ascii_case(".Sent"));
+    !in_sent && has_received_line(raw)
+}
+
+fn has_received_line(raw: &[u8]) -> bool {
+    let text = String::from_utf8_lossy(&raw[..raw.len().min(64 * 1024)]);
+    for line in text.split('\n') {
+        let line = line.trim_end_matches('\r');
+        if line.is_empty() {
+            return false;
+        }
+        if line
+            .get(..9)
+            .is_some_and(|name| name.eq_ignore_ascii_case("received:"))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod received_tests {
+    use super::was_received;
+    use std::path::Path;
+
+    const INBOX: &str = "/data/maildir/golia.jp/u/cur/1.M1:2,S";
+    const SENT: &str = "/data/maildir/golia.jp/u/.Sent/cur/1.M1:2,S";
+
+    #[test]
+    fn delivered_mail_was_received() {
+        let raw = b"Received: from mx.example by us; Sat, 1 Nov 2026 10:00:00 +0000\r\nFrom: a@x.example\r\n\r\nbody";
+        assert!(was_received(Path::new(INBOX), raw));
+        // the header name in any case, after other fields
+        let raw = b"X-Spam: no\nRECEIVED: from mx; Sat, 1 Nov 2026 10:00:00 +0000\n\nbody";
+        assert!(was_received(Path::new(INBOX), raw));
+    }
+
+    #[test]
+    fn a_sent_copy_or_mail_never_delivered_was_not() {
+        let delivered = b"Received: from mx; Sat, 1 Nov 2026 10:00:00 +0000\r\nFrom: noreply@golia.jp\r\n\r\nbody";
+        assert!(!was_received(Path::new(SENT), delivered));
+        let sent = b"Date: Sat, 1 Nov 2026 10:00:00 +0000\r\nFrom: noreply@golia.jp\r\n\r\nbody";
+        assert!(!was_received(Path::new(INBOX), sent));
+        // a Received line in the body is not a header
+        let body = b"From: a@x.example\r\n\r\nReceived: from mx; Sat, 1 Nov 2026\r\n";
+        assert!(!was_received(Path::new(INBOX), body));
+        // a header line that is short or not ASCII does not stop the scan
+        let odd = "ab件名件: y\nX: y\nReceived: from mx; Sat, 1 Nov 2026 10:00:00 +0000\n\nb";
+        assert!(was_received(Path::new(INBOX), odd.as_bytes()));
+    }
+}
+
 #[cfg(test)]
 mod link_tests {
     use super::*;
