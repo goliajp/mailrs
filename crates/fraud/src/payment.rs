@@ -8,8 +8,8 @@
 //! address whose checksum does, an Ethereum address whose EIP-55
 //! mixed-case checksum does, is something the message itself proves it
 //! contains. A Japanese account is recognised by its parts — bank, branch,
-//! account type, number — and its bank checked against the Zengin bank
-//! list ([`jp_account`]). What any of it means depends on who sent it,
+//! account type, number — and its bank checked against the list of
+//! licensed banks ([`jp_account`]). What any of it means depends on who sent it,
 //! which is the rules' business, not this module's.
 //!
 //! Account numbers never leave this module whole: a Japanese account is
@@ -46,7 +46,7 @@ pub struct PaymentIds {
 }
 
 impl PaymentIds {
-    /// A Japanese account whose bank is on the Zengin list.
+    /// A Japanese account whose bank is on the list of licensed banks.
     #[must_use]
     pub fn account_verified(&self) -> bool {
         self.jp_accounts.iter().any(|a| a.verified)
@@ -127,7 +127,7 @@ pub fn find(text: &str) -> PaymentIds {
             out.crypto = true;
         }
     }
-    for a in jp_account::find(text, banks::zengin()) {
+    for a in jp_account::find(text, banks::listed()) {
         push_key(&mut out.account_keys, a.key.clone());
         out.jp_accounts.push(a);
     }
