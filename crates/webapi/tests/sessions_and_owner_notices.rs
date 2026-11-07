@@ -108,6 +108,39 @@ async fn sessions_are_listed_and_ended_and_the_owner_is_told() {
         .as_str()
         .unwrap()
         .to_string();
+
+    // each sign-in's event names the session it started, by the listed id
+    // and never by the token, so an ended session leads back to its sign-in
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let day = format!("auth:events:{}", mailrs_auth_guard::events::day(now));
+    let raw = kevy_client::Connection::connect(&kevy)
+        .unwrap()
+        .lrange(day.as_bytes(), 0, -1)
+        .unwrap();
+    let mut started: Vec<String> = raw
+        .iter()
+        .map(|e| serde_json::from_slice::<Value>(e).unwrap())
+        .filter(|e| e["result"] == "ok" && e["channel"] == "web")
+        .map(|e| e["session_id"].as_str().unwrap().to_string())
+        .collect();
+    started.sort();
+    let mut listed: Vec<String> = list
+        .iter()
+        .map(|s| s["id"].as_str().unwrap().to_string())
+        .collect();
+    listed.sort();
+    assert_eq!(started, listed);
+    for token in [&first, &updated, &other] {
+        assert!(
+            !raw.iter()
+                .any(|e| String::from_utf8_lossy(e).contains(token.as_str())),
+            "a token was logged"
+        );
+    }
+
     let (status, _) = call(
         &other,
         Method::DELETE,
