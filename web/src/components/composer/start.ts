@@ -1,11 +1,14 @@
 import type { Key } from '@/i18n'
 import type { ComposeDraftSource, ComposeRedraftSource, ComposeReplySource } from '@/store/ui'
+import type { WireDraftAttachment } from '@/wire/schemas/mail'
 
 import { extractEmail } from '@/lib/avatar'
 import { splitAddressList } from '@/lib/recipients'
 
 /** What a floating window hands the page when it is expanded. */
 export type ComposerCarry = {
+  /** The files saved with the draft; a file still uploading is not carried. */
+  attachments: readonly WireDraftAttachment[]
   bcc: string
   body: string
   cc: string
@@ -53,6 +56,13 @@ export type ReplyMode = 'forward' | 'reply' | 'reply-all'
 /** The attachments a draft a restore returned could not carry. */
 export function attachmentsNotIncluded(s: ComposerStart): readonly string[] {
   if (s.kind === 'draft') return s.draft.attachmentsNotIncluded ?? []
+  return []
+}
+
+/** The files a reopened session starts with. */
+export function initialAttachments(s: ComposerStart): readonly WireDraftAttachment[] {
+  if (s.kind === 'draft') return s.draft.attachments ?? []
+  if (s.kind === 'carry') return s.carry.attachments
   return []
 }
 

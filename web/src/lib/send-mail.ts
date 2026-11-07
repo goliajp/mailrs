@@ -7,6 +7,11 @@ export type SendMailParams = {
   bcc?: string[]
   body: string
   cc?: string[]
+  /**
+   * The saved draft this send is. The server attaches the draft's files
+   * ahead of `attachments` and deletes the draft once the message is queued.
+   */
+  draftId?: null | number
   forwardAttachmentsFrom?: null | number
   forwardMessageId?: null | string
   from: string
@@ -143,6 +148,7 @@ export async function sendMail(p: SendMailParams): Promise<SendResult> {
       payload['redraft_keep'] = p.redraftKeep
     }
     if (p.shared) payload['shared'] = sharedBody(p.shared)
+    if (p.draftId !== null && p.draftId !== undefined) payload['draft_id'] = p.draftId
     try {
       return await wireSendMailJson(payload)
     } catch (e) {
@@ -179,6 +185,7 @@ export async function sendMail(p: SendMailParams): Promise<SendResult> {
     fd.append('redraft_keep', p.redraftKeep.join(','))
   }
   if (p.shared) fd.append('shared', JSON.stringify(sharedBody(p.shared)))
+  if (p.draftId !== null && p.draftId !== undefined) fd.append('draft_id', String(p.draftId))
 
   try {
     return await wireSendMailMultipart(fd)

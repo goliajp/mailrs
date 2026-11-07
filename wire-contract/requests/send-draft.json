@@ -1,0 +1,11 @@
+{
+  "bcc": [],
+  "body": "The quote is attached.",
+  "cc": [],
+  "draft_id": 42,
+  "from": "lihao@golia.jp",
+  "html_body": "<p>The quote is attached.</p>",
+  "subject": "Quote",
+  "to": ["nagata@nagatax.tokyo.jp"],
+  "undo_seconds": 10
+}

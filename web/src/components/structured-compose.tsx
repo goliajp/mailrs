@@ -1,6 +1,5 @@
 import type {
   AnyBlock,
-  AttachmentBlockData,
   QuoteBlockData,
   SignatureBlockData,
   TextBlockData,
@@ -19,7 +18,6 @@ import {
 } from 'react'
 
 import { AddBlockMenu } from '@/components/composer/add-block-menu'
-import { AttachmentBlock } from '@/components/composer/blocks/attachment-block'
 import { DividerBlock } from '@/components/composer/blocks/divider-block'
 import { QuoteBlock } from '@/components/composer/blocks/quote-block'
 import { TextBlock } from '@/components/composer/blocks/text-block'
@@ -43,7 +41,6 @@ const SignatureBlock = lazy(() =>
 export type EditorMode = 'markdown' | 'preview'
 
 export type StructuredComposeHandle = {
-  addAttachment: (file: File) => void
   clearCompose: () => void
   getContent: () => StructuredContent
   getEditorMode: () => EditorMode
@@ -54,7 +51,6 @@ export type StructuredComposeHandle = {
 }
 
 export type StructuredContent = {
-  attachments: File[]
   compose: { html: string; text: string }
   fullHtml: string
   fullText: string
@@ -65,6 +61,8 @@ export type StructuredContent = {
 type Props = {
   disabled?: boolean
   mode?: 'forward' | 'new' | 'reply'
+  /** Files picked or dropped; the composer keeps them, not the editor. */
+  onAttach: (files: File[]) => void
   onSubmit: () => void
   placeholder?: string
   quotedHeader?: string
@@ -79,6 +77,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
     {
       disabled,
       mode = 'new',
+      onAttach,
       onSubmit,
       placeholder,
       quotedHeader = '',
@@ -93,22 +92,15 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
     const fileInputRef = useRef<HTMLInputElement>(null)
     const scrollAreaRef = useRef<HTMLDivElement>(null)
 
-    const {
-      addAttachment,
-      addBlock,
-      blocks,
-      clearCompose,
-      getAssembled,
-      removeBlock,
-      updateBlock,
-    } = useBlockComposer({
-      mode: mode ?? 'new',
-      quotedHeader,
-      quotedHeaderHtml,
-      quotedHtml,
-      signature,
-      signatureEnabled,
-    })
+    const { addBlock, blocks, clearCompose, getAssembled, removeBlock, updateBlock } =
+      useBlockComposer({
+        mode: mode ?? 'new',
+        quotedHeader,
+        quotedHeaderHtml,
+        quotedHtml,
+        signature,
+        signatureEnabled,
+      })
 
     // first text block is the user-authored body. helpers below operate on it.
     const blocksRef = useRef(blocks)
@@ -121,20 +113,13 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
     useImperativeHandle(
       ref,
       () => ({
-        addAttachment,
         clearCompose,
         getContent: () => {
           const assembled = getAssembled()
           const textBlock = blocks.find((b) => b.type === 'text')
           const sigBlock = blocks.find((b) => b.type === 'signature')
           const quoteBlock = blocks.find((b) => b.type === 'quote')
-          const attachments = blocks
-            .filter((b) => b.type === 'attachment')
-            .map((b) => (b.data as AttachmentBlockData).file)
-            .filter((f): f is File => f != null)
-
           return {
-            attachments,
             compose: textBlock
               ? {
                   // markdown source is authoritative; html is rendered on demand
@@ -174,7 +159,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
           updateBlock(tb.id, { content: markdown, format: 'markdown', html: '' })
         },
       }),
-      [addAttachment, blocks, clearCompose, firstTextBlock, getAssembled, updateBlock]
+      [blocks, clearCompose, firstTextBlock, getAssembled, updateBlock]
     )
 
     // click empty space → focus the textarea inside the first text block
@@ -194,10 +179,10 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
     const handleFilesAdded = useCallback(
       (e: React.ChangeEvent<HTMLInputElement>) => {
         const selected = Array.from(e.target.files ?? [])
-        for (const file of selected) addAttachment(file)
+        if (selected.length > 0) onAttach(selected)
         e.target.value = ''
       },
-      [addAttachment]
+      [onAttach]
     )
 
     // drag-and-drop attachment support (non-image files; image drops inside
@@ -229,9 +214,9 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
         dragCounter.current = 0
         setDragging(false)
         const files = Array.from(e.dataTransfer.files)
-        for (const file of files) addAttachment(file)
+        if (files.length > 0) onAttach(files)
       },
-      [addAttachment]
+      [onAttach]
     )
 
     // wrapper that shows a delete button on hover for removable blocks
@@ -267,16 +252,6 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
       const canRemove = !isFirstText && !isAutoManaged
 
       switch (block.type) {
-        case 'attachment':
-          return (
-            <div className="px-4 py-1" key={key}>
-              <AttachmentBlock
-                data={block.data as AttachmentBlockData}
-                onRemove={() => removeBlock(block.id)}
-              />
-            </div>
-          )
-
         case 'divider':
           return (
             <div className="group relative flex items-center px-4" key={key}>
