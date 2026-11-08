@@ -202,6 +202,18 @@ impl KevyMailboxStore {
             .and_then(|v| Section::named(&v)))
     }
 
+    /// Whether `user` has written in the thread, as the section reads it:
+    /// the row records a message of theirs.
+    pub fn reader_wrote_in(&self, user: &str, thread_id: &str) -> io::Result<bool> {
+        let key = keys::thread_user(user, thread_id);
+        Ok(self
+            .store()
+            .hget(key.as_bytes(), OWN_AT)?
+            .and_then(|v| String::from_utf8(v).ok())
+            .and_then(|v| v.parse::<i64>().ok())
+            .is_some_and(|at| at > 0))
+    }
+
     /// The row's `section` (empty when undecided) and `awaiting_since`.
     pub fn section_fields(&self, user: &str, thread_id: &str) -> io::Result<(String, i64)> {
         let key = keys::thread_user(user, thread_id);

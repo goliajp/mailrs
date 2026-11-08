@@ -63,6 +63,22 @@ impl PgMailboxStore {
         Ok(inserted)
     }
 
+    /// Whether `user` has written in the thread, as the section reads it: a
+    /// message of theirs with recorded facts (`s_own_at` in the sections'
+    /// aggregates).
+    pub async fn reader_wrote_in(&self, user: &str, thread_id: &str) -> Result<bool, sqlx::Error> {
+        let (wrote,): (bool,) = sqlx::query_as(
+            "SELECT EXISTS (SELECT 1 FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
+              WHERE mb.user_address = $1 AND m.thread_id = $2 AND mb.name = 'Sent'
+                AND m.direct IS NOT NULL)",
+        )
+        .bind(user)
+        .bind(thread_id)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(wrote)
+    }
+
     /// The subject a conversation's row shows: its newest message the user
     /// did not send, or the first one when they sent them all.
     pub async fn thread_display_subject(

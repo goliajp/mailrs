@@ -10,6 +10,9 @@ struct Recorder {
 }
 
 impl Threads for Recorder {
+    fn reader_wrote_in(&self, _: &str, _: &str) -> bool {
+        false
+    }
     fn thread_for_message_id(&self, _: &str, mid: &str) -> Option<String> {
         (mid == "parent@x.test").then(|| "t-parent".to_string())
     }
