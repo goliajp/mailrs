@@ -171,7 +171,7 @@ export const ConversationItem = memo(function ConversationItem({
                 checked ? 'border-accent bg-accent' : 'border-border bg-bg'
               }`}
             >
-              {checked && <Check className="h-3 w-3 text-white" />}
+              {checked && <Check className="text-accent-fg h-3 w-3" />}
             </div>
           </div>
         )}
@@ -311,7 +311,7 @@ export const ConversationItem = memo(function ConversationItem({
               </span>
             )}
             {hasUnread && (
-              <span className="bg-accent flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-medium text-white">
+              <span className="bg-accent text-accent-fg flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-medium">
                 {convo.unread_count}
               </span>
             )}
