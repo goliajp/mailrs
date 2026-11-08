@@ -18,6 +18,32 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Four detection fixes from a labelled sample
+
+- Two or more zero-width characters side by side between letters now
+  count as one insertion inside a word, judged by the letters on either
+  side of the run. Before, each character only looked at its immediate
+  neighbours and saw the other, so `ZWJ ZWJ` between two Latin letters
+  counted as nothing and `zero-width-inside-a-word` did not fire.
+  Devanagari, Persian and the other scripts that need these characters
+  are still left alone.
+- XML namespace declarations (`xmlns="http://www.w3.org/1999/xhtml"`,
+  `xmlns:w="http://schemas.microsoft.com/…"`) and the identifiers inside
+  `<!DOCTYPE …>` are no longer counted as links. Word and Outlook HTML
+  carries several of them, and every rule, reputation entry and
+  first-seen record that reads link hosts saw them as links.
+- New shadow rule `unvouched-sender-links-only-to-a-bucket`: nothing
+  vouches for the `From:` domain (no SPF, DKIM or DMARC pass), and every
+  link goes to a cloud storage bucket whose name was generated (S3,
+  Google Cloud Storage, Azure, R2, DigitalOcean Spaces, Backblaze B2,
+  Alibaba OSS, Tencent COS, Huawei OBS, Wasabi, Linode, Hetzner). It is
+  recorded on delivery and on rescan, and scores and holds nothing.
+  Over 90 days, 6 messages had every link on a storage host; 5 of them
+  had a generated bucket name and no authentication, 4 of the 5 were
+  labelled phish, and none was a false positive.
+- SPF: a target that does not parse as a domain name, such as a macro
+  left unexpanded, ends the check in `permerror` instead of `temperror`.
+
 ### The sectioned inbox is one setting on every device
 
 - Whether the Inbox shows its tabs (All, To reply, Waiting, New
