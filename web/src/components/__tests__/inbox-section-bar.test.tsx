@@ -46,7 +46,7 @@ afterEach(() => {
 })
 
 /** How many conversations each section's list answers with, by its `section=` value. */
-type Held = { awaiting?: number; new?: number }
+type Held = { awaiting?: number; new?: number; reply?: number }
 
 function answer(held: Held) {
   const paths: string[] = []
@@ -102,22 +102,43 @@ describe('InboxSectionBar', () => {
     expect(screen.getAllByRole('tab')[0].tabIndex).toBe(0)
   })
 
-  it('leaves Other out, and Follow up and New out while they are empty', async () => {
+  it('leaves Other out, and every section out while it is empty', async () => {
     const { paths } = show(true)
     await vi.waitFor(() => expect(paths.some((p) => p.includes('section=new'))).toBe(true))
     expect(paths.some((p) => p.includes('section=awaiting'))).toBe(true)
-    expect(names()).toEqual(['To reply', 'Notifications and promotions →'])
+    expect(paths.some((p) => p.includes('section=reply'))).toBe(true)
+    expect(names()).toEqual(['Notifications and promotions →'])
+    // the one chip left is where Tab lands
+    expect(screen.getByRole('tab').tabIndex).toBe(0)
   })
 
-  it('shows Follow up and New with how many they hold, from their own lists', async () => {
-    show(true, 'inbox', { awaiting: 1, new: 2 })
+  it('shows each section with how many it holds, from its own list', async () => {
+    show(true, 'inbox', { awaiting: 1, new: 2, reply: 3 })
     expect(await screen.findByRole('tab', { name: 'New senders 2' })).toBeTruthy()
+    await screen.findByRole('tab', { name: 'To reply 3' })
     expect(names()).toEqual([
-      'To reply',
+      'To reply 3',
       'Follow up 1',
       'New senders 2',
       'Notifications and promotions →',
     ])
+    expect(screen.getByRole('tab', { name: 'To reply 3' }).tabIndex).toBe(0)
+  })
+
+  it('in Notifications, shows no row while there is no section to go back to', async () => {
+    const { paths } = show(true, 'np')
+    await vi.waitFor(() => expect(paths.some((p) => p.includes('section=reply'))).toBe(true))
+    await vi.waitFor(() => expect(paths.filter((p) => p.includes('section=')).length).toBe(3))
+    expect(screen.queryByRole('tablist')).toBeNull()
+  })
+
+  it('keeps To reply while it is chosen and empty', async () => {
+    const { store } = show(true, 'inbox', { reply: 0 })
+    store.set(inboxSectionAtom, 'reply')
+    const chosen = await screen.findByRole('tab', { name: 'To reply' })
+    expect(chosen.getAttribute('aria-selected')).toBe('true')
+    fireEvent.click(chosen)
+    expect(screen.queryByRole('tab', { name: /To reply/ })).toBeNull()
   })
 
   it('says 50+ when a whole page came back', async () => {
@@ -150,7 +171,7 @@ describe('InboxSectionBar', () => {
   it('in Notifications, shows it as chosen and leads back by the same chips', async () => {
     const { store } = show(true, 'np', { new: 4 })
     const back = await screen.findByRole('tab', { name: '← New senders 4' })
-    expect(names()).toEqual(['← To reply', '← New senders 4', 'Notifications and promotions'])
+    expect(names()).toEqual(['← New senders 4', 'Notifications and promotions'])
     const feed = screen.getByRole('tab', { name: 'Notifications and promotions' })
     expect(feed.getAttribute('aria-selected')).toBe('true')
     expect(feed.tabIndex).toBe(0)
@@ -162,7 +183,7 @@ describe('InboxSectionBar', () => {
   it.each(['inbox', 'np'] as const)(
     'moves across the shown chips by arrow keys in %s',
     async (list) => {
-      show(true, list, { awaiting: 1 })
+      show(true, list, { awaiting: 1, reply: 1 })
       await screen.findByRole('tab', { name: /Follow up 1/ })
       const tabs = screen.getAllByRole('tab')
       expect(tabs).toHaveLength(3)

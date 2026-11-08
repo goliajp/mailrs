@@ -48,10 +48,10 @@ export function InboxSectionBar() {
  * promotions, which is a list of its own. Shown in the Inbox and in that
  * list while the Inbox is shown by section. The inbox opens whole with no
  * chip chosen; a chosen chip narrows it and a second click on it widens it
- * again. Reply is always there; Follow up and New only while they hold
- * something, with how many, and a chosen one stays until the reader leaves
- * it so it does not vanish from under them. In the list its own chip is
- * the chosen one and each section leads back to the Inbox (←).
+ * again. A section is there only while it holds something, with how
+ * many, and a chosen one stays until the reader leaves it so it does not
+ * vanish from under them. In the list its own chip is the chosen one and
+ * each section leads back to the Inbox (←).
  */
 export function InboxSectionChips({ className }: { className: string }) {
   const t = useT()
@@ -64,11 +64,13 @@ export function InboxSectionChips({ className }: { className: string }) {
   const counts: Record<ChipSection, null | SectionCount> = {
     followup: useSectionCount('followup', shown),
     new: useSectionCount('new', shown),
-    reply: null,
+    reply: useSectionCount('reply', shown),
   }
   if (!shown) return null
   const chosen = (s: ChipSection) => inInbox && section === s
-  const chips = CHIP_SECTIONS.filter((s) => s === 'reply' || (counts[s]?.n ?? 0) > 0 || chosen(s))
+  const chips = CHIP_SECTIONS.filter((s) => (counts[s]?.n ?? 0) > 0 || chosen(s))
+  // in the list, its chip alone would only repeat the tab that is already chosen
+  if (!inInbox && chips.length === 0) return null
   const pick = (s: ChipSection) => {
     if (chosen(s)) {
       setSection(null)
@@ -105,7 +107,7 @@ export function InboxSectionChips({ className }: { className: string }) {
           className={chipClass(!inInbox)}
           onClick={() => openList('np')}
           role="tab"
-          tabIndex={tabStop(!inInbox)}
+          tabIndex={tabStop(!inInbox || (noneSelected && chips.length === 0))}
           type="button"
         >
           {feedText(t('sections.feed'), inInbox)}
