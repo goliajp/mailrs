@@ -86,18 +86,15 @@ pub struct Decision {
     pub hide_content: bool,
 }
 
-/// Read the reader's settings for this message and decide.
+/// Read `user`'s settings for the message `a` and decide.
 pub fn should_notify(
     conn: &mut kevy_client::Connection,
     user: &str,
-    sender: &str,
-    thread_id: &str,
-    facts: MessageFacts,
-    reader_wrote: bool,
-    category: &str,
+    a: &crate::arrival::Arrival<'_>,
     now: i64,
 ) -> Decision {
-    let sender = mailrs_rfc5322::addr_spec(sender)
+    let thread_id = a.thread_id.as_str();
+    let sender = mailrs_rfc5322::addr_spec(&a.from)
         .trim()
         .to_ascii_lowercase();
     let prefs = notify::prefs(conn, user).unwrap_or_default();
@@ -113,9 +110,9 @@ pub fn should_notify(
         sender: by_sender.as_deref(),
         thread: by_thread.as_deref(),
         important,
-        facts,
-        reader_wrote,
-        category,
+        facts: a.facts,
+        reader_wrote: a.reader_wrote,
+        category: a.category,
         now,
     });
     Decision {
