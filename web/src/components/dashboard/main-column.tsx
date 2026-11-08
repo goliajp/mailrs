@@ -91,7 +91,7 @@ export function MainColumn({
               <Shield aria-hidden="true" className="h-8 w-8" />
               <p className="text-sm">{emptyText(totalUnread, t)}</p>
               <button
-                className="bg-accent/10 text-accent hover:bg-accent mt-2 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:text-white"
+                className="bg-accent/10 text-accent hover:bg-accent hover:text-accent-fg mt-2 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
                 onClick={handleEmptyAction}
                 type="button"
               >

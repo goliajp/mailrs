@@ -254,7 +254,7 @@ export function Dashboard() {
           </button>
           <button
             aria-keyshortcuts="C"
-            className="bg-accent hover:bg-accent-hover flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors"
+            className="bg-accent hover:bg-accent-hover text-accent-fg flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
             onClick={handleCompose}
             type="button"
           >

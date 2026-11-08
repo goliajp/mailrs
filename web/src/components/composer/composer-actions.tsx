@@ -61,7 +61,7 @@ export function ComposerActions({
         </span>
       )}
       <button
-        className="bg-accent hover:bg-accent-hover flex h-8 shrink-0 items-center gap-1.5 rounded-md px-4 text-sm font-medium whitespace-nowrap text-white transition-all hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+        className="bg-accent hover:bg-accent-hover text-accent-fg flex h-8 shrink-0 items-center gap-1.5 rounded-md px-4 text-sm font-medium whitespace-nowrap transition-all hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
         disabled={busy}
         onClick={() => void c.send()}
         type="button"

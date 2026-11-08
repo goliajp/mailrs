@@ -127,7 +127,7 @@ function MobileConversationView() {
       {/* reply button at bottom */}
       <div className="border-border shrink-0 border-t px-4 py-3">
         <button
-          className="bg-accent flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-white active:opacity-90"
+          className="bg-accent text-accent-fg flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium active:opacity-90"
           onClick={() => setMobileView('reply')}
           type="button"
         >
@@ -390,7 +390,7 @@ function MobileThreadView() {
         {/* floating reply button */}
         <button
           aria-label={t('read.reply')}
-          className="bg-accent sticky bottom-4 left-full z-10 mr-4 -ml-20 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg active:scale-95"
+          className="bg-accent text-accent-fg sticky bottom-4 left-full z-10 mr-4 -ml-20 flex h-14 w-14 items-center justify-center rounded-full shadow-lg active:scale-95"
           onClick={() => setMobileView('reply')}
           type="button"
         >

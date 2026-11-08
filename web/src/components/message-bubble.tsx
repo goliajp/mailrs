@@ -85,7 +85,7 @@ export const MessageBubble = memo(function MessageBubble({
       ) : (
         <div
           className={`px-4 py-2.5 select-text ${
-            isOwn ? 'bg-accent text-white' : 'bg-surface text-fg'
+            isOwn ? 'bg-accent text-accent-fg' : 'bg-surface text-fg'
           }`}
         >
           <TextContent body={parts.body} isOwn={isOwn} />
