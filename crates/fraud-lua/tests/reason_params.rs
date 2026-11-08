@@ -215,6 +215,25 @@ fn cases() -> Vec<Case> {
             &[("domain", "sender.example"), ("spf", "softfail")],
         ),
         (
+            "unvouched-sender-links-only-to-a-bucket",
+            Facts {
+                spf: "none",
+                dkim: "fail",
+                dmarc: "none",
+                unauthenticated: true,
+                has_links: true,
+                links_only_to_random_buckets: true,
+                bucket_hosts: "a8k3f9z2qq.s3.amazonaws.com",
+                ..base()
+            },
+            &[
+                ("domain", "sender.example"),
+                ("spf", "none"),
+                ("dkim", "fail"),
+                ("dmarc", "none"),
+            ],
+        ),
+        (
             "minted-address",
             Facts {
                 from: "x <qwrtzk@bcdfghk.com>",

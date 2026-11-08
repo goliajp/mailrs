@@ -104,7 +104,9 @@ fn all_existing_sender_fixtures_match_compiled_rules() {
     // `tests/qr_rules.rs`. `bec-jp-account-from-a-stranger` and
     // `bec-account-changed` need a payment account and the reader's
     // history; theirs are in `tests/jp_account_rules.rs`.
-    assert_eq!(rules.rule_count(), 46);
+    // `unvouched-sender-links-only-to-a-bucket` needs links to a storage
+    // bucket; its tests are in `tests/bucket_rule.rs`.
+    assert_eq!(rules.rule_count(), 47);
     for from in &senders {
         for (subject, seen, to) in [
             (

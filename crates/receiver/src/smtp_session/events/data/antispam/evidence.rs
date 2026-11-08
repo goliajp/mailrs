@@ -87,6 +87,7 @@ pub(super) struct Evidence {
     relation: mailrs_fraud::relation::Relation,
     novelty: mailrs_fraud::novelty::Novelty,
     has_links: bool,
+    bucket_hosts: String,
 }
 
 impl Evidence {
@@ -171,15 +172,18 @@ impl Evidence {
             payment.account_keys.clone(),
         )
         .await;
+        let link_hosts = mailrs_inbound::scan_input::link_hosts(&parsed);
+        let has_links = !link_hosts.is_empty();
+        let bucket_hosts = mailrs_fraud::storage_bucket::bucket_hosts(&link_hosts);
         let novelty = crate::spam_lists::novelty_async(
             ctx.spam_lists_client.clone(),
             &sender_host,
-            mailrs_inbound::scan_input::link_hosts(&parsed),
+            link_hosts,
         )
         .await;
-        let has_links = !mailrs_inbound::scan_input::link_hosts(&parsed).is_empty();
         Self {
             has_links,
+            bucket_hosts,
             novelty,
             decoded_from,
             sender_host,
@@ -245,6 +249,8 @@ impl Evidence {
             relation: self.relation.clone(),
             novelty: self.novelty.clone(),
             has_links: self.has_links,
+            links_only_to_random_buckets: !self.bucket_hosts.is_empty(),
+            bucket_hosts: &self.bucket_hosts,
             date_ahead: mailrs_inbound::dates::date_ahead_of(
                 &receive_ctx.message,
                 Some(chrono::Utc::now().timestamp()),
