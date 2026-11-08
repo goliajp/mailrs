@@ -50,6 +50,7 @@ pub(crate) mod hangup;
 mod ledger_estimate;
 pub(crate) mod offload;
 pub(crate) mod recompute_sender_trust;
+mod sender_history;
 mod thread_cursor;
 pub(crate) use audit_verify::audit_verify_route;
 pub(crate) use ledger_estimate::ledger_estimate_route;
