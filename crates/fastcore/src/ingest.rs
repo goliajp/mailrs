@@ -126,10 +126,9 @@ pub(crate) fn store_arrival(
     let unread = !a.is_own && flags & mailrs_mailbox::types::FLAG_SEEN == 0;
     // and where the file is now, which a client may have moved it from
     let blob_ref = prior.as_ref().map_or(blob_ref, |p| p.blob_ref.as_str());
-    // The invitation, if this is one. Read from the whole body rather
-    // than the 16 KB header window: a calendar part routinely sits past it.
-    let invite = crate::invites::find(body);
-    if let Some(found) = &invite {
+    // The invitation, if this is one, read from the whole body at derive.
+    let invite = &a.invite;
+    if let Some(found) = invite {
         crate::invites::store(state, &a.message_id, found);
         crate::invites::file_event(state, addr, found, &a.message_id);
     }

@@ -132,7 +132,7 @@ mod tests {
             direct: true,
             from_person: true,
             first_contact: false,
-            to_others: false,
+            ..MessageFacts::default()
         }
     }
 

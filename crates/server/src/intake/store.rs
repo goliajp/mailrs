@@ -62,14 +62,14 @@ impl PgCore {
         if !a.is_own {
             mb.untrash_thread(addr, &a.thread_id).await?;
         }
-        if let Some(found) = mailrs_intake::invite::find(body) {
+        if let Some(found) = &a.invite {
             let payload: serde_json::Value = serde_json::from_str(&found.payload_json)?;
             mb.update_invite_payload(addr, mailbox, inserted.uid, &payload, &found.method)
                 .await?;
             mailrs_intake::invite::file_event(
                 mailrs_intake::Core::net_conn(self),
                 addr,
-                &found,
+                found,
                 &a.message_id,
             );
         }
