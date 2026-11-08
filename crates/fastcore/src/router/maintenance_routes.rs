@@ -243,6 +243,12 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:bayes-rebuild-v2",
             post(crate::maintenance::bayes_rebuild_v2_route),
         )
+        // One-off: authenticated newsletters the old score put in Junk go
+        // to the bucket triage gives them. Dry by default.
+        .route(
+            "/v1/admin/maintenance:junk-bulk-correct",
+            post(crate::maintenance::junk_bulk_correct_route),
+        )
         // Segmented promotion of existing threads into the
         // `threaduser` table's membership rows (v4 TABLE migration).
         // Paged on purpose: a full scan competes with live traffic
