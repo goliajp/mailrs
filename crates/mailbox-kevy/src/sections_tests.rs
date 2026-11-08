@@ -21,6 +21,8 @@ const PERSON: MessageFacts = MessageFacts {
     from_person: true,
     first_contact: false,
     to_others: false,
+    invite: false,
+    mutual: true,
 };
 
 /// A message arriving the way the drain records it: the row, then its section.
@@ -134,6 +136,7 @@ fn a_first_contact_is_new_until_accepted() {
     let st = store();
     let stranger = MessageFacts {
         first_contact: true,
+        mutual: false,
         ..PERSON
     };
     arrive(&st, "a", 10, false, stranger, "eve@far.test");
@@ -143,7 +146,8 @@ fn a_first_contact_is_new_until_accepted() {
         .accept_senders(ME, &["eve@far.test".to_string()])
         .unwrap();
     assert_eq!(moved, 1);
-    assert_eq!(section(&st, "a"), Some(Section::Reply));
+    // no longer new; nothing has gone back to them, so not owed a reply
+    assert_eq!(section(&st, "a"), Some(Section::Other));
     assert_eq!(section(&st, "b"), Some(Section::New));
 }
 
@@ -254,4 +258,101 @@ fn rewriting_the_thread_row_keeps_the_section() {
         st.section_fields(ME, "t").unwrap(),
         ("reply".to_string(), 0)
     );
+}
+
+/// The two later facts ride on the row: an invitation, or a sender the
+/// reader does not write to, is not owed a reply.
+#[test]
+fn an_invitation_or_a_one_way_sender_is_not_owed_a_reply() {
+    let st = store();
+    let invite = MessageFacts {
+        invite: true,
+        ..PERSON
+    };
+    let one_way = MessageFacts {
+        mutual: false,
+        ..PERSON
+    };
+    arrive(&st, "i", 10, false, invite, "chair@y.test");
+    arrive(&st, "o", 10, false, one_way, "desk@y.test");
+    arrive(&st, "r", 10, false, PERSON, "ann@y.test");
+    assert_eq!(section(&st, "i"), Some(Section::Other));
+    assert_eq!(section(&st, "o"), Some(Section::Other));
+    assert_eq!(section(&st, "r"), Some(Section::Reply));
+    // having written in the conversation, the one-way sender is owed one
+    arrive(&st, "o", 5, true, mine(true), ME);
+    assert_eq!(section(&st, "o"), Some(Section::Reply));
+}
+
+/// A row recorded before the two facts existed: they read as false, the
+/// row says it lacks them, and a refold from its messages fills them in,
+/// after which it no longer does.
+#[test]
+fn a_row_from_before_the_later_facts_is_refolded_once() {
+    let st = store();
+    arrive(&st, "t", 10, false, PERSON, "ann@y.test");
+    let key = crate::keys::thread_user(ME, "t");
+    st.store()
+        .hdel(
+            key.as_bytes(),
+            &[b"sec_in_invite" as &[u8], b"sec_in_mutual"],
+        )
+        .unwrap();
+    assert!(st.section_facts_outdated(ME, "t").unwrap());
+    let arrivals = [arrival(10, false, PERSON, "ann@y.test")];
+    let dry = st.refold_section_report(ME, "t", &arrivals, false).unwrap();
+    assert_eq!(
+        dry,
+        Some(super::Refold {
+            before: "reply".into(),
+            after: "reply".into()
+        })
+    );
+    assert!(
+        st.section_facts_outdated(ME, "t").unwrap(),
+        "a dry run wrote"
+    );
+    st.refold_section_report(ME, "t", &arrivals, true).unwrap();
+    assert!(!st.section_facts_outdated(ME, "t").unwrap());
+    assert_eq!(section(&st, "t"), Some(Section::Reply));
+}
+
+/// The refold takes the arrival's `mutual` for a row that lacks one, and
+/// keeps the one delivery read when that message is still the newest.
+#[test]
+fn a_refold_keeps_the_mutual_its_delivery_read() {
+    let st = store();
+    arrive(&st, "t", 10, false, PERSON, "ann@y.test");
+    let one_way = MessageFacts {
+        mutual: false,
+        ..PERSON
+    };
+    let again = [arrival(10, false, one_way, "ann@y.test")];
+    let out = st.refold_section_report(ME, "t", &again, true).unwrap();
+    assert_eq!(out.map(|r| r.after), Some("reply".to_string()));
+    let key = crate::keys::thread_user(ME, "t");
+    st.store()
+        .hdel(key.as_bytes(), &[b"sec_in_mutual" as &[u8]])
+        .unwrap();
+    let out = st.refold_section_report(ME, "t", &again, true).unwrap();
+    assert_eq!(out.map(|r| r.after), Some("other".to_string()));
+}
+
+/// A row with only the reader's own mail has no inbound facts to lack.
+#[test]
+fn a_row_of_my_own_mail_is_not_outdated() {
+    let st = store();
+    arrive(&st, "t", 10, true, mine(true), ME);
+    assert!(!st.section_facts_outdated(ME, "t").unwrap());
+}
+
+/// What the push policy reads: the reader has a message on the row.
+#[test]
+fn the_row_says_whether_the_reader_wrote_in_the_thread() {
+    let st = store();
+    arrive(&st, "t", 10, false, PERSON, "ann@y.test");
+    assert!(!st.reader_wrote_in(ME, "t").unwrap());
+    arrive(&st, "t", 20, true, mine(true), ME);
+    assert!(st.reader_wrote_in(ME, "t").unwrap());
+    assert!(!st.reader_wrote_in(ME, "never").unwrap());
 }

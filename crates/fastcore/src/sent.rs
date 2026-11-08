@@ -22,6 +22,9 @@ impl Threads for Store {
     fn thread_subject(&self, user: &str, thread_id: &str) -> Option<String> {
         crate::headers::Threads(&self.0).thread_subject(user, thread_id)
     }
+    fn reader_wrote_in(&self, user: &str, thread_id: &str) -> bool {
+        crate::headers::Threads(&self.0).reader_wrote_in(user, thread_id)
+    }
 }
 
 impl SentStore for Store {

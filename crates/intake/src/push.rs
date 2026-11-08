@@ -109,8 +109,7 @@ pub fn maybe_notify(
         tracing::warn!(%addr, "push: no network kevy, the push policy cannot be read; no push");
         return;
     };
-    let decision =
-        crate::push_policy::should_notify(conn, addr, sender, &a.thread_id, a.facts, category, now);
+    let decision = crate::push_policy::should_notify(conn, addr, a, now);
     if decision.verdict != crate::push_policy::Verdict::Push {
         for channel in &channels {
             let _ = mailrs_core_sidestate::families::notify::count(

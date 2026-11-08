@@ -287,6 +287,14 @@ pub struct SectionFactsWire {
     pub first_contact: bool,
     /// The reader's own message went to someone besides the reader.
     pub to_others: bool,
+    /// A calendar invitation. Absent from a sender that predates it: false.
+    #[serde(default)]
+    pub invite: bool,
+    /// The reader and the sender write to each other. Absent from a sender
+    /// that predates it: false, which keeps the message out of Reply unless
+    /// the reader wrote in the conversation.
+    #[serde(default)]
+    pub mutual: bool,
 }
 
 impl From<SectionFactsWire> for mailrs_mailbox::section::MessageFacts {
@@ -296,6 +304,8 @@ impl From<SectionFactsWire> for mailrs_mailbox::section::MessageFacts {
             from_person: w.from_person,
             first_contact: w.first_contact,
             to_others: w.to_others,
+            invite: w.invite,
+            mutual: w.mutual,
         }
     }
 }

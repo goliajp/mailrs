@@ -141,7 +141,7 @@ pub use marker_upkeep::{MarkerColumnCheck, MarkerRewrite};
 pub use message_arrival::MessageArrival;
 pub use messages::{OwnedUserMessageFacts, UserMessageFacts};
 pub use ownerless::{OwnerlessDelete, OwnerlessThread};
-pub use sections::SectionArrival;
+pub use sections::{Refold, SectionArrival};
 pub use table_query::ArchiveScope;
 pub use thread_row::{ThreadRow, display_message, hset_membership, senders_csv_contains_user};
 

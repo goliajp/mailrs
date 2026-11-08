@@ -208,6 +208,16 @@ pub fn scoring_for(conn: &mut kevy_client::Connection, user: &str, email: &str) 
     }
 }
 
+/// How many messages `user` has sent to `email`, and received from them:
+/// `(sent, received)`, 0 for a field never written.
+pub fn counts(conn: &mut kevy_client::Connection, user: &str, email: &str) -> (u32, u32) {
+    let key = contact_key(user, email);
+    (
+        hget_u32(conn, &key, "sent_count"),
+        hget_u32(conn, &key, "received_count"),
+    )
+}
+
 /// True when the user has ever sent to this address — the "this is a
 /// reply to something I started" relationship signal.
 pub fn has_sent_to_addr(conn: &mut kevy_client::Connection, user: &str, email: &str) -> bool {

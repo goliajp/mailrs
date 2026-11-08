@@ -36,8 +36,8 @@ impl PgMailboxStore {
         sqlx::query(
             "UPDATE messages SET snippet = $1, sender_trust = $2, attachments = $3,
                     direct = $4, from_person = $5, first_contact = $6, to_others = $7,
-                    from_addr = $8
-              WHERE id = $9",
+                    from_addr = $8, invite = $9, mutual = $10
+              WHERE id = $11",
         )
         .bind(facts.snippet)
         .bind(facts.sender_trust)
@@ -47,6 +47,8 @@ impl PgMailboxStore {
         .bind(section.map(|s| s.first_contact))
         .bind(section.map(|s| s.to_others))
         .bind(facts.from_addr)
+        .bind(section.map(|s| s.invite))
+        .bind(section.map(|s| s.mutual))
         .bind(inserted.id)
         .execute(&self.pool)
         .await?;
@@ -59,6 +61,22 @@ impl PgMailboxStore {
         .execute(&self.pool)
         .await?;
         Ok(inserted)
+    }
+
+    /// Whether `user` has written in the thread, as the section reads it: a
+    /// message of theirs with recorded facts (`s_own_at` in the sections'
+    /// aggregates).
+    pub async fn reader_wrote_in(&self, user: &str, thread_id: &str) -> Result<bool, sqlx::Error> {
+        let (wrote,): (bool,) = sqlx::query_as(
+            "SELECT EXISTS (SELECT 1 FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
+              WHERE mb.user_address = $1 AND m.thread_id = $2 AND mb.name = 'Sent'
+                AND m.direct IS NOT NULL)",
+        )
+        .bind(user)
+        .bind(thread_id)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(wrote)
     }
 
     /// The subject a conversation's row shows: its newest message the user

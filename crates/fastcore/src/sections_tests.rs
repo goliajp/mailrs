@@ -50,7 +50,7 @@ async fn a_delivered_message_lists_with_its_section() {
         "message_id": "m1@y.test", "subject": "Hi", "senders_csv": "Ann <ann@y.test>",
         "latest_date": 100, "latest_preview": "p", "category": "inbox", "unread": true,
         "uid": 1, "payload_wire_json": wire.to_string(),
-        "section_facts": {"direct": true, "from_person": true, "first_contact": false, "to_others": false},
+        "section_facts": {"direct": true, "from_person": true, "first_contact": false, "to_others": false, "mutual": true},
     });
     call(
         app.clone(),
@@ -75,4 +75,40 @@ async fn a_delivered_message_lists_with_its_section() {
     )
     .await;
     assert_eq!(reply["items"][0]["thread_id"], "t1", "{reply}");
+}
+
+/// Facts from a sender that predates `invite` and `mutual` read both as
+/// false: the message is not owed a reply until the reader writes in the
+/// conversation or the facts are recorded again.
+#[tokio::test]
+async fn facts_without_the_later_fields_read_as_a_one_way_sender() {
+    let state = fresh_state();
+    let app = build_router(state);
+    let wire = serde_json::json!({
+        "id": 0, "mailbox_id": 0, "uid": 1, "blob_ref": "1.host",
+        "sender": "Ann <ann@y.test>", "recipients": "u@x.test", "subject": "Hi",
+        "date": 100, "internal_date": 100, "size": 1, "flags": 0,
+        "message_id": "m1@y.test", "in_reply_to": "", "thread_id": "t1", "modseq": 0,
+    });
+    let req = serde_json::json!({
+        "message_id": "m1@y.test", "subject": "Hi", "senders_csv": "Ann <ann@y.test>",
+        "latest_date": 100, "latest_preview": "p", "category": "inbox", "unread": true,
+        "uid": 1, "payload_wire_json": wire.to_string(),
+        "section_facts": {"direct": true, "from_person": true, "first_contact": false, "to_others": false},
+    });
+    call(
+        app.clone(),
+        Method::POST,
+        "/v1/users/u@x.test/threads/t1/messages",
+        req,
+    )
+    .await;
+    let all = call(
+        app,
+        Method::POST,
+        "/v1/users/u@x.test/conversations:list",
+        serde_json::json!({"limit": 10}),
+    )
+    .await;
+    assert_eq!(all["items"][0]["section"], "other", "{all}");
 }

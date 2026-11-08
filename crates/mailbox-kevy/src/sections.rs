@@ -9,7 +9,7 @@
 
 use std::io;
 
-use mailrs_mailbox::section::{Latest, MessageFacts, Section, awaiting_since, section_of};
+use mailrs_mailbox::section::{MessageFacts, Section};
 
 use crate::KevyMailboxStore;
 use crate::keys;
@@ -39,6 +39,15 @@ const IN_PERSON: &[u8] = b"sec_in_person";
 const IN_FIRST: &[u8] = b"sec_in_first";
 const IN_FROM: &[u8] = b"sec_in_from";
 const IN_ACCEPTED: &[u8] = b"sec_in_accepted";
+const IN_INVITE: &[u8] = b"sec_in_invite";
+const IN_MUTUAL: &[u8] = b"sec_in_mutual";
+
+/// A refold's outcome: the row's section before and after, `""` for none.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Refold {
+    pub before: String,
+    pub after: String,
+}
 
 fn flag(on: bool) -> &'static [u8] {
     match on {
@@ -87,6 +96,8 @@ impl KevyMailboxStore {
                                 (IN_FIRST, flag(a.facts.first_contact)),
                                 (IN_FROM, a.from_addr.as_bytes()),
                                 (IN_ACCEPTED, b"0"),
+                                (IN_INVITE, flag(a.facts.invite)),
+                                (IN_MUTUAL, flag(a.facts.mutual)),
                             ],
                         )?;
                     }
@@ -102,60 +113,82 @@ impl KevyMailboxStore {
 
     /// Decide the row's section again from `arrivals` alone: what is left
     /// of the conversation after a message went. A fold only moves
-    /// forward, so the inputs restart from nothing first.
+    /// forward, so the inputs restart from nothing.
     ///
-    /// Whether the newest inbound message was a first contact was read at
-    /// its delivery, from a contact history that has moved on since; when
-    /// that message is still the newest inbound one, its recorded answer
-    /// (and an acceptance of its sender) stands. With no arrivals the row
-    /// is left as it was: there is nothing to decide from.
+    /// Whether the newest inbound message was a first contact, and whether
+    /// its sender and the reader wrote to each other, were read at its
+    /// delivery from a contact history that has moved on since; when that
+    /// message is still the newest inbound one, its recorded answers (and
+    /// an acceptance of its sender) stand. A row recorded before `mutual`
+    /// existed has no answer to keep and takes the arrival's. With no
+    /// arrivals the row is left as it was: there is nothing to decide from.
     pub fn refold_section(
         &self,
         user: &str,
         thread_id: &str,
         arrivals: &[SectionArrival<'_>],
     ) -> io::Result<()> {
+        self.refold_section_report(user, thread_id, arrivals, true)
+            .map(|_| ())
+    }
+
+    /// [`Self::refold_section`], saying what the section was and becomes;
+    /// with `write` false nothing is written. `None` with no arrivals.
+    pub fn refold_section_report(
+        &self,
+        user: &str,
+        thread_id: &str,
+        arrivals: &[SectionArrival<'_>],
+        write: bool,
+    ) -> io::Result<Option<Refold>> {
         if arrivals.is_empty() {
-            return Ok(());
+            return Ok(None);
         }
         let key = keys::thread_user(user, thread_id);
-        let read = |f: &[u8]| -> io::Result<Vec<u8>> {
-            Ok(self.store().hget(key.as_bytes(), f)?.unwrap_or_default())
-        };
-        let (old_in_at, old_from) = (read(IN_AT)?, read(IN_FROM)?);
-        let (old_first, old_accepted) = (read(IN_FIRST)?, read(IN_ACCEPTED)?);
-        self.store()
-            .atomic(|ctx| {
-                ctx.hset(
-                    key.as_bytes(),
-                    &[
-                        (OWN_AT, b"0" as &[u8]),
-                        (OWN_TO_OTHERS, b"0"),
-                        (PERSON_AT, b"0"),
-                        (IN_AT, b"0"),
-                        (IN_DIRECT, b"0"),
-                        (IN_PERSON, b"0"),
-                        (IN_FIRST, b"0"),
-                        (IN_ACCEPTED, b"0"),
-                    ],
-                )?;
-                Ok(())
-            })
-            .map_err(io::Error::from)?;
-        for a in arrivals {
-            self.record_section_arrival(a)?;
+        let old: Fields = self.store().hgetall(key.as_bytes())?.into_iter().collect();
+        let (latest, from) = refolded(&old, arrivals);
+        let before = text(&old, b"section");
+        let after = decided(&old, &latest).0.to_string();
+        if write {
+            let (own_at, person_at, in_at) = (
+                latest.own_at.to_string(),
+                latest.person_at.to_string(),
+                latest.other_at.to_string(),
+            );
+            let o = latest.other;
+            self.store()
+                .atomic(|ctx| {
+                    ctx.hset(
+                        key.as_bytes(),
+                        &[
+                            (OWN_AT, own_at.as_bytes()),
+                            (OWN_TO_OTHERS, flag(latest.own_to_others)),
+                            (PERSON_AT, person_at.as_bytes()),
+                            (IN_AT, in_at.as_bytes()),
+                            (IN_DIRECT, flag(o.direct)),
+                            (IN_PERSON, flag(o.from_person)),
+                            (IN_FIRST, flag(o.first_contact)),
+                            (IN_FROM, from.as_bytes()),
+                            (IN_ACCEPTED, flag(latest.other_accepted)),
+                            (IN_INVITE, flag(o.invite)),
+                            (IN_MUTUAL, flag(o.mutual)),
+                        ],
+                    )?;
+                    Ok(())
+                })
+                .map_err(io::Error::from)?;
+            self.rewrite_section(&key)?;
         }
-        let same_latest = read(IN_AT)? == old_in_at && read(IN_FROM)? == old_from;
-        if same_latest && !old_in_at.is_empty() {
-            self.store().hset(
-                key.as_bytes(),
-                &[
-                    (IN_FIRST, old_first.as_slice()),
-                    (IN_ACCEPTED, old_accepted.as_slice()),
-                ],
-            )?;
-        }
-        self.rewrite_section(&key)
+        Ok(Some(Refold { before, after }))
+    }
+
+    /// Whether `user`'s row for the thread records an inbound message but
+    /// not the facts added after sections first shipped (`invite`,
+    /// `mutual`), so that it reads them as false until refolded.
+    pub fn section_facts_outdated(&self, user: &str, thread_id: &str) -> io::Result<bool> {
+        let key = keys::thread_user(user, thread_id);
+        let fields: Fields = self.store().hgetall(key.as_bytes())?.into_iter().collect();
+        Ok(num(&fields, IN_AT) > 0 && !fields.contains_key(IN_MUTUAL))
     }
 
     /// The section `user`'s row for `thread_id` is in, `None` when no
@@ -167,6 +200,18 @@ impl KevyMailboxStore {
             .hget(key.as_bytes(), b"section")?
             .and_then(|v| String::from_utf8(v).ok())
             .and_then(|v| Section::named(&v)))
+    }
+
+    /// Whether `user` has written in the thread, as the section reads it:
+    /// the row records a message of theirs.
+    pub fn reader_wrote_in(&self, user: &str, thread_id: &str) -> io::Result<bool> {
+        let key = keys::thread_user(user, thread_id);
+        Ok(self
+            .store()
+            .hget(key.as_bytes(), OWN_AT)?
+            .and_then(|v| String::from_utf8(v).ok())
+            .and_then(|v| v.parse::<i64>().ok())
+            .is_some_and(|at| at > 0))
     }
 
     /// The row's `section` (empty when undecided) and `awaiting_since`.
@@ -220,20 +265,11 @@ impl KevyMailboxStore {
     /// conversation in Junk is in no section: the sectioned inbox is the
     /// mail that is not Junk.
     pub(crate) fn rewrite_section(&self, key: &str) -> io::Result<()> {
-        let fields: std::collections::HashMap<Vec<u8>, Vec<u8>> =
-            self.store().hgetall(key.as_bytes())?.into_iter().collect();
+        let fields: Fields = self.store().hgetall(key.as_bytes())?.into_iter().collect();
         if !fields.contains_key(OWN_AT) && !fields.contains_key(IN_AT) {
             return Ok(());
         }
-        let latest = latest_from(&fields);
-        let junk = fields.get(b"bucket".as_slice()).map(Vec::as_slice) == Some(b"junk");
-        let (section, since) = match junk {
-            true => ("", "0".to_string()),
-            false => (
-                section_of(&latest).name(),
-                awaiting_since(&latest).to_string(),
-            ),
-        };
+        let (section, since) = decided(&fields, &latest_from(&fields));
         let same = |f: &[u8], want: &str| fields.get(f).map(Vec::as_slice) == Some(want.as_bytes());
         if same(b"section", section) && same(b"awaiting_since", &since) {
             return Ok(());
@@ -252,30 +288,9 @@ impl KevyMailboxStore {
     }
 }
 
-/// The decision's inputs, as the row carries them.
-fn latest_from(fields: &std::collections::HashMap<Vec<u8>, Vec<u8>>) -> Latest {
-    let num = |f: &[u8]| -> i64 {
-        fields
-            .get(f)
-            .and_then(|v| std::str::from_utf8(v).ok())
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(0)
-    };
-    let on = |f: &[u8]| fields.get(f).map(Vec::as_slice) == Some(b"1");
-    Latest {
-        own_at: num(OWN_AT),
-        own_to_others: on(OWN_TO_OTHERS),
-        person_at: num(PERSON_AT),
-        other_at: num(IN_AT),
-        other: MessageFacts {
-            direct: on(IN_DIRECT),
-            from_person: on(IN_PERSON),
-            first_contact: on(IN_FIRST),
-            to_others: false,
-        },
-        other_accepted: on(IN_ACCEPTED),
-    }
-}
+#[path = "sections_row.rs"]
+mod row;
+use row::{Fields, decided, latest_from, num, refolded, text};
 
 #[cfg(test)]
 #[path = "sections_tests.rs"]
