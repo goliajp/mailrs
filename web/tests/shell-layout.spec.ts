@@ -130,6 +130,24 @@ for (const colorScheme of ['light', 'dark'] as const) {
       expect(look.firstPaneLeft - look.railRight).toBeCloseTo(paneGap, 0)
     })
 
+    test('dividers inside a pane can be seen', async ({ page }) => {
+      await openMail(page)
+      const look = await page.evaluate(() => {
+        const probe = document.createElement('div')
+        probe.className = 'border-border border'
+        document.body.append(probe)
+        const line = getComputedStyle(probe).borderTopColor
+        probe.remove()
+        const pane = document.querySelector('[data-component="panel"]')
+        if (!pane) throw new Error('pane missing')
+        return { line, pane: getComputedStyle(pane).backgroundColor }
+      })
+      // zinc-200 on a white pane was 1.26:1 and the lines between a pane's
+      // rows disappeared in light mode
+      const floor = colorScheme === 'light' ? 1.4 : 1.1
+      expect(contrast(look.line, look.pane)).toBeGreaterThan(floor)
+    })
+
     test('text on the accent colour is readable wherever it is drawn', async ({ page }) => {
       // a conversation open, so the reply box and its send button are on
       // screen, and one unread, so the unread count is too
