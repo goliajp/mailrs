@@ -29,6 +29,7 @@ mod importance;
 mod intake;
 mod intake_redrain;
 mod intake_rules;
+mod junk_corrections;
 mod labels;
 mod mail;
 mod mark_list_read;

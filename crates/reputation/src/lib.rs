@@ -27,6 +27,9 @@ pub enum Source {
     Abuse,
     /// One user moved mail from this sender or link to Junk.
     UserJunk,
+    /// One user took mail from this sender out of Junk that the server
+    /// had put there.
+    UserNotJunk,
     /// An administrator's decision, with its reason.
     Manual,
 }
@@ -40,6 +43,7 @@ impl Source {
             Source::Complaint => "complaint",
             Source::Abuse => "abuse",
             Source::UserJunk => "user_junk",
+            Source::UserNotJunk => "user_not_junk",
             Source::Manual => "manual",
         }
     }
@@ -69,6 +73,11 @@ pub enum Stance {
     Allow,
     /// Withdraws the observation named in `retracts`.
     Retract,
+    /// For, as one reader's word: recorded and counted, and it removes
+    /// nothing. Unlike `Allow`, which overrules every deny of its subject,
+    /// so one reader keeping one newsletter cannot exempt its domain from
+    /// the rules.
+    Vouch,
 }
 
 /// One fact. Added, never changed.
