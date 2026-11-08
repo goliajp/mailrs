@@ -5,6 +5,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { InboxSectionChips } from '@/components/inbox-section-bar'
 import { useCategoriesQuery } from '@/hooks/use-mail-queries'
 import { useOpenList } from '@/hooks/use-open-list'
+import { useWidestLabel } from '@/hooks/use-widest-label'
 import { type Key, useT } from '@/i18n'
 import { MAIL_LIST_TABS, MAIL_LISTS } from '@/lib/mail-lists'
 import { rovingKeyDown, tabStop } from '@/lib/roving'
@@ -55,14 +56,11 @@ function sortOptions(query: string): SortOrder[] {
 }
 
 function tabButtonClass(isActive: boolean): string {
-  // `w-full`: the cell decides the width. A label longer than its column
-  // wraps onto a second line rather than being cut: Japanese labels such
-  // as すべてのメール do not fit a column at any width the tabs are
-  // shown at, and a cut label names no list. Every cell in a row takes
-  // the tallest one's height (`h-full`), so the grid stays in line.
-  // `break-phrase` keeps a Japanese label from breaking mid-word.
+  // `w-full`: the cell decides the width. A label never wraps: a tab
+  // broken over two lines reads as two things. The columns are never
+  // narrower than the widest label (see the grid), so none is cut either.
   const base =
-    'break-phrase h-full w-full cursor-pointer rounded-md px-2 py-1 text-xs leading-tight break-words transition-colors'
+    'h-full w-full cursor-pointer rounded-md px-1.5 py-1 text-xs leading-tight whitespace-nowrap transition-colors'
   if (isActive) return `${base} bg-border-strong text-fg font-semibold`
   return `${base} bg-bg-secondary text-fg-muted hover:bg-bg-tertiary hover:text-fg-secondary font-medium`
 }
@@ -96,6 +94,9 @@ export const FilterBar = memo(function FilterBar() {
   }, [filtersOpen])
 
   const handleTab = useOpenList()
+  const tabsRef = useRef<HTMLDivElement>(null)
+  const tabLabels = MAIL_LIST_TABS.map((id) => t(MAIL_LISTS[id].label)).join('\n')
+  const widestTab = useWidestLabel(tabsRef, tabLabels)
 
   const hasAdvancedFilters =
     sortOrder !== 'newest' ||
@@ -109,16 +110,19 @@ export const FilterBar = memo(function FilterBar() {
 
   return (
     <div className="border-border flex items-start gap-1 border-b px-3 py-1.5">
-      {/* One grid over both rows, not a flex row each. Wrapped flex
+      {/* One grid over every row, not a flex row each. Wrapped flex
           sizes every tab to its own label, so `Inbox` was narrow,
-          `Archived` was wide, and the second row started under nothing
-          in particular. Five columns give every tab the same width and
-          put the second row's three under the first row's three. */}
+          `Archived` was wide, and the next row started under nothing in
+          particular. Equal columns, as many as fit, none narrower than
+          the widest label in the reader's language: a narrower list
+          gets more rows, not broken labels. */}
       <div
         aria-label={t('list.tabs')}
-        className="grid flex-1 grid-cols-4 gap-1 sm:grid-cols-6 xl:hidden"
+        className="grid flex-1 grid-cols-[repeat(auto-fill,minmax(calc(var(--tab-min)_+_0.75rem),1fr))] gap-1 xl:hidden"
         onKeyDown={(e) => rovingKeyDown(e, '[role="tab"]', 'horizontal')}
+        ref={tabsRef}
         role="tablist"
+        style={{ '--tab-min': `${widestTab}px` } as React.CSSProperties}
       >
         {MAIL_LIST_TABS.map((id) => (
           <button
@@ -130,7 +134,7 @@ export const FilterBar = memo(function FilterBar() {
             tabIndex={tabStop(activeList === id)}
             type="button"
           >
-            {t(MAIL_LISTS[id].label)}
+            <span>{t(MAIL_LISTS[id].label)}</span>
           </button>
         ))}
       </div>

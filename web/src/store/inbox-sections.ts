@@ -34,8 +34,11 @@ export type InboxSection = 'followup' | 'new' | 'other' | 'reply'
 
 export const INBOX_SECTIONS: readonly InboxSection[] = ['reply', 'followup', 'new', 'other']
 
-/** The section shown, or null for the whole inbox; it opens at Reply. */
-export const inboxSectionAtom = atom<InboxSection | null>('reply')
+/**
+ * The section shown, or null for the whole inbox. The inbox opens whole:
+ * a section is a filter the reader chooses, not where they land.
+ */
+export const inboxSectionAtom = atom<InboxSection | null>(null)
 
 /**
  * The epoch second a follow-up is due by: `days` before now, rounded down
