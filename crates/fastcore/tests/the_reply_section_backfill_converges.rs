@@ -1,7 +1,8 @@
 //! Conversations decided before Reply read `invite` and `mutual` are
 //! decided again, once, from their messages: an invitation and a sender
-//! the reader never writes to leave Reply, a correspondent stays, and a
-//! second walk finds nothing left to do.
+//! the reader never writes to leave Reply, a correspondent stays, a first
+//! contact keeps the answer its delivery read and stays New, and a second
+//! walk finds nothing left to do.
 
 use std::sync::Arc;
 
@@ -16,7 +17,8 @@ const NET: &str = "mem://reply-section-backfill";
 
 fn plain(from: &str, mid: &str) -> String {
     format!(
-        "Received: from mx by x.com; Tue, 3 Nov 2026 01:00:00 +0000\r\n\
+        "Received: from mx by x.com; Tue, 3 Nov 2026 02:00:00 +0000\r\n\
+         Date: Tue, 3 Nov 2026 01:00:00 +0000\r\n\
          From: {from}\r\nTo: {USER}\r\nSubject: hello\r\nMessage-ID: <{mid}>\r\n\
          Content-Type: text/plain\r\n\r\nhello\r\n"
     )
@@ -24,7 +26,8 @@ fn plain(from: &str, mid: &str) -> String {
 
 fn invitation(from: &str, mid: &str) -> String {
     format!(
-        "Received: from mx by x.com; Tue, 3 Nov 2026 01:00:00 +0000\r\n\
+        "Received: from mx by x.com; Tue, 3 Nov 2026 02:00:00 +0000\r\n\
+         Date: Tue, 3 Nov 2026 01:00:00 +0000\r\n\
          From: {from}\r\nTo: {USER}\r\nSubject: sync\r\nMessage-ID: <{mid}>\r\n\
          MIME-Version: 1.0\r\nContent-Type: text/calendar; method=REQUEST\r\n\r\n\
          BEGIN:VCALENDAR\r\nVERSION:2.0\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\n\
@@ -77,25 +80,32 @@ async fn rows_from_before_the_later_facts_are_decided_again_once() {
             "ann@y.test",
             invitation("ann@y.test", "sync@y.test"),
         ),
+        (
+            "eve",
+            "eve@far.test",
+            plain("Eve <eve@far.test>", "eve@far.test"),
+        ),
     ];
     for (tid, from, raw) in &threads {
         let blob_ref = md.deliver(raw.as_bytes()).expect("deliver").0;
-        seed_old_row(&mailbox, tid, from, &blob_ref);
+        seed_old_row(&mailbox, tid, from, &blob_ref, *tid == "eve");
     }
-    for (tid, ..) in &threads {
+    for (tid, ..) in &threads[..3] {
         assert_eq!(section(&mailbox, tid), Some(Section::Reply), "{tid}");
     }
+    assert_eq!(section(&mailbox, "eve"), Some(Section::New));
 
     let mut fc = mailrs_fastcore::FastcoreState::new(mailbox);
     fc.net_url = Some(NET.into());
     let state = Arc::new(fc);
 
     let dry = backfill(&state, true).await;
-    assert_eq!(dry["outdated_facts"], 3, "{dry}");
+    assert_eq!(dry["outdated_facts"], 4, "{dry}");
     assert_eq!(dry["refreshed"], 0, "{dry}");
     assert_eq!(dry["moved"]["reply>other"], 2, "{dry}");
     assert_eq!(dry["section_change"]["reply"], -2, "{dry}");
     assert_eq!(dry["section_change"]["other"], 2, "{dry}");
+    assert!(dry["section_change"].get("new").is_none(), "{dry}");
     assert_eq!(
         section(&state.mailbox, "desk"),
         Some(Section::Reply),
@@ -103,30 +113,33 @@ async fn rows_from_before_the_later_facts_are_decided_again_once() {
     );
 
     let real = backfill(&state, false).await;
-    assert_eq!(real["refreshed"], 3, "{real}");
+    assert_eq!(real["refreshed"], 4, "{real}");
     assert_eq!(real["moved"]["reply>other"], 2, "{real}");
     assert_eq!(section(&state.mailbox, "ann"), Some(Section::Reply));
     assert_eq!(section(&state.mailbox, "desk"), Some(Section::Other));
     assert_eq!(section(&state.mailbox, "sync"), Some(Section::Other));
+    assert_eq!(section(&state.mailbox, "eve"), Some(Section::New));
 
     let second = backfill(&state, false).await;
     assert_eq!(
-        second["threads_walked"], 3,
+        second["threads_walked"], 4,
         "it must still read them: {second}"
     );
     assert_eq!(second["outdated_facts"], 0, "{second}");
     assert_eq!(second["refreshed"], 0, "{second}");
-    assert_eq!(second["already_decided"], 3, "{second}");
+    assert_eq!(second["already_decided"], 4, "{second}");
     drop(net);
 }
 
 /// A conversation as delivery left it before `invite` and `mutual` were
-/// recorded: a person wrote to the reader, and nothing more is on the row.
+/// recorded: a person wrote to the reader (a first contact, when `first`),
+/// at the time delivery records, and nothing more is on the row.
 fn seed_old_row(
     mailbox: &mailrs_mailbox_kevy::KevyMailboxStore,
     tid: &str,
     from: &str,
     blob_ref: &str,
+    first: bool,
 ) {
     let mid = format!("{tid}@y.test");
     mailbox
@@ -167,6 +180,7 @@ fn seed_old_row(
     let facts = MessageFacts {
         direct: true,
         from_person: true,
+        first_contact: first,
         mutual: true,
         ..MessageFacts::default()
     };

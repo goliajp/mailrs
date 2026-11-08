@@ -56,10 +56,10 @@ pub(crate) fn read_arrival(
     net: Option<&mut kevy_client::Connection>,
 ) -> ReadArrival {
     let head = &raw[..raw.len().min(16 * 1024)];
-    let message = mailrs_rfc5322::Message::new(head);
-    let from = message.header_str("From").unwrap_or_default().to_string();
-    let to = message.header_str("To").unwrap_or_default().to_string();
-    let at = mailrs_inbound::dates::received_epoch(raw).unwrap_or(0);
+    // the headers and the time delivery recorded, so a refold recognises
+    // the message delivery folded and keeps what it read then
+    let (_, _, _, _, date, from, to) = mailrs_intake::headers::extract_headers(head);
+    let at = mailrs_intake::headers::stored_date(date, blob_ref);
     let own = mailrs_mailbox::sent_copy::sent_by(&from, blob_ref, user);
     let mut facts =
         mailrs_intake::section_facts::facts(None, user, &from, &to, head, category, own);
