@@ -209,6 +209,7 @@ pub(crate) async fn mark_not_junk(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
+    let from_junk = in_junk(&state, &user, &thread_id);
     let ok = state
         .mailbox
         .set_junk(&user, &thread_id, false)
@@ -216,11 +217,48 @@ pub(crate) async fn mark_not_junk(
     // v2.8.0: learn this thread as ham. train_thread unlearns any prior
     // spam training on the same thread first (mis-file correction).
     if ok {
-        crate::bayes_train::learn_reader_verdict(&state, &user, &thread_id, false);
+        match from_junk {
+            true => crate::bayes_train::learn_reader_verdict(&state, &user, &thread_id, false),
+            false => crate::bayes_train::train_thread(&state, &user, &thread_id, false),
+        }
         // its images were not fetched while it was in Junk
         crate::image_prefetch::queue_thread(&state, &user, &thread_id);
     }
     member_result(ok)
+}
+
+/// `thread_id` sits in `user`'s Junk.
+fn in_junk(state: &Arc<FastcoreState>, user: &str, thread_id: &str) -> bool {
+    state
+        .mailbox
+        .get_thread_for_user(user, thread_id)
+        .ok()
+        .flatten()
+        .is_some_and(|r| {
+            mailrs_mailbox_kevy::scope::bucket_of(&r.category)
+                == mailrs_mailbox_kevy::scope::Bucket::Junk
+        })
+}
+
+/// File `thread_id` into `bucket` for `user`. Out of Junk, whoever put it
+/// there, that is the reader correcting a Junk verdict: it is learnt as
+/// ham and recorded as a correction, as "not junk" is. `false` when `user`
+/// is not in the thread.
+fn file_into(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    thread_id: &str,
+    bucket: mailrs_mailbox_kevy::keys::Bucket,
+) -> bool {
+    let from_junk = in_junk(state, user, thread_id);
+    let ok = state
+        .mailbox
+        .set_bucket(user, thread_id, bucket)
+        .unwrap_or(false);
+    if ok && from_junk {
+        crate::bayes_train::learn_reader_verdict(state, user, thread_id, false);
+    }
+    ok
 }
 
 /// v2.9 triage — move a thread into the Notifications bucket and train
@@ -229,14 +267,12 @@ pub(crate) async fn mark_notification(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    let ok = state
-        .mailbox
-        .set_bucket(
-            &user,
-            &thread_id,
-            mailrs_mailbox_kevy::keys::Bucket::Notifications,
-        )
-        .unwrap_or(false);
+    let ok = file_into(
+        &state,
+        &user,
+        &thread_id,
+        mailrs_mailbox_kevy::keys::Bucket::Notifications,
+    );
     if ok {
         crate::bayes_train::train_triage(&state, &user, &thread_id, "notification");
     }
@@ -249,14 +285,12 @@ pub(crate) async fn mark_promotion(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    let ok = state
-        .mailbox
-        .set_bucket(
-            &user,
-            &thread_id,
-            mailrs_mailbox_kevy::keys::Bucket::Promotions,
-        )
-        .unwrap_or(false);
+    let ok = file_into(
+        &state,
+        &user,
+        &thread_id,
+        mailrs_mailbox_kevy::keys::Bucket::Promotions,
+    );
     if ok {
         crate::bayes_train::train_triage(&state, &user, &thread_id, "promotion");
     }
@@ -269,10 +303,12 @@ pub(crate) async fn move_to_inbox(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    let ok = state
-        .mailbox
-        .set_bucket(&user, &thread_id, mailrs_mailbox_kevy::keys::Bucket::Inbox)
-        .unwrap_or(false);
+    let ok = file_into(
+        &state,
+        &user,
+        &thread_id,
+        mailrs_mailbox_kevy::keys::Bucket::Inbox,
+    );
     if ok {
         crate::bayes_train::train_triage(&state, &user, &thread_id, "inbox");
         // a thread moved out of Junk this way had no images fetched

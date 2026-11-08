@@ -3,7 +3,7 @@
 use async_trait::async_trait;
 use mailrs_inbound::{ReceiveContext, Stage, StageOutcome};
 
-use crate::inbound::content_scan::evaluate_rules;
+use crate::inbound::content_scan::{Message, evaluate_rules};
 
 /// Stage that runs the rule-engine over the raw message body and writes
 /// `ctx.content_score` + `ctx.matched_rules`. Always continues; the final
@@ -32,9 +32,13 @@ impl Stage for ContentScanStage {
     }
 
     async fn evaluate(&self, ctx: &mut ReceiveContext) -> StageOutcome {
-        let (score, rules) = evaluate_rules(&ctx.message);
-        ctx.content_score = score;
-        ctx.matched_rules = rules;
+        let scored = evaluate_rules(&Message {
+            raw: &ctx.message,
+            body_text: ctx.body_text.as_deref(),
+        });
+        ctx.content_score = scored.score;
+        ctx.format_score = scored.format_score;
+        ctx.matched_rules = scored.rules;
         StageOutcome::Continue
     }
 }

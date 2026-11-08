@@ -210,7 +210,7 @@ pub fn withdraw_user_junk(
                 value: value.clone(),
                 stance: Stance::Retract,
                 retracts: Some(id.clone()),
-                reason: format!("took conversation {thread_id} out of Junk"),
+                reason: super::junk_corrections::not_junk_reason(thread_id),
                 actor: Some(user.to_string()),
             },
         )?;
@@ -218,9 +218,11 @@ pub fn withdraw_user_junk(
     Ok(marks.len())
 }
 
-/// Record or withdraw `user`'s Junk verdict on `thread_id` as screening
-/// observations; both cores call this where they train on the verdict. A
-/// failure is logged, never returned: the filing has already happened.
+/// Record `user`'s Junk verdict on `thread_id` as screening observations,
+/// or the correction when they took it out of Junk
+/// ([`record_not_junk`](super::junk_corrections::record_not_junk));
+/// both cores call this where they train on the verdict. A failure is
+/// logged, never returned: the filing has already happened.
 pub fn learn_junk_verdict(
     conn: &mut kevy_client::Connection,
     user: &str,
@@ -234,7 +236,7 @@ pub fn learn_junk_verdict(
             let subjects = mailrs_inbound::scan_input::junk_subjects(raws, user);
             record_user_junk(conn, user, thread_id, &subjects, now)
         }
-        false => withdraw_user_junk(conn, user, thread_id, now),
+        false => super::junk_corrections::record_not_junk(conn, user, thread_id, raws, now),
     };
     if let Err(e) = result {
         tracing::warn!(event = "screening_failed", stage = "observe", error = %e, %user, %thread_id, "a Junk verdict was not recorded as an observation");

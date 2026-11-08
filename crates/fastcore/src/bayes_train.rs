@@ -115,35 +115,19 @@ pub fn corpus_populated(state: &Arc<FastcoreState>) -> bool {
     })
 }
 
-/// One-shot corpus seed from existing classified threads (RFC §5,
-/// revised v2.8.1). Spam source = the `by_category:{spam,scam}` zsets
-/// (the monolith-era AI verdicts).
+/// One-shot corpus seed. Spam = the conversations this reader filed as
+/// Junk and has not taken out ([`user_junked_threads`]), and the ones the
+/// fraud rules hold. Never the server's own Junk (`category = spam`): that
+/// is what the score decided, and a corpus seeded from it learns to agree
+/// with the score, newsletters and all.
 /// Ham = an equal count of the most-recent Inbox threads.
 ///
 /// No per-account guard — the caller gates on [`corpus_populated`]
 /// once. Returns `(spam_trained, ham_trained)`.
+///
+/// [`user_junked_threads`]: mailrs_core_sidestate::families::junk_corrections::user_junked_threads
 pub fn bootstrap(state: &Arc<FastcoreState>, user: &str) -> (u64, u64) {
-    // Spam roster: union of the spam + scam category zsets.
-    // Declared category axis. The `by_category:*` zsets are legacy and
-    // measured empty on every account (census, 2026-07-31), so this roster
-    // came back empty and the whole bootstrap collected nothing while
-    // reporting success.
-    let mut spam_ids: Vec<String> = Vec::new();
-    for cat in ["spam", "scam"] {
-        spam_ids.extend(
-            state
-                .mailbox
-                .list_thread_ids_by_category_via_table(
-                    user,
-                    cat,
-                    mailrs_mailbox_kevy::ArchiveScope::All,
-                    ALL,
-                )
-                .unwrap_or_default(),
-        );
-    }
-    spam_ids.sort();
-    spam_ids.dedup();
+    let spam_ids = judged_spam(state, user);
 
     // Ham sample: same count, most-recent inbox threads.
     let want_ham = spam_ids.len() as i64;
@@ -178,6 +162,30 @@ pub fn bootstrap(state: &Arc<FastcoreState>, user: &str) -> (u64, u64) {
     (spam_trained, ham_trained)
 }
 
+/// What may be learnt as spam for `user`: their own Junk filings and their
+/// held conversations, sorted, each once.
+pub(crate) fn judged_spam(state: &Arc<FastcoreState>, user: &str) -> Vec<String> {
+    use mailrs_mailbox_kevy::{ListThreadsFilter, QuarantineScope};
+    let mut ids: std::collections::BTreeSet<String> = state
+        .net_conn()
+        .and_then(|mut c| mailrs_core_sidestate::families::screening::observations(&mut c).ok())
+        .map(|all| {
+            mailrs_core_sidestate::families::junk_corrections::user_junked_threads(&all, user)
+        })
+        .unwrap_or_default();
+    let held = ListThreadsFilter {
+        quarantine: QuarantineScope::Only,
+        ..Default::default()
+    };
+    if let Ok((rows, _)) = state
+        .mailbox
+        .list_threads_by_activity(user, &held, 0, 1 << 30)
+    {
+        ids.extend(rows.into_iter().map(|r| r.thread_id));
+    }
+    ids.into_iter().collect()
+}
+
 /// Header-heuristic seed label for a raw message — the one-time
 /// bootstrap classifier that gives the learning corpus a starting
 /// point (there is no historic N/P label data). Reuses the bayes
@@ -188,7 +196,7 @@ pub fn bootstrap(state: &Arc<FastcoreState>, user: &str) -> (u64, u64) {
 ///
 /// Deliberately simple; the Bayes classifier refines it from the
 /// user's mark-as corrections thereafter.
-fn heuristic_triage_label(raw: &[u8]) -> &'static str {
+pub(crate) fn heuristic_triage_label(raw: &[u8]) -> &'static str {
     let toks = mailrs_parse_worker::tokens(
         raw,
         mailrs_parse_worker::Tokenizer::Decoded,
