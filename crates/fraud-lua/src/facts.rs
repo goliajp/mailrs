@@ -81,6 +81,7 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
             f.novelty.new_link_domain.clone().unwrap_or_default(),
         ),
         ("qr_domains", f.qr_domains.to_string()),
+        ("bucket_hosts", f.bucket_hosts.to_string()),
         ("new_qr_domain", f.new_qr_domain.clone().unwrap_or_default()),
     ] {
         if v.len() > 64 * 1024 {
@@ -169,6 +170,10 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ("sender_domain_new", f.novelty.sender_new),
         ("link_domain_new", f.novelty.new_link_domain.is_some()),
         ("has_links", f.has_links),
+        (
+            "links_only_to_random_buckets",
+            f.links_only_to_random_buckets,
+        ),
         ("qr_host_not_in_message", f.qr.host_not_in_message),
         ("qr_text_mismatch", f.qr.text_mismatch),
         ("qr_domain_new", f.new_qr_domain.is_some()),

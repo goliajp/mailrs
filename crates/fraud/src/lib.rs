@@ -70,6 +70,7 @@ pub mod relation;
 pub mod reply_claim;
 pub mod reply_rotation;
 pub mod sending_host;
+pub mod storage_bucket;
 pub mod subject_is_our_name;
 
 #[cfg(any(test, feature = "testing"))]

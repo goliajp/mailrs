@@ -118,13 +118,15 @@ fn the_enforced_rules_are_every_rule_but_the_shadow_ones() {
 /// `bec-name-borrowed` left shadow in production's pack once the
 /// correspondent facts cut its hits to one campaign; it scores and never
 /// holds. The other two still run in shadow, and so do the Japanese
-/// account and account-change rules until their review.
+/// account and account-change rules until their review, the QR rules, and
+/// the rule for unvouched senders linking only to a generated bucket.
 #[test]
-fn four_bec_rules_and_the_qr_rules_ship_in_shadow() {
+fn four_bec_rules_the_qr_rules_and_the_bucket_rule_ship_in_shadow() {
     let rules = Rules::compile(DEFAULT_SOURCE).unwrap();
     assert_eq!(
         rules.shadow_rules(),
         [
+            "unvouched-sender-links-only-to-a-bucket",
             "bec-lookalike-reply-diverted",
             "bec-reply-diverted-unauthenticated",
             "bec-jp-account-from-a-stranger",
