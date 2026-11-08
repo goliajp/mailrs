@@ -6,8 +6,8 @@
 //! The contact record delivery reads for first contact already counts old
 //! mail, so first contact is read from the reader's own store instead
 //! ([`History`]): the newest inbound message is one when it is the first
-//! its sender ever sent the reader and the reader had written to them
-//! nothing before it. Rows decided before (which never say first contact)
+//! its sender ever sent the reader, the reader had written to them nothing
+//! before it, and it arrived within the last 30 days. Rows decided before (which never say first contact)
 //! are refolded when the history says so, and rows whose sender's address
 //! now reads as a machine's are refolded too. Whether the reader and a
 //! sender write to each other is read from today's counts, not the counts
@@ -102,9 +102,10 @@ fn walk(
     let mut stopped_early = false;
     let after = After::from_query(q.after_user.as_deref(), q.after_thread.as_deref());
     let mut last: Option<After> = None;
+    let since = chrono::Utc::now().timestamp() - super::sender_history::FIRST_CONTACT_WINDOW_SECS;
     'walk: for user in &users_from(users.clone(), after.as_ref()) {
         let on_disk = crate::maildir_scan::paths_on_disk(state, user);
-        let history = History::build(state, user, &on_disk)?;
+        let history = History::build(state, user, &on_disk, since)?;
         for tid in threads_after(state, user, after.as_ref()) {
             if c.threads >= q.limit || hangup.hung_up() {
                 stopped_early = true;
