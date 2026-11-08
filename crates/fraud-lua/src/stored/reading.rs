@@ -45,6 +45,7 @@ pub struct Reading {
     dkim_signed_by_from_org: bool,
     dkim_from_org_passed: Option<bool>,
     has_links: bool,
+    bucket_hosts: String,
     qr: mailrs_fraud::qr::QrFacts,
     qr_domains: String,
 }
@@ -107,6 +108,7 @@ impl Reading {
         let link_hosts = mailrs_inbound::scan_input::link_hosts(&parsed);
         Self {
             has_links: !link_hosts.is_empty(),
+            bucket_hosts: mailrs_fraud::storage_bucket::bucket_hosts(&link_hosts),
             link_hosts,
             qr_hosts: Vec::new(),
             qr: Default::default(),
@@ -221,6 +223,8 @@ impl Reading {
             dkim_signed_by_from_org: self.dkim_signed_by_from_org,
             dkim_from_org_passed: self.dkim_from_org_passed,
             has_links: self.has_links,
+            links_only_to_random_buckets: !self.bucket_hosts.is_empty(),
+            bucket_hosts: &self.bucket_hosts,
             qr: self.qr,
             qr_domains: &self.qr_domains,
             new_qr_domain: None,

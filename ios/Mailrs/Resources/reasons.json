@@ -444,6 +444,16 @@
     "ja": "添付の画像がスクリプトを実行します。",
     "zh": "附件里的图片会运行脚本。"
   },
+  "unvouched-sender-links-only-to-a-bucket": {
+    "en": "Nothing vouches for the From domain, and every link goes to a cloud storage bucket with a generated name.",
+    "ja": "差出人のドメインを裏付ける認証が何もなく、リンクはすべて、名前が機械的に作られたクラウドストレージのバケットに向いています。",
+    "zh": "没有任何认证能证明发件域名，信里的链接全部指向一个名字是随机生成的云存储 bucket。",
+    "params": {
+      "en": "Nothing vouches for {domain} (SPF {spf}, DKIM {dkim}, DMARC {dmarc}), and every link goes to a cloud storage bucket with a generated name.",
+      "ja": "{domain} を裏付ける認証が何もなく（SPF {spf}、DKIM {dkim}、DMARC {dmarc}）、リンクはすべて、名前が機械的に作られたクラウドストレージのバケットに向いています。",
+      "zh": "没有任何认证能证明 {domain}（SPF {spf}，DKIM {dkim}，DMARC {dmarc}），信里的链接全部指向一个名字是随机生成的云存储 bucket。"
+    }
+  },
   "x-mailer-generated": {
     "en": "It names a mail program (X-Mailer) that no real mail client writes.",
     "ja": "実在のメールソフトが書かないメールプログラム名（X-Mailer）が付いています。",

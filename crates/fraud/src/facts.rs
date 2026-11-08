@@ -180,6 +180,13 @@ pub struct Facts<'a> {
     pub dkim_from_org_passed: Option<bool>,
     /// The message links anywhere at all: a host in its HTML or text.
     pub has_links: bool,
+    /// Every link goes to a cloud storage bucket with a generated name,
+    /// and there is one — [`crate::storage_bucket::only_random_buckets`],
+    /// over the same hosts as [`Self::has_links`].
+    pub links_only_to_random_buckets: bool,
+    /// Those hosts, one per line — [`crate::storage_bucket::bucket_hosts`];
+    /// empty unless [`Self::links_only_to_random_buckets`].
+    pub bucket_hosts: &'a str,
     /// Where the message's QR codes point, against what it says —
     /// [`crate::qr::assess`]. Read after delivery from the addresses the
     /// attachment reader stored; all empty on the live path, and on a core

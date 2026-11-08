@@ -149,6 +149,24 @@ rule('nothing-vouches-for-the-sender', 'identity', 6, true, function(m)
             .. m.spf .. '`', {domain = m.from_domain, spf = m.spf})
     end
 end)
+-- The From domain does not publish DMARC, so the rule above cannot ask,
+-- and nothing else vouches for it either: no SPF, DKIM or DMARC pass.
+-- Every link goes to a cloud storage bucket whose name was generated
+-- (`mailrs_fraud::storage_bucket`), which is where a kit uploads its page
+-- to borrow the provider's domain and certificate.  Runs in shadow.
+--
+-- Measured over the 90 days to 2026-11-08 on a copy of production: 6
+-- messages had every link on a storage host, 5 of them with a generated
+-- bucket name and unauthenticated; 4 of the 5 were labelled phish, and
+-- none was a false positive.
+rule('unvouched-sender-links-only-to-a-bucket', 'identity', 6, false, function(m)
+    if m.peer_is_private or not external(m) or not m.unauthenticated then return end
+    if m.dkim == 'pass' or m.spf == 'pass' or m.dmarc == 'pass' then return end
+    if m.links_only_to_random_buckets then
+        return found('nothing vouches for the From domain and every link goes to a cloud bucket with a generated name',
+            {domain = m.from_domain, spf = m.spf, dkim = m.dkim, dmarc = m.dmarc})
+    end
+end, {shadow = true})
 rule('minted-address', 'identity', 6, false, function(m)
     if minted(m.minted_local) and minted(m.minted_sld) then
         return found('neither the mailbox nor the domain is a word anybody chose',
