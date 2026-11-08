@@ -15,9 +15,9 @@ use tower::ServiceExt;
 
 const USER: &str = "bob@x.com";
 
-fn raw(subject: &str, body: &str) -> Vec<u8> {
+fn raw(subject: &str, extra: &str, body: &str) -> Vec<u8> {
     format!(
-        "From: Sender <s@sender.example>\r\nTo: bob@x.com\r\nSubject: {subject}\r\n\
+        "{extra}From: Sender <s@sender.example>\r\nTo: bob@x.com\r\nSubject: {subject}\r\n\
          Message-ID: <{subject}@sender.example>\r\nContent-Type: text/plain; charset=utf-8\r\n\
          \r\n{body}\r\n"
     )
@@ -27,11 +27,27 @@ fn raw(subject: &str, body: &str) -> Vec<u8> {
 /// A thread of one message owned by bob. With `file` its raw mail is in the
 /// maildir; without, the rows name a file that is not there.
 fn add(store: &KevyMailboxStore, root: &Path, tid: &str, category: &str, file: bool) {
+    add_with(store, root, tid, category, file, "");
+}
+
+/// A newsletter as the receiver stored it: DMARC passed, and it has an
+/// unsubscribe link.
+const LIST_MAIL: &str = "Authentication-Results: mx.x.com; spf=pass; dkim=pass; dmarc=pass\r\n\
+List-Unsubscribe: <https://sender.example/u>\r\n";
+
+fn add_with(
+    store: &KevyMailboxStore,
+    root: &Path,
+    tid: &str,
+    category: &str,
+    file: bool,
+    extra: &str,
+) {
     let mid = format!("{tid}@sender.example");
     let blob = match file {
         true => {
             let md = mailrs_maildir::Maildir::open(root.join("x.com/bob"));
-            md.deliver(&raw(tid, "quarterly figures attached below"))
+            md.deliver(&raw(tid, extra, "quarterly figures attached below"))
                 .unwrap()
                 .0
         }
@@ -95,6 +111,9 @@ fn add(store: &KevyMailboxStore, root: &Path, tid: &str, category: &str, file: b
 /// - `t-both2`: in both sets, no marker
 /// - `t-gone`: in the spam set, no account holds it
 /// - `t-nofile`: in the ham set, held by bob, file missing
+/// - `t-junked`: in the spam set, and bob's filing left its marker
+/// - `t-list`: in the spam set on the score alone, a newsletter
+/// - `t-held`: in neither set, held by the fraud rules
 fn seeded(url: &str, root: &Path) -> Arc<FastcoreState> {
     for leaf in ["new", "cur", "tmp"] {
         std::fs::create_dir_all(root.join("x.com/bob").join(leaf)).unwrap();
@@ -112,14 +131,26 @@ fn seeded(url: &str, root: &Path) -> Arc<FastcoreState> {
     add(&store, root, "t-both", "notification", true);
     add(&store, root, "t-both2", "promotion", true);
     add(&store, root, "t-nofile", "inbox", false);
+    add(&store, root, "t-junked", "spam", true);
+    add_with(&store, root, "t-list", "spam", true, LIST_MAIL);
+    add(&store, root, "t-held", "inbox", true);
+    assert!(store.set_quarantined(USER, "t-held", true).unwrap());
 
     let mut c = kevy_client::Connection::connect(url).unwrap();
-    let s: [&[u8]; 4] = [b"t-spam", b"t-both", b"t-both2", b"t-gone"];
+    let s: [&[u8]; 6] = [
+        b"t-spam",
+        b"t-both",
+        b"t-both2",
+        b"t-gone",
+        b"t-junked",
+        b"t-list",
+    ];
     let legacy = keys(Corpus::Legacy);
     c.sadd(legacy.corpus_spam, &s).unwrap();
     let h: [&[u8]; 4] = [b"t-ham", b"t-both", b"t-both2", b"t-nofile"];
     c.sadd(legacy.corpus_ham, &h).unwrap();
     c.set(&legacy_marker("t-both"), b"ham").unwrap();
+    c.set(&legacy_marker("t-junked"), b"spam").unwrap();
 
     let mut state = FastcoreState::new(store);
     state.net_url = Some(url.into());
@@ -179,7 +210,7 @@ fn snapshot_of(url: &str, corpus: Corpus) -> Vec<(String, Hash)> {
 }
 
 #[tokio::test]
-async fn the_spam_corpus_is_rebuilt_from_the_legacy_sets() {
+async fn the_spam_corpus_learns_only_what_readers_and_the_hold_judged() {
     let (_a, url_a) = mailrs_test_docker::kevy::kevy_server().await;
     let (_b, url_b) = mailrs_test_docker::kevy::kevy_server().await;
     let tmp = tempfile::tempdir().unwrap();
@@ -189,8 +220,13 @@ async fn the_spam_corpus_is_rebuilt_from_the_legacy_sets() {
     // dry by default: it reports, and writes nothing
     let dry = rebuild(&one, "").await;
     assert_eq!(dry["dry_run"], true, "{dry}");
-    assert_eq!(dry["roster"], 6, "{dry}");
-    assert_eq!(dry["spam"], 1, "{dry}");
+    assert_eq!(dry["roster"], 9, "{dry}");
+    assert_eq!(dry["spam"], 2, "t-junked and t-held: {dry}");
+    assert_eq!(dry["spam_from_reader"], 1, "{dry}");
+    assert_eq!(dry["spam_from_hold"], 1, "{dry}");
+    assert_eq!(dry["spam_dropped"], 2, "t-spam and t-list: {dry}");
+    assert_eq!(dry["spam_dropped_authenticated_list_mail"], 1, "{dry}");
+    assert_eq!(dry["held_ids"], 1, "{dry}");
     assert_eq!(dry["ham"], 2, "t-ham and t-both, by its old marker: {dry}");
     assert_eq!(dry["in_both_sets"], 2, "{dry}");
     assert_eq!(dry["in_both_unknown"], 1, "{dry}");
@@ -205,12 +241,23 @@ async fn the_spam_corpus_is_rebuilt_from_the_legacy_sets() {
         "a dry run wrote"
     );
 
-    let full = rebuild(&one, "dry_run=false").await;
-    assert_eq!(full["spam"], 1, "{full}");
-    let p1 = rebuild(&paged, "dry_run=false&limit=4").await;
-    assert_eq!(p1["next_skip"], 4, "{p1}");
+    // v2 as the old rebuild left it: the score's own Junk learnt as spam
+    let url = url_a.clone();
+    let stale = raw("t-spam", "", "quarterly figures attached below");
+    tokio::task::spawn_blocking(move || {
+        let mut c = kevy_client::Connection::connect(&url).unwrap();
+        mailrs_triage::spam::train_in(&mut c, Corpus::V2, "t-spam", &[stale], true);
+    })
+    .await
+    .unwrap();
+    let full = rebuild(&one, "dry_run=false&reset=true").await;
+    assert_eq!(full["spam"], 2, "{full}");
+    assert_eq!(full["reset_cleared"], 1, "{full}");
+    let p1 = rebuild(&paged, "dry_run=false&limit=5").await;
+    assert_eq!(p1["next_skip"], 5, "{p1}");
     assert_eq!(p1["done"], false, "{p1}");
-    let p2 = rebuild(&paged, "dry_run=false&limit=4&skip=4").await;
+    assert_eq!(p1["reset_cleared"], serde_json::Value::Null, "{p1}");
+    let p2 = rebuild(&paged, "dry_run=false&limit=5&skip=5").await;
     assert_eq!(p2["done"], true, "{p2}");
     assert_eq!(
         p1["unresolved"].as_u64().unwrap() + p2["unresolved"].as_u64().unwrap(),
@@ -220,7 +267,7 @@ async fn the_spam_corpus_is_rebuilt_from_the_legacy_sets() {
     let whole = snapshot_of(&url_a, Corpus::V2);
     let meta = &whole[2].1;
     assert!(
-        meta.contains(&(b"spam_msgs".to_vec(), b"1".to_vec()))
+        meta.contains(&(b"spam_msgs".to_vec(), b"2".to_vec()))
             && meta.contains(&(b"ham_msgs".to_vec(), b"2".to_vec())),
         "{meta:?}"
     );
@@ -228,11 +275,11 @@ async fn the_spam_corpus_is_rebuilt_from_the_legacy_sets() {
     assert_eq!(
         whole,
         snapshot_of(&url_b, Corpus::V2),
-        "pages differ from one run"
+        "pages differ from one run, or the reset left the stale spam"
     );
 
     // a page run again counts nothing twice
-    rebuild(&paged, "dry_run=false&limit=4").await;
+    rebuild(&paged, "dry_run=false&limit=5").await;
     assert_eq!(
         whole,
         snapshot_of(&url_b, Corpus::V2),
