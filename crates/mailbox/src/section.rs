@@ -139,25 +139,37 @@ pub fn section_of(l: &Latest) -> Section {
     if l.other_at == 0 {
         return Section::Other;
     }
-    if !l.other.from_person {
+    section_of_inbound(l.other, l.other_accepted, l.own_at > 0)
+}
+
+/// The section the last message from someone else puts a conversation in,
+/// when the reader is not waiting: `accepted` is whether its sender has
+/// been accepted since it arrived, `reader_wrote` whether the reader has
+/// written in the conversation.
+///
+/// Reply is mail from a person, to the reader, that wants a written
+/// answer: not an invitation, and from someone the reader writes to or in
+/// a conversation the reader has written in. Without the last two, Reply
+/// fills with alerts, card statements and verification codes from
+/// addresses the reader has never answered.
+pub fn section_of_inbound(other: MessageFacts, accepted: bool, reader_wrote: bool) -> Section {
+    if !other.from_person {
         return Section::Feed;
     }
-    if l.other.first_contact && !l.other_accepted && l.own_at == 0 {
+    if other.first_contact && !accepted && !reader_wrote {
         return Section::New;
     }
-    if owed_a_reply(l) {
+    if other.direct && !other.invite && (reader_wrote || other.mutual) {
         return Section::Reply;
     }
     Section::Other
 }
 
-/// The last message from a person, to the reader, that wants a written
-/// answer: not an invitation, and from someone the reader writes to or in
-/// a conversation the reader has written in. Mail that fails this would
-/// fill Reply with alerts, card statements and verification codes from
-/// addresses the reader has never answered.
-fn owed_a_reply(l: &Latest) -> bool {
-    l.other.direct && !l.other.invite && (l.own_at > 0 || l.other.mutual)
+/// Whether a message just delivered puts its conversation in Reply, by the
+/// same rule as [`section_of`]: what the push policy rings for. Delivery
+/// read `first_contact` with any acceptance already counted.
+pub fn owed_a_reply(facts: MessageFacts, reader_wrote: bool) -> bool {
+    section_of_inbound(facts, false, reader_wrote) == Section::Reply
 }
 
 /// When the conversation started waiting, for the follow-up index: the
@@ -195,6 +207,22 @@ mod tests {
                 Section::Awaiting => assert_eq!(since, latest.own_at, "{name}"),
                 _ => assert_eq!(since, 0, "{name}"),
             }
+        }
+    }
+
+    /// A message on its own decides Reply as the conversation it is the
+    /// last of: every fixture the reader is not waiting on agrees.
+    #[test]
+    fn a_delivered_message_is_owed_a_reply_as_its_conversation_is() {
+        for (name, l, want) in fixtures() {
+            if l.other_at == 0 || want == Section::Awaiting || l.other_accepted {
+                continue;
+            }
+            assert_eq!(
+                owed_a_reply(l.other, l.own_at > 0),
+                want == Section::Reply,
+                "{name}"
+            );
         }
     }
 

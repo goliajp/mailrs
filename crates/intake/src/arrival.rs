@@ -18,6 +18,9 @@ pub trait Threads {
     /// The subject the conversation's row shows: its newest inbound
     /// message's, or the first message's when the user wrote them all.
     fn thread_subject(&self, user: &str, thread_id: &str) -> Option<String>;
+    /// Whether `user` has written in the conversation, as its section
+    /// reads it: what makes mail in it owed a reply whoever sent it.
+    fn reader_wrote_in(&self, user: &str, thread_id: &str) -> bool;
 }
 
 /// Everything ingest derives from the message bytes.
@@ -50,6 +53,8 @@ pub struct Arrival<'a> {
     pub facts: mailrs_mailbox::section::MessageFacts,
     /// The calendar invitation it carries, read from the whole body.
     pub invite: Option<crate::invite::FoundInvite>,
+    /// The recipient had written in the conversation before this arrived.
+    pub reader_wrote: bool,
     /// The first 16 KB, where the headers are.
     pub head: &'a [u8],
     pub parsed: mailrs_mime::Part<'a>,
@@ -94,6 +99,7 @@ pub fn derive<'a, T: Threads + ?Sized>(
         false => placement(rule.is_some(), category_of, target_folder),
     };
     let invite = crate::invite::find(body);
+    let reader_wrote = !is_own && threads.reader_wrote_in(addr, &thread_id);
     let facts = mailrs_mailbox::section::MessageFacts {
         invite: invite.is_some() && !is_own,
         ..crate::section_facts::facts(net.as_mut(), addr, &from, &to, head, category_of, is_own)
@@ -122,6 +128,7 @@ pub fn derive<'a, T: Threads + ?Sized>(
         sender_trust: extract_sender_trust(body, authserv),
         facts,
         invite,
+        reader_wrote,
         head,
         parsed,
     }

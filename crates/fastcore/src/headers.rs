@@ -34,6 +34,16 @@ impl mailrs_intake::arrival::Threads for Threads<'_> {
             _ => None,
         }
     }
+
+    fn reader_wrote_in(&self, user: &str, thread_id: &str) -> bool {
+        self.0
+            .mailbox
+            .reader_wrote_in(user, thread_id)
+            .unwrap_or_else(|e| {
+                tracing::warn!(error = %e, %user, %thread_id, "whether the reader wrote here was not read");
+                false
+            })
+    }
 }
 
 /// The conversation a message belongs to; see

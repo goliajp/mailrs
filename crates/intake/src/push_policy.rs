@@ -1,8 +1,9 @@
 //! Whether one delivered message should ring the reader's devices.
 //!
 //! One decision for every channel (APNs, Web Push, UnifiedPush), made
-//! where both cores finish a delivery. By default only mail to answer and
-//! mail from important contacts rings; the reader can change that per
+//! where both cores finish a delivery. By default only mail to answer (what
+//! the sectioned inbox files under Reply) and mail from important contacts
+//! rings; the reader can change that per
 //! sender, per conversation and overall, and set quiet hours.
 
 use mailrs_core_sidestate::families::notify::{self, Mode, Prefs};
@@ -39,6 +40,8 @@ pub struct Inputs<'a> {
     pub thread: Option<&'a str>,
     pub important: bool,
     pub facts: MessageFacts,
+    /// The reader has written in the conversation.
+    pub reader_wrote: bool,
     /// The arrival's category: `notification` and `promotion` are feeds.
     pub category: &'a str,
     pub now: i64,
@@ -70,14 +73,10 @@ fn by_mode(i: &Inputs<'_>) -> bool {
         Mode::Off => false,
         Mode::Important => i.important,
         Mode::All => !feed,
-        Mode::Default => i.important || (!feed && to_answer(i.facts)),
+        Mode::Default => {
+            i.important || (!feed && mailrs_mailbox::section::owed_a_reply(i.facts, i.reader_wrote))
+        }
     }
-}
-
-/// Mail the sectioned inbox files under "to reply": a person writing to the
-/// reader directly, someone they have dealt with before.
-fn to_answer(f: MessageFacts) -> bool {
-    f.from_person && f.direct && !f.first_contact
 }
 
 /// The decision, and whether the reader wants the content left off.
@@ -94,6 +93,7 @@ pub fn should_notify(
     sender: &str,
     thread_id: &str,
     facts: MessageFacts,
+    reader_wrote: bool,
     category: &str,
     now: i64,
 ) -> Decision {
@@ -114,6 +114,7 @@ pub fn should_notify(
         thread: by_thread.as_deref(),
         important,
         facts,
+        reader_wrote,
         category,
         now,
     });
@@ -132,8 +133,37 @@ mod tests {
             direct: true,
             from_person: true,
             first_contact: false,
+            mutual: true,
             ..MessageFacts::default()
         }
+    }
+
+    /// Only what Reply holds rings by default: not an invitation, and from
+    /// a correspondent or in a conversation the reader wrote in.
+    #[test]
+    fn by_default_what_rings_is_what_reply_holds() {
+        assert_eq!(decide(&inputs()), Verdict::Push, "a correspondent");
+        let invitation = Inputs {
+            facts: MessageFacts {
+                invite: true,
+                ..answer()
+            },
+            ..inputs()
+        };
+        assert_eq!(decide(&invitation), Verdict::Policy);
+        let one_way = Inputs {
+            facts: MessageFacts {
+                mutual: false,
+                ..answer()
+            },
+            ..inputs()
+        };
+        assert_eq!(decide(&one_way), Verdict::Policy);
+        let in_my_conversation = Inputs {
+            reader_wrote: true,
+            ..one_way
+        };
+        assert_eq!(decide(&in_my_conversation), Verdict::Push);
     }
 
     fn inputs<'a>() -> Inputs<'a> {

@@ -129,6 +129,9 @@ mod tests {
     struct NoThreads;
 
     impl crate::arrival::Threads for NoThreads {
+        fn reader_wrote_in(&self, _: &str, _: &str) -> bool {
+            false
+        }
         fn thread_for_message_id(&self, _user: &str, _mid: &str) -> Option<String> {
             None
         }

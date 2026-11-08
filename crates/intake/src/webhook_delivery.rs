@@ -222,6 +222,9 @@ mod event_tests {
 
     struct NoThreads;
     impl Threads for NoThreads {
+        fn reader_wrote_in(&self, _: &str, _: &str) -> bool {
+            false
+        }
         fn thread_for_message_id(&self, _: &str, _: &str) -> Option<String> {
             None
         }

@@ -345,3 +345,14 @@ fn a_row_of_my_own_mail_is_not_outdated() {
     arrive(&st, "t", 10, true, mine(true), ME);
     assert!(!st.section_facts_outdated(ME, "t").unwrap());
 }
+
+/// What the push policy reads: the reader has a message on the row.
+#[test]
+fn the_row_says_whether_the_reader_wrote_in_the_thread() {
+    let st = store();
+    arrive(&st, "t", 10, false, PERSON, "ann@y.test");
+    assert!(!st.reader_wrote_in(ME, "t").unwrap());
+    arrive(&st, "t", 20, true, mine(true), ME);
+    assert!(st.reader_wrote_in(ME, "t").unwrap());
+    assert!(!st.reader_wrote_in(ME, "never").unwrap());
+}

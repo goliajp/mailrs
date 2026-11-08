@@ -25,6 +25,16 @@ impl Threads for PgCore {
             .ok()
             .flatten()
     }
+
+    fn reader_wrote_in(&self, user: &str, thread_id: &str) -> bool {
+        self.dir
+            .rt
+            .block_on(self.mailbox.reader_wrote_in(user, thread_id))
+            .unwrap_or_else(|e| {
+                tracing::warn!(error = %e, %user, %thread_id, "whether the reader wrote here was not read");
+                false
+            })
+    }
 }
 
 /// The mailbox a copy is indexed into. Mail the user wrote is in Sent, as
