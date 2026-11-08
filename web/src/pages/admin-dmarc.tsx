@@ -291,6 +291,6 @@ function SummaryTile({ label, value }: { label: string; value: string }) {
 }
 
 function windowClass(active: boolean): string {
-  if (active) return 'rounded px-2 py-1 text-xs bg-accent text-white'
+  if (active) return 'rounded px-2 py-1 text-xs bg-accent text-accent-fg'
   return 'rounded px-2 py-1 text-xs text-fg-muted hover:bg-bg-secondary'
 }

@@ -117,7 +117,7 @@ function ApplyLabels({ threadIds }: { threadIds: string[] }) {
           value={name}
         />
         <button
-          className="bg-accent rounded-md px-3 py-1 text-sm font-medium text-white disabled:opacity-50"
+          className="bg-accent text-accent-fg rounded-md px-3 py-1 text-sm font-medium disabled:opacity-50"
           disabled={!name.trim() || create.isPending}
           type="submit"
         >

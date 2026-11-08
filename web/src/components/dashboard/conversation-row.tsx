@@ -60,7 +60,7 @@ export function ConversationRow({
       <div className="flex shrink-0 flex-col items-end gap-1">
         <span className="text-fg-muted text-xs tabular-nums">{formatRelative(c.last_date)}</span>
         {isUnread && (
-          <span className="bg-accent text-tiny flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 font-medium text-white">
+          <span className="bg-accent text-tiny text-accent-fg flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 font-medium">
             {c.unread_count}
           </span>
         )}

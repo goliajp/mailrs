@@ -28,13 +28,13 @@ function luminance(rgb: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b
 }
 
-async function openMail(page: Page) {
+async function openMail(page: Page, items: unknown[] = []) {
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname
     let json: unknown = {}
     if (/categories/.test(path)) json = []
     else if (/conversations$/.test(path)) {
-      json = { has_more: false, items: [], next_cursor: null }
+      json = { has_more: false, items, next_cursor: null }
     }
     await route.fulfill({ json, status: 200 })
   })
@@ -128,6 +128,50 @@ for (const colorScheme of ['light', 'dark'] as const) {
       const paneGap = look.secondPaneLeft - look.firstPaneRight
       expect(paneGap).toBeGreaterThan(0)
       expect(look.firstPaneLeft - look.railRight).toBeCloseTo(paneGap, 0)
+    })
+
+    test('text on the accent colour is readable wherever it is drawn', async ({ page }) => {
+      // a conversation open, so the reply box and its send button are on
+      // screen, and one unread, so the unread count is too
+      await openMail(
+        page,
+        ['t1', 't2'].map((thread_id, i) => ({
+          last_date: 1_793_900_000 - i * 4000,
+          message_count: 1,
+          participants: [`s${i}@example.com`],
+          received_count: 1,
+          snippet: 's',
+          subject: `Thread ${i + 1}`,
+          thread_id,
+          unread_count: i,
+        }))
+      )
+      await page
+        .getByRole('button', { name: /^Send$/ })
+        .first()
+        .waitFor()
+      const pairs = await page.evaluate(() => {
+        const probe = document.createElement('span')
+        probe.className = 'bg-accent'
+        document.body.append(probe)
+        const accent = getComputedStyle(probe).backgroundColor
+        probe.remove()
+        // every element on the page painted in the accent that holds text
+        // or an icon, the send button among them
+        return [...document.querySelectorAll('body *')]
+          .filter((el) => getComputedStyle(el).backgroundColor === accent)
+          .filter((el) => (el.textContent ?? '').trim() !== '' || el.querySelector('svg'))
+          .map((el) => ({
+            bg: accent,
+            fg: getComputedStyle(el).color,
+            what: el.outerHTML.slice(0, 80),
+          }))
+      })
+      expect(pairs.length).toBeGreaterThan(0)
+      for (const p of pairs) {
+        // white on the dark accent was 3.68:1; WCAG AA for body text is 4.5:1
+        expect(contrast(p.fg, p.bg), p.what).toBeGreaterThanOrEqual(4.5)
+      }
     })
   })
 }
