@@ -370,7 +370,47 @@ mod tests {
         assert!(is_automated_sender("auto@x.com"));
         // Negative cases
         assert!(!is_automated_sender("alice@x.com"));
-        assert!(!is_automated_sender("not-noreply@x.com")); // doesn't match exact pattern
+    }
+
+    /// The machine words count as a token of the local part, between
+    /// `-`, `_`, `.` or `+`, not only as the whole of it.
+    #[test]
+    fn a_machine_word_is_matched_as_a_token_of_the_local_part() {
+        for machine in [
+            "testflight_no_reply@email.apple.com",
+            "no_reply@x.com",
+            "no.reply@x.com",
+            "shop-noreply@x.com",
+            "messages-noreply@linkedin.com",
+            "noreply+orders@x.com",
+            "do_not_reply@x.com",
+            "billing.donotreply@x.com",
+            "jp-do-not-reply@x.com",
+            "mailer_daemon@x.com",
+            "list-bounce@x.com",
+            "github.notifications@x.com",
+            "acme-notifications@x.com",
+            "NoReply_JP@x.com",
+        ] {
+            assert!(is_automated_sender(machine), "{machine}");
+        }
+        for person in [
+            "info@x.com",
+            "support@x.com",
+            "sales@x.com",
+            "devops@golia.jp",
+            "goliajp-api@golia.jp",
+            "nora@x.com",
+            "reply@x.com",
+            "no@x.com",
+            "noreen.reply@x.com",
+            "replyno@x.com",
+            "renotify@x.com",
+            "jane.doe+bounced@x.com",
+            "",
+        ] {
+            assert!(!is_automated_sender(person), "{person}");
+        }
     }
 
     #[test]

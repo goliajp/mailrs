@@ -43,20 +43,37 @@ pub fn detect_bulk_sender(raw_headers: &str) -> bool {
     false
 }
 
-/// detect automated/noreply senders
+/// Whether the address is a machine's, by the names mail software gives
+/// them: `noreply`, `no-reply`, `donotreply`, `do-not-reply`,
+/// `mailer-daemon`, `bounce(s)` or `notification(s)` as the whole local
+/// part or as a run of its tokens between `-`, `_`, `.` and `+`
+/// (`testflight_no_reply`, `shop-noreply`, `noreply+orders`); also
+/// `postmaster`, `auto`, and a local part starting `bounce` or
+/// `notification`. Role words such as `info` or `support` are not here:
+/// people answer those.
 pub fn is_automated_sender(email: &str) -> bool {
-    // Local-parts are dominantly ASCII; the keyword set we check
-    // (`noreply`, `bounce`, etc.) is ASCII-only.
+    // the words checked are ASCII-only
     let lower = email.to_ascii_lowercase();
     let local = lower.split('@').next().unwrap_or("");
-
-    local == "noreply"
-        || local == "no-reply"
-        || local == "do-not-reply"
-        || local == "donotreply"
-        || local == "mailer-daemon"
-        || local == "postmaster"
+    if local == "postmaster"
+        || local == "auto"
         || local.starts_with("bounce")
         || local.starts_with("notification")
-        || local == "auto"
+    {
+        return true;
+    }
+    const RUNS: [&[&str]; 9] = [
+        &["noreply"],
+        &["no", "reply"],
+        &["donotreply"],
+        &["do", "not", "reply"],
+        &["mailer", "daemon"],
+        &["bounce"],
+        &["bounces"],
+        &["notification"],
+        &["notifications"],
+    ];
+    let tokens: Vec<&str> = local.split(['-', '_', '.', '+']).collect();
+    RUNS.iter()
+        .any(|run| tokens.windows(run.len()).any(|w| w == *run))
 }

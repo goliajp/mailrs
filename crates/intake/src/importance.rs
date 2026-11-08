@@ -15,9 +15,9 @@ use mailrs_intelligence::importance::{self, ContactFacts, ImportanceLevel, Messa
 /// signals need the body, and a message with no HTML part contributes
 /// no tracking-pixel / template / link evidence at all.
 ///
-/// `sender` must be the **bare** address: `is_automated_sender` matches
-/// the local part exactly (`noreply`, `postmaster`, ...), so handing it
-/// a `From:` header line silently never matches.
+/// `sender` must be the **bare** address: `is_automated_sender` reads the
+/// local part as everything before the `@`, so handing it a `From:`
+/// header line silently never matches.
 pub fn message_facts(sender: &str, head: &[u8], raw: &[u8]) -> MessageFacts {
     let headers = String::from_utf8_lossy(head);
 
