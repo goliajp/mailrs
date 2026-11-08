@@ -152,7 +152,16 @@ function AuthShellLayout() {
     <RequireAuth>
       <LiveEvents />
       <LiveAnnouncer />
-      <AppShell gap={6} padded sidebar={<AppSidebar />} sidebarWidth={56} statusBar={<StatusBar />}>
+      {/* the default bg (#fafafa in light) is too close to the panes' #ffffff
+          for them to read as floating panes; no gap, so the rail's divider
+          sits as far from the first pane as panes sit from each other */}
+      <AppShell
+        className="bg-bg-secondary"
+        padded
+        sidebar={<AppSidebar />}
+        sidebarWidth={56}
+        statusBar={<StatusBar />}
+      >
         <Outlet />
       </AppShell>
       <FloatingComposers />
