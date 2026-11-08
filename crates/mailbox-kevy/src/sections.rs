@@ -191,6 +191,38 @@ impl KevyMailboxStore {
         Ok(num(&fields, IN_AT) > 0 && !fields.contains_key(IN_MUTUAL))
     }
 
+    /// The inputs `user`'s row for the thread decides its section from,
+    /// and the newest inbound sender it records; `None` when nothing has
+    /// been recorded on it.
+    pub fn section_inputs(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> io::Result<Option<(mailrs_mailbox::section::Latest, String)>> {
+        let key = keys::thread_user(user, thread_id);
+        let fields: Fields = self.store().hgetall(key.as_bytes())?.into_iter().collect();
+        if !fields.contains_key(OWN_AT) && !fields.contains_key(IN_AT) {
+            return Ok(None);
+        }
+        Ok(Some((latest_from(&fields), text(&fields, IN_FROM))))
+    }
+
+    /// The message ids `user` has in the thread with the times they sort
+    /// by, oldest first.
+    pub fn user_thread_messages_dated(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> io::Result<Vec<(String, i64)>> {
+        let key = keys::thread_user_messages(user, thread_id);
+        Ok(self
+            .store()
+            .zrange(key.as_bytes(), 0, -1)?
+            .into_iter()
+            .filter_map(|(m, at)| Some((String::from_utf8(m).ok()?, at as i64)))
+            .collect())
+    }
+
     /// The section `user`'s row for `thread_id` is in, `None` when no
     /// writer has reached the row since sections existed.
     pub fn section_of_thread(&self, user: &str, thread_id: &str) -> io::Result<Option<Section>> {
