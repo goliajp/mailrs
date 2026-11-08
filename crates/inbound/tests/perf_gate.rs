@@ -40,6 +40,8 @@ fn default_input() -> PipelineInput {
         },
         virus_found: None,
         content_score: 1.5,
+        format_score: 0.0,
+        list_mail: false,
         matched_rules: vec!["missing_from".into(), "html_only_no_text".into()],
         ptr_score: 0.5,
         ai_score: 0.0,

@@ -167,6 +167,8 @@ fn arrival_from(from: &str, kv: &mut kevy_client::Connection) -> DeliveryDecisio
         },
         virus_found: None,
         content_score: 0.0,
+        format_score: 0.0,
+        list_mail: false,
         matched_rules: vec![],
         ptr_score: 0.0,
         ai_score: 0.0,

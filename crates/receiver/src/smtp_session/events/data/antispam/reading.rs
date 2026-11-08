@@ -1,11 +1,12 @@
 //! What is parsed out of an inbound message before the rules and the
-//! pipeline run, read in the parse worker: what the attachments hold
-//! and the Bayes tokens, in one request.
+//! pipeline run, read in the parse worker: what the attachments hold,
+//! the Bayes tokens and the body text, in one request.
 
 use mailrs_inbound::ReceiveContext;
 use mailrs_parse_worker::{AttachmentsRead, Limit, Outcome, Want};
 
-/// Read `ctx.message`, leave the tokens in `ctx.bayes_tokens` and return
+/// Read `ctx.message`, leave the tokens in `ctx.bayes_tokens` and the
+/// decoded body text in `ctx.body_text`, and return
 /// what the attachments hold. When the worker fails on this message the
 /// answer says so (a fact for the rules); when no worker is available it
 /// says nothing. Either way the tokens stay empty, so Bayes adds nothing,
@@ -14,6 +15,7 @@ pub(super) async fn read(ctx: &mut ReceiveContext) -> AttachmentsRead {
     let raw = std::mem::take(&mut ctx.message);
     let want = Want {
         inside: true,
+        body_text: true,
         tokens: Some(mailrs_triage::spam::READ.tokenizer()),
         ..Want::default()
     };
@@ -29,6 +31,7 @@ pub(super) async fn read(ctx: &mut ReceiveContext) -> AttachmentsRead {
     let read = AttachmentsRead::of(&outcome);
     if let Outcome::Read(r) = outcome {
         ctx.bayes_tokens = r.tokens;
+        ctx.body_text = r.body_text;
     }
     read
 }

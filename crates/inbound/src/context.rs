@@ -56,6 +56,16 @@ pub struct ReceiveContext {
     /// parses. Empty when they were not read; a scoring stage then adds
     /// nothing.
     pub bayes_tokens: Vec<String>,
+    /// The message's decoded body text, read with the tokens. `None` when
+    /// it was not read; the rules that read it then add nothing.
+    pub body_text: Option<String>,
+    /// The part of `content_score` from the format rules, see
+    /// [`PipelineInput::format_score`](crate::PipelineInput).
+    pub format_score: f64,
+    /// The message carries `List-Unsubscribe` or `List-Id`, see
+    /// [`PipelineInput::list_mail`](crate::PipelineInput). Filed by
+    /// [`ReceiveContext::new`], like `deception`: a property of the text.
+    pub list_mail: bool,
     /// What the From display name and Subject were found to contain
     /// (`mailrs_textguard`).
     ///
@@ -137,6 +147,7 @@ impl ReceiveContext {
         // ordering can leave it unset.
         let deception = crate::identity::deception_in_identity(&message);
         let header_from_addr = crate::identity::from_address(&message);
+        let list_mail = crate::list_mail::has_list_headers(&message);
         Self {
             client_ip,
             ehlo_domain: ehlo_domain.into(),
@@ -152,6 +163,9 @@ impl ReceiveContext {
             ptr_score: 0.0,
             ai_score: 0.0,
             bayes_tokens: Vec::new(),
+            body_text: None,
+            format_score: 0.0,
+            list_mail,
             deception,
             // Nothing yet. The rules run over `Facts` the caller
             // assembles — this constructor has the message but not
@@ -203,6 +217,8 @@ impl ReceiveContext {
             auth: self.auth_results.clone(),
             virus_found: self.virus_found.clone(),
             content_score: self.content_score,
+            format_score: self.format_score,
+            list_mail: self.list_mail,
             matched_rules: self.matched_rules.clone(),
             ptr_score: self.ptr_score,
             ai_score: self.ai_score,
