@@ -38,6 +38,7 @@ pub fn link_hosts(parsed: &mailrs_mime::Part<'_>) -> Vec<String> {
             continue;
         };
         let lower = text.to_ascii_lowercase();
+        let doctype = doctype_span(&lower);
         let mut from = 0;
         while let Some(at) = lower[from..].find("http") {
             let after = from + at + 4;
@@ -46,10 +47,14 @@ pub fn link_hosts(parsed: &mailrs_mime::Part<'_>) -> Vec<String> {
                 r if r.starts_with("s://") => Some(4),
                 _ => None,
             };
+            let start = from + at;
             from = after;
             let Some(skip) = skip else {
                 continue;
             };
+            if doctype.contains(&start) || is_a_namespace_value(&lower[..start]) {
+                continue;
+            }
             if let Some(host) = host_at(&lower[after + skip..])
                 && !out.contains(&host)
                 && out.len() < 200
@@ -95,6 +100,38 @@ pub fn junk_subjects(raws: &[Vec<u8>], user: &str) -> JunkSubjects {
     out
 }
 
+/// Where `<!doctype …>` sits in `lower`, or an empty range. XHTML names
+/// its DTD with a URL there, which is an identifier, not a link.
+fn doctype_span(lower: &str) -> std::ops::Range<usize> {
+    let Some(open) = lower.find("<!doctype") else {
+        return 0..0;
+    };
+    let close = lower[open..].find('>').map_or(lower.len(), |i| open + i);
+    open..close
+}
+
+/// Whether the URL that starts right after `before` is the value of an
+/// `xmlns` / `xmlns:*` attribute. Word and Outlook HTML declare
+/// `www.w3.org`, `schemas.microsoft.com` and `schemas.openxmlformats.org`
+/// as namespaces, and counting them would make every such message look
+/// as if it linked somewhere. Decided by where the URL stands, not by its
+/// host, so the same hosts in an `href` or in prose are still links.
+/// `before` is lowercased.
+fn is_a_namespace_value(before: &str) -> bool {
+    let Some(value_start) = before.strip_suffix(['"', '\'']) else {
+        return false;
+    };
+    let Some(name_end) = value_start.trim_end().strip_suffix('=') else {
+        return false;
+    };
+    let name_end = name_end.trim_end();
+    let name_start = name_end
+        .rfind(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, ':' | '_' | '.' | '-')))
+        .map_or(0, |i| i + 1);
+    let name = &name_end[name_start..];
+    name == "xmlns" || name.starts_with("xmlns:")
+}
+
 /// The host at the start of what follows `scheme://`.
 fn host_at(rest: &str) -> Option<String> {
     let end = rest
@@ -134,6 +171,37 @@ mod tests {
         assert_eq!(
             link_hosts(&parsed),
             ["shop.example", "login.evil.example", "cdn.other.example"]
+        );
+    }
+
+    /// Microsoft Word's HTML declares half a dozen XML namespaces on
+    /// the root element, and XHTML names its DTD. Both are identifiers
+    /// spelled as URLs; nothing renders them and nobody clicks them.
+    #[test]
+    fn a_namespace_declaration_is_not_a_link() {
+        let raw = b"Content-Type: text/html\r\n\r\n\
+<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\r\n\
+<html xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:o = 'urn:schemas-microsoft-com:office:office'\r\n\
+ xmlns:w=\"http://schemas.microsoft.com/office/word/2003/wordml\" XMLNS:M=\"http://schemas.openxmlformats.org/officeDocument/2006/math\">\r\n\
+<a href=\"https://bucket.example/x\">open</a></html>\r\n";
+        assert_eq!(link_hosts(&mailrs_mime::parse(raw)), ["bucket.example"]);
+    }
+
+    /// The same hosts, used as links, are still links: what is skipped
+    /// is the declaration, not the host.
+    #[test]
+    fn a_namespace_host_used_as_a_link_is_still_a_link() {
+        let raw = b"Content-Type: text/html\r\n\r\n\
+<a href=\"http://www.w3.org/1999/xhtml\">spec</a> <a data-xmlns=\"x\" href=\"https://schemas.microsoft.com/a\">b</a>\r\n\
+<p>see http://schemas.openxmlformats.org/ and doctype http://doctype.example/</p>\r\n";
+        assert_eq!(
+            link_hosts(&mailrs_mime::parse(raw)),
+            [
+                "www.w3.org",
+                "schemas.microsoft.com",
+                "schemas.openxmlformats.org",
+                "doctype.example"
+            ]
         );
     }
 
