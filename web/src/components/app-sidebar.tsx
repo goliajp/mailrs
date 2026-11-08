@@ -33,7 +33,7 @@ const THEME_CYCLE: ThemeMode[] = ['system', 'light', 'dark']
 
 const navBtnBase =
   'flex h-9 w-9 items-center justify-center rounded-md transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50'
-const navBtnInactive = 'text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary'
+const navBtnInactive = 'text-fg-muted hover:bg-bg-tertiary hover:text-fg-secondary'
 const navBtnActive = 'bg-accent/10 text-accent'
 
 export function AppSidebar() {
@@ -60,7 +60,7 @@ export function AppSidebar() {
   return (
     <>
       {/* desktop: vertical sidebar */}
-      <aside className="hidden h-full w-14 shrink-0 flex-col items-center pt-1.5 pb-4 select-none md:flex">
+      <aside className="border-border hidden h-full w-14 shrink-0 flex-col items-center border-r pt-1.5 pb-4 select-none md:flex">
         {/* logo */}
         <div className="mb-3">
           <img alt="mailrs" className="h-7 w-7 rounded-md" decoding="async" src="/icon.svg" />

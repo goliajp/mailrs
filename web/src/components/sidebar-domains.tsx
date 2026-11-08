@@ -47,7 +47,7 @@ function domainClass(active: boolean): string {
   const base =
     'w-12 rounded-md px-0.5 py-1 text-center text-[9px] leading-tight font-semibold break-words transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50'
   if (active) return cx(base, 'bg-accent/10 text-accent')
-  return cx(base, 'text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary')
+  return cx(base, 'text-fg-muted hover:bg-bg-tertiary hover:text-fg-secondary')
 }
 
 function nextSelection(active: boolean, domain: string): string[] {
