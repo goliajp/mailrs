@@ -28,6 +28,7 @@ pub mod identity_link;
 pub mod image_prefetch;
 pub mod imap_import;
 pub mod inline_images;
+pub mod junk_corrections;
 pub mod live_events;
 pub mod local_forward;
 pub mod masked_email;
