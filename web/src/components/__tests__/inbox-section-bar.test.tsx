@@ -3,7 +3,7 @@
 // while they hold something, with how many; accepts the senders of New.
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { createStore, Provider } from 'jotai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -91,8 +91,9 @@ describe('InboxSectionBar', () => {
     expect(screen.queryByRole('tablist')).toBeNull()
   })
 
-  it('opens on the whole inbox: no chip chosen and no section asked for', () => {
-    const { store } = show(true)
+  it('opens on the whole inbox: no chip chosen and no section asked for', async () => {
+    const { store } = show(true, 'inbox', { reply: 1 })
+    await screen.findByRole('tab', { name: 'To reply 1' })
     expect(store.get(inboxSectionAtom)).toBeNull()
     const filters = mailFiltersOf({ ...mailFilterInputsIn(store), list: 'inbox', sectioned: true })
     expect(filters?.section).toBeUndefined()
@@ -103,13 +104,24 @@ describe('InboxSectionBar', () => {
   })
 
   it('leaves Other out, and every section out while it is empty', async () => {
-    const { paths } = show(true)
-    await vi.waitFor(() => expect(paths.some((p) => p.includes('section=new'))).toBe(true))
+    const { paths } = show(true, 'inbox', {}, () => <FilterBar />)
+    await vi.waitFor(() => expect(paths.filter((p) => p.includes('section=')).length).toBe(3))
+    expect(paths.some((p) => p.includes('section=new'))).toBe(true)
     expect(paths.some((p) => p.includes('section=awaiting'))).toBe(true)
     expect(paths.some((p) => p.includes('section=reply'))).toBe(true)
-    expect(names()).toEqual(['Notifications and promotions →'])
-    // the one chip left is where Tab lands
-    expect(screen.getByRole('tab').tabIndex).toBe(0)
+    // in the filter row the way on to Notifications is all that is left,
+    // and it is where Tab lands
+    const inRow = within(screen.getByRole('tablist', { name: 'Inbox sections' }))
+    const tabs = inRow.getAllByRole('tab')
+    expect(tabs.map((t) => t.textContent)).toEqual(['Notifications and promotions →'])
+    expect(tabs[0].tabIndex).toBe(0)
+  })
+
+  it('below xl, shows no row of its own when every section is empty', async () => {
+    const { paths } = show(true)
+    await vi.waitFor(() => expect(paths.filter((p) => p.includes('section=')).length).toBe(3))
+    // the tabs right above already lead to Notifications
+    expect(screen.queryByRole('tablist')).toBeNull()
   })
 
   it('shows each section with how many it holds, from its own list', async () => {
@@ -209,15 +221,17 @@ describe('InboxSectionBar', () => {
     await vi.waitFor(() => expect(invalidateMail).toHaveBeenCalled())
   })
 
-  it('sits in the filter row from xl and on its own row below it', () => {
-    show(true, 'inbox', {}, () => (
+  it('sits in the filter row from xl and on its own row below it', async () => {
+    show(true, 'inbox', { reply: 1 }, () => (
       <>
         <FilterBar />
         <InboxSectionBar />
       </>
     ))
+    await vi.waitFor(() =>
+      expect(screen.getAllByRole('tablist', { name: 'Inbox sections' })).toHaveLength(2)
+    )
     const bars = screen.getAllByRole('tablist', { name: 'Inbox sections' })
-    expect(bars).toHaveLength(2)
     const filterButton = screen.getByRole('button', { name: 'Show or hide filters' })
     const filterRow = filterButton.parentElement?.parentElement as HTMLElement
     const [inRow, own] = bars

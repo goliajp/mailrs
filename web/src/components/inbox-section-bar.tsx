@@ -35,11 +35,16 @@ const LABELS: Record<ChipSection, Key> = {
 /**
  * The sectioned inbox's sections on a row of their own under the tabs,
  * below xl. From xl the tabs are hidden and the same chips sit in the
- * filter row instead (`FilterBar`), so this row is not shown there.
+ * filter row instead (`FilterBar`), so this row is not shown there. With
+ * no section to show the row is left out: Notifications alone would repeat
+ * the tab right above it.
  */
 export function InboxSectionBar() {
   return (
-    <InboxSectionChips className="border-border flex items-center gap-1 border-b px-3 py-1.5 xl:hidden" />
+    <InboxSectionChips
+      className="border-border flex items-center gap-1 border-b px-3 py-1.5 xl:hidden"
+      ownRow
+    />
   )
 }
 
@@ -53,7 +58,13 @@ export function InboxSectionBar() {
  * vanish from under them. In the list its own chip is the chosen one and
  * each section leads back to the Inbox (←).
  */
-export function InboxSectionChips({ className }: { className: string }) {
+export function InboxSectionChips({
+  className,
+  ownRow = false,
+}: {
+  className: string
+  ownRow?: boolean
+}) {
   const t = useT()
   const activeList = useAtomValue(activeListAtom)
   const sectioned = useSectionedInbox()
@@ -69,8 +80,9 @@ export function InboxSectionChips({ className }: { className: string }) {
   if (!shown) return null
   const chosen = (s: ChipSection) => inInbox && section === s
   const chips = CHIP_SECTIONS.filter((s) => (counts[s]?.n ?? 0) > 0 || chosen(s))
-  // in the list, its chip alone would only repeat the tab that is already chosen
-  if (!inInbox && chips.length === 0) return null
+  // Notifications alone only repeats a tab already on screen: the chosen
+  // one in that list, the one right above a row of its own
+  if (chips.length === 0 && (!inInbox || ownRow)) return null
   const pick = (s: ChipSection) => {
     if (chosen(s)) {
       setSection(null)
