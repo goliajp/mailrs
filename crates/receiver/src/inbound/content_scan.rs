@@ -6,11 +6,38 @@ pub enum ScanResult {
     Virus { name: String },
 }
 
+/// One message as the rules read it: the raw bytes, and the body text
+/// the parse worker decoded from them.
+#[derive(Debug, Clone, Copy)]
+pub struct Message<'a> {
+    /// The message as it arrived.
+    pub raw: &'a [u8],
+    /// The decoded body text (`mailrs_clean::body_text_for_search`);
+    /// `None` when the parse worker could not read it, and then the rules
+    /// that read the body text add nothing.
+    pub body_text: Option<&'a str>,
+}
+
+/// What the rules found in one message.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ContentScore {
+    /// Every matched rule's score, summed.
+    pub score: f64,
+    /// The part of `score` from the format rules: how the message is
+    /// laid out rather than what it says.
+    pub format_score: f64,
+    /// The names of the rules that matched.
+    pub rules: Vec<String>,
+}
+
 /// content scoring rule
 struct ScoringRule {
     name: &'static str,
     score: f64,
-    check: fn(&[u8]) -> bool,
+    /// A format rule measures layout (many links, HTML only, capitals),
+    /// which every newsletter has; see `PipelineInput::format_score`.
+    format: bool,
+    check: fn(&Message<'_>) -> bool,
 }
 
 // Byte-level helpers. RFC 5322 header names are ASCII by spec, and
@@ -279,41 +306,39 @@ fn money_urgency_pair(data: &[u8]) -> bool {
     URGENCY.iter().any(|u| contains_ignore_case(data, u))
 }
 
-/// Body text (after the header / body separator) is dominated by
-/// uppercase ASCII letters (>30 % of alpha bytes, with ≥200 alpha
-/// bytes total so short normal replies don't trip it).
-fn shouty_body(data: &[u8]) -> bool {
-    let body_start = match memchr::memmem::find(data, b"\r\n\r\n") {
-        Some(p) => p + 4,
-        None => match memchr::memmem::find(data, b"\n\n") {
-            Some(p) => p + 2,
-            None => return false,
-        },
-    };
-    let body = &data[body_start..];
-    // Lossy is right here: a body that is not valid UTF-8 still gets
-    // scored on whatever did decode, rather than being skipped.
-    let text = String::from_utf8_lossy(body);
-    is_shouting(&text, 200, 3, 10)
+/// The decoded body text is dominated by uppercase ASCII letters (>30 %
+/// of alpha characters, with >=200 of them so short normal replies don't
+/// trip it).
+///
+/// Measured on the decoded text, not the bytes after the header block. A
+/// base64 body is ~40 % uppercase whatever it says, so reading the raw
+/// bytes measured the transfer encoding: it fired on 155 of 278 junk
+/// verdicts by score, nearly all of them ordinary newsletters.
+fn shouty_body(m: &Message<'_>) -> bool {
+    m.body_text
+        .is_some_and(|text| is_shouting(text, 200, 3, 10))
 }
 
 /// evaluate all content rules and return total score + matched rule names
-pub fn evaluate_rules(data: &[u8]) -> (f64, Vec<String>) {
+pub fn evaluate_rules(m: &Message<'_>) -> ContentScore {
     let rules: Vec<ScoringRule> = vec![
         ScoringRule {
             name: "missing_from",
             score: 2.0,
-            check: |d| !has_from_header(d),
+            format: false,
+            check: |m| !has_from_header(m.raw),
         },
         ScoringRule {
             name: "empty_subject",
             score: 1.0,
-            check: |d| !has_subject_header(d),
+            format: false,
+            check: |m| !has_subject_header(m.raw),
         },
         ScoringRule {
             name: "html_only_no_text",
             score: 1.5,
-            check: is_html_only,
+            format: true,
+            check: |m| is_html_only(m.raw),
         },
         ScoringRule {
             // Tightened from `> 10` to `> 5` in v4-period spam tune.
@@ -322,73 +347,100 @@ pub fn evaluate_rules(data: &[u8]) -> (f64, Vec<String>) {
             // we want to flag along with html_only_no_text.
             name: "excessive_urls",
             score: 2.0,
-            check: |d| count_urls(d) > 5,
+            format: true,
+            check: |m| count_urls(m.raw) > 5,
         },
         ScoringRule {
             name: "suspicious_attachment",
             score: 3.0,
-            check: has_suspicious_attachment,
+            format: false,
+            check: |m| has_suspicious_attachment(m.raw),
         },
         ScoringRule {
             name: "missing_date",
             score: 1.0,
-            check: |d| !has_date_header(d),
+            format: false,
+            check: |m| !has_date_header(m.raw),
         },
         ScoringRule {
             name: "missing_message_id",
             score: 1.5,
-            check: |d| !has_message_id(d),
+            format: false,
+            check: |m| !has_message_id(m.raw),
         },
         // v4-period spam tune additions: capture the modern "well-formed
         // spam" shape that the original 7-rule set let through.
         ScoringRule {
             name: "url_in_subject",
             score: 1.5,
-            check: url_in_subject,
+            format: false,
+            check: |m| url_in_subject(m.raw),
         },
         ScoringRule {
             name: "shouty_subject",
             score: 1.0,
-            check: shouty_subject,
+            format: false,
+            check: |m| shouty_subject(m.raw),
         },
         ScoringRule {
             name: "shortener_url",
             score: 1.5,
-            check: has_shortener_url,
+            format: false,
+            check: |m| has_shortener_url(m.raw),
         },
         ScoringRule {
             name: "money_urgency",
             score: 2.0,
-            check: money_urgency_pair,
+            format: false,
+            check: |m| money_urgency_pair(m.raw),
         },
         ScoringRule {
             name: "shouty_body",
             score: 1.0,
+            format: true,
             check: shouty_body,
         },
     ];
 
-    let mut total = 0.0;
-    let mut matched = Vec::new();
-
+    let mut out = ContentScore::default();
     for rule in &rules {
-        if (rule.check)(data) {
-            total += rule.score;
-            matched.push(rule.name.to_string());
+        if (rule.check)(m) {
+            out.score += rule.score;
+            if rule.format {
+                out.format_score += rule.score;
+            }
+            out.rules.push(rule.name.to_string());
         }
     }
-
-    (total, matched)
+    out
 }
+
+#[cfg(test)]
+mod decoded_tests;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// The rules over a test message, its body text taken as the bytes
+    /// after the header block: the test bodies are plain text.
+    fn scan(data: &[u8]) -> (f64, Vec<String>) {
+        let text = String::from_utf8_lossy(data);
+        let body = text
+            .split_once("\r\n\r\n")
+            .or_else(|| text.split_once("\n\n"))
+            .map(|(_, b)| b.to_string());
+        let r = evaluate_rules(&Message {
+            raw: data,
+            body_text: body.as_deref(),
+        });
+        (r.score, r.rules)
+    }
+
     #[test]
     fn evaluate_missing_from() {
         let data = b"Subject: test\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <test@example.com>\r\n\r\nbody";
-        let (score, rules) = evaluate_rules(data);
+        let (score, rules) = scan(data);
         assert!(score >= 2.0);
         assert!(rules.contains(&"missing_from".to_string()));
     }
@@ -396,7 +448,7 @@ mod tests {
     #[test]
     fn evaluate_clean_message() {
         let data = b"From: sender@example.com\r\nSubject: Hello\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <test@example.com>\r\nContent-Type: text/plain\r\n\r\nHello world";
-        let (score, rules) = evaluate_rules(data);
+        let (score, rules) = scan(data);
         assert_eq!(score, 0.0);
         assert!(rules.is_empty());
     }
@@ -408,7 +460,7 @@ mod tests {
         for i in 0..15 {
             data.push_str(&format!("https://spam{i}.example.com "));
         }
-        let (score, rules) = evaluate_rules(data.as_bytes());
+        let (score, rules) = scan(data.as_bytes());
         // missing_from(2) + missing_date(1) + missing_message_id(1.5) + excessive_urls(2)
         assert!(score >= 6.5);
         assert!(rules.contains(&"missing_from".to_string()));
@@ -418,7 +470,7 @@ mod tests {
     #[test]
     fn evaluate_suspicious_attachment() {
         let data = b"From: sender@example.com\r\nSubject: Invoice\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <test@example.com>\r\nContent-Type: application/octet-stream; name=\"malware.exe\"\r\nContent-Disposition: attachment; filename=\"malware.exe\"\r\n\r\nbody";
-        let (score, rules) = evaluate_rules(data);
+        let (score, rules) = scan(data);
         assert!(score >= 3.0);
         assert!(rules.contains(&"suspicious_attachment".to_string()));
     }
@@ -440,7 +492,7 @@ mod tests {
         for i in 0..5 {
             data.push_str(&format!("https://example{i}.com "));
         }
-        let (_, rules) = evaluate_rules(data.as_bytes());
+        let (_, rules) = scan(data.as_bytes());
         assert!(!rules.contains(&"excessive_urls".to_string()));
     }
 
@@ -452,35 +504,35 @@ mod tests {
         for i in 0..6 {
             data.push_str(&format!("https://example{i}.com "));
         }
-        let (_, rules) = evaluate_rules(data.as_bytes());
+        let (_, rules) = scan(data.as_bytes());
         assert!(rules.contains(&"excessive_urls".to_string()));
     }
 
     #[test]
     fn subject_only_spaces_triggers_empty_subject() {
         let data = b"From: a@b.com\r\nSubject:   \r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <1@b.com>\r\n\r\nbody";
-        let (_, rules) = evaluate_rules(data);
+        let (_, rules) = scan(data);
         assert!(rules.contains(&"empty_subject".to_string()));
     }
 
     #[test]
     fn multipart_alternative_no_html_only() {
         let data = b"From: a@b.com\r\nSubject: test\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <1@b.com>\r\nContent-Type: text/html\r\nContent-Type: text/plain\r\n\r\nbody";
-        let (_, rules) = evaluate_rules(data);
+        let (_, rules) = scan(data);
         assert!(!rules.contains(&"html_only_no_text".to_string()));
     }
 
     #[test]
     fn from_not_on_first_line_still_detected() {
         let data = b"Subject: test\r\nFrom: sender@example.com\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <1@b.com>\r\n\r\nbody";
-        let (_, rules) = evaluate_rules(data);
+        let (_, rules) = scan(data);
         assert!(!rules.contains(&"missing_from".to_string()));
     }
 
     #[test]
     fn js_in_body_not_in_header_no_trigger() {
         let data = b"From: a@b.com\r\nSubject: test\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <1@b.com>\r\nContent-Type: text/plain\r\n\r\ncheck out file.js for details";
-        let (_, rules) = evaluate_rules(data);
+        let (_, rules) = scan(data);
         assert!(!rules.contains(&"suspicious_attachment".to_string()));
     }
 
@@ -517,7 +569,7 @@ mod tests {
         // Pad body with enough ALL-CAPS content to reach the 200-alpha
         // floor in `shouty_body` while keeping the upper-ratio dominant.
         data.push_str(&"FREE FREE FREE WIN WIN WIN PRIZE PRIZE PRIZE NOW NOW NOW ".repeat(8));
-        let (score, rules) = evaluate_rules(data.as_bytes());
+        let (score, rules) = scan(data.as_bytes());
         assert!(
             rules.len() >= 11,
             "expected 11 mutually-compatible rules to trigger, got {}: {:?}",
@@ -536,7 +588,7 @@ mod tests {
 
     #[test]
     fn evaluate_empty_message() {
-        let (score, rules) = evaluate_rules(b"");
+        let (score, rules) = scan(b"");
         // missing_from(2) + empty_subject(1) + missing_date(1) + missing_message_id(1.5) = 5.5
         assert_eq!(score, 5.5);
         assert_eq!(rules.len(), 4);
@@ -552,7 +604,7 @@ mod tests {
     fn evaluate_binary_garbage() {
         // non-utf8 bytes should not panic, just trigger missing-header rules
         let data: Vec<u8> = (0..=255).collect();
-        let (score, rules) = evaluate_rules(&data);
+        let (score, rules) = scan(&data);
         assert!(score >= 4.0); // at least missing headers
         assert!(rules.contains(&"missing_from".to_string()));
         assert!(rules.contains(&"missing_message_id".to_string()));
@@ -564,7 +616,7 @@ mod tests {
         let mut data = vec![0xFFu8, 0xFE, 0x00];
         data.extend_from_slice(b"\nFrom: test@example.com\n");
         data.extend_from_slice(&[0xFF, 0xFE]);
-        let (_, rules) = evaluate_rules(&data);
+        let (_, rules) = scan(&data);
         assert!(!rules.contains(&"missing_from".to_string()));
     }
 
@@ -707,7 +759,7 @@ mod tests {
     #[test]
     fn score_missing_from_only() {
         let data = b"Subject: test\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <1@b.com>\r\nContent-Type: text/plain\r\n\r\nbody";
-        let (score, rules) = evaluate_rules(data);
+        let (score, rules) = scan(data);
         assert_eq!(score, 2.0);
         assert_eq!(rules, vec!["missing_from"]);
     }
@@ -715,7 +767,7 @@ mod tests {
     #[test]
     fn score_empty_subject_only() {
         let data = b"From: a@b.com\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <1@b.com>\r\nContent-Type: text/plain\r\n\r\nbody";
-        let (score, rules) = evaluate_rules(data);
+        let (score, rules) = scan(data);
         assert_eq!(score, 1.0);
         assert_eq!(rules, vec!["empty_subject"]);
     }
@@ -723,7 +775,7 @@ mod tests {
     #[test]
     fn score_missing_date_only() {
         let data = b"From: a@b.com\r\nSubject: test\r\nMessage-ID: <1@b.com>\r\nContent-Type: text/plain\r\n\r\nbody";
-        let (score, rules) = evaluate_rules(data);
+        let (score, rules) = scan(data);
         assert_eq!(score, 1.0);
         assert_eq!(rules, vec!["missing_date"]);
     }
@@ -731,7 +783,7 @@ mod tests {
     #[test]
     fn score_missing_message_id_only() {
         let data = b"From: a@b.com\r\nSubject: test\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nContent-Type: text/plain\r\n\r\nbody";
-        let (score, rules) = evaluate_rules(data);
+        let (score, rules) = scan(data);
         assert_eq!(score, 1.5);
         assert_eq!(rules, vec!["missing_message_id"]);
     }
@@ -739,7 +791,7 @@ mod tests {
     #[test]
     fn score_html_only_rule() {
         let data = b"From: a@b.com\r\nSubject: test\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <1@b.com>\r\nContent-Type: text/html\r\n\r\n<html></html>";
-        let (score, rules) = evaluate_rules(data);
+        let (score, rules) = scan(data);
         assert_eq!(score, 1.5);
         assert_eq!(rules, vec!["html_only_no_text"]);
     }
@@ -749,7 +801,7 @@ mod tests {
         // missing_from(2) + missing_date(1) = 3.0
         let data =
             b"Subject: test\r\nMessage-ID: <1@b.com>\r\nContent-Type: text/plain\r\n\r\nbody";
-        let (score, rules) = evaluate_rules(data);
+        let (score, rules) = scan(data);
         assert_eq!(score, 3.0);
         assert_eq!(rules.len(), 2);
         assert!(rules.contains(&"missing_from".to_string()));
@@ -760,7 +812,7 @@ mod tests {
     fn score_three_rules_combined() {
         // missing_from(2) + empty_subject(1) + missing_date(1) = 4.0
         let data = b"Message-ID: <1@b.com>\r\nContent-Type: text/plain\r\n\r\nbody";
-        let (score, rules) = evaluate_rules(data);
+        let (score, rules) = scan(data);
         assert_eq!(score, 4.0);
         assert_eq!(rules.len(), 3);
     }
@@ -784,7 +836,7 @@ mod tests {
             \r\n\
             <html>HTML version</html>\r\n\
             --boundary--\r\n";
-        let (score, rules) = evaluate_rules(data);
+        let (score, rules) = scan(data);
         assert_eq!(score, 0.0);
         assert!(rules.is_empty());
     }
@@ -805,7 +857,7 @@ mod tests {
                 "<a href=\"https://link{i}.example.com\">Link</a>\r\n"
             ));
         }
-        let (score, rules) = evaluate_rules(data.as_bytes());
+        let (score, rules) = scan(data.as_bytes());
         assert_eq!(score, 3.5); // html_only(1.5) + excessive_urls(2.0)
         assert!(rules.contains(&"html_only_no_text".to_string()));
         assert!(rules.contains(&"excessive_urls".to_string()));
@@ -824,7 +876,7 @@ mod tests {
             Content-Disposition: attachment; filename=\"photo.jpg\"\r\n\
             \r\n\
             <binary data>";
-        let (score, rules) = evaluate_rules(data);
+        let (score, rules) = scan(data);
         assert_eq!(score, 0.0);
         assert!(rules.is_empty());
     }
@@ -832,7 +884,7 @@ mod tests {
     #[test]
     fn headers_only_no_body() {
         let data = b"From: a@b.com\r\nSubject: test\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <1@b.com>\r\n";
-        let (score, rules) = evaluate_rules(data);
+        let (score, rules) = scan(data);
         assert_eq!(score, 0.0);
         assert!(rules.is_empty());
     }
@@ -841,14 +893,14 @@ mod tests {
     fn lf_only_line_endings() {
         // some mailers use LF instead of CRLF
         let data = b"From: a@b.com\nSubject: test\nDate: Mon, 01 Jan 2024 00:00:00 +0000\nMessage-ID: <1@b.com>\n\nbody";
-        let (score, rules) = evaluate_rules(data);
+        let (score, rules) = scan(data);
         assert_eq!(score, 0.0);
         assert!(rules.is_empty());
     }
 
     #[test]
     fn single_byte_input() {
-        let (score, _rules) = evaluate_rules(b"X");
+        let (score, _rules) = scan(b"X");
         assert!(score > 0.0);
     }
 
@@ -857,21 +909,21 @@ mod tests {
     #[test]
     fn url_in_subject_triggers_on_http_link() {
         let data = b"From: a@b.com\r\nSubject: Check http://evil.example\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nbody";
-        let (_, rules) = evaluate_rules(data);
+        let (_, rules) = scan(data);
         assert!(rules.contains(&"url_in_subject".to_string()));
     }
 
     #[test]
     fn url_in_subject_no_trigger_on_clean_subject() {
         let data = b"From: a@b.com\r\nSubject: Project update\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nhttp://x.com";
-        let (_, rules) = evaluate_rules(data);
+        let (_, rules) = scan(data);
         assert!(!rules.contains(&"url_in_subject".to_string()));
     }
 
     #[test]
     fn shouty_subject_triggers_on_all_caps() {
         let data = b"From: a@b.com\r\nSubject: URGENT CASH PRIZE WINNER\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nbody";
-        let (_, rules) = evaluate_rules(data);
+        let (_, rules) = scan(data);
         assert!(rules.contains(&"shouty_subject".to_string()));
     }
 
@@ -880,49 +932,49 @@ mod tests {
         // "RE: OK" is normal — under the 6-alpha floor.
         let data =
             b"From: a@b.com\r\nSubject: RE: OK\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nbody";
-        let (_, rules) = evaluate_rules(data);
+        let (_, rules) = scan(data);
         assert!(!rules.contains(&"shouty_subject".to_string()));
     }
 
     #[test]
     fn shouty_subject_no_trigger_on_mixed_case() {
         let data = b"From: a@b.com\r\nSubject: Quarterly Sales Report Q3 2024\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nbody";
-        let (_, rules) = evaluate_rules(data);
+        let (_, rules) = scan(data);
         assert!(!rules.contains(&"shouty_subject".to_string()));
     }
 
     #[test]
     fn shortener_url_bit_ly_triggers() {
         let data = b"From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nVisit bit.ly/abc for details";
-        let (_, rules) = evaluate_rules(data);
+        let (_, rules) = scan(data);
         assert!(rules.contains(&"shortener_url".to_string()));
     }
 
     #[test]
     fn shortener_url_tinyurl_triggers() {
         let data = b"From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\ngo to tinyurl.com/xyz now";
-        let (_, rules) = evaluate_rules(data);
+        let (_, rules) = scan(data);
         assert!(rules.contains(&"shortener_url".to_string()));
     }
 
     #[test]
     fn shortener_url_no_trigger_on_clean_url() {
         let data = b"From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nhttps://example.com/path";
-        let (_, rules) = evaluate_rules(data);
+        let (_, rules) = scan(data);
         assert!(!rules.contains(&"shortener_url".to_string()));
     }
 
     #[test]
     fn money_urgency_triggers_on_dollar_plus_free() {
         let data = b"From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nGet $1000 free today!";
-        let (_, rules) = evaluate_rules(data);
+        let (_, rules) = scan(data);
         assert!(rules.contains(&"money_urgency".to_string()));
     }
 
     #[test]
     fn money_urgency_triggers_on_euro_plus_winner() {
         let data = "From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nYou are the WINNER of €500000!".as_bytes();
-        let (_, rules) = evaluate_rules(data);
+        let (_, rules) = scan(data);
         assert!(rules.contains(&"money_urgency".to_string()));
     }
 
@@ -930,14 +982,14 @@ mod tests {
     fn money_urgency_no_trigger_on_invoice() {
         // Invoice has $ but no urgency keyword.
         let data = b"From: billing@company.com\r\nSubject: Invoice 12345\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nAmount due: $123.45. Thank you.";
-        let (_, rules) = evaluate_rules(data);
+        let (_, rules) = scan(data);
         assert!(!rules.contains(&"money_urgency".to_string()));
     }
 
     #[test]
     fn money_urgency_no_trigger_on_urgency_without_currency() {
         let data = b"From: a@b.com\r\nSubject: Urgent meeting\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nact now, the deadline is today";
-        let (_, rules) = evaluate_rules(data);
+        let (_, rules) = scan(data);
         assert!(!rules.contains(&"money_urgency".to_string()));
     }
 
@@ -947,7 +999,7 @@ mod tests {
         let mut data =
             String::from("From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\n");
         data.push_str(&"FREE FREE WIN WIN CASH PRIZE NOW URGENT ".repeat(15));
-        let (_, rules) = evaluate_rules(data.as_bytes());
+        let (_, rules) = scan(data.as_bytes());
         assert!(rules.contains(&"shouty_body".to_string()));
     }
 
@@ -956,7 +1008,7 @@ mod tests {
         // Even though all-caps, body is under the 200-alpha floor.
         let data =
             b"From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\nTHANKS!";
-        let (_, rules) = evaluate_rules(data);
+        let (_, rules) = scan(data);
         assert!(!rules.contains(&"shouty_body".to_string()));
     }
 
@@ -966,7 +1018,7 @@ mod tests {
             String::from("From: a@b.com\r\nSubject: x\r\nDate: x\r\nMessage-ID: <1@b.com>\r\n\r\n");
         // 200+ alpha bytes of mostly lowercase prose.
         data.push_str(&"this is a normal long email body with regular sentences and the typical case usage you would see in inbound mail ".repeat(3));
-        let (_, rules) = evaluate_rules(data.as_bytes());
+        let (_, rules) = scan(data.as_bytes());
         assert!(!rules.contains(&"shouty_body".to_string()));
     }
 
@@ -1013,7 +1065,10 @@ mod tests {
     fn a_cjk_body_is_not_shouting() {
         let body: String = "お客様のPayPayポイントの有効期限が迫っています。".repeat(30);
         let msg = format!("Subject: x\r\n\r\n{body}");
-        assert!(!shouty_body(msg.as_bytes()));
+        assert!(!shouty_body(&Message {
+            raw: msg.as_bytes(),
+            body_text: Some(&body),
+        }));
     }
 
     #[test]
@@ -1035,7 +1090,7 @@ mod tests {
         for i in 0..100 {
             data.push_str(&format!("https://url{i}.example.com "));
         }
-        let (score, rules) = evaluate_rules(data.as_bytes());
+        let (score, rules) = scan(data.as_bytes());
         assert_eq!(score, 2.0); // only excessive_urls
         assert_eq!(rules, vec!["excessive_urls"]);
     }

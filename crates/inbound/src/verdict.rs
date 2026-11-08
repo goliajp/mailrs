@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Bump when a layer's meaning changes — a new signal, a re-weighted
 /// score, a different threshold. Not when a detail string is reworded.
-pub const RULES_VERSION: &str = "2026-08-29.1";
+pub const RULES_VERSION: &str = "2026-11-08.1";
 
 /// How one layer came out.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -146,6 +146,8 @@ pub fn unexamined() -> PipelineInput {
         },
         virus_found: None,
         content_score: 0.0,
+        format_score: 0.0,
+        list_mail: false,
         matched_rules: Vec::new(),
         ptr_score: 0.0,
         ai_score: 0.0,
@@ -351,17 +353,19 @@ fn from_findings(input: &PipelineInput, layer: mailrs_fraud::Layer) -> Layer {
 /// Two sources: the content scan and classifier, as one line, and each
 /// rule filed under content, as a line of its own.
 fn content(input: &PipelineInput) -> Layer {
-    let scanned = input.content_score + input.ai_score;
+    // as the Junk total counts them, so the panel and the decision agree
+    let counted = crate::decision::counted(input);
+    let scanned = counted.content + counted.classifier;
     let mut detail = if input.matched_rules.is_empty() {
         format!(
             "content {:.1}, classifier {:.1}",
-            input.content_score, input.ai_score
+            counted.content, counted.classifier
         )
     } else {
         format!(
             "content {:.1}, classifier {:.1} ({})",
-            input.content_score,
-            input.ai_score,
+            counted.content,
+            counted.classifier,
             input.matched_rules.join(", ")
         )
     };
@@ -369,8 +373,8 @@ fn content(input: &PipelineInput) -> Layer {
     if scanned > 0.0 {
         reasons.push(
             Reason::new(reason::CONTENT_SCORE)
-                .with_score("content", input.content_score)
-                .with_score("classifier", input.ai_score)
+                .with_score("content", counted.content)
+                .with_score("classifier", counted.classifier)
                 .with("rules", input.matched_rules.join(", "))
                 .adding(scanned),
         );
@@ -417,6 +421,8 @@ mod tests {
             },
             virus_found: None,
             content_score: 0.0,
+            format_score: 0.0,
+            list_mail: false,
             matched_rules: vec![],
             ptr_score: 0.0,
             ai_score: 0.0,

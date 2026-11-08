@@ -12,6 +12,8 @@
 mod backfill_admin;
 mod bayes_rebuild;
 pub(crate) use bayes_rebuild::bayes_rebuild_v2_route;
+mod junk_bulk_correct;
+pub(crate) use junk_bulk_correct::junk_bulk_correct_route;
 pub(crate) mod attachment_backlog;
 mod backfill_attachment_counts;
 mod backfill_attachment_text;

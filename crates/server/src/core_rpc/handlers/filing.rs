@@ -4,7 +4,8 @@
 //! The same side effects as the kevy core: "junk" credits the correspondent
 //! with a junk mark and learns the thread as spam, "not junk" learns it as
 //! ham, and filing into Inbox, Notifications or Promotions teaches the
-//! triage corpus that class. The corpora live in the network kevy both
+//! triage corpus that class. Any filing out of Junk is also learnt as ham
+//! and recorded as the reader's correction. The corpora live in the network kevy both
 //! cores share. Training follows the reader's action and never fails it.
 
 use std::sync::Arc;
@@ -46,6 +47,7 @@ async fn file(
             .await
             .map_err(fail)?;
     }
+    let from_junk = in_junk(state, user, thread_id).await.map_err(fail)?;
     let affected = state
         .mailbox
         .file_thread(user, thread_id, bucket)
@@ -69,22 +71,49 @@ async fn file(
         mailrs_intake::image_prefetch::queue_thread(&q, user, thread_id, &raws);
     }
     if let Some(mut conn) = state.net_conn() {
+        let now = chrono::Utc::now().timestamp();
         match lesson {
-            Lesson::Spam | Lesson::Ham => {
-                let is_junk = matches!(lesson, Lesson::Spam);
-                mailrs_triage::spam::train(&mut conn, thread_id, &raws, is_junk);
-                let now = chrono::Utc::now().timestamp();
+            Lesson::Spam => {
+                mailrs_triage::spam::train(&mut conn, thread_id, &raws, true);
                 mailrs_core_sidestate::families::screening::learn_junk_verdict(
-                    &mut conn, user, thread_id, &raws, is_junk, now,
+                    &mut conn, user, thread_id, &raws, true, now,
                 );
             }
+            Lesson::Ham => mailrs_triage::spam::train(&mut conn, thread_id, &raws, false),
             Lesson::Class(c) => mailrs_triage::spam::train_class(&mut conn, thread_id, &raws, c),
+        }
+        // out of Junk, whoever put it there: the reader corrected a Junk
+        // verdict, which is learnt as ham and recorded, however it was filed
+        if from_junk && !matches!(lesson, Lesson::Spam) {
+            if !matches!(lesson, Lesson::Ham) {
+                mailrs_triage::spam::train(&mut conn, thread_id, &raws, false);
+            }
+            mailrs_core_sidestate::families::screening::learn_junk_verdict(
+                &mut conn, user, thread_id, &raws, false, now,
+            );
         }
     }
     Ok(Json(wire::ThreadActionResponse {
         affected,
         new_modseq: 0,
     }))
+}
+
+/// `thread_id` sits in `user`'s Junk. Read before the filing moves it.
+async fn in_junk(state: &CoreRpcState, user: &str, thread_id: &str) -> Result<bool, sqlx::Error> {
+    let ids = [thread_id.to_string()];
+    let q = ThreadQuery {
+        archived: None,
+        held: Held::Include,
+        thread_ids: Some(&ids),
+        ..ThreadQuery::all(user)
+    };
+    Ok(state
+        .mailbox
+        .thread_rows(&q)
+        .await?
+        .first()
+        .is_some_and(|r| mailrs_mailbox::scope::bucket_of(&r.category) == Bucket::Junk))
 }
 
 /// Mark the conversation's correspondent as someone this reader files as

@@ -73,6 +73,7 @@ pub mod decision;
 pub mod dkim_results;
 pub mod dkim_signers;
 pub mod identity;
+pub mod list_mail;
 pub mod pipeline;
 pub mod reason;
 pub mod scan_input;

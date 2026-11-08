@@ -13,39 +13,15 @@ use crate::SenderTrust;
 use crate::context::{AuthResults, DmarcPolicy};
 use crate::dkim_results::build_auth_header;
 
+mod counted;
 mod junk_reason;
+pub use counted::{
+    Counted, LIST_MAIL_CLASSIFIER_SHARE, SUSPICIOUS_SENDER_SCORE, UNJUSTIFIED_ZERO_WIDTH_SCORE,
+    authenticated_list_mail, counted,
+};
+#[cfg(test)]
+mod list_mail_tests;
 use junk_reason::build_junk_reason;
-
-/// Score contributed to the spam total when receive-time authentication
-/// folds to [`SenderTrust::Suspicious`] (DMARC alignment failed, or a hard
-/// SPF/DKIM fail with no DMARC record — i.e. the From domain is being
-/// spoofed or the sender's setup is broken).
-///
-/// Deliberately a **signal, not a hard rule**: at 3.0 against the default
-/// 5.0 threshold, a suspicious sender alone still reaches the inbox (where
-/// the UI's sender-trust badge flags it), but suspicious **plus** any
-/// moderate content signal (>= 2.0) crosses the threshold into Junk. This
-/// avoids junking a legit small domain with a transient DMARC fail under
-/// `p=none`, while still catching spoofed phishing that also looks spammy.
-pub const SUSPICIOUS_SENDER_SCORE: f64 = 3.0;
-
-/// Score contributed when a From display name or Subject carries
-/// zero-width characters with no typographic job — `U+200B`, `U+2060`
-/// and the invisible math operators (`mailrs_textguard`).
-///
-/// A **score and not a verdict**, and the number comes from the
-/// measurement. Over 33,602 production messages, 40 carried them and 39
-/// were phishing; the one that was not is a Quora digest with a
-/// zero-width space inside a long Japanese subject. One in forty is too
-/// often to junk a newsletter over, and far too rare to ignore.
-///
-/// At 2.5 against the default 5.0 threshold it cannot junk on its own —
-/// a padded subject with no other signal still reaches the inbox — but
-/// it crosses with any moderate content score, and it crosses on its
-/// own beside a suspicious sender (3.0 + 2.5 = 5.5). Which is the shape
-/// the phishing in that sample has: padded brand name, spoofed-looking
-/// setup, and spam-like content all at once.
-pub const UNJUSTIFIED_ZERO_WIDTH_SCORE: f64 = 2.5;
 
 /// Final decision the receive pipeline emits for one message.
 ///
@@ -102,6 +78,14 @@ pub struct PipelineInput {
     /// Rule-engine content score. Higher = more likely spam. Combined with
     /// `ptr_score` + `ai_score` against `spam_threshold`.
     pub content_score: f64,
+    /// The part of `content_score` from the format rules (many links,
+    /// HTML with no text part, capitals in the body): how a message is
+    /// laid out, which every newsletter shares with spam. Not counted
+    /// on authenticated list mail, see [`counted`].
+    pub format_score: f64,
+    /// The message carries `List-Unsubscribe` or `List-Id`
+    /// ([`crate::list_mail`]).
+    pub list_mail: bool,
     /// Names of content rules that fired, for the Junk reason string.
     pub matched_rules: Vec<String>,
     /// Score from FCrDNS (forward-confirmed reverse DNS) on the client IP.
@@ -208,7 +192,8 @@ pub fn sender_listed(
 ///    explicitly-blocked sender can't accidentally clear a low-score
 ///    threshold.
 /// 9. DMARC policy=quarantine (route to Junk).
-/// 10. Combined score `>= spam_threshold` (Junk).
+/// 10. Combined score `>= spam_threshold` (Junk), content and classifier
+///     as [`counted`].
 /// 11. Default: Accept.
 ///
 /// The function is pure — same input always produces the same output. Use
@@ -333,9 +318,10 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
     // Fraud signals: claiming to be us, a mailer no client writes.
     let fraud_score = input.fraud.score();
 
-    let total_score = input.content_score
+    let scores = counted(input);
+    let total_score = scores.content
         + input.ptr_score
-        + input.ai_score
+        + scores.classifier
         + suspicious_score
         + padding_score
         + fraud_score;
@@ -397,6 +383,8 @@ mod tests {
             auth: passing_auth(),
             virus_found: None,
             content_score: 0.0,
+            format_score: 0.0,
+            list_mail: false,
             matched_rules: vec![],
             ptr_score: 0.0,
             ai_score: 0.0,

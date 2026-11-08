@@ -155,6 +155,9 @@ order (high → low):
    job (`mailrs-textguard`). Both are contributions rather than rules: measured
    over 33,602 production messages, 39 of the 40 carrying such padding were
    phishing and the fortieth was a real newsletter.
+   On authenticated list mail (DMARC pass and `List-Unsubscribe` or `List-Id`)
+   the format rules (`format_score`) count nothing and `ai_score` counts at
+   most half the threshold (`LIST_MAIL_CLASSIFIER_SHARE`), see `counted`.
 6. **Default**: Accept.
 
 The function is **pure** — same input always produces the same output.
@@ -177,6 +180,8 @@ let input = PipelineInput {
     },
     virus_found: None,
     content_score: 1.5,
+    format_score: 0.0,
+    list_mail: false,
     matched_rules: vec![],
     ptr_score: 0.0,
     ai_score: 0.5,

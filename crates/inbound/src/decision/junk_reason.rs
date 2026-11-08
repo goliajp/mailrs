@@ -12,12 +12,13 @@ pub(super) fn score_reason(
     suspicious_score: f64,
     padding_score: f64,
 ) -> Reason {
+    let counted = super::counted(input);
     Reason::new(JUNK_SCORE)
         .with_score("score", total_score)
         .with_score("threshold", input.spam_threshold)
-        .with_score("content", input.content_score)
+        .with_score("content", counted.content)
         .with_score("ptr", input.ptr_score)
-        .with_score("classifier", input.ai_score)
+        .with_score("classifier", counted.classifier)
         .with_score("sender", suspicious_score)
         .with_score("padding", padding_score)
         .with_score("fraud", input.fraud.score())
@@ -41,10 +42,11 @@ pub(super) fn build_junk_reason(
     // each w/ {:.1}) + a generous 64-byte budget for matched_rules.
     // Real-world reasons rarely exceed 150 bytes.
     let mut out = String::with_capacity(176);
+    let counted = super::counted(input);
     let _ = write!(
         out,
         "score {total_score:.1} >= {:.1} (content={:.1}, ptr={:.1}, ai={:.1}",
-        input.spam_threshold, input.content_score, input.ptr_score, input.ai_score,
+        input.spam_threshold, counted.content, input.ptr_score, counted.classifier,
     );
     // Only mention the sender-trust contribution when it fired, so clean
     // mail's reason string stays as before.
