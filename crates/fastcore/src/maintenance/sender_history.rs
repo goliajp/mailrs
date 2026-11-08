@@ -12,6 +12,10 @@ use mailrs_core_sidestate::families::correspondent::first_address;
 
 use crate::FastcoreState;
 
+/// How recent mail must be for the backfill to call it a first contact: a
+/// stranger's letter from long ago is no longer a new sender.
+pub(crate) const FIRST_CONTACT_WINDOW_SECS: i64 = 30 * 86_400;
+
 #[derive(serde::Deserialize)]
 struct Wire {
     #[serde(default)]
@@ -32,6 +36,8 @@ pub(crate) struct History {
     /// Thread to its newest message from someone else: time, id, sender.
     latest_in: HashMap<String, (i64, String, String)>,
     wrote_in: HashSet<String>,
+    /// A message stored before this time is not a first contact.
+    pub(crate) since: i64,
 }
 
 impl History {
@@ -40,14 +46,17 @@ impl History {
     /// stored under), so the history and a refold agree on who sent each
     /// message and when. A message whose file is gone counts from its
     /// stored row: its sender field is not always `From:`, but the count
-    /// still says the store holds it.
+    /// still says the store holds it. Only mail stored at `since` or later
+    /// can be a first contact.
     pub(crate) fn build(
         state: &FastcoreState,
         user: &str,
         on_disk: &HashMap<String, PathBuf>,
+        since: i64,
     ) -> std::io::Result<Self> {
         let mut h = History {
             user: user.to_string(),
+            since,
             ..History::default()
         };
         for tid in state.mailbox.all_thread_ids_for_user(user)? {
@@ -109,7 +118,8 @@ impl History {
         }
     }
 
-    /// Whether `mid` from `sender` was a first contact: the first message
+    /// Whether `mid` from `sender` was a first contact: stored at
+    /// [`Self::since`] or later, the first message
     /// the sender ever sent the reader, the reader had written to them
     /// nothing before it, they are not accepted, and the contact counts
     /// show no mail between them the store no longer has. Without the
@@ -123,7 +133,7 @@ impl History {
         let Some((at, first)) = self.first_in.get(sender) else {
             return false;
         };
-        if first != mid || self.first_out.get(sender).is_some_and(|t| t < at) {
+        if *at < self.since || first != mid || self.first_out.get(sender).is_some_and(|t| t < at) {
             return false;
         }
         let Some(conn) = net else {
@@ -261,5 +271,17 @@ mod tests {
         );
         h.wrote("t5", 90, "cy@y.test");
         assert!(!h.new_in("t5", Some(&mut c)), "I wrote in it");
+    }
+
+    #[test]
+    fn a_first_letter_from_before_the_window_is_not_a_first_contact() {
+        let mut h = history();
+        h.since = 15;
+        let mut c = kevy_client::Connection::connect("mem://sender-history-window").unwrap();
+        assert!(!h.first_contact("ann@y.test", "a1", Some(&mut c)), "at 10");
+        assert!(!h.new_in("t1", Some(&mut c)));
+        assert!(h.first_contact("cy@y.test", "c1", Some(&mut c)), "at 40");
+        h.since = 41;
+        assert!(!h.new_in("t5", Some(&mut c)));
     }
 }

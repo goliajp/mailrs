@@ -3,8 +3,10 @@
 //! the conversation's newest message from someone else is New when it is
 //! the first that sender ever sent the reader, the reader had written to
 //! them nothing before it, and the contact counts show no mail the store
-//! has lost. A sender whose address names a machine leaves Reply for the
-//! feed. A second walk finds nothing left to do.
+//! has lost, and it arrived within the last 30 days: a stranger's mail
+//! from long ago stays where it is. A sender whose address names a
+//! machine leaves Reply for the feed. A second walk finds nothing left to
+//! do.
 
 use std::sync::Arc;
 
@@ -16,17 +18,19 @@ use tower::ServiceExt;
 
 const USER: &str = "bob@x.com";
 const NET: &str = "mem://old-first-contacts";
-/// Tue, 3 Nov 2026 01:00:00 +0000.
-const T0: i64 = 1_793_667_600;
 const DAY: i64 = 86_400;
 
-fn date(at: i64) -> &'static str {
-    match (T0 - at) / DAY {
-        0 => "Tue, 3 Nov 2026 01:00:00 +0000",
-        1 => "Mon, 2 Nov 2026 01:00:00 +0000",
-        2 => "Sun, 1 Nov 2026 01:00:00 +0000",
-        _ => "Sat, 31 Oct 2026 01:00:00 +0000",
-    }
+/// The window is measured from when the walk runs, so the mail is dated
+/// from now: a day ago, on the hour.
+fn t0() -> i64 {
+    let now = chrono::Utc::now().timestamp();
+    now - DAY - now % 3600
+}
+
+fn date(at: i64) -> String {
+    chrono::DateTime::from_timestamp(at, 0)
+        .expect("time")
+        .to_rfc2822()
 }
 
 fn mail(from: &str, to: &str, cc: &str, mid: &str, at: i64) -> String {
@@ -86,14 +90,15 @@ async fn old_first_contacts_are_new_and_machines_are_feeds() {
         .upsert_account(USER, r#"{"address":"bob@x.com","active":true}"#)
         .expect("account");
 
+    let t0 = t0();
     let tf = "TestFlight <testflight_no_reply@email.apple.com>";
     let msgs = [
         // a stranger's only letter
-        msg("pitch", "pitch@far", "Eve <eve@far.test>", USER, "", T0),
+        msg("pitch", "pitch@far", "Eve <eve@far.test>", USER, "", t0),
         // ann wrote first in another conversation, and bob answered there
-        msg("ann1", "ann1@y", "Ann <ann@y.test>", USER, "", T0 - 3 * DAY),
-        msg("ann1", "ann1r@x", USER, "ann@y.test", "", T0 - 2 * DAY),
-        msg("ann2", "ann2@y", "ann@y.test", USER, "", T0 - DAY),
+        msg("ann1", "ann1@y", "Ann <ann@y.test>", USER, "", t0 - 3 * DAY),
+        msg("ann1", "ann1r@x", USER, "ann@y.test", "", t0 - 2 * DAY),
+        msg("ann2", "ann2@y", "ann@y.test", USER, "", t0 - DAY),
         // bob had copied carl on a letter before carl first wrote
         msg(
             "tocarl",
@@ -101,20 +106,29 @@ async fn old_first_contacts_are_new_and_machines_are_feeds() {
             USER,
             "dave@z.test",
             "carl@z.test",
-            T0 - 2 * DAY,
+            t0 - 2 * DAY,
         ),
-        msg("carl", "carl@z", "carl@z.test", USER, "", T0),
+        msg("carl", "carl@z", "carl@z.test", USER, "", t0),
         // the store has one letter, the counts say there were two
-        msg("gone", "gone@w", "gone@w.test", USER, "", T0),
+        msg("gone", "gone@w", "gone@w.test", USER, "", t0),
         // a stranger bob has accepted
-        msg("acc", "acc@w", "acc@w.test", USER, "", T0),
+        msg("acc", "acc@w", "acc@w.test", USER, "", t0),
         // a machine, decided as a person by the old matcher
-        msg("tf", "tf@apple", tf, USER, "", T0),
+        msg("tf", "tf@apple", tf, USER, "", t0),
         // a first contact delivery decided
-        msg("fresh", "fresh@v", "fresh@v.test", USER, "", T0),
+        msg("fresh", "fresh@v", "fresh@v.test", USER, "", t0),
         // a stranger whose stored sender field is not its From: (a bounce
         // address), as some bulk senders' rows are
-        msg("card", "card@c", "Card <info@card.test>", USER, "", T0),
+        msg("card", "card@c", "Card <info@card.test>", USER, "", t0),
+        // a stranger's only letter, from before the window
+        msg(
+            "stale",
+            "stale@far",
+            "Old <old@far.test>",
+            USER,
+            "",
+            t0 - 40 * DAY,
+        ),
     ];
     for m in &msgs {
         let raw = mail(m.from, m.to, m.cc, m.mid, m.at);
@@ -124,7 +138,7 @@ async fn old_first_contacts_are_new_and_machines_are_feeds() {
 
     // the network store lives while a connection to it does
     let mut net = kevy_client::Connection::connect(NET).expect("kevy");
-    let counts: [(&str, &[u8], &[u8]); 8] = [
+    let counts: [(&str, &[u8], &[u8]); 9] = [
         ("eve@far.test", b"0", b"1"),
         ("ann@y.test", b"1", b"2"),
         ("carl@z.test", b"1", b"1"),
@@ -133,6 +147,7 @@ async fn old_first_contacts_are_new_and_machines_are_feeds() {
         ("testflight_no_reply@email.apple.com", b"0", b"1"),
         ("fresh@v.test", b"0", b"1"),
         ("info@card.test", b"0", b"1"),
+        ("old@far.test", b"0", b"1"),
     ];
     for (who, sent, received) in counts {
         net.hset(
@@ -144,9 +159,9 @@ async fn old_first_contacts_are_new_and_machines_are_feeds() {
         )
         .expect("counts");
     }
-    contacts::accept(&mut net, USER, "acc@w.test", T0 + DAY).expect("accept");
+    contacts::accept(&mut net, USER, "acc@w.test", t0 + DAY).expect("accept");
 
-    for tid in ["pitch", "ann2", "carl", "gone", "acc", "card"] {
+    for tid in ["pitch", "ann2", "carl", "gone", "acc", "card", "stale"] {
         assert_eq!(section(&mailbox, tid), Some(Section::Other), "{tid}");
     }
     assert_eq!(section(&mailbox, "tf"), Some(Section::Reply));
@@ -172,7 +187,7 @@ async fn old_first_contacts_are_new_and_machines_are_feeds() {
     assert_eq!(section(&state.mailbox, "pitch"), Some(Section::New));
     assert_eq!(section(&state.mailbox, "card"), Some(Section::New));
     assert_eq!(section(&state.mailbox, "tf"), Some(Section::Feed));
-    for tid in ["ann2", "carl", "gone", "acc"] {
+    for tid in ["ann2", "carl", "gone", "acc", "stale"] {
         assert_eq!(section(&state.mailbox, tid), Some(Section::Other), "{tid}");
     }
     assert_eq!(section(&state.mailbox, "fresh"), Some(Section::New));
