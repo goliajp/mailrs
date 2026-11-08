@@ -371,7 +371,7 @@ describe('FilterBar — archived tab', () => {
     expect(screen.getByText('Ordinary')).toBeTruthy()
   })
 
-  it('lays the tabs out as one grid, four wide on a phone and six wider', () => {
+  it('lays the tabs out as one grid of equal columns as wide as the widest label, never wrapping one', () => {
     flatStub.conversations = [makeConversation()]
 
     render(
@@ -380,20 +380,27 @@ describe('FilterBar — archived tab', () => {
       </Wrapper>
     )
 
-    const inbox = screen.getByText('Inbox')
-    const grid = inbox.parentElement
-    expect(grid?.className).toContain('grid-cols-4')
-    expect(grid?.className).toContain('sm:grid-cols-6')
+    const grid = screen.getByRole('tablist', { name: 'Mail lists' })
+    // jsdom cannot measure, so the template is what is asserted: as many
+    // equal columns as fit, none narrower than the widest label
+    expect(grid.className).toContain(
+      'grid-cols-[repeat(auto-fill,minmax(calc(var(--tab-min)_+_0.75rem),1fr))]'
+    )
+    expect(grid.style.getPropertyValue('--tab-min')).toMatch(/^\d+px$/)
     // Every tab in one container, not the overflow in a second row of
-    // its own. Derived from the registry rather than counted: the
-    // number was `8` until a ninth tab was added, and a test that
-    // pins a count is asserting how many lists exist, which is not
+    // its own. Derived from the registry rather than counted: a test
+    // that pins a count is asserting how many lists exist, which is not
     // what this one is about.
-    expect(grid?.children.length).toBe(MAIL_LIST_TABS.length)
+    expect(grid.children.length).toBe(MAIL_LIST_TABS.length)
     for (const id of MAIL_LIST_TABS) {
       const label = translate('en', MAIL_LISTS[id].label)
-      const tab = screen.getByText(label)
-      expect(tab.className, `${label} does not fill its column`).toContain('w-full')
+      const tab = screen.getByRole('tab', { name: label })
+      const classes = tab.className.split(' ')
+      expect(classes, `${label} does not fill its column`).toContain('w-full')
+      expect(classes, `${label} may wrap`).toContain('whitespace-nowrap')
+      expect(classes).not.toContain('break-words')
+      // the label is measured on its own, apart from the column it fills
+      expect(tab.querySelector('span')?.textContent).toBe(label)
     }
   })
 
