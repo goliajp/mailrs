@@ -57,7 +57,9 @@ const CONTRAST_LIGHT = {
   '--gds-fg-muted': '#6f6f78',
   '--gds-info': '#336cbf',
 }
-const CONTRAST_DARK = { '--gds-fg-muted': '#8d8d98' }
+// white on the dark blue accent is 3.68:1; near-black text is 5.38:1 and
+// leaves the accent itself, and the links drawn in it, as they are
+const CONTRAST_DARK = { '--gds-accent-fg': '#0a0a0a', '--gds-fg-muted': '#8d8d98' }
 
 // apply zinc-neutral preset before first render — no effect race conditions
 initMailrsTheme()
@@ -178,7 +180,8 @@ function initMailrsTheme() {
   const applied =
     current.presetId === 'zinc-neutral' &&
     current.colorOverridesLight?.['--gds-accent'] === CONTRAST_LIGHT['--gds-accent'] &&
-    current.colorOverridesDark?.['--gds-fg-muted'] === CONTRAST_DARK['--gds-fg-muted']
+    current.colorOverridesDark?.['--gds-fg-muted'] === CONTRAST_DARK['--gds-fg-muted'] &&
+    current.colorOverridesDark?.['--gds-accent-fg'] === CONTRAST_DARK['--gds-accent-fg']
   if (applied) return
 
   const preset = themePresets['zinc-neutral']
