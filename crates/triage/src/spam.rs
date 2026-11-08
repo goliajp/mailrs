@@ -53,8 +53,11 @@ impl Corpus {
     }
 }
 
-/// The corpus the receiver's spam score reads.
-pub const READ: Corpus = Corpus::Legacy;
+/// The corpus the receiver's spam score reads: v2, once
+/// `maintenance:bayes-rebuild-v2` has retrained it from what readers and
+/// the fraud hold judged spam (the legacy corpus learnt its spam from the
+/// server's own score).
+pub const READ: Corpus = Corpus::V2;
 
 /// The keys of one spam/ham corpus.
 pub struct Keys {
@@ -164,6 +167,30 @@ pub fn train_in(
         key.as_bytes(),
         std::time::Duration::from_secs(TRAINED_TTL_SECS),
     );
+}
+
+/// Empty `corpus`: its counts, its totals, its sets and the marker of every
+/// thread in them, so a retrain starts from nothing and is not skipped as
+/// already done. Returns how many threads it held.
+///
+/// # Errors
+/// The store could not be read or written.
+pub fn clear(conn: &mut Connection, corpus: Corpus) -> std::io::Result<usize> {
+    let k = keys(corpus);
+    let mut threads: BTreeSet<Vec<u8>> = conn.smembers(k.corpus_spam)?.into_iter().collect();
+    threads.extend(conn.smembers(k.corpus_ham)?);
+    for tid in &threads {
+        let tid = String::from_utf8_lossy(tid);
+        conn.del(&[trained_key(corpus, &tid).as_bytes()])?;
+    }
+    conn.del(&[
+        k.spam_tokens,
+        k.ham_tokens,
+        k.meta,
+        k.corpus_spam,
+        k.corpus_ham,
+    ])?;
+    Ok(threads.len())
 }
 
 fn set_of(k: &Keys, spam: bool) -> &'static [u8] {
