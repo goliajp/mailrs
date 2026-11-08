@@ -8,6 +8,9 @@ use crate::arrival::{Threads, thread_root};
 struct One(HashMap<&'static str, &'static str>);
 
 impl Threads for One {
+    fn reader_wrote_in(&self, _: &str, _: &str) -> bool {
+        false
+    }
     fn thread_for_message_id(&self, _user: &str, mid: &str) -> Option<String> {
         self.0.get(mid).map(|t| t.to_string())
     }

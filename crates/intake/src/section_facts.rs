@@ -7,8 +7,9 @@ use mailrs_core_sidestate::families::correspondent::first_address;
 use mailrs_mailbox::section::MessageFacts;
 
 /// The facts for `addr`'s copy of a message. `net` is read before the
-/// message's own contact record is written, so `first_contact` describes
-/// the history before it. Without a network store nothing is known about
+/// message's own contact record is written, so `first_contact` and
+/// `mutual` describe the history before it. `invite` is the caller's to
+/// set: it reads the whole body, and this reads only the head. Without a network store nothing is known about
 /// the sender, and a message is not called a first contact on no evidence.
 pub fn facts(
     net: Option<&mut Connection>,
@@ -41,16 +42,33 @@ pub fn facts(
             mailrs_mailbox::scope::Bucket::Notifications
                 | mailrs_mailbox::scope::Bucket::Promotions
         );
-    let first_contact = match net {
-        Some(conn) if !sender.is_empty() => !contacts::known(conn, addr, &sender),
-        _ => false,
+    let (first_contact, mutual) = match net {
+        Some(conn) if !sender.is_empty() => (
+            !contacts::known(conn, addr, &sender),
+            mutual(conn, addr, &sender),
+        ),
+        _ => (false, false),
     };
     MessageFacts {
         direct: mailrs_rfc5322::list_contains(to, addr),
         from_person: !machine,
         first_contact,
         to_others: false,
+        invite: false,
+        mutual,
     }
+}
+
+/// Whether `addr` and `sender` (a `From:` value or a bare address) write
+/// to each other, by the counts on the network store now. Delivery reads
+/// it before the message's own contact record is written.
+pub fn mutual(conn: &mut Connection, addr: &str, sender: &str) -> bool {
+    let sender = first_address(sender);
+    if sender.is_empty() {
+        return false;
+    }
+    let (sent, received) = contacts::counts(conn, addr, &sender);
+    mailrs_mailbox::section::mutual(u64::from(sent), u64::from(received))
 }
 
 #[cfg(test)]
@@ -61,6 +79,40 @@ mod tests {
 
     fn of(from: &str, to: &str, head: &str, category: &str, own: bool) -> MessageFacts {
         facts(None, ME, from, to, head.as_bytes(), category, own)
+    }
+
+    fn counts(c: &mut Connection, who: &str, sent: &[u8], received: &[u8]) {
+        c.hset(
+            contacts::contact_key(ME, who).as_bytes(),
+            &[
+                (b"sent_count" as &[u8], sent),
+                (b"received_count" as &[u8], received),
+            ],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn a_correspondent_is_one_written_to_a_fifth_as_often() {
+        let mut c = Connection::connect("mem://section-facts-mutual").expect("kevy");
+        counts(&mut c, "ann@y.test", b"1", b"5");
+        counts(&mut c, "desk@y.test", b"3", b"132");
+        let ann = facts(
+            Some(&mut c),
+            ME,
+            "Ann <ann@y.test>",
+            ME,
+            b"",
+            "inbox",
+            false,
+        );
+        assert!(ann.mutual);
+        let desk = facts(Some(&mut c), ME, "desk@y.test", ME, b"", "inbox", false);
+        assert!(!desk.mutual && !desk.first_contact);
+        let stranger = facts(Some(&mut c), ME, "eve@z.test", ME, b"", "inbox", false);
+        assert!(!stranger.mutual);
+        // no store: nothing known, so not a correspondent
+        assert!(!of("ann@y.test", ME, "", "inbox", false).mutual);
     }
 
     #[test]

@@ -1,13 +1,18 @@
 //! Decide the sectioned inbox's section for mail delivered before sections
-//! existed: each message's facts are read again from its file and folded
-//! into the reader's row the way delivery folds a new one.
+//! existed, and again for rows recorded before the facts Reply now reads
+//! (`invite`, `mutual`): each message's facts are read again from its file
+//! and folded into the reader's row the way delivery folds a new one.
 //!
 //! Old mail is never a first contact: whoever sent it already has a contact
-//! record counting it, which is the only history delivery reads. Dry by
-//! default, paged by the last thread finished, stopped by a hang-up.
+//! record counting it, which is the only history delivery reads. Whether
+//! the reader and a sender write to each other is read from today's counts,
+//! not the counts when the mail arrived. Dry by default, paged by the last
+//! thread finished, stopped by a hang-up. A row refolded has both facts, so
+//! a second walk refolds nothing.
 
 use super::prelude::*;
 use super::thread_cursor::{After, next, threads_after, users_from};
+use crate::sections::{ReadArrival, as_arrivals, read_arrival};
 use mailrs_mailbox_kevy::section::{Latest, section_of};
 
 const PAUSE_EVERY: u64 = 100;
@@ -60,9 +65,19 @@ struct Counts {
     no_file: u64,
     /// Threads without a section that this walk would decide.
     changed: u64,
-    /// Threads already decided, by delivery or an earlier walk: left alone.
+    /// Threads already decided on the current facts: left alone.
     decided: u64,
     sections: std::collections::BTreeMap<&'static str, u64>,
+    /// Decided threads whose row lacks `invite` and `mutual`.
+    outdated: u64,
+    /// Of those, refolded (0 on a dry run).
+    refreshed: u64,
+    /// Of those, none of whose messages could be read: left as they were.
+    unreadable: u64,
+    /// `before>after` for each refold that changed the section.
+    moved: std::collections::BTreeMap<String, u64>,
+    /// What the refolds did to each section's count.
+    change: std::collections::BTreeMap<String, i64>,
 }
 
 fn walk(
@@ -71,6 +86,7 @@ fn walk(
     hangup: &super::hangup::Hangup,
 ) -> std::io::Result<serde_json::Value> {
     let users = state.mailbox.list_account_addresses()?;
+    let mut net = state.net_conn();
     let mut c = Counts::default();
     let mut stopped_early = false;
     let after = After::from_query(q.after_user.as_deref(), q.after_thread.as_deref());
@@ -78,11 +94,7 @@ fn walk(
     'walk: for user in &users_from(users.clone(), after.as_ref()) {
         let on_disk = crate::maildir_scan::paths_on_disk(state, user);
         for tid in threads_after(state, user, after.as_ref()) {
-            if c.threads >= q.limit {
-                stopped_early = true;
-                break 'walk;
-            }
-            if hangup.hung_up() {
+            if c.threads >= q.limit || hangup.hung_up() {
                 stopped_early = true;
                 break 'walk;
             }
@@ -92,65 +104,18 @@ fn walk(
             }
             // a section delivery decided stands: it read the facts as they
             // were then (first contact above all), which a backfill can only
-            // approximate, so going over it would undo the better record
+            // approximate, so going over it would undo the better record;
+            // unless the row predates facts the section now reads
             let (have, _) = state.mailbox.section_fields(user, &tid)?;
-            if !have.is_empty() {
+            let outdated = !have.is_empty() && state.mailbox.section_facts_outdated(user, &tid)?;
+            if !have.is_empty() && !outdated {
                 c.decided += 1;
-                last = Some(After {
-                    user: user.clone(),
-                    thread: tid.clone(),
-                });
-                continue;
-            }
-            let category = state
-                .mailbox
-                .get_thread_for_user(user, &tid)?
-                .map(|r| r.category)
-                .unwrap_or_default();
-            let mut latest = Latest::default();
-            let mut arrivals = Vec::new();
-            for mid in state
-                .mailbox
-                .user_thread_message_ids(user, &tid)
-                .unwrap_or_default()
-            {
-                c.messages += 1;
-                let copy = state.mailbox.user_message_facts(user, &mid).ok().flatten();
-                let blob_ref = copy.map(|c| c.blob_ref).unwrap_or_default();
-                let Some(raw) = on_disk
-                    .get(crate::maildir_scan::base_id(&blob_ref))
-                    .cloned()
-                    .and_then(|path| std::fs::read(path).ok())
-                else {
-                    c.no_file += 1;
-                    continue;
-                };
-                let head = &raw[..raw.len().min(16 * 1024)];
-                let message = mailrs_rfc5322::Message::new(head);
-                let from = message.header_str("From").unwrap_or_default().to_string();
-                let to = message.header_str("To").unwrap_or_default().to_string();
-                let at = mailrs_inbound::dates::received_epoch(&raw).unwrap_or(0);
-                let own = mailrs_mailbox::sent_copy::sent_by(&from, &blob_ref, user);
-                let facts = mailrs_intake::section_facts::facts(
-                    None, user, &from, &to, head, &category, own,
-                );
-                latest.fold(at, own, facts);
-                arrivals.push((at, own, facts, from));
-            }
-            if arrivals.is_empty() {
-                continue;
-            }
-            let want = match mailrs_mailbox_kevy::scope::bucket_of(&category) {
-                mailrs_mailbox_kevy::scope::Bucket::Junk => "",
-                _ => section_of(&latest).name(),
-            };
-            *c.sections.entry(want).or_default() += 1;
-            if !want.is_empty() {
-                c.changed += 1;
-                if !q.dry_run {
-                    for (at, own, facts, from) in &arrivals {
-                        crate::sections::record(state, user, &tid, *at, *own, *facts, from);
-                    }
+            } else {
+                let read = read_thread(state, user, &tid, &on_disk, &mut net, &mut c)?;
+                match outdated {
+                    true => refresh(state, q, user, &tid, &read, &mut c)?,
+                    false if read.is_empty() => continue,
+                    false => decide(state, q, user, &tid, &read, &mut c)?,
                 }
             }
             last = Some(After {
@@ -162,6 +127,7 @@ fn walk(
     tracing::info!(
         threads = c.threads,
         changed = c.changed,
+        refreshed = c.refreshed,
         dry_run = q.dry_run,
         "backfill-sections"
     );
@@ -174,9 +140,121 @@ fn walk(
         "changed": c.changed,
         "already_decided": c.decided,
         "by_section": c.sections,
+        "outdated_facts": c.outdated,
+        "refreshed": c.refreshed,
+        "refresh_unreadable": c.unreadable,
+        "moved": c.moved,
+        "section_change": c.change,
         "next_after": next(&last),
         "done": !stopped_early,
     }))
+}
+
+/// Every message of the thread whose file is on disk, read as delivery
+/// reads it.
+fn read_thread(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    tid: &str,
+    on_disk: &std::collections::HashMap<String, std::path::PathBuf>,
+    net: &mut Option<kevy_client::Connection>,
+    c: &mut Counts,
+) -> std::io::Result<Vec<ReadArrival>> {
+    let category = state
+        .mailbox
+        .get_thread_for_user(user, tid)?
+        .map(|r| r.category)
+        .unwrap_or_default();
+    let mut read = Vec::new();
+    for mid in state
+        .mailbox
+        .user_thread_message_ids(user, tid)
+        .unwrap_or_default()
+    {
+        c.messages += 1;
+        let copy = state.mailbox.user_message_facts(user, &mid).ok().flatten();
+        let blob_ref = copy.map(|c| c.blob_ref).unwrap_or_default();
+        let Some(raw) = on_disk
+            .get(crate::maildir_scan::base_id(&blob_ref))
+            .cloned()
+            .and_then(|path| std::fs::read(path).ok())
+        else {
+            c.no_file += 1;
+            continue;
+        };
+        read.push(read_arrival(user, &blob_ref, &raw, &category, net.as_mut()));
+    }
+    Ok(read)
+}
+
+/// A thread with no section yet: fold its messages forward, as delivery
+/// would have.
+fn decide(
+    state: &Arc<FastcoreState>,
+    q: &BackfillQuery,
+    user: &str,
+    tid: &str,
+    read: &[ReadArrival],
+    c: &mut Counts,
+) -> std::io::Result<()> {
+    let mut latest = Latest::default();
+    for r in read {
+        latest.fold(r.at, r.own, r.facts);
+    }
+    let category = state
+        .mailbox
+        .get_thread_for_user(user, tid)?
+        .map(|r| r.category)
+        .unwrap_or_default();
+    let want = match mailrs_mailbox_kevy::scope::bucket_of(&category) {
+        mailrs_mailbox_kevy::scope::Bucket::Junk => "",
+        _ => section_of(&latest).name(),
+    };
+    *c.sections.entry(want).or_default() += 1;
+    if !want.is_empty() {
+        c.changed += 1;
+        if !q.dry_run {
+            for r in read {
+                crate::sections::record(state, user, tid, r.at, r.own, r.facts, &r.from_addr);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// A decided thread whose row predates `invite` and `mutual`: decide it
+/// again from all its messages.
+fn refresh(
+    state: &Arc<FastcoreState>,
+    q: &BackfillQuery,
+    user: &str,
+    tid: &str,
+    read: &[ReadArrival],
+    c: &mut Counts,
+) -> std::io::Result<()> {
+    c.outdated += 1;
+    let arrivals = as_arrivals(user, tid, read);
+    let Some(r) = state
+        .mailbox
+        .refold_section_report(user, tid, &arrivals, !q.dry_run)?
+    else {
+        c.unreadable += 1;
+        return Ok(());
+    };
+    if !q.dry_run {
+        c.refreshed += 1;
+    }
+    if r.before != r.after {
+        let name = |s: &str| match s {
+            "" => "none".to_string(),
+            s => s.to_string(),
+        };
+        let (before, after) = (name(&r.before), name(&r.after));
+        *c.moved.entry(format!("{before}>{after}")).or_default() += 1;
+        *c.change.entry(before).or_default() -= 1;
+        *c.change.entry(after).or_default() += 1;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -215,7 +293,7 @@ mod tests {
             direct: true,
             from_person: true,
             first_contact: true,
-            to_others: false,
+            ..Default::default()
         };
         crate::sections::record(&state, "u@x", "t0", 100, false, facts, "a@x");
         let before = state.mailbox.section_fields("u@x", "t0").unwrap();
