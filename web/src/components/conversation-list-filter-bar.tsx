@@ -2,11 +2,12 @@ import { useAtom, useAtomValue } from 'jotai'
 import { SlidersHorizontal } from 'lucide-react'
 import { memo, useEffect, useRef, useState } from 'react'
 
+import { InboxSectionChips } from '@/components/inbox-section-bar'
 import { useCategoriesQuery } from '@/hooks/use-mail-queries'
 import { useOpenList } from '@/hooks/use-open-list'
 import { type Key, useT } from '@/i18n'
 import { MAIL_LIST_TABS, MAIL_LISTS } from '@/lib/mail-lists'
-import { rovingKeyDown } from '@/lib/roving'
+import { rovingKeyDown, tabStop } from '@/lib/roving'
 import {
   activeListAtom,
   categoryFilterAtom,
@@ -64,12 +65,6 @@ function tabButtonClass(isActive: boolean): string {
     'break-phrase h-full w-full cursor-pointer rounded-md px-2 py-1 text-xs leading-tight break-words transition-colors'
   if (isActive) return `${base} bg-border-strong text-fg font-semibold`
   return `${base} bg-bg-secondary text-fg-muted hover:bg-bg-tertiary hover:text-fg-secondary font-medium`
-}
-
-/** Only the active tab is a Tab stop; arrows move among the rest. */
-function tabStop(active: boolean): number {
-  if (active) return 0
-  return -1
 }
 
 // memo'd because FilterBar takes no props — every parent re-render would
@@ -144,6 +139,11 @@ export const FilterBar = memo(function FilterBar() {
           you are reading is a standing choice, not one of the
           refinements you open a panel to change. It renders nothing
           until there is a second account to leave out. */}
+
+      {/* From xl the tabs above give way to the folder column, so the
+          inbox sections take their place here; below xl they keep a row
+          of their own (`InboxSectionBar`). */}
+      <InboxSectionChips className="hidden min-w-0 flex-1 items-center gap-1 self-center xl:flex" />
 
       {/* Kept at the right edge at every width. From xl the tabs give
           way to the folder column and this was left as the row's only

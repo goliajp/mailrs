@@ -16,9 +16,11 @@ vi.mock('@/hooks/use-current-list', () => ({
   useConversationRows: () => ({ rows: [{ participants: ['Eve <eve@far.test>'] }] }),
 }))
 vi.mock('@/hooks/use-open-list', () => ({ useOpenList: () => openList }))
+vi.mock('@/hooks/use-mail-queries', () => ({ useCategoriesQuery: () => ({ data: [] }) }))
 
 const openList = vi.fn()
 
+import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { InboxSectionBar } from '@/components/inbox-section-bar'
 import { invalidateMail } from '@/lib/mail-cache'
 import { sectionedInboxKey } from '@/lib/sectioned-inbox'
@@ -33,7 +35,11 @@ afterEach(() => {
   localStorage.clear()
 })
 
-function show(sectioned: boolean, list: 'inbox' | 'unread' = 'inbox') {
+function show(
+  sectioned: boolean,
+  list: 'inbox' | 'np' | 'unread' = 'inbox',
+  bar: () => React.ReactNode = () => <InboxSectionBar />
+) {
   const store = createStore()
   store.set(activeListAtom, list)
   vi.mocked(wireGetSectionedInbox).mockResolvedValue({ enabled: sectioned })
@@ -41,9 +47,7 @@ function show(sectioned: boolean, list: 'inbox' | 'unread' = 'inbox') {
   client.setQueryData(sectionedInboxKey, { enabled: sectioned })
   render(
     <QueryClientProvider client={client}>
-      <Provider store={store}>
-        <InboxSectionBar />
-      </Provider>
+      <Provider store={store}>{bar()}</Provider>
     </QueryClientProvider>
   )
   return store
@@ -74,5 +78,101 @@ describe('InboxSectionBar', () => {
     fireEvent.click(await screen.findByText('Accept all'))
     await vi.waitFor(() => expect(wireAcceptSenders).toHaveBeenCalledWith(['eve@far.test']))
     await vi.waitFor(() => expect(invalidateMail).toHaveBeenCalled())
+  })
+
+  it('in Notifications and promotions, shows it as chosen and leads back to each section', () => {
+    const store = show(true, 'np')
+    const feed = screen.getByRole('tab', { name: 'Notifications and promotions' })
+    expect(feed.getAttribute('aria-selected')).toBe('true')
+    expect(feed.tabIndex).toBe(0)
+    const sections = screen.getAllByRole('tab').filter((tab) => tab !== feed)
+    expect(sections).toHaveLength(4)
+    for (const tab of sections) {
+      expect(tab.textContent?.startsWith('← ')).toBe(true)
+      expect(tab.getAttribute('aria-selected')).toBe('false')
+      expect(tab.tabIndex).toBe(-1)
+    }
+    fireEvent.click(screen.getByRole('tab', { name: '← Follow up' }))
+    expect(store.get(inboxSectionAtom)).toBe('followup')
+    expect(openList).toHaveBeenCalledWith('inbox')
+  })
+
+  it('in the Inbox, marks the way to Notifications and promotions with an arrow', () => {
+    show(true)
+    const feed = screen.getByRole('tab', { name: 'Notifications and promotions →' })
+    expect(feed.getAttribute('aria-selected')).toBe('false')
+    expect(screen.getByRole('tab', { name: 'Follow up' }).textContent).toBe('Follow up')
+  })
+
+  it.each(['inbox', 'np'] as const)(
+    'moves between Other and the feed chip by arrow keys in %s',
+    (list) => {
+      show(true, list)
+      const tabs = screen.getAllByRole('tab')
+      expect(tabs).toHaveLength(5)
+      const [other, feed] = tabs.slice(3)
+      other.focus()
+      fireEvent.keyDown(other, { key: 'ArrowRight' })
+      expect(document.activeElement).toBe(feed)
+      fireEvent.keyDown(feed, { key: 'ArrowLeft' })
+      expect(document.activeElement).toBe(other)
+    }
+  )
+
+  it('sits in the filter row from xl and on its own row below it', () => {
+    show(true, 'inbox', () => (
+      <>
+        <FilterBar />
+        <InboxSectionBar />
+      </>
+    ))
+    const bars = screen.getAllByRole('tablist', { name: 'Inbox sections' })
+    expect(bars).toHaveLength(2)
+    const filterButton = screen.getByRole('button', { name: 'Show or hide filters' })
+    const filterRow = filterButton.parentElement?.parentElement as HTMLElement
+    const [inRow, own] = bars
+    const inRowBox = inRow.parentElement as HTMLElement
+    expect(inRowBox.parentElement).toBe(filterRow)
+    expect(inRowBox.className.split(' ')).toEqual(expect.arrayContaining(['hidden', 'xl:flex']))
+    const ownBox = own.parentElement as HTMLElement
+    expect(filterRow.contains(ownBox)).toBe(false)
+    expect(ownBox.className.split(' ')).toContain('xl:hidden')
+  })
+
+  it('keeps accept-all for New in the filter row as well', async () => {
+    const store = show(true, 'inbox', () => <FilterBar />)
+    store.set(inboxSectionAtom, 'new')
+    expect(await screen.findByText('Accept all')).toBeTruthy()
+  })
+
+  it('clears the chosen section when its chip is clicked again, and chooses it on the next click', () => {
+    const store = show(true)
+    const [first, second] = screen.getAllByRole('tab')
+    fireEvent.click(second)
+    expect(store.get(inboxSectionAtom)).toBe('followup')
+    fireEvent.click(second)
+    expect(store.get(inboxSectionAtom)).toBeNull()
+    for (const tab of screen.getAllByRole('tab')) {
+      expect(tab.getAttribute('aria-selected')).toBe('false')
+    }
+    expect(first.tabIndex).toBe(0)
+    expect(second.tabIndex).toBe(-1)
+    fireEvent.click(second)
+    expect(store.get(inboxSectionAtom)).toBe('followup')
+    expect(second.getAttribute('aria-selected')).toBe('true')
+    expect(first.tabIndex).toBe(-1)
+  })
+
+  it('opens the Inbox at Reply by default', () => {
+    const store = show(true)
+    expect(store.get(inboxSectionAtom)).toBe('reply')
+  })
+
+  it('from Notifications and promotions, a section chip opens that section even when none was chosen', () => {
+    const store = show(true, 'np')
+    store.set(inboxSectionAtom, null)
+    fireEvent.click(screen.getByRole('tab', { name: '← Other' }))
+    expect(store.get(inboxSectionAtom)).toBe('other')
+    expect(openList).toHaveBeenCalledWith('inbox')
   })
 })

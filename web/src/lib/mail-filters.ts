@@ -28,7 +28,7 @@ export type MailFilterInputs = {
   domains: string[]
   followupDays: number
   hideSuspectedFraud: boolean
-  inboxSection: InboxSection
+  inboxSection: InboxSection | null
   label: null | string
   list: MailListId
   search: string
@@ -101,16 +101,18 @@ function labelAxes(
 }
 
 /**
- * With the sectioned inbox on, the Inbox shows one section rather than the
+ * With the sectioned inbox on, the Inbox shows the chosen section rather than the
  * folder: the server reads it off its own axis, across folders. A
  * follow-up is a waiting conversation older than the reader's days.
  */
 function sectionAxes(
   axes: null | ThreadListAxes,
   list: MailListId,
-  inbox: { days: number; on: boolean; section: InboxSection }
+  inbox: { days: number; on: boolean; section: InboxSection | null }
 ): null | ThreadListAxes {
   if (list !== 'inbox' || !inbox.on || !axes) return axes
+  // no section chosen: the whole inbox, as with sections off
+  if (inbox.section === null) return axes
   if (inbox.section === 'followup') {
     return { followupDueBy: followupDueBy(inbox.days, Date.now()), section: 'awaiting' }
   }
