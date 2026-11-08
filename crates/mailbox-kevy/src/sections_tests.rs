@@ -102,6 +102,63 @@ fn a_refold_keeps_the_first_contact_its_delivery_read() {
     assert_eq!(section(&st, "t"), Some(Section::New));
 }
 
+/// A row that recorded no first contact (old mail, decided by a backfill
+/// that could not tell) takes one from an arrival that can: the history
+/// the caller read says it was.
+#[test]
+fn a_refold_takes_a_first_contact_the_row_did_not_record() {
+    let st = store();
+    arrive(&st, "t", 10, false, PERSON, "eve@far.test");
+    assert_eq!(section(&st, "t"), Some(Section::Reply));
+    let stranger = MessageFacts {
+        first_contact: true,
+        ..PERSON
+    };
+    let out = st
+        .refold_section_report(
+            ME,
+            "t",
+            &[arrival(10, false, stranger, "eve@far.test")],
+            true,
+        )
+        .unwrap();
+    assert_eq!(
+        out.map(|r| (r.before, r.after)),
+        Some(("reply".to_string(), "new".to_string()))
+    );
+    assert_eq!(section(&st, "t"), Some(Section::New));
+    let inputs = st.section_inputs(ME, "t").unwrap().expect("inputs");
+    assert!(inputs.0.other.first_contact);
+    assert_eq!(inputs.1, "eve@far.test");
+    assert!(st.section_inputs(ME, "never").unwrap().is_none());
+}
+
+/// The reader's messages in a thread with the times they sort by.
+#[test]
+fn a_thread_lists_its_messages_with_their_times() {
+    let st = store();
+    for (mid, at) in [("m2", 20), ("m1", 10)] {
+        st.upsert_user_message(
+            ME,
+            "t",
+            mid,
+            at,
+            br#"{"message_id":"x"}"#,
+            &crate::UserMessageFacts {
+                blob_ref: "f",
+                uid: 1,
+                flags: 0,
+                modseq: 1,
+            },
+        )
+        .unwrap();
+    }
+    assert_eq!(
+        st.user_thread_messages_dated(ME, "t").unwrap(),
+        vec![("m1".to_string(), 10), ("m2".to_string(), 20)]
+    );
+}
+
 #[test]
 fn a_reply_moves_a_conversation_out_of_waiting_at_once() {
     let st = store();

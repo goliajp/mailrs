@@ -3,14 +3,20 @@
 //! (`invite`, `mutual`): each message's facts are read again from its file
 //! and folded into the reader's row the way delivery folds a new one.
 //!
-//! Old mail is never a first contact: whoever sent it already has a contact
-//! record counting it, which is the only history delivery reads. Whether
-//! the reader and a sender write to each other is read from today's counts,
-//! not the counts when the mail arrived. Dry by default, paged by the last
-//! thread finished, stopped by a hang-up. A row refolded has both facts, so
-//! a second walk refolds nothing.
+//! The contact record delivery reads for first contact already counts old
+//! mail, so first contact is read from the reader's own store instead
+//! ([`History`]): the newest inbound message is one when it is the first
+//! its sender ever sent the reader and the reader had written to them
+//! nothing before it. Rows decided before (which never say first contact)
+//! are refolded when the history says so, and rows whose sender's address
+//! now reads as a machine's are refolded too. Whether the reader and a
+//! sender write to each other is read from today's counts, not the counts
+//! when the mail arrived. Dry by default, paged by the last thread
+//! finished, stopped by a hang-up. A refolded row records what the walk
+//! read, so a second walk refolds nothing.
 
 use super::prelude::*;
+use super::sender_history::History;
 use super::thread_cursor::{After, next, threads_after, users_from};
 use crate::sections::{ReadArrival, as_arrivals, read_arrival};
 use mailrs_mailbox_kevy::section::{Latest, section_of};
@@ -70,7 +76,12 @@ struct Counts {
     sections: std::collections::BTreeMap<&'static str, u64>,
     /// Decided threads whose row lacks `invite` and `mutual`.
     outdated: u64,
-    /// Of those, refolded (0 on a dry run).
+    /// Decided rows whose newest inbound message the history shows was a
+    /// first contact, though the row does not say so.
+    first_contacts: u64,
+    /// Decided rows from a person whose address reads as a machine's.
+    machines: u64,
+    /// Rows of the three kinds above refolded (0 on a dry run).
     refreshed: u64,
     /// Of those, none of whose messages could be read: left as they were.
     unreadable: u64,
@@ -93,6 +104,7 @@ fn walk(
     let mut last: Option<After> = None;
     'walk: for user in &users_from(users.clone(), after.as_ref()) {
         let on_disk = crate::maildir_scan::paths_on_disk(state, user);
+        let history = History::build(state, user, &on_disk)?;
         for tid in threads_after(state, user, after.as_ref()) {
             if c.threads >= q.limit || hangup.hung_up() {
                 stopped_early = true;
@@ -107,15 +119,23 @@ fn walk(
             // approximate, so going over it would undo the better record;
             // unless the row predates facts the section now reads
             let (have, _) = state.mailbox.section_fields(user, &tid)?;
-            let outdated = !have.is_empty() && state.mailbox.section_facts_outdated(user, &tid)?;
-            if !have.is_empty() && !outdated {
-                c.decided += 1;
-            } else {
-                let read = read_thread(state, user, &tid, &on_disk, &mut net, &mut c)?;
-                match outdated {
-                    true => refresh(state, q, user, &tid, &read, &mut c)?,
-                    false if read.is_empty() => continue,
-                    false => decide(state, q, user, &tid, &read, &mut c)?,
+            let why = match have.is_empty() {
+                true => Why::Undecided,
+                false => why_again(state, &history, user, &tid, &mut net)?,
+            };
+            match why {
+                Why::Stands => c.decided += 1,
+                Why::Outdated => c.outdated += 1,
+                Why::FirstContact => c.first_contacts += 1,
+                Why::Machine => c.machines += 1,
+                Why::Undecided => {}
+            }
+            if why != Why::Stands {
+                let read = read_thread(state, &history, user, &tid, &on_disk, &mut net, &mut c)?;
+                match why {
+                    Why::Undecided if read.is_empty() => continue,
+                    Why::Undecided => decide(state, q, user, &tid, &read, &mut c)?,
+                    _ => refresh(state, q, user, &tid, &read, &mut c)?,
                 }
             }
             last = Some(After {
@@ -141,6 +161,8 @@ fn walk(
         "already_decided": c.decided,
         "by_section": c.sections,
         "outdated_facts": c.outdated,
+        "first_contacts_found": c.first_contacts,
+        "machines_found": c.machines,
         "refreshed": c.refreshed,
         "refresh_unreadable": c.unreadable,
         "moved": c.moved,
@@ -150,10 +172,55 @@ fn walk(
     }))
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Why {
+    /// No section yet.
+    Undecided,
+    /// Decided on the facts the section reads now.
+    Stands,
+    /// The row predates `invite` and `mutual`.
+    Outdated,
+    /// The history shows a first contact the row does not record.
+    FirstContact,
+    /// A person's row whose sender's address reads as a machine's.
+    Machine,
+}
+
+/// Why a decided row is decided again, if it is: a section delivery
+/// decided stands, as it read the facts as they were then, unless the row
+/// predates facts the section now reads, or says less than the history or
+/// the sender's address now shows.
+fn why_again(
+    state: &Arc<FastcoreState>,
+    history: &History,
+    user: &str,
+    tid: &str,
+    net: &mut Option<kevy_client::Connection>,
+) -> std::io::Result<Why> {
+    if state.mailbox.section_facts_outdated(user, tid)? {
+        return Ok(Why::Outdated);
+    }
+    let Some((latest, from)) = state.mailbox.section_inputs(user, tid)? else {
+        return Ok(Why::Stands);
+    };
+    let o = latest.other;
+    if latest.other_at == 0 || !o.from_person {
+        return Ok(Why::Stands);
+    }
+    if mailrs_clean::is_automated_sender(&from) {
+        return Ok(Why::Machine);
+    }
+    if !o.first_contact && latest.own_at == 0 && history.new_in(tid, net.as_mut()) {
+        return Ok(Why::FirstContact);
+    }
+    Ok(Why::Stands)
+}
+
 /// Every message of the thread whose file is on disk, read as delivery
-/// reads it.
+/// reads it, with first contact read from `history`.
 fn read_thread(
     state: &Arc<FastcoreState>,
+    history: &History,
     user: &str,
     tid: &str,
     on_disk: &std::collections::HashMap<String, std::path::PathBuf>,
@@ -182,7 +249,11 @@ fn read_thread(
             c.no_file += 1;
             continue;
         };
-        read.push(read_arrival(user, &blob_ref, &raw, &category, net.as_mut()));
+        let mut r = read_arrival(user, &blob_ref, &raw, &category, net.as_mut());
+        if !r.own {
+            r.facts.first_contact = history.first_contact(&r.from_addr, &mid, net.as_mut());
+        }
+        read.push(r);
     }
     Ok(read)
 }
@@ -222,8 +293,8 @@ fn decide(
     Ok(())
 }
 
-/// A decided thread whose row predates `invite` and `mutual`: decide it
-/// again from all its messages.
+/// A decided thread whose row says less than its messages now show:
+/// decide it again from all of them.
 fn refresh(
     state: &Arc<FastcoreState>,
     q: &BackfillQuery,
@@ -232,7 +303,6 @@ fn refresh(
     read: &[ReadArrival],
     c: &mut Counts,
 ) -> std::io::Result<()> {
-    c.outdated += 1;
     let arrivals = as_arrivals(user, tid, read);
     let Some(r) = state
         .mailbox
