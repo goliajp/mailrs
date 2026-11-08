@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `HickoryResolver` returns `DnsPermError` for a target that does not
+  parse as a domain name (an unexpanded macro, a space, an empty label),
+  so the check ends in `permerror`. It used to return `DnsTempError`,
+  which reads as a DNS outage and tells the sender to try again.
+- `HickoryResolver` recognises "no such domain" and "no record" by
+  hickory's `is_no_records_found` instead of by the error's text.
+
 ## [3.0.0] - 2026-10-22
 
 ### Changed
