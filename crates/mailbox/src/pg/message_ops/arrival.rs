@@ -36,8 +36,8 @@ impl PgMailboxStore {
         sqlx::query(
             "UPDATE messages SET snippet = $1, sender_trust = $2, attachments = $3,
                     direct = $4, from_person = $5, first_contact = $6, to_others = $7,
-                    from_addr = $8
-              WHERE id = $9",
+                    from_addr = $8, invite = $9, mutual = $10
+              WHERE id = $11",
         )
         .bind(facts.snippet)
         .bind(facts.sender_trust)
@@ -47,6 +47,8 @@ impl PgMailboxStore {
         .bind(section.map(|s| s.first_contact))
         .bind(section.map(|s| s.to_others))
         .bind(facts.from_addr)
+        .bind(section.map(|s| s.invite))
+        .bind(section.map(|s| s.mutual))
         .bind(inserted.id)
         .execute(&self.pool)
         .await?;

@@ -35,7 +35,7 @@ pub(super) struct Arrival<'a> {
 }
 
 impl Arrival<'_> {
-    fn request(&self) -> DeliverMessageRequest {
+    pub(super) fn request(&self) -> DeliverMessageRequest {
         let flags = if self.unread {
             0
         } else {
@@ -68,7 +68,8 @@ impl Arrival<'_> {
 
     /// What delivery would have recorded: the user's own mail went to
     /// someone; the shop and the billing robot are not people; a stranger
-    /// is a first contact; everyone else wrote to the user directly.
+    /// is a first contact; everyone else wrote to the user directly, and
+    /// the user writes back to them.
     fn section_facts(&self) -> SectionFactsWire {
         if self.sender == self.user {
             return SectionFactsWire {
@@ -80,7 +81,8 @@ impl Arrival<'_> {
             direct: true,
             from_person: self.sender != SHOP && self.sender != BILLING,
             first_contact: self.sender == STRANGER,
-            to_others: false,
+            mutual: self.sender != STRANGER,
+            ..SectionFactsWire::default()
         }
     }
 }

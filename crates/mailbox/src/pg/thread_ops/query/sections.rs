@@ -2,7 +2,8 @@
 //! [`crate::section::section_of`], over the facts delivery recorded on each
 //! message. The two are held to the same answers by the core contract test.
 //!
-//! Only messages with recorded facts count (`direct IS NOT NULL`), and a
+//! Only messages with recorded facts count (`direct IS NOT NULL`); `invite`
+//! and `mutual`, recorded later than the rest, read as false where NULL. A
 //! conversation none of whose messages has them is undecided (`''`), as a
 //! kevy row no writer has reached is. Ties at one instant go to the later
 //! row, as the kevy writer lets the later arrival win.
@@ -23,7 +24,11 @@ pub(super) const AGGREGATES: &str = ",
                 COALESCE((array_agg(m.first_contact ORDER BY m.internal_date DESC, m.id DESC)
                           FILTER (WHERE mb.name != 'Sent' AND m.direct IS NOT NULL))[1], false) AS s_in_first,
                 COALESCE((array_agg(m.from_addr ORDER BY m.internal_date DESC, m.id DESC)
-                          FILTER (WHERE mb.name != 'Sent' AND m.direct IS NOT NULL))[1], '') AS s_in_from";
+                          FILTER (WHERE mb.name != 'Sent' AND m.direct IS NOT NULL))[1], '') AS s_in_from,
+                COALESCE((array_agg(COALESCE(m.invite, false) ORDER BY m.internal_date DESC, m.id DESC)
+                          FILTER (WHERE mb.name != 'Sent' AND m.direct IS NOT NULL))[1], false) AS s_in_invite,
+                COALESCE((array_agg(COALESCE(m.mutual, false) ORDER BY m.internal_date DESC, m.id DESC)
+                          FILTER (WHERE mb.name != 'Sent' AND m.direct IS NOT NULL))[1], false) AS s_in_mutual";
 
 /// The section of row `v`, `$1` the user. `bucket` is the row's bucket as
 /// SQL, read off `v.category`.
@@ -38,7 +43,7 @@ pub(super) fn section_case(bucket: &str) -> String {
            WHEN v.s_in_first AND v.s_own_at = 0 AND NOT EXISTS (
                 SELECT 1 FROM accepted_senders acc
                  WHERE acc.account_address = $1 AND acc.address = v.s_in_from) THEN 'new'
-           WHEN v.s_in_direct THEN 'reply'
+           WHEN v.s_in_direct AND NOT v.s_in_invite AND (v.s_own_at > 0 OR v.s_in_mutual) THEN 'reply'
            ELSE 'other'
          END"
     )

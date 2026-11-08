@@ -94,6 +94,9 @@ CREATE TABLE messages (
     from_person BOOLEAN,
     first_contact BOOLEAN,
     to_others BOOLEAN,
+    -- NULL for mail from before they were recorded. See migrate-066.
+    invite BOOLEAN,
+    mutual BOOLEAN,
     from_addr TEXT NOT NULL DEFAULT '',
     modseq BIGINT NOT NULL DEFAULT 0,
     pinned BOOLEAN NOT NULL DEFAULT false,
@@ -923,4 +926,4 @@ CREATE INDEX idx_messages_clean_text_trgm ON messages USING gin (clean_text gin_
 -- The migration this schema is equal to; the core reads it at boot and
 -- applies whatever it carries beyond it.
 CREATE TABLE schema_version (version INTEGER NOT NULL);
-INSERT INTO schema_version (version) VALUES (65);
+INSERT INTO schema_version (version) VALUES (66);

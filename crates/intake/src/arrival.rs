@@ -48,6 +48,8 @@ pub struct Arrival<'a> {
     pub sender_trust: String,
     /// What the sectioned inbox reads from this message.
     pub facts: mailrs_mailbox::section::MessageFacts,
+    /// The calendar invitation it carries, read from the whole body.
+    pub invite: Option<crate::invite::FoundInvite>,
     /// The first 16 KB, where the headers are.
     pub head: &'a [u8],
     pub parsed: mailrs_mime::Part<'a>,
@@ -91,8 +93,11 @@ pub fn derive<'a, T: Threads + ?Sized>(
         true => Vec::new(),
         false => placement(rule.is_some(), category_of, target_folder),
     };
-    let facts =
-        crate::section_facts::facts(net.as_mut(), addr, &from, &to, head, category_of, is_own);
+    let invite = crate::invite::find(body);
+    let facts = mailrs_mailbox::section::MessageFacts {
+        invite: invite.is_some() && !is_own,
+        ..crate::section_facts::facts(net.as_mut(), addr, &from, &to, head, category_of, is_own)
+    };
     let category = category_of;
     let parsed = mailrs_mime::parse(body);
     let body_text = body_text_for_search(body, mailrs_parse_worker::Limit::Inbound);
@@ -116,6 +121,7 @@ pub fn derive<'a, T: Threads + ?Sized>(
         body_text,
         sender_trust: extract_sender_trust(body, authserv),
         facts,
+        invite,
         head,
         parsed,
     }
