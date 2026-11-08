@@ -45,6 +45,13 @@ function makeStorage(): Storage {
 }
 globalThis.localStorage = makeStorage()
 
+// jsdom has no ResizeObserver; nothing is laid out, so nothing would resize
+globalThis.ResizeObserver = class {
+  disconnect() {}
+  observe() {}
+  unobserve() {}
+}
+
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: (query: string) => ({
