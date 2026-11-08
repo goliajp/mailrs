@@ -54,6 +54,10 @@ const Settings = lazy(() => import('@/pages/settings').then((m) => ({ default: m
 const CONTRAST_LIGHT = {
   '--gds-accent': '#336cbf',
   '--gds-accent-hover': '#2a5a9e',
+  // dividers inside a white pane: zinc-200 on white is 1.26:1 and vanishes,
+  // where dark mode's read clearly. border-strong stays: badges, the chosen
+  // chip and placeholders are painted with it and turn heavy when darker
+  '--gds-border': '#d4d4d8',
   '--gds-fg-muted': '#6f6f78',
   '--gds-info': '#336cbf',
 }
@@ -180,6 +184,7 @@ function initMailrsTheme() {
   const applied =
     current.presetId === 'zinc-neutral' &&
     current.colorOverridesLight?.['--gds-accent'] === CONTRAST_LIGHT['--gds-accent'] &&
+    current.colorOverridesLight?.['--gds-border'] === CONTRAST_LIGHT['--gds-border'] &&
     current.colorOverridesDark?.['--gds-fg-muted'] === CONTRAST_DARK['--gds-fg-muted'] &&
     current.colorOverridesDark?.['--gds-accent-fg'] === CONTRAST_DARK['--gds-accent-fg']
   if (applied) return
