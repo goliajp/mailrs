@@ -6,6 +6,7 @@ import { useState } from 'react'
 
 import { useConversationRows } from '@/hooks/use-current-list'
 import { useOpenList } from '@/hooks/use-open-list'
+import { type SectionCount, useSectionCount } from '@/hooks/use-section-count'
 import { useSectionedInbox } from '@/hooks/use-sectioned-inbox'
 import { useT } from '@/i18n'
 import { errorText } from '@/lib/error-text'
@@ -13,14 +14,21 @@ import { latestSenders } from '@/lib/latest-senders'
 import { invalidateMail } from '@/lib/mail-cache'
 import { rovingKeyDown, tabStop } from '@/lib/roving'
 import { authAtom } from '@/store/auth'
-import { INBOX_SECTIONS, type InboxSection, inboxSectionAtom } from '@/store/inbox-sections'
+import { type InboxSection, inboxSectionAtom } from '@/store/inbox-sections'
 import { activeListAtom } from '@/store/ui'
 import { wireAcceptSenders } from '@/wire/endpoints/senders'
 
-const LABELS: Record<InboxSection, Key> = {
+/**
+ * The sections offered as chips. Other is not one: its conversations are
+ * the rest of the whole inbox, which is what no chip shows.
+ */
+type ChipSection = Exclude<InboxSection, 'other'>
+
+const CHIP_SECTIONS: readonly ChipSection[] = ['reply', 'followup', 'new']
+
+const LABELS: Record<ChipSection, Key> = {
   followup: 'sections.followup',
   new: 'sections.new',
-  other: 'sections.other',
   reply: 'sections.reply',
 }
 
@@ -36,11 +44,14 @@ export function InboxSectionBar() {
 }
 
 /**
- * The four sections plus Notifications and promotions, which is a list of
- * its own rather than a section. Shown in the Inbox and in that list while
- * the Inbox is shown by section. In the Inbox the chosen section is the
- * selected chip and the last chip leads on to the list (→); in the list
- * that chip is selected and each section leads back to the Inbox (←).
+ * The inbox's sections as optional filters, plus Notifications and
+ * promotions, which is a list of its own. Shown in the Inbox and in that
+ * list while the Inbox is shown by section. The inbox opens whole with no
+ * chip chosen; a chosen chip narrows it and a second click on it widens it
+ * again. Reply is always there; Follow up and New only while they hold
+ * something, with how many, and a chosen one stays until the reader leaves
+ * it so it does not vanish from under them. In the list its own chip is
+ * the chosen one and each section leads back to the Inbox (←).
  */
 export function InboxSectionChips({ className }: { className: string }) {
   const t = useT()
@@ -48,12 +59,18 @@ export function InboxSectionChips({ className }: { className: string }) {
   const sectioned = useSectionedInbox()
   const [section, setSection] = useAtom(inboxSectionAtom)
   const openList = useOpenList()
-  if (!sectioned) return null
-  if (activeList !== 'inbox' && activeList !== 'np') return null
   const inInbox = activeList === 'inbox'
-  // in the Inbox the chosen chip clears the section and shows the whole inbox
-  const pick = (s: InboxSection) => {
-    if (inInbox && section === s) {
+  const shown = sectioned && (inInbox || activeList === 'np')
+  const counts: Record<ChipSection, null | SectionCount> = {
+    followup: useSectionCount('followup', shown),
+    new: useSectionCount('new', shown),
+    reply: null,
+  }
+  if (!shown) return null
+  const chosen = (s: ChipSection) => inInbox && section === s
+  const chips = CHIP_SECTIONS.filter((s) => s === 'reply' || (counts[s]?.n ?? 0) > 0 || chosen(s))
+  const pick = (s: ChipSection) => {
+    if (chosen(s)) {
       setSection(null)
       return
     }
@@ -70,22 +87,19 @@ export function InboxSectionChips({ className }: { className: string }) {
         onKeyDown={(e) => rovingKeyDown(e, '[role="tab"]', 'horizontal')}
         role="tablist"
       >
-        {INBOX_SECTIONS.map((s, i) => {
-          const selected = inInbox && section === s
-          return (
-            <button
-              aria-selected={selected}
-              className={chipClass(selected)}
-              key={s}
-              onClick={() => pick(s)}
-              role="tab"
-              tabIndex={tabStop(selected || (noneSelected && i === 0))}
-              type="button"
-            >
-              {sectionText(t(LABELS[s]), inInbox)}
-            </button>
-          )
-        })}
+        {chips.map((s, i) => (
+          <button
+            aria-selected={chosen(s)}
+            className={chipClass(chosen(s))}
+            key={s}
+            onClick={() => pick(s)}
+            role="tab"
+            tabIndex={tabStop(chosen(s) || (noneSelected && i === 0))}
+            type="button"
+          >
+            {sectionText(withCount(t(LABELS[s]), counts[s]), inInbox)}
+          </button>
+        ))}
         <button
           aria-selected={!inInbox}
           className={chipClass(!inInbox)}
@@ -148,4 +162,11 @@ function feedText(label: string, inInbox: boolean): string {
 function sectionText(label: string, inInbox: boolean): string {
   if (inInbox) return label
   return `← ${label}`
+}
+
+/** `label` with how many, or the label alone when there is no count or it is 0. */
+function withCount(label: string, count: null | SectionCount): string {
+  if (!count || count.n === 0) return label
+  if (count.full) return `${label} ${count.n}+`
+  return `${label} ${count.n}`
 }

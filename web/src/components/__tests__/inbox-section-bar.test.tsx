@@ -1,5 +1,6 @@
-// The sectioned inbox's bar: shown only for the Inbox with the setting on,
-// switches the section, and accepts the senders of New.
+// The sectioned inbox's bar: shown for the Inbox and Notifications with the
+// setting on. The whole inbox until a chip is chosen; Follow up and New only
+// while they hold something, with how many; accepts the senders of New.
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
@@ -16,16 +17,25 @@ vi.mock('@/hooks/use-current-list', () => ({
   useConversationRows: () => ({ rows: [{ participants: ['Eve <eve@far.test>'] }] }),
 }))
 vi.mock('@/hooks/use-open-list', () => ({ useOpenList: () => openList }))
-vi.mock('@/hooks/use-mail-queries', () => ({ useCategoriesQuery: () => ({ data: [] }) }))
+vi.mock('@/hooks/use-mail-queries', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/hooks/use-mail-queries')>()),
+  useCategoriesQuery: () => ({ data: [] }),
+}))
+vi.mock('@/wire/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/wire/client')>()),
+  wireFetch: vi.fn(),
+}))
 
 const openList = vi.fn()
 
 import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { InboxSectionBar } from '@/components/inbox-section-bar'
 import { invalidateMail } from '@/lib/mail-cache'
+import { mailFilterInputsIn, mailFiltersOf } from '@/lib/mail-filters'
 import { sectionedInboxKey } from '@/lib/sectioned-inbox'
 import { inboxSectionAtom } from '@/store/inbox-sections'
 import { activeListAtom } from '@/store/ui'
+import { wireFetch } from '@/wire/client'
 import { wireGetSectionedInbox } from '@/wire/endpoints/mail-settings'
 import { wireAcceptSenders } from '@/wire/endpoints/senders'
 
@@ -35,26 +45,45 @@ afterEach(() => {
   localStorage.clear()
 })
 
+/** How many conversations each section's list answers with, by its `section=` value. */
+type Held = { awaiting?: number; new?: number }
+
+function answer(held: Held) {
+  const paths: string[] = []
+  vi.mocked(wireFetch).mockImplementation((async (_schema: unknown, req: { path: string }) => {
+    paths.push(req.path)
+    const section = /[?&]section=([a-z]+)/.exec(req.path)?.[1] as keyof Held | undefined
+    const n = (section && held[section]) || 0
+    const items = Array.from({ length: n }, (_, i) => ({ thread_id: `${section}${i}` }))
+    return { items }
+  }) as never)
+  return paths
+}
+
 function show(
   sectioned: boolean,
   list: 'inbox' | 'np' | 'unread' = 'inbox',
+  held: Held = {},
   bar: () => React.ReactNode = () => <InboxSectionBar />
 ) {
+  const paths = answer(held)
   const store = createStore()
   store.set(activeListAtom, list)
   vi.mocked(wireGetSectionedInbox).mockResolvedValue({ enabled: sectioned })
-  const client = new QueryClient()
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   client.setQueryData(sectionedInboxKey, { enabled: sectioned })
   render(
     <QueryClientProvider client={client}>
       <Provider store={store}>{bar()}</Provider>
     </QueryClientProvider>
   )
-  return store
+  return { paths, store }
 }
 
+const names = () => screen.getAllByRole('tab').map((t) => t.textContent)
+
 describe('InboxSectionBar', () => {
-  it('is not there unless the Inbox is shown by section', () => {
+  it('is not there unless the Inbox or Notifications is shown by section', () => {
     show(false)
     expect(screen.queryByRole('tablist')).toBeNull()
     cleanup()
@@ -62,17 +91,96 @@ describe('InboxSectionBar', () => {
     expect(screen.queryByRole('tablist')).toBeNull()
   })
 
-  it('switches sections, and opens notifications in their own tab', () => {
-    const store = show(true)
-    fireEvent.click(screen.getByRole('tab', { name: 'Follow up' }))
+  it('opens on the whole inbox: no chip chosen and no section asked for', () => {
+    const { store } = show(true)
+    expect(store.get(inboxSectionAtom)).toBeNull()
+    const filters = mailFiltersOf({ ...mailFilterInputsIn(store), list: 'inbox', sectioned: true })
+    expect(filters?.section).toBeUndefined()
+    for (const tab of screen.getAllByRole('tab')) {
+      expect(tab.getAttribute('aria-selected')).toBe('false')
+    }
+    expect(screen.getAllByRole('tab')[0].tabIndex).toBe(0)
+  })
+
+  it('leaves Other out, and Follow up and New out while they are empty', async () => {
+    const { paths } = show(true)
+    await vi.waitFor(() => expect(paths.some((p) => p.includes('section=new'))).toBe(true))
+    expect(paths.some((p) => p.includes('section=awaiting'))).toBe(true)
+    expect(names()).toEqual(['To reply', 'Notifications and promotions →'])
+  })
+
+  it('shows Follow up and New with how many they hold, from their own lists', async () => {
+    show(true, 'inbox', { awaiting: 1, new: 2 })
+    expect(await screen.findByRole('tab', { name: 'New senders 2' })).toBeTruthy()
+    expect(names()).toEqual([
+      'To reply',
+      'Follow up 1',
+      'New senders 2',
+      'Notifications and promotions →',
+    ])
+  })
+
+  it('says 50+ when a whole page came back', async () => {
+    show(true, 'inbox', { new: 50 })
+    expect(await screen.findByRole('tab', { name: 'New senders 50+' })).toBeTruthy()
+  })
+
+  it('keeps a chosen section that empties until the reader leaves it', async () => {
+    const { store } = show(true, 'inbox', { new: 0 })
+    store.set(inboxSectionAtom, 'new')
+    const chosen = await screen.findByRole('tab', { name: 'New senders' })
+    expect(chosen.getAttribute('aria-selected')).toBe('true')
+    fireEvent.click(chosen)
+    expect(store.get(inboxSectionAtom)).toBeNull()
+    expect(screen.queryByRole('tab', { name: /New senders/ })).toBeNull()
+  })
+
+  it('switches sections, clears the chosen one on a second click, and opens notifications', async () => {
+    const { store } = show(true, 'inbox', { awaiting: 3 })
+    const followup = await screen.findByRole('tab', { name: 'Follow up 3' })
+    fireEvent.click(followup)
     expect(store.get(inboxSectionAtom)).toBe('followup')
-    fireEvent.click(screen.getByText(/Notifications and promotions/))
+    expect(followup.tabIndex).toBe(0)
+    fireEvent.click(followup)
+    expect(store.get(inboxSectionAtom)).toBeNull()
+    fireEvent.click(screen.getByRole('tab', { name: 'Notifications and promotions →' }))
     expect(openList).toHaveBeenCalledWith('np')
   })
 
+  it('in Notifications, shows it as chosen and leads back by the same chips', async () => {
+    const { store } = show(true, 'np', { new: 4 })
+    const back = await screen.findByRole('tab', { name: '← New senders 4' })
+    expect(names()).toEqual(['← To reply', '← New senders 4', 'Notifications and promotions'])
+    const feed = screen.getByRole('tab', { name: 'Notifications and promotions' })
+    expect(feed.getAttribute('aria-selected')).toBe('true')
+    expect(feed.tabIndex).toBe(0)
+    fireEvent.click(back)
+    expect(store.get(inboxSectionAtom)).toBe('new')
+    expect(openList).toHaveBeenCalledWith('inbox')
+  })
+
+  it.each(['inbox', 'np'] as const)(
+    'moves across the shown chips by arrow keys in %s',
+    async (list) => {
+      show(true, list, { awaiting: 1 })
+      await screen.findByRole('tab', { name: /Follow up 1/ })
+      const tabs = screen.getAllByRole('tab')
+      expect(tabs).toHaveLength(3)
+      const [first, followup, feed] = tabs
+      followup.focus()
+      fireEvent.keyDown(followup, { key: 'ArrowRight' })
+      expect(document.activeElement).toBe(feed)
+      fireEvent.keyDown(feed, { key: 'ArrowRight' })
+      expect(document.activeElement).toBe(first)
+      fireEvent.keyDown(first, { key: 'ArrowLeft' })
+      expect(document.activeElement).toBe(feed)
+    }
+  )
+
   it('accepts the senders shown in New', async () => {
     vi.mocked(wireAcceptSenders).mockResolvedValue({ accepted: 1 })
-    const store = show(true)
+    const { store } = show(true, 'inbox', { new: 1 })
+    await screen.findByRole('tab', { name: 'New senders 1' })
     expect(screen.queryByText('Accept all')).toBeNull()
     store.set(inboxSectionAtom, 'new')
     fireEvent.click(await screen.findByText('Accept all'))
@@ -80,47 +188,8 @@ describe('InboxSectionBar', () => {
     await vi.waitFor(() => expect(invalidateMail).toHaveBeenCalled())
   })
 
-  it('in Notifications and promotions, shows it as chosen and leads back to each section', () => {
-    const store = show(true, 'np')
-    const feed = screen.getByRole('tab', { name: 'Notifications and promotions' })
-    expect(feed.getAttribute('aria-selected')).toBe('true')
-    expect(feed.tabIndex).toBe(0)
-    const sections = screen.getAllByRole('tab').filter((tab) => tab !== feed)
-    expect(sections).toHaveLength(4)
-    for (const tab of sections) {
-      expect(tab.textContent?.startsWith('← ')).toBe(true)
-      expect(tab.getAttribute('aria-selected')).toBe('false')
-      expect(tab.tabIndex).toBe(-1)
-    }
-    fireEvent.click(screen.getByRole('tab', { name: '← Follow up' }))
-    expect(store.get(inboxSectionAtom)).toBe('followup')
-    expect(openList).toHaveBeenCalledWith('inbox')
-  })
-
-  it('in the Inbox, marks the way to Notifications and promotions with an arrow', () => {
-    show(true)
-    const feed = screen.getByRole('tab', { name: 'Notifications and promotions →' })
-    expect(feed.getAttribute('aria-selected')).toBe('false')
-    expect(screen.getByRole('tab', { name: 'Follow up' }).textContent).toBe('Follow up')
-  })
-
-  it.each(['inbox', 'np'] as const)(
-    'moves between Other and the feed chip by arrow keys in %s',
-    (list) => {
-      show(true, list)
-      const tabs = screen.getAllByRole('tab')
-      expect(tabs).toHaveLength(5)
-      const [other, feed] = tabs.slice(3)
-      other.focus()
-      fireEvent.keyDown(other, { key: 'ArrowRight' })
-      expect(document.activeElement).toBe(feed)
-      fireEvent.keyDown(feed, { key: 'ArrowLeft' })
-      expect(document.activeElement).toBe(other)
-    }
-  )
-
   it('sits in the filter row from xl and on its own row below it', () => {
-    show(true, 'inbox', () => (
+    show(true, 'inbox', {}, () => (
       <>
         <FilterBar />
         <InboxSectionBar />
@@ -137,42 +206,5 @@ describe('InboxSectionBar', () => {
     const ownBox = own.parentElement as HTMLElement
     expect(filterRow.contains(ownBox)).toBe(false)
     expect(ownBox.className.split(' ')).toContain('xl:hidden')
-  })
-
-  it('keeps accept-all for New in the filter row as well', async () => {
-    const store = show(true, 'inbox', () => <FilterBar />)
-    store.set(inboxSectionAtom, 'new')
-    expect(await screen.findByText('Accept all')).toBeTruthy()
-  })
-
-  it('clears the chosen section when its chip is clicked again, and chooses it on the next click', () => {
-    const store = show(true)
-    const [first, second] = screen.getAllByRole('tab')
-    fireEvent.click(second)
-    expect(store.get(inboxSectionAtom)).toBe('followup')
-    fireEvent.click(second)
-    expect(store.get(inboxSectionAtom)).toBeNull()
-    for (const tab of screen.getAllByRole('tab')) {
-      expect(tab.getAttribute('aria-selected')).toBe('false')
-    }
-    expect(first.tabIndex).toBe(0)
-    expect(second.tabIndex).toBe(-1)
-    fireEvent.click(second)
-    expect(store.get(inboxSectionAtom)).toBe('followup')
-    expect(second.getAttribute('aria-selected')).toBe('true')
-    expect(first.tabIndex).toBe(-1)
-  })
-
-  it('opens the Inbox at Reply by default', () => {
-    const store = show(true)
-    expect(store.get(inboxSectionAtom)).toBe('reply')
-  })
-
-  it('from Notifications and promotions, a section chip opens that section even when none was chosen', () => {
-    const store = show(true, 'np')
-    store.set(inboxSectionAtom, null)
-    fireEvent.click(screen.getByRole('tab', { name: '← Other' }))
-    expect(store.get(inboxSectionAtom)).toBe('other')
-    expect(openList).toHaveBeenCalledWith('inbox')
   })
 })
