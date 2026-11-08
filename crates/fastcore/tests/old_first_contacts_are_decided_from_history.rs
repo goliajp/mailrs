@@ -112,6 +112,9 @@ async fn old_first_contacts_are_new_and_machines_are_feeds() {
         msg("tf", "tf@apple", tf, USER, "", T0),
         // a first contact delivery decided
         msg("fresh", "fresh@v", "fresh@v.test", USER, "", T0),
+        // a stranger whose stored sender field is not its From: (a bounce
+        // address), as some bulk senders' rows are
+        msg("card", "card@c", "Card <info@card.test>", USER, "", T0),
     ];
     for m in &msgs {
         let raw = mail(m.from, m.to, m.cc, m.mid, m.at);
@@ -121,7 +124,7 @@ async fn old_first_contacts_are_new_and_machines_are_feeds() {
 
     // the network store lives while a connection to it does
     let mut net = kevy_client::Connection::connect(NET).expect("kevy");
-    let counts: [(&str, &[u8], &[u8]); 7] = [
+    let counts: [(&str, &[u8], &[u8]); 8] = [
         ("eve@far.test", b"0", b"1"),
         ("ann@y.test", b"1", b"2"),
         ("carl@z.test", b"1", b"1"),
@@ -129,6 +132,7 @@ async fn old_first_contacts_are_new_and_machines_are_feeds() {
         ("acc@w.test", b"0", b"1"),
         ("testflight_no_reply@email.apple.com", b"0", b"1"),
         ("fresh@v.test", b"0", b"1"),
+        ("info@card.test", b"0", b"1"),
     ];
     for (who, sent, received) in counts {
         net.hset(
@@ -142,7 +146,7 @@ async fn old_first_contacts_are_new_and_machines_are_feeds() {
     }
     contacts::accept(&mut net, USER, "acc@w.test", T0 + DAY).expect("accept");
 
-    for tid in ["pitch", "ann2", "carl", "gone", "acc"] {
+    for tid in ["pitch", "ann2", "carl", "gone", "acc", "card"] {
         assert_eq!(section(&mailbox, tid), Some(Section::Other), "{tid}");
     }
     assert_eq!(section(&mailbox, "tf"), Some(Section::Reply));
@@ -154,18 +158,19 @@ async fn old_first_contacts_are_new_and_machines_are_feeds() {
 
     let dry = backfill(&state, true).await;
     assert_eq!(dry["outdated_facts"], 0, "{dry}");
-    assert_eq!(dry["first_contacts_found"], 1, "{dry}");
+    assert_eq!(dry["first_contacts_found"], 2, "{dry}");
     assert_eq!(dry["machines_found"], 1, "{dry}");
     assert_eq!(dry["refreshed"], 0, "{dry}");
-    assert_eq!(dry["moved"]["other>new"], 1, "{dry}");
+    assert_eq!(dry["moved"]["other>new"], 2, "{dry}");
     assert_eq!(dry["moved"]["reply>feed"], 1, "{dry}");
     assert_eq!(dry["moved"].as_object().map(|m| m.len()), Some(2), "{dry}");
     assert_eq!(section(&state.mailbox, "pitch"), Some(Section::Other));
 
     let real = backfill(&state, false).await;
-    assert_eq!(real["refreshed"], 2, "{real}");
+    assert_eq!(real["refreshed"], 3, "{real}");
     assert_eq!(real["moved"], dry["moved"], "{real}");
     assert_eq!(section(&state.mailbox, "pitch"), Some(Section::New));
+    assert_eq!(section(&state.mailbox, "card"), Some(Section::New));
     assert_eq!(section(&state.mailbox, "tf"), Some(Section::Feed));
     for tid in ["ann2", "carl", "gone", "acc"] {
         assert_eq!(section(&state.mailbox, tid), Some(Section::Other), "{tid}");
@@ -201,7 +206,7 @@ fn seed(mailbox: &mailrs_mailbox_kevy::KevyMailboxStore, m: &Msg, blob_ref: &str
         .expect("arrival");
     let wire = serde_json::json!({
         "id": 0, "mailbox_id": 0, "uid": 0, "blob_ref": blob_ref,
-        "sender": m.from, "recipients": m.to, "subject": "hello",
+        "sender": stored_sender(m), "recipients": m.to, "subject": "hello",
         "date": m.at, "internal_date": m.at, "size": 32,
         "flags": 0, "message_id": m.mid, "in_reply_to": "",
         "thread_id": m.tid, "modseq": 1,
@@ -245,6 +250,13 @@ fn seed(mailbox: &mailrs_mailbox_kevy::KevyMailboxStore, m: &Msg, blob_ref: &str
             from_addr: &from,
         })
         .expect("section");
+}
+
+fn stored_sender(m: &Msg) -> &'static str {
+    match m.tid {
+        "card" => "rcard-fix@mkrm.card.test",
+        _ => m.from,
+    }
 }
 
 fn section(mailbox: &mailrs_mailbox_kevy::KevyMailboxStore, tid: &str) -> Option<Section> {

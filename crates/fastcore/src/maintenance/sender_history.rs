@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use mailrs_core_sidestate::families::contacts;
-use mailrs_core_sidestate::families::correspondent::{all_addresses, first_address};
+use mailrs_core_sidestate::families::correspondent::first_address;
 
 use crate::FastcoreState;
 
@@ -35,9 +35,12 @@ pub(crate) struct History {
 }
 
 impl History {
-    /// Every message of `user`'s in the store, read once. The reader's own
-    /// recipients come from the file (`Cc:` is not on the stored row), or
-    /// the stored `To:` when the file is gone.
+    /// Every message of `user`'s in the store, read once, from its file
+    /// as the section reads it (`From:`, `To:`, `Cc:` and the time it is
+    /// stored under), so the history and a refold agree on who sent each
+    /// message and when. A message whose file is gone counts from its
+    /// stored row: its sender field is not always `From:`, but the count
+    /// still says the store holds it.
     pub(crate) fn build(
         state: &FastcoreState,
         user: &str,
@@ -54,19 +57,20 @@ impl History {
                     .user_message_facts(user, &mid)?
                     .map(|c| c.blob_ref)
                     .unwrap_or_default();
-                let Some(wire) = state
-                    .mailbox
-                    .get_message(&mid)?
-                    .and_then(|b| serde_json::from_slice::<Wire>(&b).ok())
-                else {
+                let read = match file_head(on_disk, &blob_ref) {
+                    Some(head) => Some(from_file(&head, &blob_ref)),
+                    None => state
+                        .mailbox
+                        .get_message(&mid)?
+                        .and_then(|b| serde_json::from_slice::<Wire>(&b).ok())
+                        .map(|w| (at, w.sender, w.recipients)),
+                };
+                let Some((at, from, recipients)) = read else {
                     continue;
                 };
-                match mailrs_mailbox::sent_copy::sent_by(&wire.sender, &blob_ref, user) {
-                    true => {
-                        let to = recipients(on_disk, &blob_ref).unwrap_or(wire.recipients);
-                        h.wrote(&tid, at, &to);
-                    }
-                    false => h.received(&tid, at, mid, first_address(&wire.sender)),
+                match mailrs_mailbox::sent_copy::sent_by(&from, &blob_ref, user) {
+                    true => h.wrote(&tid, at, &recipients),
+                    false => h.received(&tid, at, mid, first_address(&from)),
                 }
             }
         }
@@ -75,8 +79,9 @@ impl History {
 
     fn wrote(&mut self, tid: &str, at: i64, recipients: &str) {
         self.wrote_in.insert(tid.to_string());
-        for addr in all_addresses(recipients) {
-            if addr.eq_ignore_ascii_case(&self.user) {
+        for addr in mailrs_rfc5322::split_list(recipients).map(mailrs_rfc5322::addr_spec) {
+            let addr = addr.trim().to_ascii_lowercase();
+            if addr.is_empty() || addr == self.user.to_ascii_lowercase() {
                 continue;
             }
             *self.sent.entry(addr.clone()).or_default() += 1;
@@ -144,14 +149,23 @@ impl History {
     }
 }
 
-/// `To:` and `Cc:` of the file, joined; `None` when it is not on disk.
-fn recipients(on_disk: &HashMap<String, PathBuf>, blob_ref: &str) -> Option<String> {
-    let raw = std::fs::read(on_disk.get(crate::maildir_scan::base_id(blob_ref))?).ok()?;
-    let head = &raw[..raw.len().min(16 * 1024)];
-    let message = mailrs_rfc5322::Message::new(head);
-    let to = message.header_str("To").unwrap_or_default();
-    let cc = message.header_str("Cc").unwrap_or_default();
-    Some(format!("{to},{cc}"))
+/// The first 16 KiB of the message's file, `None` when it is not on disk.
+fn file_head(on_disk: &HashMap<String, PathBuf>, blob_ref: &str) -> Option<Vec<u8>> {
+    let mut raw = std::fs::read(on_disk.get(crate::maildir_scan::base_id(blob_ref))?).ok()?;
+    raw.truncate(16 * 1024);
+    Some(raw)
+}
+
+/// The stored time, `From:`, and `To:` with `Cc:`, as the section reads
+/// a file.
+fn from_file(head: &[u8], blob_ref: &str) -> (i64, String, String) {
+    let (_, _, _, _, date, from, to) = mailrs_intake::headers::extract_headers(head);
+    let cc = mailrs_rfc5322::Message::new(head)
+        .header_str("Cc")
+        .unwrap_or_default()
+        .to_string();
+    let at = mailrs_intake::headers::stored_date(date, blob_ref);
+    (at, from, format!("{to},{cc}"))
 }
 
 #[cfg(test)]
