@@ -156,10 +156,12 @@ pub(super) fn judge(
         ),
         ..relation
     };
+    let link_hosts = mailrs_inbound::scan_input::link_hosts(&parsed);
+    let bucket_hosts = mailrs_fraud::storage_bucket::bucket_hosts(&link_hosts);
     let novelty = mailrs_core_sidestate::families::domain_first::novelty(
         c.hist.as_mut(),
         host,
-        &mailrs_inbound::scan_input::link_hosts(&parsed),
+        &link_hosts,
         arrived,
     );
     let read = mailrs_parse_worker::attachments_inside(&raw, mailrs_parse_worker::Limit::Batch);
@@ -223,7 +225,9 @@ pub(super) fn judge(
             &mailrs_inbound::dkim_signers::of(&raw),
         ),
         dkim_from_org_passed: stamp.dkim_from_org_passed,
-        has_links: !mailrs_inbound::scan_input::link_hosts(&parsed).is_empty(),
+        has_links: !link_hosts.is_empty(),
+        links_only_to_random_buckets: !bucket_hosts.is_empty(),
+        bucket_hosts: &bucket_hosts,
         ..Facts::default()
     };
     let (old, old_shadow) = match before {

@@ -113,10 +113,12 @@ fn lookalike() -> Relation {
     }
 }
 
-#[path = "reason_params/payment.rs"]
-mod payment;
 /// One message per rule that names facts, and the params it should carry.
 /// A rule, a message it fires on, and the params it should carry.
+#[path = "reason_params/bucket.rs"]
+mod bucket;
+#[path = "reason_params/payment.rs"]
+mod payment;
 #[path = "reason_params/qr.rs"]
 mod qr;
 
@@ -418,6 +420,7 @@ fn each_shipped_rule_names_the_facts_its_sentence_needs() {
     for (rule, facts, want) in cases()
         .into_iter()
         .chain(qr::cases(base()))
+        .chain(bucket::cases(base()))
         .chain(payment::cases(base()))
     {
         let out = rules.classify(&facts, &policy());

@@ -254,9 +254,11 @@ impl Deception {
 /// `=?UTF-8?B?…?=`.
 pub fn deception_in(text: &str) -> Deception {
     let mut out = Deception::default();
-    // Previous and next character, so a zero-width one can be judged
-    // by its neighbours rather than by itself. A single pass: the
-    // window is two characters wide and nothing is re-read.
+    // The visible characters either side of a run of zero-width ones,
+    // so the run is judged by its neighbours rather than by itself.
+    // `prev` skips zero-width characters and a run is judged once, at
+    // its last character: otherwise two joiners side by side each see
+    // the other as a neighbour and the pair counts as nothing.
     let mut prev: Option<char> = None;
     let mut chars = text.chars().peekable();
     // Counted rather than latched, because *how many* and *where* is
@@ -269,27 +271,34 @@ pub fn deception_in(text: &str) -> Deception {
         } else if UNJUSTIFIED_ZERO_WIDTH.contains(&c) {
             out.unjustified_zero_width = true;
         }
-        if ZERO_WIDTH_ANYWHERE.contains(&c)
-            && prev.is_some_and(no_zero_width_belongs_between)
-            && chars
+        if ZERO_WIDTH_ANYWHERE.contains(&c) {
+            let run_continues = chars
                 .peek()
-                .copied()
-                .is_some_and(no_zero_width_belongs_between)
-        {
-            anywhere += 1;
-            if prev.is_some_and(|p| p.is_ascii_alphanumeric())
-                && chars
-                    .peek()
-                    .copied()
-                    .is_some_and(|n| n.is_ascii_alphanumeric())
-            {
-                latin_seams += 1;
+                .is_some_and(|n| ZERO_WIDTH_ANYWHERE.contains(n));
+            if !run_continues {
+                judge_run(prev, chars.peek().copied(), &mut anywhere, &mut latin_seams);
             }
+            continue;
         }
         prev = Some(c);
     }
     out.zero_width_inside_a_word = enough_to_convict(latin_seams, anywhere);
     out
+}
+
+/// Count one run of zero-width characters by the visible characters
+/// on either side of it.
+fn judge_run(prev: Option<char>, next: Option<char>, anywhere: &mut u32, latin_seams: &mut u32) {
+    if prev.is_some_and(no_zero_width_belongs_between)
+        && next.is_some_and(no_zero_width_belongs_between)
+    {
+        *anywhere += 1;
+        if prev.is_some_and(|p| p.is_ascii_alphanumeric())
+            && next.is_some_and(|n| n.is_ascii_alphanumeric())
+        {
+            *latin_seams += 1;
+        }
+    }
 }
 
 /// The same over several fields — a From display name and a Subject,
@@ -392,6 +401,25 @@ mod tests {
         assert!(!deception_in("\u{feff}Subject").zero_width_inside_a_word);
         assert!(!deception_in("Subject\u{200b}").zero_width_inside_a_word);
         assert!(!deception_in("\u{200d}").zero_width_inside_a_word);
+    }
+
+    /// A run of invisibles is one insertion, judged by the letters on
+    /// either side of the whole run. A phishing display name put two
+    /// joiners side by side between Latin letters, and while each
+    /// joiner only looked at its immediate neighbours, each saw the
+    /// other and the pair counted as nothing.
+    #[test]
+    fn a_run_of_invisibles_is_judged_by_the_letters_around_it() {
+        assert!(deception_in("a\u{200d}\u{200d}b").zero_width_inside_a_word);
+        assert!(deception_in("ab\u{200d}\u{200d}\u{200b}cd").zero_width_inside_a_word);
+        // The run still counts once: two invisibles at one non-Latin
+        // seam are a single insertion, as one would be.
+        assert!(!deception_in("\u{8aa0}\u{200c}\u{200c}\u{3055}\u{3093}").zero_width_inside_a_word);
+        // Devanagari is not on the allow-list, however many there are.
+        assert!(!deception_in("\u{915}\u{200c}\u{200c}\u{916}").zero_width_inside_a_word);
+        // A run at an edge still has only one neighbour.
+        assert!(!deception_in("ab\u{200d}\u{200d}").zero_width_inside_a_word);
+        assert!(!deception_in("\u{200d}\u{200d}ab").zero_width_inside_a_word);
     }
 
     /// The two readings are separate: the old one does not see a
