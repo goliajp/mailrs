@@ -138,6 +138,8 @@ mod tests {
     #[test]
     fn machines_and_lists_are_not_people() {
         assert!(!of("noreply@shop.test", ME, "", "inbox", false).from_person);
+        let testflight = "TestFlight <testflight_no_reply@email.apple.com>";
+        assert!(!of(testflight, ME, "", "inbox", false).from_person);
         let list = "List-Unsubscribe: <mailto:u@list.test>\r\nList-Id: <l.list.test>\r\n";
         assert!(!of("news@list.test", ME, list, "inbox", false).from_person);
         assert!(!of("ann@y.test", ME, "", "promotion", false).from_person);

@@ -62,7 +62,10 @@ pub(super) fn latest_from(fields: &Fields) -> Latest {
 /// The inputs `arrivals` fold to, by the rule [`Latest::fold`] shares with
 /// [`KevyMailboxStore::record_section_arrival`], and the newest inbound
 /// sender (the row's, when nothing inbound is among them). What delivery
-/// read about the newest inbound message stands while it still is that.
+/// read about the newest inbound message stands while it still is that,
+/// except that a first contact the row did not record is taken from the
+/// arrival: old mail was decided by a backfill that could not tell, and an
+/// arrival says first contact only from history that shows it.
 pub(super) fn refolded(old: &Fields, arrivals: &[SectionArrival<'_>]) -> (Latest, String) {
     let mut latest = Latest::default();
     let mut from = None;
@@ -77,7 +80,7 @@ pub(super) fn refolded(old: &Fields, arrivals: &[SectionArrival<'_>]) -> (Latest
     let same_latest =
         old.contains_key(IN_AT) && num(old, IN_AT) == latest.other_at && from == old_from;
     if same_latest {
-        latest.other.first_contact = on(old, IN_FIRST);
+        latest.other.first_contact |= on(old, IN_FIRST);
         latest.other_accepted = on(old, IN_ACCEPTED);
         if old.contains_key(IN_MUTUAL) {
             latest.other.mutual = on(old, IN_MUTUAL);
