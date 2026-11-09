@@ -225,6 +225,7 @@ impl Reading {
             has_links: self.has_links,
             links_only_to_random_buckets: !self.bucket_hosts.is_empty(),
             bucket_hosts: &self.bucket_hosts,
+            link_hosts: &self.link_hosts,
             qr: self.qr,
             qr_domains: &self.qr_domains,
             new_qr_domain: None,

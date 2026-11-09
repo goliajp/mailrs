@@ -228,3 +228,40 @@ rule('subject-cut-from-the-address', 'identity', 5, false, function(m)
             {word = trim(m.subject)})
     end
 end)
+-- A platform's notification address carrying text one of its users
+-- wrote, and a link through a shortener.
+--
+-- AppSheet and GitHub sign mail from their own notification addresses
+-- with whatever an app owner or a commenter typed, so SPF, DKIM and DMARC
+-- all pass for a stranger's letter. Reported 2026-11-09: `陳嘉欣
+-- <noreply@appsheet.com>` to `contact@`, a damaged-parcel complaint whose
+-- one link, `share.google/…`, led to a 130 MB zip; a second one on
+-- 2026-11-04 came under another person's name from the same address.
+--
+-- Measured over the production maildir on 2026-11-09: 2 messages from
+-- `noreply@appsheet.com`, both this campaign, both with a shortener;
+-- 6,554 from `notifications@github.com`, 2 with a shortener, both
+-- scams (a fake VS Code alert and a token airdrop). A shortener alone is
+-- not a signal: people share `share.google` links from their own
+-- mailboxes, and those come from their own address, not a platform's.
+--
+-- Both lists are allow-lists: an address or shortener not named here
+-- reads as not matching. Scored, not held: one colleague pasting a short
+-- link into a GitHub comment lands in Junk, where the reader still sees
+-- it.
+local USER_CONTENT_SENDERS = {'noreply@appsheet.com', 'notifications@github.com'}
+local SHORTENERS = {'share.google', 'bit.ly', 't.co', 'tinyurl.com', 'goo.gl', 'is.gd', 'cutt.ly',
+    'shorturl.at', 'ow.ly', 'rebrand.ly', 'buff.ly', 't.ly', 'rb.gy', 'tiny.cc', 's.id', 'v.gd'}
+rule('platform-mail-links-through-a-shortener', 'identity', 6, false, function(m)
+    if reader_wrote_to(m) or not m.dkim_aligned then return end
+    local address = m.minted_local .. '@' .. m.from_domain
+    local relayed = false
+    for _, a in ipairs(USER_CONTENT_SENDERS) do relayed = relayed or address == a end
+    if not relayed then return end
+    for host in (m.link_hosts or ''):gmatch('[^\n]+') do
+        if owns(SHORTENERS, host) then
+            return found('a platform\'s notification address carries a user\'s text, and a link goes through the shortener `'
+                .. host .. '`', {address = address, shortener = host})
+        end
+    end
+end)

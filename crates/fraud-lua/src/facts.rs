@@ -82,6 +82,7 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ),
         ("qr_domains", f.qr_domains.to_string()),
         ("bucket_hosts", f.bucket_hosts.to_string()),
+        ("link_hosts", f.link_hosts.join("\n")),
         ("new_qr_domain", f.new_qr_domain.clone().unwrap_or_default()),
     ] {
         if v.len() > 64 * 1024 {

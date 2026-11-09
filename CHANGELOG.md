@@ -18,6 +18,18 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Platform notification mail that links through a shortener
+
+- New rule `platform-mail-links-through-a-shortener`: mail from a
+  platform notification address that carries text written by one of the
+  platform's users (`noreply@appsheet.com`, `notifications@github.com`),
+  signed by the platform, with a link through a URL shortener
+  (`share.google`, `bit.ly`, …). It scores toward Junk and never holds.
+  A shortened link sent from a person's own mailbox is not affected, and
+  neither is a sender the reader has written to.
+- The rules can now read every host the message links to
+  (`link_hosts`).
+
 ### Four detection fixes from a labelled sample
 
 - Two or more zero-width characters side by side between letters now
