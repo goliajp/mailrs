@@ -207,8 +207,17 @@ pub(crate) fn record_hold_fact(
     Ok(())
 }
 
+/// Whether a person's report holds `tid` now: its newest hold came from a
+/// report. The rules did not hold it, so a rule change may not release
+/// it; a person releasing it, or an administrator putting back the
+/// report's batch, does.
+pub(crate) fn held_by_report(state: &FastcoreState, user: &str, tid: &str) -> Result<bool, String> {
+    Ok(holds(state, user, tid)?
+        .last()
+        .is_some_and(|h| h.source == REPORT))
+}
+
 /// Every hold of `tid` for `user`, oldest first.
-#[cfg(test)]
 pub(crate) fn holds(state: &FastcoreState, user: &str, tid: &str) -> Result<Vec<HoldFact>, String> {
     let rows = state
         .mailbox

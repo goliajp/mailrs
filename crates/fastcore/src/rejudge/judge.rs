@@ -213,6 +213,7 @@ fn act(
             Counts::add(&COUNTS.would_hold, 1);
             "hold"
         }
+        Disposition::Release if report_holds(state, user, &tid) => return,
         Disposition::Release => {
             Counts::add(&COUNTS.would_release, 1);
             "release"
@@ -265,6 +266,15 @@ fn act(
         Ok(false) => {}
         Err(e) => tracing::warn!(error = %e, %user, %tid, action, "rejudge: acting failed"),
     }
+}
+
+/// Whether a person's report holds the conversation, so no rule may let
+/// it go. A hold list that cannot be read keeps it held.
+fn report_holds(state: &FastcoreState, user: &str, tid: &str) -> bool {
+    crate::hold_facts::held_by_report(state, user, tid).unwrap_or_else(|e| {
+        tracing::warn!(error = %e, %user, %tid, "rejudge: the holds could not be read; left held");
+        true
+    })
 }
 
 /// The conversation `mid` is in, for `user`, and its row.

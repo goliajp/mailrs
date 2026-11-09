@@ -19,6 +19,7 @@ impl Tally {
             releasable = self.releasable,
             released = self.released,
             kept_released = self.kept_released,
+            kept_reported = self.kept_reported,
             held_but_unreadable = self.held_but_unreadable,
             already_junk = self.already_junk,
             no_file = self.no_file,
@@ -47,6 +48,9 @@ impl Tally {
             // Hold-grade, but a person released the conversation after
             // this message came: left where they put it.
             "kept_released": self.kept_released,
+            // No rule holds it any more, but a person's report does: left
+            // held for a person to release.
+            "kept_reported": self.kept_reported,
             // Hidden, and its file is gone: it cannot be re-judged, so
             // no rule change will ever let it out. Zero is the answer
             // that means what it says.

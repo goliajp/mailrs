@@ -26,6 +26,7 @@ const WALK: &[&str] = &[
     "no_file",
     "verdict_failed",
     "kept_released",
+    "kept_reported",
     "held_but_unreadable",
     "scored_but_whitelisted",
 ];
@@ -194,12 +195,13 @@ pub fn summary(live: &Value) -> Vec<String> {
         live["shadow_by_rule"]
     ));
     lines.push(format!(
-        "conversations: {} walked, {} without a file ({} of them held), {} failed, {} kept released by a person, {} whitelisted from Junk",
+        "conversations: {} walked, {} without a file ({} of them held), {} failed, {} kept released by a person, {} kept held by a person's report, {} whitelisted from Junk",
         n("threads_walked"),
         n("no_file"),
         n("held_but_unreadable"),
         n("verdict_failed"),
         n("kept_released"),
+        n("kept_reported"),
         n("scored_but_whitelisted")
     ));
     for m in live["not_modelled"].as_array().into_iter().flatten() {
@@ -216,7 +218,7 @@ mod tests {
         serde_json::json!({
             "dry_run": true, "candidate": "lua:c", "done": done,
             "next_skip": skip + walked, "threads_walked": walked,
-            "no_file": 1, "verdict_failed": 0, "kept_released": 0,
+            "no_file": 1, "verdict_failed": 0, "kept_released": 0, "kept_reported": 0,
             "held_but_unreadable": 0, "scored_but_whitelisted": 0,
             "shadow_by_rule": {"s": hold},
             "shadow_samples": [{"rule": "s"}],
