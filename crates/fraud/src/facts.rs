@@ -187,6 +187,10 @@ pub struct Facts<'a> {
     /// Those hosts, one per line — [`crate::storage_bucket::bucket_hosts`];
     /// empty unless [`Self::links_only_to_random_buckets`].
     pub bucket_hosts: &'a str,
+    /// Every host the message's links go to, as
+    /// `mailrs_inbound::scan_input::link_hosts` reads them: lowercased,
+    /// no repeats, at most 200. Which of them matter is the rules' call.
+    pub link_hosts: &'a [String],
     /// Where the message's QR codes point, against what it says —
     /// [`crate::qr::assess`]. Read after delivery from the addresses the
     /// attachment reader stored; all empty on the live path, and on a core

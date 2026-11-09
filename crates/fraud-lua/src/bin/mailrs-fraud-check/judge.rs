@@ -228,6 +228,7 @@ pub(super) fn judge(
         has_links: !link_hosts.is_empty(),
         links_only_to_random_buckets: !bucket_hosts.is_empty(),
         bucket_hosts: &bucket_hosts,
+        link_hosts: &link_hosts,
         ..Facts::default()
     };
     let (old, old_shadow) = match before {

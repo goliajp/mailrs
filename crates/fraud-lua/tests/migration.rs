@@ -106,7 +106,10 @@ fn all_existing_sender_fixtures_match_compiled_rules() {
     // history; theirs are in `tests/jp_account_rules.rs`.
     // `unvouched-sender-links-only-to-a-bucket` needs links to a storage
     // bucket; its tests are in `tests/bucket_rule.rs`.
-    assert_eq!(rules.rule_count(), 47);
+    // `platform-mail-links-through-a-shortener` needs a signed platform
+    // address and link hosts; its tests are in
+    // `tests/platform_shortener.rs`.
+    assert_eq!(rules.rule_count(), 48);
     for from in &senders {
         for (subject, seen, to) in [
             (
