@@ -26,3 +26,13 @@ reason = "minimatch pattern amplification needs an attacker-supplied glob; in we
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0440"
 reason = "astral-tokio-tar is unmaintained, not vulnerable, and used only by testcontainers in the test-only crate mailrs-test-docker; in no shipped binary; the latest testcontainers (0.28.0) still depends on it; matches deny.toml"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0459"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "bundled SQLite before 3.54 can return uninitialized memory when it opens a database with a crafted -wal file; only mailrs-ops links it, and it opens only its own database in its own volume; libsqlite3-sys 0.39 conflicts with sqlx 0.8's pin of 0.30 through links = sqlite3, so the fix goes with the sqlx 0.9 upgrade; matches deny.toml"
+
+[[IgnoredVulns]]
+id = "GHSA-72w2-rjgg-q729"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "the GitHub id of RUSTSEC-2026-0459 above"
