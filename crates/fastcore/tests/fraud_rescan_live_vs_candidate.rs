@@ -22,6 +22,8 @@ const OLD_JUNK: &str = "t-old-junk@x.com";
 // held, and the candidate does not hold it
 const FLIPPED: &str = "t-flipped@x.com";
 const PLAIN_INBOX: &str = "t-plain@x.com";
+// held because its reader reported it; the candidate does not hold it
+const REPORTED: &str = "t-reported@x.com";
 
 // `brand-is-the-display-name`, a hold-grade rule
 const FRAUD: &str = "From: Netflix <a@nowhere.invalid>\r\nSubject: hi\r\n";
@@ -102,6 +104,28 @@ async fn rescan(state: &Arc<mailrs_fastcore::FastcoreState>, query: &str) -> (St
     (status, body.to_vec())
 }
 
+/// Hold `tid` the way a reader's scam report does: held, with a hold fact
+/// whose source is the report. The report route itself needs the network
+/// store this test does not start. Should the fact's key or shape change,
+/// the sweep stops seeing the report and `kept_reported` fails below.
+fn hold_as_reported(state: &mailrs_fastcore::FastcoreState, tid: &str) {
+    state
+        .mailbox
+        .set_quarantined(USER, tid, true)
+        .expect("hold");
+    let fact = serde_json::json!({
+        "at": 1_793_000_100, "source": "report", "rules_version": "", "unread_mids": [],
+    });
+    state
+        .mailbox
+        .store_ref()
+        .rpush(
+            format!("hold:facts:{USER}:{tid}").as_bytes(),
+            &[fact.to_string().as_bytes()],
+        )
+        .expect("fact");
+}
+
 fn held(state: &mailrs_fastcore::FastcoreState, tid: &str) -> bool {
     state
         .mailbox
@@ -177,6 +201,8 @@ async fn a_conversation_an_older_binary_left_unheld_counts_as_a_new_hold() {
     add(&state, &md, OLD_JUNK, "spam", &message(FRAUD));
     add(&state, &md, FLIPPED, "inbox", &message(PLAIN));
     add(&state, &md, PLAIN_INBOX, "inbox", &message(PLAIN));
+    add(&state, &md, REPORTED, "inbox", &message(PLAIN));
+    hold_as_reported(&state, REPORTED);
     state
         .mailbox
         .set_quarantined(USER, FLIPPED, true)
@@ -200,7 +226,9 @@ async fn a_conversation_an_older_binary_left_unheld_counts_as_a_new_hold() {
     let live = &out["from_stored"];
     assert_eq!(out["dry_run"], true);
     assert_eq!(out["candidate"], format!("lua:{hash}"));
-    assert_eq!(out["threads_walked"], 4);
+    assert_eq!(out["threads_walked"], 5);
+    // a person's report is not the rules' to take back
+    assert_eq!(out["kept_reported"], 1, "{out}");
     assert_eq!(live["would_hold"], 2, "{live}");
     assert_eq!(
         live["would_hold_from"],
@@ -224,6 +252,7 @@ async fn a_conversation_an_older_binary_left_unheld_counts_as_a_new_hold() {
     // and it is dry
     assert!(!held(&state, OLD_INBOX) && !held(&state, OLD_JUNK));
     assert!(held(&state, FLIPPED));
+    assert!(held(&state, REPORTED));
 
     // Only a dry run, only a pack whose content is its name.
     let refused = [

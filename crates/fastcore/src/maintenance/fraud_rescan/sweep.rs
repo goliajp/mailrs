@@ -38,6 +38,8 @@ struct Tally {
     releasable: u64,
     released: u64,
     kept_released: u64,
+    /// Held by a person's report and no longer by the rules: left held.
+    kept_reported: u64,
     release_samples: Vec<serde_json::Value>,
     no_file: u64,
     // Which check fired, because "12 found" does not say whether the
@@ -324,11 +326,12 @@ impl Sweep<'_> {
         // no longer holds anything, and nothing in the
         // system could have noticed.
         //
-        // Safe to do automatically because **no hold is a
-        // person's judgement**. Two places set it: this
-        // sweep, and `ingest.rs`, which acts on the verdict
-        // the receive path stored. Both are the rules
-        // speaking, so the rules may take it back.
+        // Safe to do automatically only for holds the rules
+        // made: this sweep, `ingest.rs` acting on the verdict
+        // the receive path stored, and the re-judge. A
+        // person's scam report holds too, and that hold is a
+        // person's judgement, so it is left for a person to
+        // release (`hold_facts::held_by_report`).
         //
         // The version of this comment that shipped on
         // 2026-08-31 said the sweep was the only one. It was
@@ -338,7 +341,20 @@ impl Sweep<'_> {
         // read. A release path resting on "there is only one
         // writer" has to name them.
         match disposition(false, junks_on_its_own(findings), before.held) {
-            Disposition::Release => {}
+            Disposition::Release => {
+                match crate::hold_facts::held_by_report(self.state, user, tid) {
+                    Ok(false) => {}
+                    Ok(true) => {
+                        self.t.kept_reported += 1;
+                        return;
+                    }
+                    Err(error) => {
+                        tracing::error!(%error, %user, %tid, "fraud rescan: the holds could not be read; leaving thread unchanged");
+                        self.t.verdict_failed += 1;
+                        return;
+                    }
+                }
+            }
             Disposition::Junk => {
                 self.score_into_junk(before, (user, tid), raw, msg, findings);
                 return;

@@ -18,6 +18,15 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### A reported conversation stays held through a rule change
+
+- A conversation held because its reader reported it as a scam was
+  released by the next re-judge or rescan whose rules did not hold it,
+  undoing the report. A report hold is now left for a person to release,
+  or for an administrator putting back the report's batch. The rescan
+  reports how many it left held (`kept_reported`), and the rule-pack gate
+  prints the figure.
+
 ### Platform notification mail that links through a shortener
 
 - New rule `platform-mail-links-through-a-shortener`: mail from a

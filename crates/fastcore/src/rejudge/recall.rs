@@ -188,7 +188,8 @@ fn remember(
 }
 
 /// A rejudge-held conversation the rules no longer hold goes back where
-/// it was. A conversation held on arrival is not this module's to release.
+/// it was. A conversation held on arrival is not this module's to release,
+/// and neither is one a person's report holds.
 pub(crate) fn unrecall(
     state: &Arc<FastcoreState>,
     user: &str,
@@ -200,6 +201,9 @@ pub(crate) fn unrecall(
     let Some(observation) = store.hget(key.as_bytes(), b"observation").ok().flatten() else {
         return Ok(false);
     };
+    if crate::hold_facts::held_by_report(state, user, tid)? {
+        return Ok(false);
+    }
     let ok = state
         .mailbox
         .set_quarantined(user, tid, false)
