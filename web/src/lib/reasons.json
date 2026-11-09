@@ -309,6 +309,16 @@
     "ja": "このメールの一部を読み取れなかったため、すべてを確認できませんでした。",
     "zh": "这封信有一部分读不出来，没能全部检查。"
   },
+  "platform-mail-links-through-a-shortener": {
+    "en": "A platform's notification address carries text one of its users wrote, and a link goes through a link shortener.",
+    "ja": "サービスの通知用アドレスが、その利用者の書いた文面を届けており、リンクが短縮 URL を経由しています。",
+    "zh": "这封信是平台的通知地址代发的，内容由平台用户自己填写，信里的链接经过短链接服务，看不到最终地址。",
+    "params": {
+      "en": "{address} is a platform's notification address carrying text one of its users wrote, and a link goes through the shortener {shortener}.",
+      "ja": "{address} はサービスの通知用アドレスで、その利用者の書いた文面を届けており、リンクが短縮 URL {shortener} を経由しています。",
+      "zh": "{address} 是平台的通知地址，代发平台用户自己填写的内容，信里的链接经过短链接 {shortener}，看不到最终地址。"
+    }
+  },
   "qr-only-way-out": {
     "en": "No links, only a QR code to a host the message never names.",
     "ja": "リンクがなく、本文に出てこないホストへの QR コードだけがあります。",

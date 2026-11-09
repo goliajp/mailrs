@@ -88,6 +88,7 @@ pub(super) struct Evidence {
     novelty: mailrs_fraud::novelty::Novelty,
     has_links: bool,
     bucket_hosts: String,
+    link_hosts: Vec<String>,
 }
 
 impl Evidence {
@@ -178,12 +179,13 @@ impl Evidence {
         let novelty = crate::spam_lists::novelty_async(
             ctx.spam_lists_client.clone(),
             &sender_host,
-            link_hosts,
+            link_hosts.clone(),
         )
         .await;
         Self {
             has_links,
             bucket_hosts,
+            link_hosts,
             novelty,
             decoded_from,
             sender_host,
@@ -251,6 +253,7 @@ impl Evidence {
             has_links: self.has_links,
             links_only_to_random_buckets: !self.bucket_hosts.is_empty(),
             bucket_hosts: &self.bucket_hosts,
+            link_hosts: &self.link_hosts,
             date_ahead: mailrs_inbound::dates::date_ahead_of(
                 &receive_ctx.message,
                 Some(chrono::Utc::now().timestamp()),
