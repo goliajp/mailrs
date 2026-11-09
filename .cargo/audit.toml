@@ -14,6 +14,15 @@ ignore = [
     # ships a way to prune mysql from sqlx-macros, or when rsa fixes the
     # Marvin Attack.
     "RUSTSEC-2023-0071",
+    # RUSTSEC-2026-0459 — bundled SQLite before 3.54 can return
+    # uninitialized memory when it opens a database together with a
+    # crafted `-wal` file. Only mailrs-ops links it (rusqlite, bundled),
+    # and it opens only the database it created in its own volume; no
+    # other party can write that file. The fix (libsqlite3-sys 0.39)
+    # cannot be taken while sqlx 0.8, which pins 0.30 through the shared
+    # `links = "sqlite3"`, is in the tree. Matches deny.toml and
+    # osv-scanner.toml.
+    "RUSTSEC-2026-0459",
 ]
 informational_warnings = []
 severity_threshold = "low"
