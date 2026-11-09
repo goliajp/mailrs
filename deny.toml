@@ -32,6 +32,13 @@ ignore = [
     # them or an actual vulnerability is reported.
     { id = "RUSTSEC-2026-0374", reason = "basic-toml: unmaintained; build-time only, under age's translation macros" },
     { id = "RUSTSEC-2026-0173", reason = "proc-macro-error2: unmaintained; build-time only, under age's translation macros" },
+    # Bundled SQLite before 3.54 can return uninitialized memory when it
+    # opens a database with a crafted `-wal` file. Only mailrs-ops links
+    # it, and it opens only its own database in its own volume. The fix
+    # (libsqlite3-sys 0.39) conflicts with sqlx 0.8, which pins 0.30
+    # through the shared `links = "sqlite3"`; it goes with the sqlx 0.9
+    # upgrade.
+    { id = "RUSTSEC-2026-0459", reason = "libsqlite3-sys: WAL uninitialized read needs an attacker-written database file; mailrs-ops opens only its own; fix blocked by sqlx 0.8's libsqlite3-sys pin" },
     { id = "RUSTSEC-2026-0440", reason = "astral-tokio-tar: unmaintained; test-only, under testcontainers (mailrs-test-docker); in no shipped binary; testcontainers 0.28.0 still depends on it" },
 ]
 
