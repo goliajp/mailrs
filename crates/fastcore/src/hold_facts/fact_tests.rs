@@ -75,3 +75,46 @@ fn a_report_hold_is_a_fact_and_a_delete_takes_the_facts() {
         .expect("delete");
     assert_eq!(holds(&state, USER, tid).expect("facts"), []);
 }
+
+#[test]
+fn a_rule_change_does_not_release_what_a_report_holds() {
+    let state = fresh_state();
+    ingest_delivered_file(&state, USER, "p1.eml", PHISH, "INBOX", None);
+    let tid = "p1@outside.example";
+    assert_eq!(
+        crate::rejudge::recall::hold_reported(&state, USER, tid, None, "obs-1"),
+        Ok(true)
+    );
+    assert_eq!(
+        crate::hold_facts::held_by_report(&state, USER, tid),
+        Ok(true)
+    );
+
+    let released = crate::rejudge::recall::unrecall(&state, USER, tid, "lua:new");
+    assert_eq!(released, Ok(false));
+    let row = state
+        .mailbox
+        .get_thread_for_user(USER, tid)
+        .expect("read")
+        .expect("row");
+    assert!(row.quarantined);
+}
+
+#[test]
+fn a_hold_the_rules_made_is_not_a_report_hold() {
+    let state = fresh_state();
+    let v = super::tests::held_verdict();
+    ingest_delivered_file(&state, USER, "p1.eml", PHISH, "INBOX", Some(&v));
+    let tid = "p1@outside.example";
+    assert_eq!(
+        crate::hold_facts::held_by_report(&state, USER, tid),
+        Ok(false)
+    );
+    // nothing held at all
+    let other = fresh_state();
+    ingest_delivered_file(&other, USER, "p1.eml", PHISH, "INBOX", None);
+    assert_eq!(
+        crate::hold_facts::held_by_report(&other, USER, tid),
+        Ok(false)
+    );
+}
