@@ -119,6 +119,8 @@ fn lookalike() -> Relation {
 mod bucket;
 #[path = "reason_params/payment.rs"]
 mod payment;
+#[path = "reason_params/platform.rs"]
+mod platform;
 #[path = "reason_params/qr.rs"]
 mod qr;
 
@@ -422,6 +424,7 @@ fn each_shipped_rule_names_the_facts_its_sentence_needs() {
         .chain(qr::cases(base()))
         .chain(bucket::cases(base()))
         .chain(payment::cases(base()))
+        .chain(platform::cases(base()))
     {
         let out = rules.classify(&facts, &policy());
         assert!(out.errors.is_empty(), "{rule}: {:?}", out.errors);
