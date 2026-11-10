@@ -202,6 +202,8 @@ impl Reading {
             hosted_mailbox: self.hosted_mailbox,
             // from the store, by the caller that has one: [`super::site_elsewhere`]
             site_elsewhere: false,
+            landing_known_domain: false,
+            copies_someone_known: false,
             to_display: &self.to_display,
             reply_rotation,
             date_ahead: self.date_ahead,

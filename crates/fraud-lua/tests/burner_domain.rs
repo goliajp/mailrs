@@ -136,3 +136,46 @@ fn our_own_domains_are_never_outreach() {
     };
     assert_eq!(fires(&cold(), &policy), None);
 }
+
+/// What a real company writing from a group or second domain looks like,
+/// each enough on its own to let the message through.
+#[test]
+fn each_sign_of_a_real_company_lets_it_through() {
+    let p = Policy::default();
+    assert!(fires(&cold(), &p).is_some(), "the cold letter itself fires");
+    assert_eq!(
+        fires(
+            &Facts {
+                landing_known_domain: true,
+                ..cold()
+            },
+            &p
+        ),
+        None,
+        "the reader writes to the domain the site lands on"
+    );
+    assert_eq!(
+        fires(
+            &Facts {
+                copies_someone_known: true,
+                ..cold()
+            },
+            &p
+        ),
+        None,
+        "it copies someone the reader knows"
+    );
+    let vetted = Policy {
+        vetted_suffixes: vec!["co.jp".into()],
+        ..Policy::default()
+    };
+    let group = Facts {
+        from: "Taro Yamada <yamada@example-group.co.jp>",
+        domain: "example-group.co.jp",
+        registrable: "example-group.co.jp",
+        ..cold()
+    };
+    assert_eq!(fires(&group, &vetted), None, "a co.jp sender");
+    // the table is the policy's: without the suffix in it, the same sender fires
+    assert!(fires(&group, &Policy::default()).is_some());
+}

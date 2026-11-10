@@ -106,6 +106,7 @@ fn it_reaches_junk_and_says_why() {
             org_names: names(),
             our_domains: ours(),
             allowed_domains: allowed(),
+            ..mailrs_fraud::Policy::default()
         },
     );
     let DeliveryDecision::Junk { reason, .. } = make_delivery_decision(&input) else {

@@ -138,6 +138,12 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ("is_bulk", f.is_bulk),
         ("hosted_mailbox", f.hosted_mailbox),
         ("site_elsewhere", f.site_elsewhere),
+        ("landing_known_domain", f.landing_known_domain),
+        ("copies_someone_known", f.copies_someone_known),
+        (
+            "from_vetted_suffix",
+            mailrs_fraud::burner_domain::under_vetted_suffix(f.domain, &p.vetted_suffixes),
+        ),
         (
             "attachment_offers_the_reader_a_sum",
             f.attachment_offers_the_reader_a_sum,
