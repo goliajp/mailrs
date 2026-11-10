@@ -6,6 +6,7 @@ pub mod account_purge;
 pub mod admin_state;
 pub mod audit;
 pub mod audit_chain;
+pub mod burner_released;
 pub mod calendar_events;
 pub mod calendar_feeds;
 pub mod callback_numbers;

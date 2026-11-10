@@ -17,10 +17,11 @@
 use super::shape::{Shape, glob_escape};
 use super::{custom, last_reader, rejudge};
 use crate::families::{
-    calendar_events, calendar_feeds, callback_numbers, contact_cards, contact_sent, contacts,
-    devices, email_groups, forwarding, local_forward, masked_email, notify, outbound::pause,
-    payment_accounts, permission_groups, prefs, recall_notices, rules, saved_searches,
-    sectioned_inbox, send, sender_lists, sender_rules, shared_inbox, submitted, swipe, vacation,
+    burner_released, calendar_events, calendar_feeds, callback_numbers, contact_cards,
+    contact_sent, contacts, devices, email_groups, forwarding, local_forward, masked_email, notify,
+    outbound::pause, payment_accounts, permission_groups, prefs, recall_notices, rules,
+    saved_searches, sectioned_inbox, send, sender_lists, sender_rules, shared_inbox, submitted,
+    swipe, vacation,
 };
 use crate::keys::{credentials, push, quota, reset, session};
 
@@ -96,6 +97,7 @@ pub const OWNED: &[Owned] = &[
     net("sectioned_inbox:{user}", Shape::Key(sectioned_inbox::key)),
     net("mailrs:vacation:{user}:*", Shape::Globs(|a| under("mailrs:vacation:", a, ":"))),
     net("spam:{user}:whitelist", Shape::Key(sender_lists::whitelist_key)),
+    net("mailrs:burnerreleased:{user}", Shape::Key(burner_released::key)),
     net("spam:{user}:blacklist", Shape::Key(sender_lists::blacklist_key)),
     net("sender_rules:{user}", Shape::Key(sender_rules::rules_key)),
     net("sender_rules:retaining", Shape::Members { keys: || sender_rules::RETAINING_KEY.into(), sep: None }),
