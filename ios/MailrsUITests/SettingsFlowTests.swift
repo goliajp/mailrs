@@ -16,14 +16,10 @@ final class SettingsFlowTests: MailrsUITestCase {
     private func writes() -> [[String: Any]] {
         guard let url = URL(string: "http://localhost:6039/debug/settings") else { return [] }
         var result: [[String: Any]] = []
-        let done = expectation(description: "debug/settings")
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            if let data, let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-                result = list
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
+        let data = stubData(url)
+        if let data, let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+            result = list
+        }
         return result
     }
 

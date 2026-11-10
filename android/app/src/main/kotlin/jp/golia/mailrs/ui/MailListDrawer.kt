@@ -71,7 +71,7 @@ fun MailListDrawer(
 ) {
     val theme = LocalTheme.current
     val colors = NavigationDrawerItemDefaults.colors(
-        selectedContainerColor = theme.accent.copy(alpha = 0.14f),
+        selectedContainerColor = theme.selected,
         selectedTextColor = theme.accent,
         selectedIconColor = theme.accent,
         unselectedTextColor = theme.fgSecondary,

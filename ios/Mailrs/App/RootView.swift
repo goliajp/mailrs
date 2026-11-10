@@ -54,7 +54,7 @@ struct RootView: View {
             // Wired here rather than held by the icon cache itself, so
             // the cache carries no credential and stops working when
             // the session does.
-            icons.load = { [weak session] domain in
+            icons.load = { [weak session = self.session] domain in
                 await session?.icon(domain: domain)
             }
             if LockPolicy.locksOnLaunch(enabled: lockEnabled) { locked = true }

@@ -95,14 +95,10 @@ final class SwipeFlowTests: MailrsUITestCase {
     private func lastSwipeSave() -> [String: Any]? {
         guard let url = URL(string: "http://localhost:6039/debug/settings") else { return nil }
         var found: [String: Any]?
-        let done = expectation(description: "debug/settings")
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            if let data, let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-                found = list.last { ($0["path"] as? String) == "/api/settings/swipe" }?["body"] as? [String: Any]
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
+        let data = stubData(url)
+        if let data, let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+            found = list.last { ($0["path"] as? String) == "/api/settings/swipe" }?["body"] as? [String: Any]
+        }
         return found
     }
 }

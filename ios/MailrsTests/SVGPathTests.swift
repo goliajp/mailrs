@@ -7,6 +7,7 @@ import Testing
 /// what it has to get right is upstream's actual syntax — relative
 /// commands, arcs, implicit repeats, and numbers written without
 /// separators.
+@MainActor
 struct SVGPathTests {
     private func bounds(_ d: String) -> CGRect {
         SVGPath.parse(d).boundingRect

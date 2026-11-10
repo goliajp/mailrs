@@ -138,6 +138,12 @@ struct ConversationRow: View {
                         .lineLimit(1)
                 }
             }
+            // The rule under the row starts where the text does, on
+            // every row. Left to itself the list starts it at the first
+            // text it finds, which is the avatar's letter on a lettered
+            // row and the name on a row with a brand mark, so the rules
+            // jumped from row to row.
+            .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
         }
         .padding(.vertical, 2)
         // Named, so a test can address a conversation row rather than

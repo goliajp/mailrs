@@ -256,7 +256,7 @@ fun ComposeMailScreen(
 private fun FromChip(account: MailAccount, on: Boolean, onTap: () -> Unit) {
     val theme = LocalTheme.current
     val background = when {
-        on -> theme.accent.copy(alpha = 0.18f)
+        on -> theme.borderStrong
         else -> theme.bgSecondary
     }
     Row(

@@ -5,6 +5,7 @@ import Testing
 /// The web's `avatarColor` hash, kept in step: the same correspondent
 /// must wear the same color on every client, so the hash is asserted
 /// against values computed by the web's own algorithm.
+@MainActor
 struct SenderAvatarTests {
     private func paletteIndex(_ email: String) -> Int {
         var hash: Int32 = 0
