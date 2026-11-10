@@ -156,6 +156,44 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await expect(page.getByRole('button', { name: 'Show folders' })).toBeHidden()
     })
 
+    test('the top rows of the panes end on one line', async ({ page }) => {
+      await openMail(
+        page,
+        ['t1', 't2'].map((thread_id, i) => ({
+          last_date: 1_793_900_000 - i * 4000,
+          message_count: 1,
+          participants: [`s${i}@example.com`],
+          received_count: 1,
+          snippet: 's',
+          subject: `Thread ${i + 1}`,
+          thread_id,
+          unread_count: 0,
+        }))
+      )
+      await page
+        .getByRole('button', { name: /^Send$/ })
+        .first()
+        .waitFor()
+      const bottoms = await page.evaluate(() => {
+        const row = (el: Element | null | undefined) => {
+          if (!el) throw new Error('top row missing')
+          return el.getBoundingClientRect().bottom
+        }
+        return {
+          folders: row(document.querySelector('nav h2')?.parentElement),
+          list: row(document.querySelector('[role="search"]')?.closest('.border-b')),
+          // the conversation's subject, the one heading outside the folder column
+          reading: row(
+            [...document.querySelectorAll('h2')]
+              .find((h) => !h.closest('nav'))
+              ?.closest('.border-b')
+          ),
+        }
+      })
+      expect(bottoms.list).toBe(bottoms.folders)
+      expect(bottoms.reading).toBe(bottoms.folders)
+    })
+
     test('dividers inside a pane can be seen', async ({ page }) => {
       await openMail(page)
       const look = await page.evaluate(() => {

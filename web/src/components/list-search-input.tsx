@@ -48,7 +48,7 @@ export function ListSearchInput({
   const active = value.trim().length > 0
   const showHint = !!hint && focused && value === ''
   return (
-    <div className="border-border border-b px-3 py-2">
+    <div className="border-border min-h-pane-header flex flex-col justify-center border-b px-3 py-1.5">
       <div className="flex items-center gap-2">
         <button
           aria-label={t('folders.expand')}

@@ -79,11 +79,11 @@ export function NewConversation() {
     // bounded, not only flex-1: a flex child's min-height:auto would let a
     // long message push Send off the bottom of the window
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      <div className="border-border flex shrink-0 items-center justify-between border-b px-4 py-2">
-        <span className="text-fg-muted text-xs font-medium">{t(headerLabel(start))}</span>
+      <div className="border-border h-pane-header flex shrink-0 items-center justify-between border-b px-3">
+        <h2 className="text-fg text-sm font-semibold">{t(headerLabel(start))}</h2>
         <button
           aria-label={t('common.close')}
-          className="text-fg-muted hover:bg-bg-secondary rounded-md p-1 transition-colors"
+          className="text-fg-muted hover:bg-bg-secondary flex h-8 w-8 items-center justify-center rounded-md transition-colors"
           onClick={close}
           type="button"
         >

@@ -71,7 +71,7 @@ export function MailFolders() {
 
   return (
     <nav className="flex h-full flex-col overflow-y-auto px-2 pb-2 select-none">
-      <div className="flex h-[3.25rem] shrink-0 items-center justify-between pr-0.5 pl-2.5">
+      <div className="h-pane-header flex shrink-0 items-center justify-between pr-0.5 pl-2.5">
         <h2 className="text-fg text-base font-semibold">{t('nav.mail')}</h2>
         <button
           aria-label={t('folders.collapse')}
