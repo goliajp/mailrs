@@ -7764,6 +7764,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/fraud/rules/{rule}/triggers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every delivery a fraud rule under review fired on, one by one, for its review. Super administrators only */
+        get: operations["listRuleTriggers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -19278,6 +19295,50 @@ export interface operations {
                 };
             };
             /** @description Not one of the caller's uploads */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listRuleTriggers: {
+        parameters: {
+            query?: {
+                /** @description UTC days back, including today */
+                days?: number;
+            };
+            header?: never;
+            path: {
+                /** @description A rule under review, e.g. `burner-domain-outreach` */
+                rule: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Oldest day first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        days?: number;
+                        items?: {
+                            /** @description Unix seconds it was received */
+                            at?: number;
+                            recipients?: string[];
+                            from_domain?: string;
+                            /** @description What the rule saw beyond the sender: for burner-domain-outreach, the host the sender's web root landed on */
+                            detail?: string;
+                            message_id?: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Not a rule under review */
             404: {
                 headers: {
                     [name: string]: unknown;
