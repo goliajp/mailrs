@@ -64,6 +64,8 @@ pub(super) async fn receive_context(
 /// The readings [`mailrs_fraud::Facts`] borrows from, owned here so
 /// the alignment pass can reuse them after the pipeline has run.
 pub(super) struct Evidence {
+    hosted_mailbox: bool,
+    site_elsewhere: bool,
     decoded_from: String,
     sender_host: String,
     registrable: String,
@@ -176,6 +178,15 @@ impl Evidence {
         let link_hosts = mailrs_inbound::scan_input::link_hosts(&parsed);
         let has_links = !link_hosts.is_empty();
         let bucket_hosts = mailrs_fraud::storage_bucket::bucket_hosts(&link_hosts);
+        let hosted_mailbox = mailrs_fraud::burner_domain::hosted_mailbox(&receive_ctx.message);
+        let is_bulk = mailrs_inbound::body::is_bulk(&receive_ctx.message);
+        let site_elsewhere =
+            mailrs_fraud::burner_domain::worth_visiting(hosted_mailbox, is_bulk, &relation)
+                && crate::spam_lists::site_elsewhere_async(
+                    ctx.spam_lists_client.clone(),
+                    &sender_host,
+                )
+                .await;
         let novelty = crate::spam_lists::novelty_async(
             ctx.spam_lists_client.clone(),
             &sender_host,
@@ -183,6 +194,8 @@ impl Evidence {
         )
         .await;
         Self {
+            hosted_mailbox,
+            site_elsewhere,
             has_links,
             bucket_hosts,
             link_hosts,
@@ -241,6 +254,8 @@ impl Evidence {
             shown_links: &self.shown_links,
             link_has_kit_placeholder: self.link_has_kit_placeholder,
             is_bulk: mailrs_inbound::body::is_bulk(&receive_ctx.message),
+            hosted_mailbox: self.hosted_mailbox,
+            site_elsewhere: self.site_elsewhere,
             to_display: &self.to_display,
             reply_rotation: self.reply_rotation,
             payment: self.payment.clone(),

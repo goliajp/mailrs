@@ -104,6 +104,16 @@
       "zh": "显示名只有公司名「{brand}」，信却来自 {domain}，不是这家公司的域名。"
     }
   },
+  "burner-domain-outreach": {
+    "en": "A first message from a mailbox on a domain whose website sends visitors to another domain.",
+    "ja": "初めてのメールで、送信元ドメインのウェブサイトは別のドメインに転送されます。",
+    "zh": "第一次来信，发件域名的网站会跳转到另一个域名。",
+    "params": {
+      "en": "A first message from a mailbox at {domain}, whose website sends visitors to another domain.",
+      "ja": "{domain} のメールボックスからの初めてのメールです。このドメインのウェブサイトは別のドメインに転送されます。",
+      "zh": "来自 {domain} 邮箱的第一封信，这个域名的网站会跳转到另一个域名。"
+    }
+  },
   "claims-our-domain": {
     "en": "The From address is at our own domain, sent from a public address, and DMARC says it is not us.",
     "ja": "差出人アドレスが自組織のドメインですが、外部のアドレスから送られ、DMARC は自組織ではないと判定しています。",
