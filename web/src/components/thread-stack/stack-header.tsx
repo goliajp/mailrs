@@ -40,7 +40,7 @@ export function StackHeader({
 }) {
   const t = useT()
   return (
-    <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-1.5 select-none">
+    <div className="border-border h-pane-header flex shrink-0 items-center gap-2 border-b px-3 select-none">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <h2 className="text-fg truncate text-sm font-semibold select-text">
           {subject || t('mobile.noSubject')}
