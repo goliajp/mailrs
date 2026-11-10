@@ -82,6 +82,14 @@ pub(super) async fn run_antispam(
         ctx.spam_lists_client.clone(),
     )
     .await;
+    hits::keep_reviewed(
+        &receive_ctx.message,
+        &receive_ctx.fraud,
+        evidence.sender_host(),
+        forward_paths,
+        ctx.spam_lists_client.clone(),
+    )
+    .await;
     hits::record_seven_z(
         &receive_ctx.message,
         evidence.seven_z_archives(),

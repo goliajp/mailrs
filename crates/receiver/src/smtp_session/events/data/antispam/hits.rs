@@ -94,6 +94,58 @@ pub(super) async fn record_seven_z(
     .await;
 }
 
+/// Keep each hit of a rule under review
+/// ([`mailrs_core_sidestate::families::rule_triggers::REVIEWED`]) one by
+/// one, with whom the message was for and what the rule saw, for the
+/// review that asks whether each was right. Bookkeeping like the counter:
+/// a store that cannot be reached is logged and the message goes on.
+pub(super) async fn keep_reviewed(
+    raw: &[u8],
+    findings: &mailrs_fraud::Findings,
+    sender_domain: &str,
+    recipients: &[String],
+    client: Option<Arc<KevyNetClient>>,
+) {
+    use mailrs_core_sidestate::families::{rule_triggers, site_landing};
+    let reviewed: Vec<String> = findings
+        .iter()
+        .map(|f| f.rule.clone())
+        .filter(|r| rule_triggers::REVIEWED.contains(&r.as_str()))
+        .collect();
+    let Some(client) = client else { return };
+    if reviewed.is_empty() {
+        return;
+    }
+    let message_id = crate::screening::message_id(raw);
+    let (from_domain, recipients) = (sender_domain.to_string(), recipients.to_vec());
+    let done = tokio::task::spawn_blocking(move || {
+        client.with_conn(|c| {
+            // the landing this message was judged by, written just before
+            let detail = match site_landing::get(c, &from_domain)? {
+                Some(mailrs_fraud::burner_domain::Landing::At(host)) => host,
+                _ => String::new(),
+            };
+            let trigger = rule_triggers::Trigger {
+                at: chrono::Utc::now().timestamp(),
+                recipients,
+                from_domain,
+                detail,
+                message_id,
+            };
+            for rule in &reviewed {
+                rule_triggers::record(c, rule, &trigger)?;
+            }
+            Ok::<(), std::io::Error>(())
+        })
+    })
+    .await;
+    match done {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => tracing::warn!(%error, "reviewed rule trigger not kept"),
+        Err(error) => tracing::warn!(%error, "reviewed rule trigger task failed"),
+    }
+}
+
 async fn count(client: Arc<KevyNetClient>, rules: Vec<String>, now: i64) {
     let done = tokio::task::spawn_blocking(move || {
         client.with_conn(|c| mailrs_core_sidestate::families::fraud_hits::record(c, &rules, now))

@@ -72,6 +72,8 @@ pub struct ConnectionContext {
     /// when a kevy sidecar isn't configured — the pipeline then
     /// sees empty sets and behaves identically to pre-Phase-3.
     pub spam_lists_client: Option<Arc<crate::kevy_net::KevyNetClient>>,
+    /// The bounds on visits to a sender's web root.
+    pub site_visits: Arc<crate::site_visit::SiteVisits>,
     /// Where DATA writes each accepted message, for a core to deliver; the
     /// receiver resolves and delivers nothing itself.
     pub spool_sink: Arc<dyn spool_sink::SpoolSink>,

@@ -119,6 +119,7 @@ pub async fn spawn_receiving_server(
         ldap_config: None,
         inbound_pipeline: mailrs_inbound::Pipeline::builder().build(),
         spam_lists_client: None,
+        site_visits: Arc::new(mailrs_receiver::site_visit::SiteVisits::new(4, 2)),
         spool_sink: Arc::new(
             mailrs_receiver::smtp_session::spool_sink::MaildirSpoolSink::new(&spool_root),
         ),
