@@ -209,6 +209,19 @@ impl Egress {
     }
 }
 
+impl Egress {
+    /// The host `http://{host}/` ends on after following up to five
+    /// redirects, each one checked like the first; `None` when nothing
+    /// answered or the redirects did not end. The body is not read.
+    pub async fn landing_host(&self, host: &str) -> Option<String> {
+        let response = self
+            .send(&format!("http://{host}/"), 5, |client, url| client.get(url))
+            .await
+            .ok()?;
+        response.url().host_str().map(str::to_ascii_lowercase)
+    }
+}
+
 /// The body, refusing one longer than `max` bytes.
 pub async fn read_capped(mut response: Response, max: usize) -> Result<Vec<u8>, Refused> {
     let mut body = Vec::new();

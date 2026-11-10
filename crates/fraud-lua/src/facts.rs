@@ -136,6 +136,8 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ("asks_for_the_readers_line", f.asks_for_the_readers_line),
         ("link_has_kit_placeholder", f.link_has_kit_placeholder),
         ("is_bulk", f.is_bulk),
+        ("hosted_mailbox", f.hosted_mailbox),
+        ("site_elsewhere", f.site_elsewhere),
         (
             "attachment_offers_the_reader_a_sum",
             f.attachment_offers_the_reader_a_sum,

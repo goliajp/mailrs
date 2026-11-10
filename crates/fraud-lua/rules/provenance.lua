@@ -164,3 +164,20 @@ rule('new-domain-login-link', 'provenance', 2, false, function(m)
             {domain = m.new_link_domain})
     end
 end)
+-- Cold outreach from a domain bought to send it. One person writes for the
+-- first time from a Microsoft 365 or Google mailbox, with no list headers,
+-- and the domain's own web root sends visitors to another domain
+-- (dealclosersvoice.com -> dealclosers.co): outreach firms put mailboxes on
+-- look-alike domains so the brand's own never carries the complaints.
+-- Every part comes from the sender's infrastructure, none from the wording.
+-- It scores to Junk and never holds: a real company can write from a
+-- secondary domain, and the reader sees it there. A binary without the
+-- facts reads nil: it never fires.
+rule('burner-domain-outreach', 'provenance', 5, false, function(m)
+    if external(m) and m.site_elsewhere == true and m.hosted_mailbox == true
+        and m.is_bulk ~= true and m.first_contact == true
+        and m.from_correspondent_domain ~= true then
+        return found('a first message from a mailbox on a domain whose website sends visitors to another domain',
+            {domain = m.from_domain})
+    end
+end)

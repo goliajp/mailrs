@@ -88,6 +88,55 @@ pub async fn domain_seen_async(client: Option<Arc<KevyNetClient>>, host: &str) -
     .unwrap_or(0)
 }
 
+/// Whether `host`'s web root lands on another registrable domain
+/// ([`mailrs_fraud::burner_domain`]): the store's answer when it has one,
+/// otherwise a visit now, recorded for the next message and for every
+/// judging of stored mail, which only reads it.
+///
+/// Called only for a message worth the visit, so visits stay rare, and
+/// bounded to a few seconds inside the DATA phase. Without a store
+/// nothing is visited (the stored judgings could not see the answer):
+/// not elsewhere. A visit that gets no answer is recorded as none, which
+/// also reads as not elsewhere; a failed write only means the next
+/// message visits again.
+pub async fn site_elsewhere_async(client: Option<Arc<KevyNetClient>>, host: &str) -> bool {
+    use mailrs_core_sidestate::families::site_landing;
+    use mailrs_fraud::burner_domain::Landing;
+    let Some(client) = client else { return false };
+    let (reader, wanted) = (client.clone(), host.to_string());
+    let cached = tokio::task::spawn_blocking(move || {
+        reader
+            .with_conn(|c| site_landing::get(c, &wanted))
+            .ok()
+            .flatten()
+    })
+    .await
+    .ok()
+    .flatten();
+    let landing = match cached {
+        Some(landing) => landing,
+        None => {
+            let egress = mailrs_egress::Egress::new("mailrs", std::time::Duration::from_secs(4));
+            let visited =
+                tokio::time::timeout(std::time::Duration::from_secs(6), egress.landing_host(host))
+                    .await
+                    .ok()
+                    .flatten();
+            let landing = match visited {
+                Some(at) => Landing::At(at),
+                None => Landing::Nowhere,
+            };
+            let (recorded, visited_host) = (landing.clone(), host.to_string());
+            let _ = tokio::task::spawn_blocking(move || {
+                client.with_conn(|c| site_landing::put(c, &visited_host, &recorded))
+            })
+            .await;
+            landing
+        }
+    };
+    landing.elsewhere(host)
+}
+
 /// Whether the sender's domain and the link domains are new to this
 /// deployment, as of now: this message is not recorded yet (delivery
 /// records it). Without a store, nothing is new.

@@ -117,6 +117,8 @@ fn lookalike() -> Relation {
 /// A rule, a message it fires on, and the params it should carry.
 #[path = "reason_params/bucket.rs"]
 mod bucket;
+#[path = "reason_params/burner.rs"]
+mod burner;
 #[path = "reason_params/payment.rs"]
 mod payment;
 #[path = "reason_params/platform.rs"]
@@ -423,6 +425,7 @@ fn each_shipped_rule_names_the_facts_its_sentence_needs() {
         .into_iter()
         .chain(qr::cases(base()))
         .chain(bucket::cases(base()))
+        .chain(burner::cases(base()))
         .chain(payment::cases(base()))
         .chain(platform::cases(base()))
     {
