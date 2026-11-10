@@ -111,10 +111,14 @@ pub fn wrote_to_domain(conn: &mut kevy_client::Connection, user: &str, domain: &
 }
 
 /// Whether the message's `To` or `Cc`, `user` aside, names someone `user`
-/// has sent mail to, or a colleague at one of `our_domains`.
+/// has sent mail to, or a colleague: an address at one of `our_domains`
+/// that mail has passed between and `user`, either way.
 ///
 /// A first message from a real company is often an introduction, copying
-/// people on both sides; cold outreach is one to one.
+/// people on both sides; cold outreach is one to one. Being at our domain
+/// is not enough to be a colleague: every address there that is not an
+/// account delivers to an account, so a letter to `hao@` is a letter to
+/// the reader under another name, and it never writes back.
 pub fn copies_someone_known(
     conn: &mut kevy_client::Connection,
     user: &str,
@@ -135,6 +139,10 @@ pub fn copies_someone_known(
     let colleague = copied.iter().any(|a| {
         a.rsplit_once('@')
             .is_some_and(|(_, h)| ours.contains(&registrable(h)))
+            && {
+                let s = contacts::scoring_for(conn, &user, a);
+                s.received_count > 0 || s.sent_count > 0
+            }
     });
     if colleague {
         return true;
@@ -208,6 +216,8 @@ mod tests {
         set_counts(&mut c, ME, "suzuki@example.com", 3, 2).unwrap();
         // heard from, never written to: not someone known
         set_counts(&mut c, ME, "stranger@other.com", 5, 0).unwrap();
+        // a colleague who has written to the reader
+        set_counts(&mut c, ME, "tanaka@golia.ai", 4, 0).unwrap();
         c
     }
 
@@ -239,5 +249,9 @@ mod tests {
         assert!(!copies_someone_known(&mut c, ME, one_to_one, &ours()));
         let strangers = b"From: a@x.com\r\nTo: lihao@golia.jp\r\nCc: stranger@other.com,\r\n\tnobody@nowhere.net\r\n\r\nbody";
         assert!(!copies_someone_known(&mut c, ME, strangers, &ours()));
+        // an address at our domain nothing has passed between is the
+        // reader's alias as often as a colleague: the catch-all delivers it
+        let alias = b"From: a@x.com\r\nTo: hao@golia.jp\r\n\r\nbody";
+        assert!(!copies_someone_known(&mut c, ME, alias, &ours()));
     }
 }
