@@ -104,12 +104,9 @@ struct ComposeMailView: View {
                     AttachMenu(attachments: $files)
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    if sending {
-                        ProgressView()
-                    } else {
-                        Button("Send") { Task { await send() } }
-                            .accessibilityIdentifier("compose.send")
-                    }
+                    Button("Send") { Task { await send() } }
+                        .disabled(sending)
+                        .accessibilityIdentifier("compose.send")
                 }
             }
         }

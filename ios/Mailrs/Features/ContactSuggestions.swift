@@ -13,13 +13,18 @@ struct ContactSuggestions: View {
                 text = RecipientAutocomplete.completing(text, with: contact)
                 suggestions = []
             } label: {
+                // a finger-sized row the whole width, not a line of text
+                // packed against the next one
                 HStack {
                     Image(systemName: "person.crop.circle")
                         .foregroundStyle(.secondary)
                     Text(contact)
                         .font(.subheadline)
                         .lineLimit(1)
+                    Spacer(minLength: 0)
                 }
+                .frame(minHeight: 40)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }

@@ -93,6 +93,7 @@
     <string name="common_undo">Undo</string>
     <string name="common_done">Done</string>
     <string name="common_search">Search</string>
+    <string name="common_loading">Loading</string>
     <string name="common_refresh">Refresh</string>
     <string name="draft_saved">Draft saved</string>
     <string name="compose_new">Compose</string>

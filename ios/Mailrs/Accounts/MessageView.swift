@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// One message from a connected mailbox, open.
 struct MessageView: View {
@@ -96,7 +97,7 @@ struct MessageView: View {
         } catch {
             // Said rather than swallowed: a tap that does nothing at
             // all reads as a broken button.
-            openFailure = "This attachment could not be opened."
+            openFailure = AppText.string("This attachment could not be opened.")
         }
     }
 
@@ -186,7 +187,7 @@ struct MessageView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(attachment.filename).font(.subheadline)
                                 Text(
-                                    "\(attachment.mimeType) · "
+                                    "\(FileKind.name(mimeType: attachment.mimeType)) · "
                                         + attachment.size.formatted(.byteCount(style: .file))
                                 )
                                 .font(.caption2)
@@ -239,5 +240,13 @@ struct MessageView: View {
                 }
             }
         }
+    }
+}
+
+/// What kind of file, in the reader's words: "PDF document" rather than
+/// "application/pdf". The MIME type itself when the system has no name.
+enum FileKind {
+    static func name(mimeType: String) -> String {
+        UTType(mimeType: mimeType)?.localizedDescription ?? mimeType
     }
 }

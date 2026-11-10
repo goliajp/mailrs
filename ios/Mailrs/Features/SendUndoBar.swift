@@ -11,7 +11,6 @@ struct SendUndoBar: View {
         if let pending = session.pendingSend {
             HStack(spacing: 12) {
                 Text(SendUndoBar.label(pending.state))
-                    .foregroundStyle(.white)
                     .accessibilityIdentifier("send-undo-status")
                 if pending.state == .offered {
                     Button("Undo") {
@@ -24,8 +23,7 @@ struct SendUndoBar: View {
             .font(.subheadline)
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(.thinMaterial, in: Capsule())
-            .padding(.bottom, 24)
+            .floatingGlass(in: .capsule)
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }

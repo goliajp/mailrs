@@ -50,9 +50,9 @@ final class LayoutShotTests: MailrsUITestCase {
         // Chinese too, where these say 選択 and 完了, and an English label
         // stopped it at the first step.
         app.buttons["list.select"].tap()
-        app.buttons.containing(
-            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
-        ).firstMatch.tap()
+        // the row's text: in select mode a row is a selectable cell, not
+        // a link, so it is no longer a button
+        app.staticTexts["Quarterly report and the follow-up notes"].tap()
         shoot(app, "01b-selection")
         app.buttons["list.done"].tap()
 
@@ -100,6 +100,21 @@ final class LayoutShotTests: MailrsUITestCase {
             // The images offer only appears once the body is up.
             _ = app.buttons["load-images"].waitForExistence(timeout: 10)
             shoot(app, "07-wide-body")
+            // the message's own actions, on the button in its header
+            let more = app.buttons["message.more"].firstMatch
+            if more.waitForExistence(timeout: 5) {
+                more.tap()
+                _ = app.buttons["View source"].waitForExistence(timeout: 5)
+                shoot(app, "08-message-menu")
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
+            }
+            // a long press on Load images is a press on the button, not
+            // a menu over a preview of the whole card
+            let load = app.buttons["load-images"].firstMatch
+            if load.exists {
+                load.press(forDuration: 1.2)
+                shoot(app, "09-load-images-long-press")
+            }
         }
     }
 
@@ -235,6 +250,114 @@ final class LayoutShotTests: MailrsUITestCase {
             _ = app.alerts.firstMatch.waitForExistence(timeout: 5)
             shoot(app, "32-link-question")
         }
+    }
+
+    /// Switching lists while the first page is out: what the screen shows
+    /// before the rows arrive, for a list never opened and for one opened
+    /// before, and the list once they are in.
+    func testPhotographsListSwitch() {
+        let app = launch(signedIn: true, language: language, appearance: appearance)
+        XCTAssertTrue(
+            app.staticTexts["Quarterly report and the follow-up notes"]
+                .waitForExistence(timeout: 15),
+            "inbox never listed"
+        )
+        shoot(app, "40-inbox")
+        setStubListDelay(2500)
+        tapInListsMenu(app, "Starred")
+        Thread.sleep(forTimeInterval: 0.6)
+        shoot(app, "41-starred-loading")
+        _ = app.staticTexts["Starred thread"].waitForExistence(timeout: 10)
+        shoot(app, "42-starred")
+        tapInListsMenu(app, "Inbox")
+        Thread.sleep(forTimeInterval: 0.6)
+        shoot(app, "43-inbox-again-loading")
+        Thread.sleep(forTimeInterval: 3)
+        shoot(app, "44-inbox-again")
+        setStubListDelay(0)
+    }
+
+    /// Every other surface a reader meets, for the design pass: row
+    /// gestures, the lists menu, other lists and an empty one, search,
+    /// drafts, the calendar and the reply sheet. English labels, so it
+    /// is run in English, in both themes.
+    func testPhotographsEverySurface() {
+        let app = launch(signedIn: true, appearance: appearance)
+        XCTAssertTrue(
+            app.staticTexts["Quarterly report and the follow-up notes"]
+                .waitForExistence(timeout: 15),
+            "inbox never listed"
+        )
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+
+        row.swipeLeft()
+        shoot(app, "50-swipe-trailing")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6)).tap()
+        row.swipeRight()
+        shoot(app, "51-swipe-leading")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6)).tap()
+
+        if longPress(row, until: app.buttons["row.menu.label"]) {
+            shoot(app, "52-row-menu")
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).tap()
+        }
+
+        app.buttons["open-lists"].tap()
+        Thread.sleep(forTimeInterval: 0.8)
+        shoot(app, "53-lists-menu")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.9)).tap()
+
+        for (name, key) in [("Sent", "54-sent"), ("Junk", "55-junk"), ("Snoozed", "56-empty")] {
+            tapInListsMenu(app, name)
+            Thread.sleep(forTimeInterval: 1.5)
+            shoot(app, key)
+        }
+        tapInListsMenu(app, "Inbox")
+        _ = row.waitForExistence(timeout: 10)
+
+        let field = app.searchFields.firstMatch
+        if field.waitForExistence(timeout: 5) {
+            field.tap()
+            Thread.sleep(forTimeInterval: 0.8)
+            shoot(app, "57-search-empty")
+            field.typeText("report")
+            Thread.sleep(forTimeInterval: 1.5)
+            shoot(app, "58-search-results")
+            // iOS 26 closes the search field with an "x" beside it
+            if app.buttons["close"].exists { app.buttons["close"].tap() }
+            Thread.sleep(forTimeInterval: 0.8)
+        }
+
+        tapInListsMenu(app, "Drafts")
+        Thread.sleep(forTimeInterval: 1.5)
+        shoot(app, "59-drafts")
+        app.swipeDown(velocity: .fast)
+        Thread.sleep(forTimeInterval: 0.8)
+
+        app.buttons["open-lists"].tap()
+        scrollTo(app, button: "open-calendar")
+        app.buttons["open-calendar"].tap()
+        Thread.sleep(forTimeInterval: 1.5)
+        shoot(app, "60-calendar")
+        app.swipeDown(velocity: .fast)
+        Thread.sleep(forTimeInterval: 0.8)
+
+        _ = row.waitForExistence(timeout: 10)
+        row.tap()
+        if app.buttons["Reply"].waitForExistence(timeout: 10) {
+            shoot(app, "61-thread-top")
+            app.buttons["Reply"].tap()
+            Thread.sleep(forTimeInterval: 1.2)
+            shoot(app, "62-reply")
+        }
+    }
+
+    func testPhotographsSignIn() {
+        let app = launch(signedIn: false, language: language, appearance: appearance)
+        Thread.sleep(forTimeInterval: 2)
+        shoot(app, "70-sign-in")
     }
 
     /// The Trash's name in the run's language, to find it in the menu.

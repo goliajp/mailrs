@@ -3842,6 +3842,22 @@
         }
       }
     },
+    "Loading": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "読み込み中"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在加载"
+          }
+        }
+      }
+    },
     "Login name, if it is not the address": {
       "localizations": {
         "ja": {
@@ -4257,6 +4273,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "邮件"
+          }
+        }
+      }
+    },
+    "Message actions": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メッセージの操作"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "邮件操作"
           }
         }
       }

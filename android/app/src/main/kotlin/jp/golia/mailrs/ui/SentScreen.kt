@@ -25,7 +25,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -98,7 +97,7 @@ fun SentScreen(state: UiState, vm: MailViewModel) {
         Box(Modifier.padding(padding).fillMaxSize()) {
             when {
                 state.busy && state.sentMail.isEmpty() ->
-                    CircularProgressIndicator(Modifier.align(Alignment.Center), color = theme.accent)
+                    ListPlaceholder()
 
                 state.sentMail.isEmpty() ->
                     Text(

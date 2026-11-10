@@ -14,7 +14,7 @@ struct TeamNotesSection: View {
                 Label("Internal notes · Only the team sees these. They are never sent",
                       systemImage: "lock")
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Color.warningText)
                 if let notes {
                     if notes.isEmpty {
                         Text("No notes yet").font(.caption).foregroundStyle(.secondary)
@@ -26,7 +26,7 @@ struct TeamNotesSection: View {
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.orange.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+            .background(Color.orange.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("team.notes")
             .task(id: conversation.threadId) { notes = await session.teamNotes(c) }
@@ -74,7 +74,7 @@ struct ReplyClaimHint: View {
             }
         }
         .font(.caption)
-        .foregroundStyle(.orange)
+        .foregroundStyle(Color.warningText)
         // one sentence, not an icon and a line read apart
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("reply.claimHint")

@@ -22,7 +22,7 @@ struct SendListSection: View {
     var body: some View {
         if rows.isEmpty && session.scheduledSends.isEmpty {
             if session.initialLoading {
-                ProgressView()
+                ListPlaceholder()
             } else {
                 ContentUnavailableView(
                     "Nothing sent yet", systemImage: "paperplane",
@@ -44,6 +44,8 @@ struct SendListSection: View {
                 Section {
                     ForEach(rows) { row in
                         SendRowView(row: row)
+                            .listRowSeparator(ListEdges.top(row.id == rows.first?.id), edges: .top)
+                            .listRowSeparator(ListEdges.bottom(row.id == rows.last?.id), edges: .bottom)
                     }
                 }
             }
@@ -76,16 +78,9 @@ private struct SendRowView: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            // The web's `flagged` left border: a send that failed is
-            // worth more attention than anything else a row can say,
-            // and a status word alone is easy to scan past.
-            Rectangle()
-                .fill(edgeColor)
-                .frame(width: 3)
-                .clipShape(Capsule())
-            if !face.isEmpty {
-                SenderAvatar(sender: face)
-            }
+            // Always drawn, so every row's text starts at one edge; a
+            // send with no recipient gets the "?" face.
+            SenderAvatar(sender: face)
             VStack(alignment: .leading, spacing: 2) {
             HStack {
                 ValueOrPlaceholder(value: displayedTo, placeholder: "(no recipient)")
@@ -104,6 +99,16 @@ private struct SendRowView: View {
             }
         }
         .padding(.vertical, 2)
+        // The web's `flagged` left border: a send that failed is worth
+        // more attention than anything else a row can say, and a status
+        // word alone is easy to scan past. Drawn at the row's edge, not
+        // in its layout, so a row without it lines up with one with it.
+        .listRowBackground(
+            ZStack(alignment: .leading) {
+                Color.pageBackground
+                Rectangle().fill(edgeColor).frame(width: 3)
+            }
+        )
         // Offered only where the server says the bytes are still
         // there: against anything else it answers 409, and a button
         // that fails after the tap is worse than no button.
@@ -199,7 +204,7 @@ private struct StatusBadge: View {
         case "partial":
             Label(title, systemImage: "exclamationmark.triangle.fill")
                 .labelStyle(.titleAndIcon)
-                .chip(.orange)
+                .chip(Color.warningText)
         case "delivered":
             Image(systemName: "checkmark")
                 .font(.caption2)
