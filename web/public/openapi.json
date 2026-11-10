@@ -17174,6 +17174,86 @@
           }
         }
       }
+    },
+    "/api/admin/fraud/rules/{rule}/triggers": {
+      "get": {
+        "operationId": "listRuleTriggers",
+        "summary": "Every delivery a fraud rule under review fired on, one by one, for its review. Super administrators only",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "rule",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "A rule under review, e.g. `burner-domain-outreach`"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 60,
+              "default": 30
+            },
+            "description": "UTC days back, including today"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Oldest day first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "days": {
+                      "type": "integer"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "at": {
+                            "type": "integer",
+                            "description": "Unix seconds it was received"
+                          },
+                          "recipients": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "from_domain": {
+                            "type": "string"
+                          },
+                          "detail": {
+                            "type": "string",
+                            "description": "What the rule saw beyond the sender: for burner-domain-outreach, the host the sender's web root landed on"
+                          },
+                          "message_id": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not a rule under review"
+          }
+        }
+      }
     }
   },
   "components": {
