@@ -43,6 +43,11 @@
    - `text-mini` = 11px  (used for chip labels / dense metadata)
    - `text-mid`  = 13px  (used for compact-list content) */
 @theme {
+  /* the top row of every desktop pane (folder title, list search, reading
+     and writing headers), dividing line included, so the rows line up
+     across the panes: `h-pane-header` / `min-h-pane-header` */
+  --spacing-pane-header: 3.25rem;
+
   --text-tiny: 10px;
   --text-tiny--line-height: 14px;
   --text-mini: 11px;
