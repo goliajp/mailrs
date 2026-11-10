@@ -17,16 +17,12 @@ extension MailrsUITestCase {
     func pendingCancels() -> [String] {
         guard let url = URL(string: "http://localhost:6039/debug/pending-cancels") else { return [] }
         var result: [String] = []
-        let done = expectation(description: "debug/pending-cancels")
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            if let data,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let cancels = json["cancels"] as? [String] {
-                result = cancels
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
+        let data = stubData(url)
+        if let data,
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let cancels = json["cancels"] as? [String] {
+            result = cancels
+        }
         return result
     }
 

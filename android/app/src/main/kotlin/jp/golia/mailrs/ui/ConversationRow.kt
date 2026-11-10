@@ -95,7 +95,12 @@ fun ConversationRow(
             // carries both meanings on one row; a separate long-press
             // pointer modifier would race the tap.
             .combinedClickable(onLongClick = onLongPress, onClick = onClick)
-            .background(if (selected) theme.accent.copy(alpha = 0.14f) else theme.bg)
+            .background(
+                when (selected) {
+                    true -> theme.selected
+                    false -> theme.bg
+                },
+            )
             .testTag("row.conversation")
             .semantics {
                 customActions = listOfNotNull(

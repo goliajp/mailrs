@@ -65,9 +65,12 @@ struct SenderAvatar: View {
             if let icon = icons.icon(for: sender) {
                 // The brand's own mark when its domain publishes one,
                 // the same cascade the web client draws from.
+                // On white, as the web and Android draw it: a mark with a
+                // transparent background vanished into the dark page.
                 icon
                     .resizable()
                     .aspectRatio(contentMode: .fill)
+                    .background(Color.white)
                     .clipShape(Circle())
             } else {
                 // The letter is not a placeholder for a pending icon —

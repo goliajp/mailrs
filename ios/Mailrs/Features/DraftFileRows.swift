@@ -47,7 +47,7 @@ struct DraftFileRows: View {
                     .foregroundStyle(.secondary)
                 details(entry)
                 Button {
-                    _ = withAnimation { files.remove(entry.id) }
+                    withAnimation { files.remove(entry.id) }
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.secondary)

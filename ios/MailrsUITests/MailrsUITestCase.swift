@@ -1,3 +1,4 @@
+import os
 import XCTest
 
 /// The path a person actually takes: sign in, see the inbox, open a
@@ -14,6 +15,7 @@ import XCTest
 /// (`expectation`, `wait`) are in scope. `private` came off the helpers
 /// on the way out: in Swift that is file scope, and the subclasses are
 /// in other files now.
+@MainActor
 class MailrsUITestCase: XCTestCase {
     func launch(
         signedIn: Bool = false, folder: String? = nil, listDelayMs: Int = 0,
@@ -171,16 +173,12 @@ class MailrsUITestCase: XCTestCase {
     func accountPosts() -> [[String: Any]] {
         guard let url = URL(string: "http://localhost:6039/debug/account-posts") else { return [] }
         var result: [[String: Any]] = []
-        let done = expectation(description: "debug/account-posts")
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            if let data,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let posts = json["posts"] as? [[String: Any]] {
-                result = posts
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
+        let data = stubData(url)
+        if let data,
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let posts = json["posts"] as? [[String: Any]] {
+            result = posts
+        }
         return result
     }
 
@@ -193,16 +191,12 @@ class MailrsUITestCase: XCTestCase {
         var request = URLRequest(url: url)
         request.setValue("Bearer stub-token", forHTTPHeaderField: "Authorization")
         var result: [String] = []
-        let done = expectation(description: "group grants")
-        URLSession.shared.dataTask(with: request) { data, _, _ in
-            if let data,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let permissions = json["permissions"] as? [String] {
-                result = permissions
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
+        let data = stubData(request)
+        if let data,
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let permissions = json["permissions"] as? [String] {
+            result = permissions
+        }
         return result
     }
 
@@ -211,16 +205,12 @@ class MailrsUITestCase: XCTestCase {
     func listFetches() -> Int {
         guard let url = URL(string: "http://localhost:6039/debug/list-fetches") else { return -1 }
         var result = -1
-        let done = expectation(description: "debug/list-fetches")
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            if let data,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let fetches = json["fetches"] as? Int {
-                result = fetches
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
+        let data = stubData(url)
+        if let data,
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let fetches = json["fetches"] as? Int {
+            result = fetches
+        }
         return result
     }
 
@@ -229,16 +219,12 @@ class MailrsUITestCase: XCTestCase {
     func contactQueries() -> [String] {
         guard let url = URL(string: "http://localhost:6039/debug/contact-queries") else { return [] }
         var result: [String] = []
-        let done = expectation(description: "debug/contact-queries")
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            if let data,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let queries = json["queries"] as? [String] {
-                result = queries
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
+        let data = stubData(url)
+        if let data,
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let queries = json["queries"] as? [String] {
+            result = queries
+        }
         return result
     }
 
@@ -325,14 +311,10 @@ class MailrsUITestCase: XCTestCase {
     func phishHits() -> Int {
         guard let url = URL(string: "http://localhost:6039/debug/phish-hits") else { return -1 }
         var hits = -1
-        let done = expectation(description: "phish-hits")
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            if let data, let body = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                hits = body["hits"] as? Int ?? -1
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
+        let data = stubData(url)
+        if let data, let body = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            hits = body["hits"] as? Int ?? -1
+        }
         return hits
     }
 
@@ -341,16 +323,12 @@ class MailrsUITestCase: XCTestCase {
     func unseenFetches() -> Int {
         guard let url = URL(string: "http://localhost:6039/debug/unseen-fetches") else { return -1 }
         var result = -1
-        let done = expectation(description: "debug/unseen-fetches")
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            if let data,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let fetches = json["fetches"] as? Int {
-                result = fetches
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
+        let data = stubData(url)
+        if let data,
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let fetches = json["fetches"] as? Int {
+            result = fetches
+        }
         return result
     }
 
@@ -359,16 +337,12 @@ class MailrsUITestCase: XCTestCase {
     func recordedWrites() -> [String] {
         guard let url = URL(string: "http://localhost:6039/debug/writes") else { return [] }
         var result: [String] = []
-        let done = expectation(description: "debug/writes")
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            if let data,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let writes = json["writes"] as? [String] {
-                result = writes
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
+        let data = stubData(url)
+        if let data,
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let writes = json["writes"] as? [String] {
+            result = writes
+        }
         return result
     }
 
@@ -377,16 +351,12 @@ class MailrsUITestCase: XCTestCase {
     func storedDrafts() -> [[String: Any]] {
         guard let url = URL(string: "http://localhost:6039/api/mail/drafts") else { return [] }
         var result: [[String: Any]] = []
-        let done = expectation(description: "drafts")
         var request = URLRequest(url: url)
         request.setValue("Bearer stub-token", forHTTPHeaderField: "Authorization")
-        URLSession.shared.dataTask(with: request) { data, _, _ in
-            if let data, let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-                result = json
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
+        let data = stubData(request)
+        if let data, let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+            result = json
+        }
         return result
     }
 
@@ -395,16 +365,12 @@ class MailrsUITestCase: XCTestCase {
     func sentMessages() -> [[String: Any]] {
         guard let url = URL(string: "http://localhost:6039/debug/sent") else { return [] }
         var result: [[String: Any]] = []
-        let done = expectation(description: "debug/sent")
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            if let data,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let sent = json["sent"] as? [[String: Any]] {
-                result = sent
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
+        let data = stubData(url)
+        if let data,
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let sent = json["sent"] as? [[String: Any]] {
+            result = sent
+        }
         return result
     }
 
@@ -418,16 +384,12 @@ class MailrsUITestCase: XCTestCase {
     func unsubscribeRequests() -> [[String: Any]] {
         guard let url = URL(string: "http://localhost:6039/debug/unsubscribed") else { return [] }
         var result: [[String: Any]] = []
-        let done = expectation(description: "debug/unsubscribed")
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            if let data,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let rows = json["unsubscribed"] as? [[String: Any]] {
-                result = rows
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
+        let data = stubData(url)
+        if let data,
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let rows = json["unsubscribed"] as? [[String: Any]] {
+            result = rows
+        }
         return result
     }
 
@@ -436,16 +398,12 @@ class MailrsUITestCase: XCTestCase {
     func fetchedAttachmentIndices() -> [Int] {
         guard let url = URL(string: "http://localhost:6039/debug/fetched") else { return [] }
         var result: [Int] = []
-        let done = expectation(description: "debug/fetched")
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            if let data,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let indices = json["attachment_indices"] as? [Int] {
-                result = indices
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
+        let data = stubData(url)
+        if let data,
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let indices = json["attachment_indices"] as? [Int] {
+            result = indices
+        }
         return result
     }
 
@@ -481,17 +439,35 @@ class MailrsUITestCase: XCTestCase {
     func postedVerbs() -> [String] {
         guard let url = URL(string: "http://localhost:6039/debug/verbs") else { return [] }
         var out: [String] = []
-        let done = expectation(description: "debug/verbs")
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            if let data,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let verbs = json["verbs"] as? [String] {
-                out = verbs
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
+        let data = stubData(url)
+        if let data,
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let verbs = json["verbs"] as? [String] {
+            out = verbs
+        }
         return out
     }
 
+}
+
+extension MailrsUITestCase {
+    /// One request to the stub, answered before the test goes on: the
+    /// tests read and steer the stub between steps. The answer is handed
+    /// over through a lock rather than a captured `var`, which the
+    /// session's completion handler would otherwise mutate from another
+    /// thread.
+    @nonobjc func stubData(_ request: URLRequest) -> Data? {
+        let answer = OSAllocatedUnfairLock<Data?>(initialState: nil)
+        let done = expectation(description: request.url?.path ?? "stub")
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            answer.withLock { $0 = data }
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 10)
+        return answer.withLock { $0 }
+    }
+
+    @nonobjc func stubData(_ url: URL) -> Data? {
+        stubData(URLRequest(url: url))
+    }
 }

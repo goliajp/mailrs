@@ -19,15 +19,11 @@ final class RoleFlowTests: MailrsUITestCase {
     private func meReads() -> Int {
         guard let url = URL(string: "http://localhost:6039/debug/role-state") else { return -1 }
         var result = -1
-        let done = expectation(description: "role-state")
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            if let data,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                result = json["me_reads"] as? Int ?? -1
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
+        let data = stubData(url)
+        if let data,
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            result = json["me_reads"] as? Int ?? -1
+        }
         return result
     }
 

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -29,6 +30,16 @@ import jp.golia.mailrs.wire.InboxSection
  */
 @Composable
 fun InboxSectionBar(state: UiState, vm: MailViewModel) {
+    // The web's chips in the gds neutrals: the chosen one on border-strong
+    // in the full text colour, the rest on bg-secondary, muted, with no
+    // outline. Material's own selected chip is a lavender wash.
+    val theme = LocalTheme.current
+    val colors = FilterChipDefaults.filterChipColors(
+        containerColor = theme.bgSecondary,
+        labelColor = theme.fgMuted,
+        selectedContainerColor = theme.borderStrong,
+        selectedLabelColor = theme.fg,
+    )
     // Accept all sits outside the scrolling chips, at the end like the
     // web's: at the end of a scrolled row it would start off-screen.
     Row(Modifier.fillMaxWidth().padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -44,6 +55,8 @@ fun InboxSectionBar(state: UiState, vm: MailViewModel) {
                 selected = state.inboxSection == null,
                 onClick = { vm.selectSection(null) },
                 label = { Text(stringResource(R.string.section_all), fontSize = 13.sp) },
+                colors = colors,
+                border = null,
                 modifier = Modifier.testTag("section.all"),
             )
             for (s in InboxSection.entries) {
@@ -51,6 +64,8 @@ fun InboxSectionBar(state: UiState, vm: MailViewModel) {
                     selected = state.inboxSection == s.wire,
                     onClick = { vm.selectSection(s) },
                     label = { Text(stringResource(s.label), fontSize = 13.sp) },
+                    colors = colors,
+                    border = null,
                     modifier = Modifier.testTag("section.${s.wire}"),
                 )
             }

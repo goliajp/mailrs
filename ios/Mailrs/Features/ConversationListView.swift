@@ -14,6 +14,7 @@ struct ConversationListView: View {
     /// `editMode` is active; leaving select mode clears it.
     @State private var showingSettings = false
     @State private var selection = Set<String>()
+    @Environment(\.theme) private var theme
     @State private var editMode: EditMode = .inactive
     /// The thread whose bucket is being chosen, from the swipe.
     @State private var pendingMove: Wire.Conversation?
@@ -57,12 +58,9 @@ struct ConversationListView: View {
                         // edge; on a dense list of mostly-grey rows it
                         // is not enough to see at a glance which ones
                         // the batch bar is about to act on.
-                        .listRowBackground(
-                            selection.contains(conversation.threadId)
-                                ? Color.accentColor.opacity(0.18)
-                                : Color.pageBackground
-                        )
+                        .listRowBackground(rowBackground(conversation))
                         .listRowSeparator(ListEdges.top(isFirst(conversation)), edges: .top)
+                        .listRowSeparatorTint(theme.borderStrong)
                         .listRowSeparator(ListEdges.bottom(isLast(conversation)), edges: .bottom)
                         .contextMenu {
                             ConversationRowMenu(conversation: conversation) { pendingDelete = $0 }
@@ -89,6 +87,10 @@ struct ConversationListView: View {
                         }
                     }
                     .listStyle(.plain)
+                    // the gds page under the rows and below them; the
+                    // list's own background is the system's pure black
+                    .scrollContentBackground(.hidden)
+                    .background(Color.pageBackground)
                     .softScrollEdges()
                     // Room for the search field iOS 26 pins to the
                     // bottom. It floats over the rows, so the last one
@@ -101,6 +103,9 @@ struct ConversationListView: View {
                     .refreshable { await session.loadConversations() }
                 }
             }
+            // the empty and loading states on the same gds page
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.pageBackground)
             // the reader's labels, for the list menu and the row menu
             .task {
                 await session.loadLabels()
@@ -339,6 +344,11 @@ struct ConversationListView: View {
                 }
             }
             .environment(\.editMode, $editMode)
+            // a row tapped to be read is selected too; outside select
+            // mode that is not a choice, so it is not kept
+            .onChange(of: selection) { _, chosen in
+                if editMode != .active, !chosen.isEmpty { selection.removeAll() }
+            }
         }
     }
 
@@ -408,6 +418,17 @@ struct ConversationListView: View {
                 ConversationRow(conversation: conversation, isSelecting: false)
             }
         }
+    }
+
+    /// The gds neutral under a chosen row while choosing, the page
+    /// otherwise. Only while choosing: tapping a row to read it also
+    /// selects it, and the accent wash stayed on the row after coming
+    /// back, a navy band in dark mode.
+    private func rowBackground(_ conversation: Wire.Conversation) -> Color {
+        if editMode == .active, selection.contains(conversation.threadId) {
+            return theme.selectedRow
+        }
+        return Color.pageBackground
     }
 
     private func isFirst(_ conversation: Wire.Conversation) -> Bool {

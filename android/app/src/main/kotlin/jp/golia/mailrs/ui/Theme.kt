@@ -47,6 +47,12 @@ data class Theme(
     val danger: Color,
     val info: Color,
     /**
+     * Under a chosen row or drawer entry: `bg-tertiary` in light mode,
+     * one step up in dark where `bg-tertiary` barely shows. A wash of the
+     * accent read as navy in dark mode, which is not a gds colour.
+     */
+    val selected: Color,
+    /**
      * Which of the two this is.
      *
      * A message body needs the answer and cannot get it from the
@@ -65,6 +71,7 @@ data class Theme(
             accent = Color(0xFF3B7DDD), accentFg = Color(0xFFFFFFFF),
             success = Color(0xFF0CA678), warning = Color(0xFFE67700),
             danger = Color(0xFFE03131), info = Color(0xFF3B7DDD),
+            selected = Color(0xFFE4E4E7),
             isDark = false,
         )
 
@@ -76,6 +83,7 @@ data class Theme(
             accent = Color(0xFF3B82F6), accentFg = Color(0xFFFFFFFF),
             success = Color(0xFF22C55E), warning = Color(0xFFF59E0B),
             danger = Color(0xFFEF4444), info = Color(0xFF3B82F6),
+            selected = Color(0xFF27272A),
             isDark = true,
         )
     }

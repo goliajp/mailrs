@@ -8,15 +8,11 @@ final class ResetCodeFlowTests: MailrsUITestCase {
     private func resetDone() -> Bool {
         guard let url = URL(string: "http://localhost:6039/debug/reset-state") else { return false }
         var done = false
-        let finished = expectation(description: "reset-state")
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            if let data,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                done = json["done"] as? Bool ?? false
-            }
-            finished.fulfill()
-        }.resume()
-        wait(for: [finished], timeout: 10)
+        let data = stubData(url)
+        if let data,
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            done = json["done"] as? Bool ?? false
+        }
         return done
     }
 

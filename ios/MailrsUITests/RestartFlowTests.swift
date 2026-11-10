@@ -18,15 +18,11 @@ final class RestartFlowTests: MailrsUITestCase {
     private func servedAfter() -> Int {
         guard let url = URL(string: "http://localhost:6039/debug/restart-state") else { return -1 }
         var result = -1
-        let done = expectation(description: "restart-state")
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            if let data,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                result = json["served_after"] as? Int ?? -1
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
+        let data = stubData(url)
+        if let data,
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            result = json["served_after"] as? Int ?? -1
+        }
         return result
     }
 

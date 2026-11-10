@@ -143,9 +143,9 @@ actor SMTPSession {
     /// truncates the message there while it still arrives looking
     /// complete.
     func send(from: String, to: [String], message: AnySequence<String>) async throws {
-        try await expect(try await command("MAIL FROM:<\(from)>"))
+        try expect(try await command("MAIL FROM:<\(from)>"))
         for rcpt in to {
-            try await expect(try await command("RCPT TO:<\(rcpt)>"))
+            try expect(try await command("RCPT TO:<\(rcpt)>"))
         }
         let start = try await command("DATA")
         guard start.code == 354 else {
@@ -162,7 +162,7 @@ actor SMTPSession {
         // already ended on one must not gain a blank line — some
         // servers keep it and the reader sees it.
         try await write(last.hasSuffix("\r\n") ? ".\r\n" : "\r\n.\r\n")
-        try await expect(try await readReply())
+        try expect(try await readReply())
         _ = try? await command("QUIT")
     }
 
