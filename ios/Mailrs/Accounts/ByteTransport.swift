@@ -187,6 +187,11 @@ actor UpgradableTransport: ByteTransport {
 
     func receive() async throws -> Data {
         guard let input else { throw TransportFailure.closed }
+        // The stream is not `Sendable`, and it is handed to one
+        // background thread at a time: the session above awaits each
+        // read before it asks for the next, so no two threads ever hold
+        // it at once.
+        nonisolated(unsafe) let stream = input
         // Blocking reads on a background thread rather than the run
         // loop: the session above is `async` and reads one line at a
         // time, and a run-loop-driven stream would need a delegate and
@@ -198,9 +203,9 @@ actor UpgradableTransport: ByteTransport {
                 // hop — a buffer captured by a concurrent closure is
                 // read by one thread while another is filling it.
                 var chunk = [UInt8](repeating: 0, count: 16 * 1024)
-                let read = input.read(&chunk, maxLength: chunk.count)
+                let read = stream.read(&chunk, maxLength: chunk.count)
                 if read < 0 {
-                    let why = input.streamError?.localizedDescription ?? "the connection failed"
+                    let why = stream.streamError?.localizedDescription ?? "the connection failed"
                     k.resume(throwing: TransportFailure.unreachable(why))
                     return
                 }
@@ -215,6 +220,8 @@ actor UpgradableTransport: ByteTransport {
 
     func send(_ data: Data) async throws {
         guard let output else { throw TransportFailure.closed }
+        // handed to one background thread at a time, as in `receive`
+        nonisolated(unsafe) let sink = output
         try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 var sent = 0
@@ -222,10 +229,10 @@ actor UpgradableTransport: ByteTransport {
                 while sent < bytes.count {
                     let wrote = bytes[sent...].withUnsafeBufferPointer { buffer -> Int in
                         guard let base = buffer.baseAddress else { return -1 }
-                        return output.write(base, maxLength: buffer.count)
+                        return sink.write(base, maxLength: buffer.count)
                     }
                     if wrote <= 0 {
-                        let why = output.streamError?.localizedDescription ?? "the connection failed"
+                        let why = sink.streamError?.localizedDescription ?? "the connection failed"
                         k.resume(throwing: TransportFailure.unreachable(why))
                         return
                     }

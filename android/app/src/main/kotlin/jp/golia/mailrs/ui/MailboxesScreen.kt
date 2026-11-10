@@ -380,7 +380,7 @@ private fun AccountRow(a: MailAccount, onRemove: () -> Unit) {
 private fun KindChip(kind: Incoming, on: Boolean, onTap: () -> Unit) {
     val theme = LocalTheme.current
     val background = when {
-        on -> theme.accent.copy(alpha = 0.18f)
+        on -> theme.borderStrong
         else -> theme.bgSecondary
     }
     Text(

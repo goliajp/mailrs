@@ -412,7 +412,7 @@ private fun AccountChip(
 ) {
     val theme = LocalTheme.current
     val background = when {
-        on -> theme.accent.copy(alpha = 0.18f)
+        on -> theme.borderStrong
         else -> theme.bgSecondary
     }
     Row(

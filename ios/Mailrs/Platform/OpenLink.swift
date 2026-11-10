@@ -11,7 +11,7 @@ enum OpenLink {
         #if os(macOS)
             NSWorkspace.shared.open(url)
         #else
-            Task { @MainActor in _ = UIApplication.shared.open(url) }
+            Task { @MainActor in UIApplication.shared.open(url) }
         #endif
     }
 }

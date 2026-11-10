@@ -13,7 +13,7 @@ extension Color {
         #if os(macOS)
             Color(nsColor: .textBackgroundColor)
         #else
-            Color(.systemBackground)
+            gds(light: 0xFFFFFF, dark: 0x09090B)
         #endif
     }
 
@@ -22,7 +22,7 @@ extension Color {
         #if os(macOS)
             Color(nsColor: .controlBackgroundColor)
         #else
-            Color(.secondarySystemGroupedBackground)
+            gds(light: 0xFFFFFF, dark: 0x18181B)
         #endif
     }
 
@@ -32,9 +32,30 @@ extension Color {
         #if os(macOS)
             Color(nsColor: .windowBackgroundColor)
         #else
-            Color(.systemGroupedBackground)
+            gds(light: 0xF4F4F5, dark: 0x09090B)
         #endif
     }
+
+    #if !os(macOS)
+        /// A gds zinc-neutral value for each appearance, so the app's own
+        /// surfaces are the web client's rather than the system's: the
+        /// system's dark grey cards and pure black pages are a different
+        /// palette from the one `Theme` holds.
+        static func gds(light: UInt32, dark: UInt32) -> Color {
+            Color(UIColor { traits in
+                if traits.userInterfaceStyle == .dark { return uiColor(dark) }
+                return uiColor(light)
+            })
+        }
+
+        private static func uiColor(_ value: UInt32) -> UIColor {
+            UIColor(
+                red: CGFloat((value >> 16) & 0xFF) / 255,
+                green: CGFloat((value >> 8) & 0xFF) / 255,
+                blue: CGFloat(value & 0xFF) / 255,
+                alpha: 1)
+        }
+    #endif
 
     /// Orange for words that warn, dark enough to read in light mode.
     /// The system orange on white, or on a wash of itself, is about

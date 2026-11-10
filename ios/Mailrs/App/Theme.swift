@@ -27,6 +27,10 @@ struct Theme: Equatable, Sendable {
     let warning: Color
     let danger: Color
     let info: Color
+    /// Under a chosen row: the web's `bg-tertiary` in light mode; one
+    /// step up in dark, where the page is black and `bg-tertiary` would
+    /// not show.
+    let selectedRow: Color
 
     static let light = Theme(
         bg: .hex(0xFAFAFA), bgSecondary: .hex(0xF4F4F5), bgTertiary: .hex(0xE4E4E7),
@@ -35,7 +39,8 @@ struct Theme: Equatable, Sendable {
         border: .hex(0xE4E4E7), borderStrong: .hex(0xD4D4D8),
         accent: .hex(0x3B7DDD), accentFg: .hex(0xFFFFFF),
         success: .hex(0x0CA678), warning: .hex(0xE67700),
-        danger: .hex(0xE03131), info: .hex(0x3B7DDD)
+        danger: .hex(0xE03131), info: .hex(0x3B7DDD),
+        selectedRow: .hex(0xE4E4E7)
     )
 
     static let dark = Theme(
@@ -45,7 +50,8 @@ struct Theme: Equatable, Sendable {
         border: .hex(0x27272A), borderStrong: .hex(0x3F3F46),
         accent: .hex(0x3B82F6), accentFg: .hex(0xFFFFFF),
         success: .hex(0x22C55E), warning: .hex(0xF59E0B),
-        danger: .hex(0xEF4444), info: .hex(0x3B82F6)
+        danger: .hex(0xEF4444), info: .hex(0x3B82F6),
+        selectedRow: .hex(0x27272A)
     )
 
     static func of(_ scheme: ColorScheme) -> Theme {

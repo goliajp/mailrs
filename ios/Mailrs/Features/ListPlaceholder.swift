@@ -7,13 +7,18 @@ import SwiftUI
 /// moves when the rows arrive. A centred spinner put the only thing on
 /// screen in the middle and then replaced it with rows at the top.
 struct ListPlaceholder: View {
+    @Environment(\.theme) private var theme
+
     var body: some View {
         List(0..<8, id: \.self) { index in
             PlaceholderRow(index: index)
                 .listRowBackground(Color.pageBackground)
                 .listRowSeparator(ListEdges.top(index == 0), edges: .top)
+                .listRowSeparatorTint(theme.borderStrong)
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Color.pageBackground)
         .scrollDisabled(true)
         .allowsHitTesting(false)
         .accessibilityElement(children: .ignore)
@@ -73,6 +78,7 @@ private struct PlaceholderRow: View {
                     .font(.caption)
                     .lineLimit(1)
             }
+            .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
         }
         .padding(.vertical, 2)
         .redacted(reason: .placeholder)

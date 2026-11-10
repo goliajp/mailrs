@@ -46,14 +46,10 @@ final class SectionFlowTests: MailrsUITestCase {
     private func accepted() -> [String] {
         guard let url = URL(string: "http://localhost:6039/debug/accepted") else { return [] }
         var result: [String] = []
-        let done = expectation(description: "debug/accepted")
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            if let data, let list = try? JSONSerialization.jsonObject(with: data) as? [String] {
-                result = list
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
+        let data = stubData(url)
+        if let data, let list = try? JSONSerialization.jsonObject(with: data) as? [String] {
+            result = list
+        }
         return result
     }
 }

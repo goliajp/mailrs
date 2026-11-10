@@ -10,6 +10,7 @@ struct SendListSection: View {
     /// substring on what is visible.
     let searchText: String
     @Environment(Session.self) private var session
+    @Environment(\.theme) private var theme
 
     private var rows: [SendJoin.Row] {
         guard let query = SearchRule.query(from: searchText) else { return session.sendRows }
@@ -46,10 +47,13 @@ struct SendListSection: View {
                         SendRowView(row: row)
                             .listRowSeparator(ListEdges.top(row.id == rows.first?.id), edges: .top)
                             .listRowSeparator(ListEdges.bottom(row.id == rows.last?.id), edges: .bottom)
+                            .listRowSeparatorTint(theme.borderStrong)
                     }
                 }
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.pageBackground)
             .refreshable {
                 await session.loadSendRows()
                 await session.loadScheduled()
@@ -97,6 +101,9 @@ private struct SendRowView: View {
                 StatusBadge(status: row.status)
             }
             }
+            // the rule under the row starts at the text on every row, not
+            // at the avatar's letter on some (see `ConversationRow`)
+            .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
         }
         .padding(.vertical, 2)
         // The web's `flagged` left border: a send that failed is worth

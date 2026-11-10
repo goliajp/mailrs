@@ -113,12 +113,8 @@ final class DraftFilesFlowTests: MailrsUITestCase {
         var request = URLRequest(url: url)
         request.setValue("Bearer stub-token", forHTTPHeaderField: "Authorization")
         var result: Any?
-        let done = expectation(description: path)
-        URLSession.shared.dataTask(with: request) { data, _, _ in
-            if let data { result = try? JSONSerialization.jsonObject(with: data) }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
+        let data = stubData(request)
+        if let data { result = try? JSONSerialization.jsonObject(with: data) }
         return result
     }
 }

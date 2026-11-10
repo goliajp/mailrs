@@ -71,6 +71,7 @@ struct ReasonTextTests {
 }
 
 @Suite("Fraud verdict wire")
+@MainActor
 struct FraudVerdictWireTests {
     /// The shape `GET /api/messages/{id}/fraud-verdict` answers on
     /// production, reasons with and without params.
