@@ -67,17 +67,16 @@ struct MailboxesView: View {
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    if model.syncing {
-                        ProgressView()
-                    } else {
-                        Button {
-                            Task { await model.sync() }
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                        .accessibilityLabel("Fetch mail")
-                        .accessibilityIdentifier("mailboxes.sync")
+                    // kept on the bar while fetching, only unable to act: a
+                    // spinner in its place changed the bar's width
+                    Button {
+                        Task { await model.sync() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
                     }
+                    .disabled(model.syncing)
+                    .accessibilityLabel("Fetch mail")
+                    .accessibilityIdentifier("mailboxes.sync")
                 }
             }
         }
@@ -305,7 +304,7 @@ struct MailboxRowView: View {
     }
 
     private var mailboxLine: String {
-        var name = "Unknown"
+        var name = AppText.string("Unknown")
         if let account { name = account.title }
         return "\(name) · \(row.folder)"
     }
@@ -324,9 +323,7 @@ struct MailboxRowView: View {
                         .lineLimit(1)
                     Spacer()
                     if let when = row.date {
-                        Text(Date(timeIntervalSince1970: TimeInterval(when)),
-                             format: .relative(presentation: .named))
-                            .font(.caption)
+                        RowDateText(epochSeconds: when)
                             .foregroundStyle(theme.fgMuted)
                     }
                 }

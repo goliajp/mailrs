@@ -35,6 +35,20 @@ extension Color {
             Color(.systemGroupedBackground)
         #endif
     }
+
+    /// Orange for words that warn, dark enough to read in light mode.
+    /// The system orange on white, or on a wash of itself, is about
+    /// 2:1, and one of the lines drawn in it is a fraud warning.
+    static var warningText: Color {
+        #if os(macOS)
+            Color.orange
+        #else
+            Color(UIColor { traits in
+                if traits.userInterfaceStyle == .dark { return .systemOrange }
+                return UIColor(red: 0xB4 / 255, green: 0x53 / 255, blue: 0x09 / 255, alpha: 1)
+            })
+        #endif
+    }
 }
 
 #if os(macOS)

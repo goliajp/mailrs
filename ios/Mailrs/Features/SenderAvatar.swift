@@ -31,12 +31,27 @@ struct SenderAvatar: View {
     ]
 
     static func color(for sender: String) -> Color {
+        palette[index(for: sender)]
+    }
+
+    private static func index(for sender: String) -> Int {
         let email = SenderName.extractEmail(sender)
         var hash: Int32 = 0
         for unit in email.utf16 {
             hash = hash &* 31 &+ Int32(unit)
         }
-        return palette[Int(hash.magnitude) % palette.count]
+        return Int(hash.magnitude) % palette.count
+    }
+
+    /// The palette entries light enough that a white letter on them
+    /// cannot be read: amber, yellow, lime and green.
+    private static let lightEntries: Set<Int> = [2, 3, 4, 5]
+
+    /// The letter's colour: white on the darker entries, near-black on
+    /// the light ones.
+    static func initialColor(for sender: String) -> Color {
+        if lightEntries.contains(index(for: sender)) { return Color.black.opacity(0.72) }
+        return .white
     }
 
     static func initial(for sender: String) -> String {
@@ -63,7 +78,7 @@ struct SenderAvatar: View {
                         .fill(Self.color(for: sender).gradient)
                     Text(Self.initial(for: sender))
                         .font(.system(size: size * 0.42, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Self.initialColor(for: sender))
                 }
             }
         }

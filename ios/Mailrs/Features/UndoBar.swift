@@ -7,8 +7,8 @@ import SwiftUI
 /// the phone offered the way back. The iPad and the Mac had the
 /// gesture and not the retraction, which is the worse half to have.
 ///
-/// Anchored to the bottom on the phone, where the thumb is. The other
-/// two place it themselves; the bar only knows what it says.
+/// The label takes the material's own colour: forced white, it vanished
+/// on the light glass over a white list.
 struct UndoBar: View {
     @Environment(Session.self) private var session
 
@@ -16,7 +16,6 @@ struct UndoBar: View {
         if session.pendingUndo != nil {
             HStack(spacing: 12) {
                 Text(label)
-                    .foregroundStyle(.white)
                 Button("Undo") {
                     Task { await session.undoArchive() }
                 }
@@ -26,8 +25,7 @@ struct UndoBar: View {
             .font(.subheadline)
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(.thinMaterial, in: Capsule())
-            .padding(.bottom, 24)
+            .floatingGlass(in: .capsule)
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
@@ -44,5 +42,16 @@ struct UndoBar: View {
         }
         if count > 1 { return "Archived ×\(count)" }
         return "Archived"
+    }
+}
+
+/// The two undo bars, stacked: a send undone and an archive undone can be
+/// on offer at once, and placed separately the second covered the first.
+struct UndoBars: View {
+    var body: some View {
+        VStack(spacing: 8) {
+            SendUndoBar()
+            UndoBar()
+        }
     }
 }

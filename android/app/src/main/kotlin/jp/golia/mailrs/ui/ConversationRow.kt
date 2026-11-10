@@ -24,7 +24,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.testTag
 import jp.golia.mailrs.wire.TeamRow
 import androidx.compose.ui.text.font.FontWeight
@@ -104,8 +103,7 @@ fun ConversationRow(
                     onMarkRead?.let { CustomAccessibilityAction(Texts.get(R.string.row_mark_read)) { it(); true } },
                 )
             }
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .alpha(if (unread) 1f else 0.7f),
+            .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalAlignment = Alignment.Top,
     ) {
         SenderAvatarView(face, unread = unread)
@@ -169,7 +167,13 @@ fun ConversationRow(
                 }
                 Text(
                     text = c.subject.ifBlank { Texts.get(R.string.mail_no_subject) },
-                    color = theme.fgSecondary,
+                    // full colour while unread, receding once read; the
+                    // row is no longer dimmed whole, which left the
+                    // preview line of a read row hard to read
+                    color = when (unread) {
+                        true -> theme.fg
+                        false -> theme.fgSecondary
+                    },
                     fontSize = 14.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

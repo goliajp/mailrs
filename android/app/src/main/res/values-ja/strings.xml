@@ -88,6 +88,7 @@
     <string name="common_undo">元に戻す</string>
     <string name="common_done">完了</string>
     <string name="common_search">検索</string>
+    <string name="common_loading">読み込み中</string>
     <string name="common_refresh">更新</string>
     <string name="draft_saved">下書きを保存しました</string>
     <string name="compose_new">作成</string>
