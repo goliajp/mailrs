@@ -13,6 +13,9 @@
 //!   observation may on its own and so held nothing: hold what it recorded,
 //!   or nothing (super administrator, recent password confirmation; the
 //!   core and this tier each write an audit line)
+//! - `GET /api/admin/fraud/rules/{rule}/triggers?days=30` — every delivery a
+//!   rule under review fired on, one by one: recipients, sending domain,
+//!   what the rule saw, when (super administrator: it names whose mail)
 
 use std::sync::Arc;
 
@@ -44,6 +47,27 @@ pub async fn batches(
         .await
         .map_err(crate::handlers::admin::map_err)?;
     Ok(Json(serde_json::json!({ "items": found.items })))
+}
+
+/// GET /api/admin/fraud/rules/{rule}/triggers — up to 60 days back
+/// (`days`, default 30), oldest first. 404 for a rule not under review,
+/// so an empty list always means the rule did not fire.
+pub async fn rule_triggers(
+    Path(rule): Path<String>,
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    use mailrs_core_sidestate::families::rule_triggers;
+    if !rule_triggers::REVIEWED.contains(&rule.as_str()) {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    let days = q
+        .get("days")
+        .and_then(|d| d.parse::<i64>().ok())
+        .unwrap_or(30)
+        .clamp(1, rule_triggers::KEEP_DAYS);
+    let now = chrono::Utc::now().timestamp();
+    let items = with_kevy(move |c| rule_triggers::list(c, &rule, now, days))?;
+    Ok(Json(serde_json::json!({ "days": days, "items": items })))
 }
 
 /// POST /api/admin/rejudge/batches/{observation}/release

@@ -101,3 +101,7 @@
 
 /api/mail/draft-attachments             # draft files: the server half (upload, draft save, send with draft_id) ships first; the web composer and then the apps call it when they keep files in drafts. Until then nothing saves a draft with files.
 /api/mail/draft-attachments/{blob_id}    # as above: opening a draft's file
+
+# ---- read by an operator while a rule is under review ----
+
+/api/admin/fraud/rules/{rule}/triggers   # every delivery a newly enabled rule fired on, listed by a super administrator with curl for the rule's review (burner-domain-outreach, 30 days after it was enabled). A review is a few times a year; no admin page has been asked for.

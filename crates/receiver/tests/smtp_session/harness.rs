@@ -200,6 +200,7 @@ async fn build(
         ldap_config: None,
         inbound_pipeline: mailrs_inbound::Pipeline::builder().build(),
         spam_lists_client: kevy.map(|url| Arc::new(KevyNetClient::new(url))),
+        site_visits: Arc::new(mailrs_receiver::site_visit::SiteVisits::new(4, 2)),
         spool_sink: Arc::new(MaildirSpoolSink::new(spool.to_str().unwrap())),
         signins: Default::default(),
         unknown_rcpt: Default::default(),

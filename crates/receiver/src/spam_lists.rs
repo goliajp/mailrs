@@ -93,13 +93,23 @@ pub async fn domain_seen_async(client: Option<Arc<KevyNetClient>>, host: &str) -
 /// otherwise a visit now, recorded for the next message and for every
 /// judging of stored mail, which only reads it.
 ///
-/// Called only for a message worth the visit, so visits stay rare, and
-/// bounded to a few seconds inside the DATA phase. Without a store
+/// Called only for a message worth the visit whose `From` domain
+/// authenticated it, so visits stay rare, and bounded to a few seconds
+/// inside the DATA phase. A visit is made only when [`SiteVisits`] admits
+/// one for `client_ip`; a refused one records nothing and reads as not
+/// elsewhere, as if the site had never been seen. Without a store
 /// nothing is visited (the stored judgings could not see the answer):
 /// not elsewhere. A visit that gets no answer is recorded as none, which
 /// also reads as not elsewhere; a failed write only means the next
 /// message visits again.
-pub async fn site_elsewhere_async(client: Option<Arc<KevyNetClient>>, host: &str) -> bool {
+///
+/// [`SiteVisits`]: crate::site_visit::SiteVisits
+pub async fn site_elsewhere_async(
+    client: Option<Arc<KevyNetClient>>,
+    visits: &crate::site_visit::SiteVisits,
+    client_ip: std::net::IpAddr,
+    host: &str,
+) -> bool {
     use mailrs_core_sidestate::families::site_landing;
     use mailrs_fraud::burner_domain::Landing;
     let Some(client) = client else { return false };
@@ -116,6 +126,10 @@ pub async fn site_elsewhere_async(client: Option<Arc<KevyNetClient>>, host: &str
     let landing = match cached {
         Some(landing) => landing,
         None => {
+            let Some(_slot) = visits.admit(client_ip, crate::site_visit::this_minute()) else {
+                tracing::info!(event = "site_visit_refused", %host, %client_ip, "visit limit reached; not visited");
+                return false;
+            };
             let egress = mailrs_egress::Egress::new("mailrs", std::time::Duration::from_secs(4));
             let visited =
                 tokio::time::timeout(std::time::Duration::from_secs(6), egress.landing_host(host))
