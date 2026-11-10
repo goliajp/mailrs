@@ -53,7 +53,13 @@ export default defineConfig({
     // preference: React StrictMode double-invokes effects in dev, so
     // "this fires exactly once" is unanswerable there — the mark-read
     // assertion read 2 against a dev server and 1 against this one.
-    { name: 'mobile', testMatch: /mobile-layout\.spec\.ts/ },
+    // On this project's own preview port: on 4173 it tested whatever other
+    // project's server happened to be answering there.
+    {
+      name: 'mobile',
+      testMatch: /mobile-layout\.spec\.ts/,
+      use: { baseURL: 'http://localhost:6038' },
+    },
     // Its own preview port (registry row web-preview-e2e): 4173 is the
     // vite default and another project's server answering there would be
     // reused and tested instead of this app.
@@ -75,7 +81,7 @@ export default defineConfig({
       testMatch: /reading-header-narrow\.spec\.ts/,
       use: { baseURL: 'http://localhost:6038' },
     },
-    // the desktop shell's rail and floating panes, light and dark
+    // the desktop shell's rail and panes, light and dark
     {
       name: 'shell',
       testMatch: /shell-layout\.spec\.ts/,

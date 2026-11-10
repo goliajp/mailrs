@@ -253,25 +253,23 @@ for (const phone of PHONES) {
     })
 
     /**
-     * Deleting a thread unlinks its maildir files. There is no trash and
-     * nothing to restore from, and the reading pane has always said so
-     * before doing it — but the list reached the same verb without
-     * asking, so until 2026-08-05 one left swipe on a phone destroyed
-     * mail outright.
+     * A left swipe moves the conversation to the Trash, which keeps it for
+     * 30 days and can put it back, so it asks nothing. What it must never
+     * reach is deleting for good: until 2026-08-05 one left swipe on a
+     * phone unlinked the maildir files outright.
      */
-    test('a left swipe asks before destroying anything', async ({ page }) => {
+    test('a left swipe moves to the Trash and never deletes for good', async ({ page }) => {
       await stubApi(page)
       const writes = recordWrites(page)
       await page.goto('/mail')
       await expect(page.locator('[role="listitem"]')).toHaveCount(THREADS.length)
 
       await swipeRow(page, 1, -110)
-      await expect(page.getByText('Delete conversation?')).toBeVisible()
-      expect(writes.filter((w) => w.includes('conversations/t'))).toEqual([])
-
-      await page.getByRole('button', { name: 'Cancel' }).click()
-      await page.waitForTimeout(300)
-      expect(writes.filter((w) => w.includes('conversations/t'))).toEqual([])
+      const id = THREADS[1].thread_id
+      await expect
+        .poll(() => writes.includes(`/api/conversations/${id}`), { timeout: 4000 })
+        .toBe(true)
+      expect(writes.filter((w) => w.endsWith('/forever'))).toEqual([])
     })
 
     /** Archive is reversible, so it needs no question. */

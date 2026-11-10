@@ -109,8 +109,9 @@ async function stub(page: Page): Promise<Server> {
 
 const rows = (page: Page) => page.locator('[role="listitem"]')
 
+/** A mail list, by the tab that opens it: the folder column's at this width. */
 async function openTab(page: Page, label: string) {
-  await page.getByRole('button', { exact: true, name: label }).first().click()
+  await page.getByRole('tab', { exact: true, name: label }).filter({ visible: true }).click()
 }
 
 test.use({ viewport: { height: 900, width: 1400 } })
