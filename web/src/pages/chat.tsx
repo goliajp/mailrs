@@ -16,6 +16,7 @@ import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { MPane, MPaneGroup } from '@/layouts/pane'
 import { isMailListId, MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
+import { foldersOpenAtom, foldersState } from '@/store/folders-column'
 import {
   activeListAtom,
   categoryFilterAtom,
@@ -35,6 +36,7 @@ export function Chat() {
   const [importanceSection, setImportanceSection] = useAtom(importanceSectionAtom)
   const [categoryFilter, setCategoryFilter] = useAtom(categoryFilterAtom)
   const selection = useCurrentSelection()
+  const foldersOpen = useAtomValue(foldersOpenAtom)
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Single effect that owns the URL <-> state sync:
@@ -160,8 +162,8 @@ export function Chat() {
   }
   return (
     <>
-      <MPaneGroup className="flex">
-        <MPane className="hidden xl:flex" width={200}>
+      <MPaneGroup className="flex" data-folders={foldersState(foldersOpen)}>
+        <MPane className="folders:flex hidden" width={232}>
           <MailFolders />
         </MPane>
         <MPane width={480}>{renderList()}</MPane>

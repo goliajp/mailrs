@@ -33,16 +33,16 @@ const LABELS: Record<ChipSection, Key> = {
 }
 
 /**
- * The sectioned inbox's sections on a row of their own under the tabs,
- * below xl. From xl the tabs are hidden and the same chips sit in the
- * filter row instead (`FilterBar`), so this row is not shown there. With
+ * The sectioned inbox's sections on a row of their own under the tabs.
+ * While the folder column shows the tabs are hidden and the same chips sit
+ * in the filter row instead (`FilterBar`), so this row is not shown. With
  * no section to show the row is left out: Notifications alone would repeat
  * the tab right above it.
  */
 export function InboxSectionBar() {
   return (
     <InboxSectionChips
-      className="border-border flex items-center gap-1 border-b px-3 py-1.5 xl:hidden"
+      className="border-border folders:hidden flex items-center gap-1 border-b px-3 py-1.5"
       ownRow
     />
   )

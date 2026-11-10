@@ -10,10 +10,12 @@ import {
   Inbox,
   MailOpen,
   Mails,
+  PanelLeftClose,
   Pin,
   Send,
   ShieldAlert,
   ShieldQuestion,
+  SquarePen,
   Star,
   Trash2,
   UserCheck,
@@ -27,6 +29,8 @@ import { useT } from '@/i18n'
 import { countFor } from '@/lib/folder-counts'
 import { MAIL_LIST_TABS, MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
 import { rovingKeyDown } from '@/lib/roving'
+import { openNewMessageAtom } from '@/store/composer-windows'
+import { foldersOpenAtom } from '@/store/folders-column'
 import { activeLabelAtom, activeListAtom, selectLabelAtom } from '@/store/ui'
 
 const ICONS: Record<MailListId, LucideIcon> = {
@@ -51,6 +55,8 @@ const ICONS: Record<MailListId, LucideIcon> = {
 /**
  * The mail lists as a column of folders, with the user's labels under
  * them: the wide-screen form of the tab chips, which narrower screens keep.
+ * A title row with the button that collapses the column, and Compose,
+ * sit above the folders.
  */
 export function MailFolders() {
   const t = useT()
@@ -60,9 +66,31 @@ export function MailFolders() {
   const selectLabel = useSetAtom(selectLabelAtom)
   const unread = useUnreadCounts()
   const { data: labels = [] } = useLabels()
+  const setFoldersOpen = useSetAtom(foldersOpenAtom)
+  const openNewMessage = useSetAtom(openNewMessageAtom)
 
   return (
-    <nav className="flex h-full flex-col overflow-y-auto p-2 select-none">
+    <nav className="flex h-full flex-col overflow-y-auto px-2 pb-2 select-none">
+      <div className="flex h-[3.25rem] shrink-0 items-center justify-between pr-0.5 pl-2.5">
+        <h2 className="text-fg text-base font-semibold">{t('nav.mail')}</h2>
+        <button
+          aria-label={t('folders.collapse')}
+          className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary focus-visible:ring-accent/50 flex h-8 w-8 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          onClick={() => setFoldersOpen(false)}
+          title={t('folders.collapse')}
+          type="button"
+        >
+          <PanelLeftClose aria-hidden className="h-4 w-4" />
+        </button>
+      </div>
+      <button
+        className={`${folderClass(false)} mb-3`}
+        onClick={() => openNewMessage()}
+        type="button"
+      >
+        <SquarePen aria-hidden className="h-4 w-4 shrink-0" />
+        <span className="min-w-0 flex-1 text-left">{t('list.newConversation')}</span>
+      </button>
       <div
         aria-label={t('list.tabs')}
         aria-orientation="vertical"
@@ -86,7 +114,7 @@ export function MailFolders() {
       </div>
       {labels.length > 0 && (
         <div aria-label={t('labels.title')} className="mt-4 flex flex-col gap-0.5" role="group">
-          <p className="text-fg-muted px-2.5 pb-1 text-xs">{t('labels.title')}</p>
+          <h3 className="text-fg-muted px-2.5 pb-1 text-xs">{t('labels.title')}</h3>
           {labels.map((l) => (
             <button
               aria-pressed={active === 'label' && activeLabel === l.id}

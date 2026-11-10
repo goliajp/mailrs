@@ -11,6 +11,25 @@
 
 @custom-variant dark (&:where([data-theme-mode="dark"], [data-theme-mode="dark"] *));
 
+/* the mail page's folder column: shown from xl while the reader has not
+   collapsed it. `folders:` styles what goes with the column being on
+   screen, `folders-closed:` what replaces it while it is collapsed.
+   Neither matches below xl, where the column never shows. */
+@custom-variant folders {
+  @media (width >= 80rem) {
+    &:where([data-folders='open'], [data-folders='open'] *) {
+      @slot;
+    }
+  }
+}
+@custom-variant folders-closed {
+  @media (width >= 80rem) {
+    &:where([data-folders='closed'], [data-folders='closed'] *) {
+      @slot;
+    }
+  }
+}
+
 /* v2.1 phase-7.1: sub-`text-xs` (12px) and between-xs-and-sm sizes used
    frequently throughout the app (badges, chip labels, dense metadata
    in conversation rows). Formalising them as utilities kills the
