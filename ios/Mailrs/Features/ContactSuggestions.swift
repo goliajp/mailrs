@@ -43,14 +43,14 @@ struct ContactSuggestions: View {
         return Task {
             let token = RecipientAutocomplete.currentToken(of: text)
             guard RecipientAutocomplete.shouldSuggest(for: token) else {
-                await update([])
+                update([])
                 return
             }
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
             let found = await session.contacts(matching: token)
             guard !Task.isCancelled else { return }
-            await update(found)
+            update(found)
         }
     }
 }
