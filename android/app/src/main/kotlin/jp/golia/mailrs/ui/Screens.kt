@@ -272,7 +272,7 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
             // nobody made.
             when {
                 state.busy && state.conversations.isEmpty() ->
-                    CircularProgressIndicator(Modifier.align(Alignment.Center), color = theme.accent)
+                    ListPlaceholder()
 
                 state.error != null && state.conversations.isEmpty() ->
                     Conclusion(stringResource(R.string.list_load_failed), state.error, Modifier.align(Alignment.Center))

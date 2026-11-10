@@ -16,7 +16,7 @@ fun MailViewModel.selectSection(section: InboxSection?) {
     val wire = section?.wire
     if (wire == _state.value.inboxSection) return
     _state.update { it.copy(inboxSection = wire, conversations = emptyList(), endOfList = false, selected = emptySet()) }
-    refresh()
+    refresh(switching = true)
 }
 
 /** The sectioned inbox setting from the server. A failure keeps what is there and says nothing: the Inbox works either way. */

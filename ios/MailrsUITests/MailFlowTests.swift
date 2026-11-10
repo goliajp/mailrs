@@ -215,18 +215,42 @@ final class MailFlowTests: MailrsUITestCase {
 
 
 
-    func testLoadingShowsProgressNotTheEmptyState() {
+    func testLoadingShowsPlaceholderRowsNotTheEmptyState() {
         let app = launch(signedIn: true, listDelayMs: 2500)
 
-        XCTAssertTrue(app.activityIndicators.firstMatch.waitForExistence(timeout: 2),
-                      "no loading indicator during the first page")
+        let placeholder = app.descendants(matching: .any)["list.loading"]
+        XCTAssertTrue(placeholder.waitForExistence(timeout: 2),
+                      "no placeholder rows during the first page")
         XCTAssertFalse(app.staticTexts["All caught up"].exists,
                        "the empty state was shown while the first page was still in flight")
 
-        // And the conclusion arrives: rows, not the spinner.
+        // And the conclusion arrives: rows, not the placeholder.
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 15), "the list never loaded")
-        XCTAssertFalse(app.activityIndicators.firstMatch.exists,
-                       "the spinner outlived the load")
+        XCTAssertFalse(placeholder.exists, "the placeholder outlived the load")
+    }
+
+    /// A list opened before is not drawn from the copy saved last time
+    /// while its first page is out: those rows were swapped for the
+    /// fresh ones in front of the reader. Placeholders until it answers.
+    func testSwitchingBackDoesNotShowTheSavedRowsFirst() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+        tapInListsMenu(app, "Starred")
+        XCTAssertTrue(app.staticTexts["Starred thread"].waitForExistence(timeout: 10),
+                      "starred never listed")
+
+        setStubListDelay(2500)
+        tapInListsMenu(app, "Inbox")
+        XCTAssertTrue(app.descendants(matching: .any)["list.loading"].waitForExistence(timeout: 2),
+                      "no placeholder rows while the inbox was loading")
+        XCTAssertFalse(app.staticTexts["Quarterly report and the follow-up notes"].exists,
+                       "the inbox's saved rows were drawn before it answered")
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "the inbox never came back")
+        // the Select button stayed on the bar through the load
+        XCTAssertTrue(app.buttons["list.select"].isEnabled)
+        setStubListDelay(0)
     }
 }

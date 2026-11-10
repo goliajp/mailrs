@@ -13,12 +13,18 @@ struct ListSurfaces: ViewModifier {
     func body(content: Content) -> some View {
         content
             .safeAreaInset(edge: .top) {
-                if session.activeList == .inbox, session.sectionedInbox { InboxSectionBar() }
+                // not over search results: the sections narrow the Inbox,
+                // and a search answers from the whole mailbox
+                if session.activeList == .inbox, session.sectionedInbox, session.searchQuery == nil {
+                    InboxSectionBar()
+                }
             }
             .overlay(alignment: .top) { FailureBanner() }
             .animation(.easeOut(duration: 0.2), value: session.banner)
-            .overlay(alignment: .bottom) { SendUndoBar().padding(.bottom, 48) }
+            // above the search field iOS 26 pins to the bottom
+            .overlay(alignment: .bottom) { UndoBars().padding(.bottom, 72) }
             .animation(.easeOut(duration: 0.2), value: session.pendingSend)
+            .animation(.easeOut(duration: 0.2), value: session.pendingUndo != nil)
             .navigationDestination(isPresented: shown) {
                 if let notified { ThreadView(conversation: notified) }
             }

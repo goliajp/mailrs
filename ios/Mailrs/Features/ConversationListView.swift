@@ -42,7 +42,7 @@ struct ConversationListView: View {
                     // one. The empty state is a *conclusion*, and it
                     // waits for the evidence.
                     if session.initialLoading {
-                        ProgressView()
+                        ListPlaceholder()
                     } else if session.searchQuery != nil {
                         ContentUnavailableView.search(text: searchText)
                     } else {
@@ -51,12 +51,7 @@ struct ConversationListView: View {
                     }
                 } else {
                     List(session.visibleConversations, selection: $selection) { conversation in
-                        NavigationLink {
-                            ThreadView(conversation: conversation)
-                        } label: {
-                            ConversationRow(conversation: conversation,
-                                            isSelecting: editMode == .active)
-                        }
+                        row(conversation)
                         // A tint under the chosen rows. The system's own
                         // selection mark is a small circle at the left
                         // edge; on a dense list of mostly-grey rows it
@@ -67,6 +62,8 @@ struct ConversationListView: View {
                                 ? Color.accentColor.opacity(0.18)
                                 : Color.pageBackground
                         )
+                        .listRowSeparator(ListEdges.top(isFirst(conversation)), edges: .top)
+                        .listRowSeparator(ListEdges.bottom(isLast(conversation)), edges: .bottom)
                         .contextMenu {
                             ConversationRowMenu(conversation: conversation) { pendingDelete = $0 }
                         }
@@ -158,30 +155,6 @@ struct ConversationListView: View {
             // room for, and this list is measured in rows.
             .inlineTitle()
             .modifier(ListSurfaces())
-            // The undo snackbar. Bottom-anchored but lifted above the
-            // search field, which iOS 26 also puts at the bottom.
-            .overlay(alignment: .bottom) {
-                if session.pendingUndo != nil {
-                    HStack(spacing: 12) {
-                        Text(undoLabel)
-                            .foregroundStyle(.white)
-                        Button("Undo") {
-                            Task { await session.undoArchive() }
-                        }
-                        .fontWeight(.semibold)
-                        .accessibilityIdentifier("undo-archive")
-                    }
-                    .font(.subheadline)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    // Glass, because it floats over the list rather
-                    // than belonging to it — and the rows staying
-                    // legible through it is the point of the material.
-                    .floatingGlass(in: .capsule)
-                    .padding(.bottom, 72)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-            }
             .sheet(isPresented: $composing) { ComposeView() }
             .sheet(isPresented: $showingDrafts) { DraftsView() }
             .sheet(isPresented: $showingSettings) { SettingsView() }
@@ -321,7 +294,10 @@ struct ConversationListView: View {
                     }
                     .accessibilityIdentifier("new-message")
                 }
-                if session.activeList != .send, !session.visibleConversations.isEmpty {
+                // Kept on the bar while the list loads or is empty, only
+                // unable to act: a button that comes and goes with the
+                // rows shifted Compose sideways on every list switch.
+                if session.activeList != .send {
                     ToolbarItem(placement: .primaryActions) {
                         if editMode == .active {
                             Button("Done") {
@@ -333,6 +309,7 @@ struct ConversationListView: View {
                             Button("Select") {
                                 withAnimation { editMode = .active }
                             }
+                            .disabled(session.visibleConversations.isEmpty)
                             // named, so a walk in Japanese finds 選択
                             .accessibilityIdentifier("list.select")
                         }
@@ -364,10 +341,6 @@ struct ConversationListView: View {
             .environment(\.editMode, $editMode)
         }
     }
-
-    /// While selecting, the title is the count — Apple Mail's pattern,
-    /// and it spares the bottom bar a cramped pill.
-    private var undoLabel: LocalizedStringKey { UndoBar.label(session.pendingUndo) }
 
     /// The batch bar for the list on screen, from the action table: the
     /// Trash restores or deletes for good, Review releases, every other
@@ -419,6 +392,30 @@ struct ConversationListView: View {
 
     private var selectedConversations: [Wire.Conversation] {
         session.visibleConversations.filter { selection.contains($0.threadId) }
+    }
+
+    /// A link to the thread, or the bare row while choosing. A link in
+    /// select mode cannot be followed, and the list drew every row as
+    /// disabled grey, the chosen ones too, so the choice could not be seen.
+    @ViewBuilder
+    private func row(_ conversation: Wire.Conversation) -> some View {
+        if editMode == .active {
+            ConversationRow(conversation: conversation, isSelecting: true)
+        } else {
+            NavigationLink {
+                ThreadView(conversation: conversation)
+            } label: {
+                ConversationRow(conversation: conversation, isSelecting: false)
+            }
+        }
+    }
+
+    private func isFirst(_ conversation: Wire.Conversation) -> Bool {
+        conversation.threadId == session.visibleConversations.first?.threadId
+    }
+
+    private func isLast(_ conversation: Wire.Conversation) -> Bool {
+        conversation.threadId == session.visibleConversations.last?.threadId
     }
 
     private func leaveSelectMode() {

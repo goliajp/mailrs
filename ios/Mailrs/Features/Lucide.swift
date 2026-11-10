@@ -167,14 +167,27 @@ struct LucideIcon: View {
 struct LucideRow: View {
     let title: LocalizedStringKey
     let icon: [Lucide.Element]
+    /// True for a row that opens a screen, which says so with a chevron
+    /// like the navigation rows beside it; false for one that acts.
+    var opens = true
 
     var body: some View {
         HStack(spacing: 12) {
             LucideIcon(elements: icon)
                 .foregroundStyle(Color.accentColor)
                 .frame(width: 26, alignment: .leading)
+            // `Color.primary`, not `.primary`: inside a button the
+            // hierarchical style resolves to the tint, and these rows
+            // read as links beside the navigation rows under them
             Text(title)
-                .foregroundStyle(.primary)
+                .foregroundStyle(Color.primary)
+            if opens {
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color(.tertiaryLabel))
+                    .accessibilityHidden(true)
+            }
         }
     }
 }

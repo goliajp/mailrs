@@ -231,12 +231,18 @@ class MailViewModel(
      * are still the last true thing anybody knew, and an error banner
      * over readable mail is noise. A failure with *no* rows is the
      * screen that has to explain itself.
+     *
+     * [switching] is a move to another list, which does not paint the
+     * saved rows first: they were replaced in front of the reader a
+     * moment later, read as the list flickering from old mail to new.
+     * The switch shows placeholder rows until the answer, and the saved
+     * rows only if the fetch fails.
      */
-    fun refresh() {
+    fun refresh(switching: Boolean = false) {
         val list = _state.value.list
         val axes = _state.value.axes()
         val cacheKey = _state.value.listKey()
-        val cached = when (_state.value.conversations.isEmpty()) {
+        val cached = when (_state.value.conversations.isEmpty() && !switching) {
             true -> cache.readConversations(cacheKey)
             false -> null
         }
@@ -267,11 +273,17 @@ class MailViewModel(
                     if (_state.value.list != list || _state.value.axes() != axes) return@launch
                     _state.update { it.copy(busy = false, conversations = r.value) }
                 }
-                is MailrsClient.Outcome.Err ->
+                is MailrsClient.Outcome.Err -> {
+                    if (_state.value.list != list || _state.value.axes() != axes) return@launch
+                    val shown = _state.value.conversations.ifEmpty {
+                        cache.readConversations(cacheKey).orEmpty()
+                    }
                     _state.update { it.copy(
                         busy = false,
-                        error = if (_state.value.conversations.isEmpty()) r.message else null,
+                        conversations = shown,
+                        error = r.message.takeIf { shown.isEmpty() },
                     ) }
+                }
             }
         }
     }
@@ -418,7 +430,7 @@ class MailViewModel(
             searching = false,
             error = null,
         ) }
-        refresh()
+        refresh(switching = true)
     }
 
     /** Open and close the settings screen. */

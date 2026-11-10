@@ -388,14 +388,14 @@ final class ComposeFlowTests: MailrsUITestCase {
         app.terminate()
         app.launch()
 
-        // Wait out the delayed first page, so the spinner asserted below
-        // can only be the sheet's own.
+        // Wait out the delayed first page, so the placeholder asserted
+        // below can only be the sheet's own.
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 25), "inbox never listed after relaunch")
         app.buttons["Lists"].tap()
         app.buttons["Drafts"].tap()
-        XCTAssertTrue(app.activityIndicators.firstMatch.waitForExistence(timeout: 2),
-                      "no loading indicator while the drafts were in flight")
+        XCTAssertTrue(app.descendants(matching: .any)["list.loading"].waitForExistence(timeout: 2),
+                      "no placeholder rows while the drafts were in flight")
         XCTAssertFalse(app.staticTexts["No drafts"].exists,
                        "the empty state was shown while the request was still out")
         XCTAssertTrue(app.staticTexts["Slow to arrive"].waitForExistence(timeout: 15),

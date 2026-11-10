@@ -84,7 +84,7 @@ struct ThreadView: View {
                                        systemImage: "exclamationmark.triangle",
                                        description: Text(failure))
             } else if messages.isEmpty {
-                ProgressView()
+                ThreadLoading(conversation: conversation, myAddress: session.myAddress)
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 8) {

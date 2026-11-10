@@ -88,6 +88,7 @@
     <string name="common_undo">撤销</string>
     <string name="common_done">完成</string>
     <string name="common_search">搜索</string>
+    <string name="common_loading">正在加载</string>
     <string name="common_refresh">刷新</string>
     <string name="draft_saved">草稿已保存</string>
     <string name="compose_new">写邮件</string>

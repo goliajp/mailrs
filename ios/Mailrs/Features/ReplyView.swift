@@ -156,7 +156,7 @@ struct ReplyView: View {
                 }
             }
             .padding(.top, 8)
-            .navigationTitle(mode.rawValue)
+            .navigationTitle(mode.label)
             .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

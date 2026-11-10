@@ -118,7 +118,7 @@ struct SenderClaimBadge: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
-            .foregroundStyle(.orange)
+            .foregroundStyle(Color.warningText)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(Color.orange.opacity(0.14), in: Capsule())
