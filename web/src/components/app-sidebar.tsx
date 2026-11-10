@@ -34,7 +34,7 @@ const THEME_CYCLE: ThemeMode[] = ['system', 'light', 'dark']
 const navBtnBase =
   'flex h-9 w-9 items-center justify-center rounded-md transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50'
 const navBtnInactive = 'text-fg-muted hover:bg-bg-tertiary hover:text-fg-secondary'
-const navBtnActive = 'bg-accent/10 text-accent'
+const navBtnActive = 'bg-bg-tertiary text-fg'
 
 export function AppSidebar() {
   const t = useT()
@@ -60,7 +60,7 @@ export function AppSidebar() {
   return (
     <>
       {/* desktop: vertical sidebar */}
-      <aside className="border-border hidden h-full w-14 shrink-0 flex-col items-center border-r pt-1.5 pb-4 select-none md:flex">
+      <aside className="hidden h-full w-14 shrink-0 flex-col items-center pt-2.5 pb-4 select-none md:flex">
         {/* logo */}
         <div className="mb-3">
           <img alt="mailrs" className="h-7 w-7 rounded-md" decoding="async" src="/icon.svg" />
@@ -127,13 +127,7 @@ export function AppSidebar() {
             onClick={cycleTheme}
             title={t('nav.theme', { theme })}
           >
-            {theme === 'dark' ? (
-              <Moon className="h-5 w-5" />
-            ) : theme === 'light' ? (
-              <Sun className="h-5 w-5" />
-            ) : (
-              <Monitor className="h-5 w-5" />
-            )}
+            <ThemeIcon theme={theme} />
           </button>
 
           <SidebarLink
@@ -310,4 +304,10 @@ function sidebarSection(pathname: string): string {
   if (pathname.startsWith('/mock')) return 'mock'
   if (pathname.startsWith('/calendar')) return 'calendar'
   return 'home'
+}
+
+function ThemeIcon({ theme }: { theme: ThemeMode }) {
+  if (theme === 'dark') return <Moon className="h-5 w-5" />
+  if (theme === 'light') return <Sun className="h-5 w-5" />
+  return <Monitor className="h-5 w-5" />
 }

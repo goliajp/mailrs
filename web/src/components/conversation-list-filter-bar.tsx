@@ -118,7 +118,7 @@ export const FilterBar = memo(function FilterBar() {
           gets more rows, not broken labels. */}
       <div
         aria-label={t('list.tabs')}
-        className="grid flex-1 grid-cols-[repeat(auto-fill,minmax(calc(var(--tab-min)_+_0.75rem),1fr))] gap-1 xl:hidden"
+        className="folders:hidden grid flex-1 grid-cols-[repeat(auto-fill,minmax(calc(var(--tab-min)_+_0.75rem),1fr))] gap-1"
         onKeyDown={(e) => rovingKeyDown(e, '[role="tab"]', 'horizontal')}
         ref={tabsRef}
         role="tablist"
@@ -144,13 +144,14 @@ export const FilterBar = memo(function FilterBar() {
           refinements you open a panel to change. It renders nothing
           until there is a second account to leave out. */}
 
-      {/* From xl the tabs above give way to the folder column, so the
-          inbox sections take their place here; below xl they keep a row
-          of their own (`InboxSectionBar`). */}
-      <InboxSectionChips className="hidden min-w-0 flex-1 items-center gap-1 self-center xl:flex" />
+      {/* While the folder column shows (xl and up, not collapsed) the
+          tabs above give way to it, so the inbox sections take their
+          place here; otherwise they keep a row of their own
+          (`InboxSectionBar`). */}
+      <InboxSectionChips className="folders:flex hidden min-w-0 flex-1 items-center gap-1 self-center" />
 
-      {/* Kept at the right edge at every width. From xl the tabs give
-          way to the folder column and this was left as the row's only
+      {/* Kept at the right edge at every width. With the folder column
+          on screen the tabs give way to it and this was left as the row's only
           child, at its left end, where the panel — anchored to the
           button's right edge — opened under the folder column. */}
       <div className="relative ml-auto" ref={panelRef}>

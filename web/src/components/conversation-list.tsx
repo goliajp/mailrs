@@ -318,7 +318,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
 
         <button
           aria-label={t('list.newConversation')}
-          className="text-fg-muted hover:bg-bg-secondary flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-all duration-150"
+          className="text-fg-muted hover:bg-bg-secondary folders:hidden flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-all duration-150"
           onClick={() => openNewMessage()}
           title={t('list.newConversation')}
         >

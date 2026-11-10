@@ -237,9 +237,11 @@ describe('InboxSectionBar', () => {
     const [inRow, own] = bars
     const inRowBox = inRow.parentElement as HTMLElement
     expect(inRowBox.parentElement).toBe(filterRow)
-    expect(inRowBox.className.split(' ')).toEqual(expect.arrayContaining(['hidden', 'xl:flex']))
+    expect(inRowBox.className.split(' ')).toEqual(
+      expect.arrayContaining(['hidden', 'folders:flex'])
+    )
     const ownBox = own.parentElement as HTMLElement
     expect(filterRow.contains(ownBox)).toBe(false)
-    expect(ownBox.className.split(' ')).toContain('xl:hidden')
+    expect(ownBox.className.split(' ')).toContain('folders:hidden')
   })
 })
