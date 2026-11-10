@@ -232,7 +232,10 @@ pub(super) fn judge(
         link_hosts: &link_hosts,
         ..Facts::default()
     };
-    f.site_elsewhere = mailrs_fraud_lua::stored::site_elsewhere(c.hist.as_mut(), &f);
+    let site = mailrs_fraud_lua::stored::site(c.hist.as_mut(), &f, &c.policy, &reader, &raw);
+    f.site_elsewhere = site.elsewhere;
+    f.landing_known_domain = site.landing_known_domain;
+    f.copies_someone_known = site.copies_someone_known;
     let (old, old_shadow) = match before {
         Some(r) => {
             let v = r.classify(&f, &c.policy);

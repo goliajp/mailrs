@@ -68,6 +68,8 @@ fn policy() -> Result<Policy, String> {
         org_names: list("MAILRS_ORG_NAMES"),
         our_domains: list("MAILRS_LOCAL_DOMAINS"),
         allowed_domains: list("MAILRS_ORG_NAME_ALLOWED_DOMAINS"),
+        mailbox_providers: mailrs_fraud::burner_domain::mailbox_providers_from_env(),
+        vetted_suffixes: mailrs_fraud::burner_domain::vetted_suffixes_from_env(),
         account_names,
     })
 }

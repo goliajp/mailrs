@@ -54,8 +54,9 @@ pub fn hosted_mailbox(raw: &[u8]) -> bool {
 /// `gmail.com` lands on `accounts.google.com`. A sender at one of them
 /// owns a mailbox, not the domain, so where its web root goes says
 /// nothing about them. A list of exemptions, which only ever lets mail
-/// through.
-const MAILBOX_PROVIDERS: &[&str] = &[
+/// through; the default of [`crate::Policy::mailbox_providers`],
+/// replaced by `MAILRS_FRAUD_MAILBOX_PROVIDERS`.
+pub const DEFAULT_MAILBOX_PROVIDERS: &[&str] = &[
     "google.com",
     "live.com",
     "outlook.com",
@@ -68,16 +69,60 @@ const MAILBOX_PROVIDERS: &[&str] = &[
     "proton.me",
 ];
 
+/// Public suffixes whose registry admits only a qualified registrant,
+/// one domain per organisation: JPRS's attribute types (a company holds
+/// one `co.jp`, a school one `ac.jp`) and the US `edu` and `gov`. A firm
+/// cannot buy dozens of them to burn, so a sender under one is a real
+/// organisation writing from its own domain. Suffixes anyone can
+/// register (`jp`, `com`) are not here. The default of
+/// [`crate::Policy::vetted_suffixes`], replaced by
+/// `MAILRS_FRAUD_VETTED_SUFFIXES`.
+pub const DEFAULT_VETTED_SUFFIXES: &[&str] = &[
+    "co.jp", "or.jp", "ne.jp", "ac.jp", "ad.jp", "go.jp", "lg.jp", "ed.jp", "gr.jp", "edu", "gov",
+];
+
+/// The mailbox providers from `MAILRS_FRAUD_MAILBOX_PROVIDERS` (comma
+/// separated), or [`DEFAULT_MAILBOX_PROVIDERS`] when it is not set.
+pub fn mailbox_providers_from_env() -> Vec<String> {
+    list_from_env("MAILRS_FRAUD_MAILBOX_PROVIDERS", DEFAULT_MAILBOX_PROVIDERS)
+}
+
+/// The vetted suffixes from `MAILRS_FRAUD_VETTED_SUFFIXES` (comma
+/// separated), or [`DEFAULT_VETTED_SUFFIXES`] when it is not set.
+pub fn vetted_suffixes_from_env() -> Vec<String> {
+    list_from_env("MAILRS_FRAUD_VETTED_SUFFIXES", DEFAULT_VETTED_SUFFIXES)
+}
+
+fn list_from_env(name: &str, default: &[&str]) -> Vec<String> {
+    match std::env::var(name) {
+        Ok(v) => v
+            .split(',')
+            .map(|s| s.trim().trim_start_matches('.').to_ascii_lowercase())
+            .filter(|s| !s.is_empty())
+            .collect(),
+        Err(_) => default.iter().map(|s| (*s).to_string()).collect(),
+    }
+}
+
+/// Whether `host` sits under one of `suffixes`: `example.co.jp` under
+/// `co.jp`, `cs.mit.edu` under `edu`. The suffix itself is no sender.
+pub fn under_vetted_suffix(host: &str, suffixes: &[String]) -> bool {
+    let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+    suffixes
+        .iter()
+        .any(|s| host.len() > s.len() + 1 && host.ends_with(&format!(".{s}")))
+}
+
 /// Whether a visit to the sender's web root that ended on `landing_host`
 /// left the sender's registrable domain for one that is not a mailbox
-/// provider's sign-in page.
-pub fn lands_elsewhere(from_host: &str, landing_host: &str) -> bool {
+/// provider's sign-in page (`providers`, registrable domains).
+pub fn lands_elsewhere(from_host: &str, landing_host: &str, providers: &[String]) -> bool {
     let from = crate::brand::registrable(from_host);
     let landed = crate::brand::registrable(landing_host);
     if from.is_empty() || landed.is_empty() || from == landed {
         return false;
     }
-    !MAILBOX_PROVIDERS.contains(&landed.as_str())
+    !providers.contains(&landed)
 }
 
 /// Whether a message is worth the visit to its sender's web root: one
@@ -135,11 +180,20 @@ impl Landing {
             .map(|host| Landing::At(host.to_string()))
     }
 
-    /// Whether this landing took the visitor off `from_host`'s domain.
-    pub fn elsewhere(&self, from_host: &str) -> bool {
+    /// Whether this landing took the visitor off `from_host`'s domain to
+    /// one that is not among `providers`.
+    pub fn elsewhere(&self, from_host: &str, providers: &[String]) -> bool {
         match self {
-            Landing::At(host) => lands_elsewhere(from_host, host),
+            Landing::At(host) => lands_elsewhere(from_host, host, providers),
             Landing::Nowhere => false,
+        }
+    }
+
+    /// The registrable domain it landed on; empty when it did not answer.
+    pub fn registrable(&self) -> String {
+        match self {
+            Landing::At(host) => crate::brand::registrable(host),
+            Landing::Nowhere => String::new(),
         }
     }
 }
@@ -204,25 +258,58 @@ mod tests {
         assert!(!hosted_mailbox(SES));
     }
 
+    fn providers() -> Vec<String> {
+        DEFAULT_MAILBOX_PROVIDERS
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
+    }
+
     #[test]
     fn a_burner_domain_lands_on_its_brand() {
-        assert!(lands_elsewhere("dealclosersvoice.com", "dealclosers.co"));
+        let p = providers();
+        assert!(lands_elsewhere(
+            "dealclosersvoice.com",
+            "dealclosers.co",
+            &p
+        ));
         assert!(lands_elsewhere(
             "smartersupplysync.com",
-            "group-smartersupply.com"
+            "group-smartersupply.com",
+            &p
         ));
     }
 
     #[test]
     fn staying_on_the_domain_is_not_elsewhere() {
-        assert!(!lands_elsewhere("example.com", "www.example.com"));
-        assert!(!lands_elsewhere("mail.example.co.jp", "example.co.jp"));
+        let p = providers();
+        assert!(!lands_elsewhere("example.com", "www.example.com", &p));
+        assert!(!lands_elsewhere("mail.example.co.jp", "example.co.jp", &p));
     }
 
     #[test]
     fn a_mailbox_provider_sign_in_page_is_not_elsewhere() {
-        assert!(!lands_elsewhere("gmail.com", "accounts.google.com"));
-        assert!(!lands_elsewhere("hotmail.com", "outlook.live.com"));
+        let p = providers();
+        assert!(!lands_elsewhere("gmail.com", "accounts.google.com", &p));
+        assert!(!lands_elsewhere("hotmail.com", "outlook.live.com", &p));
+        // and the list is the policy's: without it, the sign-in page is elsewhere
+        assert!(lands_elsewhere("gmail.com", "accounts.google.com", &[]));
+    }
+
+    #[test]
+    fn a_sender_under_a_vetted_suffix_is_recognised_and_the_suffix_alone_is_not() {
+        let v: Vec<String> = DEFAULT_VETTED_SUFFIXES
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert!(under_vetted_suffix("example-group.co.jp", &v));
+        assert!(under_vetted_suffix("mail.example.ac.jp", &v));
+        assert!(under_vetted_suffix("cs.mit.edu", &v));
+        assert!(!under_vetted_suffix("co.jp", &v));
+        assert!(!under_vetted_suffix("example.jp", &v));
+        assert!(!under_vetted_suffix("dealclosersvoice.com", &v));
+        // `xco.jp` is a .jp domain, not a co.jp one
+        assert!(!under_vetted_suffix("xco.jp", &v));
     }
 
     #[test]
@@ -231,8 +318,13 @@ mod tests {
             assert_eq!(Landing::decode(&landing.encode()), Some(landing));
         }
         assert_eq!(Landing::decode("garbage"), None);
-        assert!(!Landing::Nowhere.elsewhere("dealclosersvoice.com"));
-        assert!(Landing::At("dealclosers.co".into()).elsewhere("dealclosersvoice.com"));
+        let p = providers();
+        assert!(!Landing::Nowhere.elsewhere("dealclosersvoice.com", &p));
+        assert!(Landing::At("dealclosers.co".into()).elsewhere("dealclosersvoice.com", &p));
+        assert_eq!(
+            Landing::At("www.dealclosers.co".into()).registrable(),
+            "dealclosers.co"
+        );
     }
 
     #[test]

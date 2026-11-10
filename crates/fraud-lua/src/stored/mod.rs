@@ -112,7 +112,16 @@ pub fn judge_with(
         new_qr_domain,
         ..msg.facts(seen, rotation, rel)
     };
-    facts.site_elsewhere = site_elsewhere(hist.as_mut(), &facts);
+    let site = site(
+        hist.as_mut(),
+        &facts,
+        policy,
+        reader.map_or("", |(user, _)| user),
+        raw,
+    );
+    facts.site_elsewhere = site.elsewhere;
+    facts.landing_known_domain = site.landing_known_domain;
+    facts.copies_someone_known = site.copies_someone_known;
     let scan = scan(&facts, policy)?;
     let mut verdict = rescan_verdict(raw, &scan.findings);
     verdict.rules_version = scan.version;
@@ -123,29 +132,75 @@ pub fn judge_with(
     })
 }
 
-/// Whether the sender's web root lands on another domain, as the receive
-/// path recorded it when it visited. Read only for a message
-/// [`mailrs_fraud::burner_domain::worth_visiting`], the same test the
-/// receive path visits on; never visits itself, so a host it has no
-/// record of reads as not elsewhere.
-pub fn site_elsewhere(
+/// The burner-domain facts of one message
+/// ([`mailrs_fraud::burner_domain`]): whether the sender's web root lands
+/// on another domain, and the two things that excuse it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Site {
+    /// The web root lands on another registrable domain, not a mailbox
+    /// provider's.
+    pub elsewhere: bool,
+    /// The reader has written to someone at the domain it lands on.
+    pub landing_known_domain: bool,
+    /// The `To` or `Cc` names someone the reader knows
+    /// ([`relation::copies_someone_known`]).
+    pub copies_someone_known: bool,
+}
+
+/// [`Site`] as the receive path recorded the landing when it visited.
+/// Read only for a message [`mailrs_fraud::burner_domain::worth_visiting`],
+/// the same test the receive path visits on; never visits itself, so a
+/// host it has no record of reads as not elsewhere.
+pub fn site(
     conn: Option<&mut kevy_client::Connection>,
     facts: &mailrs_fraud::Facts<'_>,
-) -> bool {
+    policy: &mailrs_fraud::Policy,
+    reader: &str,
+    raw: &[u8],
+) -> Site {
     if !mailrs_fraud::burner_domain::worth_visiting(
         facts.hosted_mailbox,
         facts.is_bulk,
         &facts.relation,
     ) {
-        return false;
+        return Site::default();
     }
     let Some(conn) = conn else {
-        return false;
+        return Site::default();
     };
-    mailrs_core_sidestate::families::site_landing::get(conn, facts.domain)
+    let Some(landing) = mailrs_core_sidestate::families::site_landing::get(conn, facts.domain)
         .ok()
         .flatten()
-        .is_some_and(|landing| landing.elsewhere(facts.domain))
+    else {
+        return Site::default();
+    };
+    site_from(conn, facts.domain, &landing, policy, reader, raw)
+}
+
+/// [`Site`] for a landing in hand: the receive path's, just visited or
+/// read, and [`site`]'s. The two excuses are read only when it lands
+/// elsewhere, the one case they change.
+pub fn site_from(
+    conn: &mut kevy_client::Connection,
+    from_host: &str,
+    landing: &mailrs_fraud::burner_domain::Landing,
+    policy: &mailrs_fraud::Policy,
+    reader: &str,
+    raw: &[u8],
+) -> Site {
+    if !landing.elsewhere(from_host, &policy.mailbox_providers) {
+        return Site::default();
+    }
+    Site {
+        elsewhere: true,
+        landing_known_domain: relation::wrote_to_domain(conn, reader, &landing.registrable()),
+        copies_someone_known: relation::copies_someone_known(
+            conn,
+            reader,
+            raw,
+            &policy.our_domains,
+        ),
+    }
 }
 
 /// One header's value, by its lowercase name including the colon,

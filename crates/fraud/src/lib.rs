@@ -112,6 +112,14 @@ pub struct Policy {
     /// it. Empty turns the check off, which is the safe direction —
     /// see [`impersonation::impersonates_one_of_us`].
     pub account_names: Vec<String>,
+    /// Mail providers whose web roots land on a sign-in page, registrable
+    /// domains: a landing there is not a sender's site elsewhere
+    /// ([`burner_domain::DEFAULT_MAILBOX_PROVIDERS`]). Empty exempts none.
+    pub mailbox_providers: Vec<String>,
+    /// Public suffixes that admit one qualified registrant per
+    /// organisation; a sender under one is not taken for a burner domain
+    /// ([`burner_domain::DEFAULT_VETTED_SUFFIXES`]). Empty exempts none.
+    pub vetted_suffixes: Vec<String>,
 }
 
 pub use facts::{ATTACHMENT_TEXT_CAP, Facts};
@@ -148,6 +156,7 @@ mod tests {
             org_names: vec!["GOLIA株式会社".into()],
             our_domains: vec!["golia.jp".into(), "golia.ai".into()],
             allowed_domains: vec!["slack.com".into(), "github.com".into()],
+            ..Policy::default()
         }
     }
 

@@ -88,10 +88,12 @@ pub async fn domain_seen_async(client: Option<Arc<KevyNetClient>>, host: &str) -
     .unwrap_or(0)
 }
 
-/// Whether `host`'s web root lands on another registrable domain
-/// ([`mailrs_fraud::burner_domain`]): the store's answer when it has one,
-/// otherwise a visit now, recorded for the next message and for every
-/// judging of stored mail, which only reads it.
+/// Whether `host`'s web root lands on another registrable domain, and
+/// what excuses it ([`mailrs_fraud_lua::stored::Site`]): the store's
+/// landing when it has one, otherwise a visit now, recorded for the next
+/// message and for every judging of stored mail, which only reads it. The
+/// excuses are read the way stored judgings read them
+/// ([`mailrs_fraud_lua::stored::site_from`]), for `reader`.
 ///
 /// Called only for a message worth the visit whose `From` domain
 /// authenticated it, so visits stay rare, and bounded to a few seconds
@@ -104,18 +106,23 @@ pub async fn domain_seen_async(client: Option<Arc<KevyNetClient>>, host: &str) -
 /// message visits again.
 ///
 /// [`SiteVisits`]: crate::site_visit::SiteVisits
-pub async fn site_elsewhere_async(
+pub async fn site_async(
     client: Option<Arc<KevyNetClient>>,
     visits: &crate::site_visit::SiteVisits,
     client_ip: std::net::IpAddr,
     host: &str,
-) -> bool {
+    policy: &mailrs_fraud::Policy,
+    reader: &str,
+    raw: &[u8],
+) -> mailrs_fraud_lua::stored::Site {
     use mailrs_core_sidestate::families::site_landing;
     use mailrs_fraud::burner_domain::Landing;
-    let Some(client) = client else { return false };
-    let (reader, wanted) = (client.clone(), host.to_string());
+    let Some(client) = client else {
+        return Default::default();
+    };
+    let (reader_conn, wanted) = (client.clone(), host.to_string());
     let cached = tokio::task::spawn_blocking(move || {
-        reader
+        reader_conn
             .with_conn(|c| site_landing::get(c, &wanted))
             .ok()
             .flatten()
@@ -128,7 +135,7 @@ pub async fn site_elsewhere_async(
         None => {
             let Some(_slot) = visits.admit(client_ip, crate::site_visit::this_minute()) else {
                 tracing::info!(event = "site_visit_refused", %host, %client_ip, "visit limit reached; not visited");
-                return false;
+                return Default::default();
             };
             let egress = mailrs_egress::Egress::new("mailrs", std::time::Duration::from_secs(4));
             let visited =
@@ -140,15 +147,35 @@ pub async fn site_elsewhere_async(
                 Some(at) => Landing::At(at),
                 None => Landing::Nowhere,
             };
-            let (recorded, visited_host) = (landing.clone(), host.to_string());
+            let (recorded, visited_host, writer) =
+                (landing.clone(), host.to_string(), client.clone());
             let _ = tokio::task::spawn_blocking(move || {
-                client.with_conn(|c| site_landing::put(c, &visited_host, &recorded))
+                writer.with_conn(|c| site_landing::put(c, &visited_host, &recorded))
             })
             .await;
             landing
         }
     };
-    landing.elsewhere(host)
+    if !landing.elsewhere(host, &policy.mailbox_providers) {
+        return Default::default();
+    }
+    let (host, policy, reader, raw) = (
+        host.to_string(),
+        policy.clone(),
+        reader.to_string(),
+        raw.to_vec(),
+    );
+    tokio::task::spawn_blocking(move || {
+        client
+            .with_conn(|c| {
+                Ok(mailrs_fraud_lua::stored::site_from(
+                    c, &host, &landing, &policy, &reader, &raw,
+                ))
+            })
+            .unwrap_or_default()
+    })
+    .await
+    .unwrap_or_default()
 }
 
 /// Whether the sender's domain and the link domains are new to this
