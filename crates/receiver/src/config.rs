@@ -64,6 +64,12 @@ pub struct ReceiverConfig {
     pub rate_limit_capacity: u32,
     pub rate_limit_refill: f64,
     pub spam_score_threshold: f64,
+    /// `MAILRS_SITE_VISIT_MAX_CONCURRENT`: how many visits to a sender's
+    /// web root may be in flight at once across the process.
+    pub site_visit_max_concurrent: usize,
+    /// `MAILRS_SITE_VISIT_PER_IP_PER_MINUTE`: how many visits one
+    /// connecting address's messages may cause in a minute.
+    pub site_visit_per_ip_per_minute: u32,
     pub tls_cert: Option<PathBuf>,
     pub tls_key: Option<PathBuf>,
     /// `MAILRS_DANE_NEXT_KEY`: a PEM public key that is to replace the
@@ -170,6 +176,8 @@ impl ReceiverConfig {
             rate_limit_capacity: env_parsed("MAILRS_RATE_LIMIT_CAPACITY", 100),
             rate_limit_refill: env_parsed("MAILRS_RATE_LIMIT_REFILL", 1.0),
             spam_score_threshold: env_parsed("MAILRS_SPAM_SCORE_THRESHOLD", 5.0),
+            site_visit_max_concurrent: env_parsed("MAILRS_SITE_VISIT_MAX_CONCURRENT", 4),
+            site_visit_per_ip_per_minute: env_parsed("MAILRS_SITE_VISIT_PER_IP_PER_MINUTE", 2),
             tls_cert: env_opt_nonempty("MAILRS_TLS_CERT").map(PathBuf::from),
             tls_key: env_opt_nonempty("MAILRS_TLS_KEY").map(PathBuf::from),
             dane_next_key: env_opt_nonempty("MAILRS_DANE_NEXT_KEY").map(PathBuf::from),

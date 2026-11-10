@@ -12,6 +12,10 @@ pub(super) fn rejudge_routes() -> axum::Router<Arc<WebState>> {
     axum::Router::new()
         .route("/api/admin/rejudge/batches", get(rejudge::batches))
         .route(
+            "/api/admin/fraud/rules/{rule}/triggers",
+            get(rejudge::rule_triggers),
+        )
+        .route(
             "/api/admin/rejudge/batches/{observation}/release",
             post(rejudge::release),
         )

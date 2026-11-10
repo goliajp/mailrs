@@ -149,6 +149,11 @@ services:
       # asked beside 1.1.1.1 and 8.8.8.8 for the TLSA records
       MAILRS_DANE_NEXT_KEY: /certs/next-pubkey.pem
       MAILRS_DANE_AUTHORITATIVE: clyde.ns.cloudflare.com,dora.ns.cloudflare.com
+      # visits to a sender's web root (cold outreach from burner domains):
+      # at most this many at once, and this many a minute for messages
+      # from one connecting address; past either, nothing is visited
+      MAILRS_SITE_VISIT_MAX_CONCURRENT: "4"
+      MAILRS_SITE_VISIT_PER_IP_PER_MINUTE: "2"
       RUST_LOG: info
     volumes:
       - mailrs-data:/data
