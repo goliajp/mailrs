@@ -46,6 +46,7 @@ pub mod quota_limits;
 pub mod recall_notices;
 pub mod reply_rotation;
 pub mod reports;
+pub mod rule_triggers;
 pub mod rules;
 pub mod saved_searches;
 pub mod screening;

@@ -89,6 +89,22 @@ pub fn worth_visiting(hosted: bool, is_bulk: bool, relation: &crate::relation::R
     hosted && !is_bulk && relation.first_contact && !relation.from_correspondent_domain
 }
 
+/// Whether `domain`, a domain that authenticated the message (the SPF
+/// envelope domain or a DKIM signature's `d=`), speaks for `from_host`:
+/// the same registrable domain.
+///
+/// The visit is paid for only when the `From` domain itself passed SPF or
+/// DKIM. The two facts that make a message worth visiting, a hosted
+/// mailbox's `Received` hop and a Gmail `Message-ID`, are text a sender
+/// can write; without this anyone could make the receiver fetch any
+/// public host by sending forged mail with a fresh `From` domain each
+/// time. Cold outreach authenticates as its own domain, so the rule
+/// misses nothing by asking.
+pub fn speaks_for(from_host: &str, domain: &str) -> bool {
+    let from = crate::brand::registrable(from_host);
+    !from.is_empty() && from == crate::brand::registrable(domain)
+}
+
 /// What the cache holds for a sender host: where its web root landed, or
 /// that it did not answer. A host that did not answer is not evidence of
 /// anything, so it is kept for a shorter time and read as not elsewhere.
@@ -217,6 +233,16 @@ mod tests {
         assert_eq!(Landing::decode("garbage"), None);
         assert!(!Landing::Nowhere.elsewhere("dealclosersvoice.com"));
         assert!(Landing::At("dealclosers.co".into()).elsewhere("dealclosersvoice.com"));
+    }
+
+    #[test]
+    fn only_the_from_domain_itself_speaks_for_it() {
+        assert!(speaks_for("dealclosersvoice.com", "dealclosersvoice.com"));
+        assert!(speaks_for("mail.example.co.jp", "example.co.jp"));
+        // a mailbox service signing for the tenant is not the tenant
+        assert!(!speaks_for("dealclosersvoice.com", "onmicrosoft.com"));
+        assert!(!speaks_for("dealclosersvoice.com", "dealclosers.co"));
+        assert!(!speaks_for("", ""));
     }
 
     #[test]

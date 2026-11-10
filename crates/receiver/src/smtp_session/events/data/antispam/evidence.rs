@@ -182,8 +182,16 @@ impl Evidence {
         let is_bulk = mailrs_inbound::body::is_bulk(&receive_ctx.message);
         let site_elsewhere =
             mailrs_fraud::burner_domain::worth_visiting(hosted_mailbox, is_bulk, &relation)
+                && crate::site_visit::from_domain_authenticated(
+                    ctx.resolver.clone(),
+                    receive_ctx,
+                    &sender_host,
+                )
+                .await
                 && crate::spam_lists::site_elsewhere_async(
                     ctx.spam_lists_client.clone(),
+                    &ctx.site_visits,
+                    receive_ctx.client_ip,
                     &sender_host,
                 )
                 .await;

@@ -136,6 +136,10 @@ pub async fn start() -> Receiver {
         ldap_config: None,
         inbound_pipeline,
         spam_lists_client: Some(kevy_client.clone()),
+        site_visits: Arc::new(crate::site_visit::SiteVisits::new(
+            cfg.site_visit_max_concurrent,
+            cfg.site_visit_per_ip_per_minute,
+        )),
         spool_sink,
         signins: Default::default(),
         unknown_rcpt: Default::default(),

@@ -238,6 +238,7 @@ pub const KEPT: &[Kept] = &[
     Kept { name: "auth:events:*", why: "the sign-in event log, kept for its retention like the audit log" },
     Kept { name: "auth:alerts:pending", why: "security alerts already raised, mailed to the operator" },
     Kept { name: "owner-notices", why: "notices to the operator, not the user's" },
+    Kept { name: "mailrs:fraud:triggers:*", why: "deliveries a rule under review fired on, naming recipients only in values; each day's list expires after 60 days, the time the review needs" },
     Kept { name: "mailrs:masked:submit_log", why: "the log of mail sent from masks, kept like the audit log" },
     Kept { name: "mailrs:outbound:*", why: "mail the user sent that was released for delivery and is still on its way: it is delivered or bounced, then dropped by the queue; mail not yet released is withheld at the delete and purged with mailrs:outbound:withheld:{user}" },
     Kept { name: "shared:{gid}:*", why: "a team's working state (presence, copies, notes, drafts): the group's, not a member's; purged with the group, after the same retention (group_purge)" },

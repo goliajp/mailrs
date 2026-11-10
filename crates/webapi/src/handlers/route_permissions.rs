@@ -71,6 +71,7 @@ pub const ADMIN_ROUTES: &[(&str, Need)] = &[
     ("/api/admin/email-groups/{id}/shared", ACCOUNTS),
     ("/api/admin/export", Super),
     ("/api/admin/flow", AnyAdmin),
+    ("/api/admin/fraud/rules/{rule}/triggers", Super),
     ("/api/admin/greylist/local-lists", GREYLIST),
     ("/api/admin/greylist/local-lists/{id}", GREYLIST),
     ("/api/admin/groups", GROUPS),
