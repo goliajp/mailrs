@@ -16,7 +16,7 @@ export function LabelBar() {
   return (
     <div
       aria-label={t('labels.title')}
-      className="border-border flex gap-1 overflow-x-auto border-b px-3 py-1.5 text-xs xl:hidden"
+      className="border-border folders:hidden flex gap-1 overflow-x-auto border-b px-3 py-1.5 text-xs"
       role="toolbar"
     >
       {data.map((l) => (

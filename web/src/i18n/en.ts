@@ -37,6 +37,8 @@ export const en = {
   'lang.setting': 'Language',
   'lang.setting.browser': 'Same as the browser',
 
+  'folders.collapse': 'Hide folders',
+  'folders.expand': 'Show folders',
   'list.all': word('en', 'list.all'),
   'list.all.empty': 'No mail',
   'list.archived': word('en', 'list.archived'),

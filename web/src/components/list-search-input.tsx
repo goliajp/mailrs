@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
 
-import { useAtom } from 'jotai'
-import { Search, X } from 'lucide-react'
+import { useAtom, useSetAtom } from 'jotai'
+import { PanelLeftOpen, Search, X } from 'lucide-react'
 import { useId, useState } from 'react'
 
 import { useT } from '@/i18n'
+import { foldersOpenAtom } from '@/store/folders-column'
 import { searchQueryAtom } from '@/store/ui'
 
 /**
@@ -20,6 +21,9 @@ import { searchQueryAtom } from '@/store/ui'
  * all read, compose. Only the conversation lists have any; they used to
  * be the reason that list hand-rolled a byte-identical copy of this
  * markup instead of using it.
+ *
+ * While the folder column is collapsed the row starts with the button
+ * that opens it again, so every list can bring it back.
  *
  * `hint` is a line under the empty box while it has focus. The search
  * operators used to be the placeholder, which a list column cut off after
@@ -40,11 +44,21 @@ export function ListSearchInput({
   const hintId = useId()
   const [value, setValue] = useAtom(searchQueryAtom)
   const [focused, setFocused] = useState(false)
+  const setFoldersOpen = useSetAtom(foldersOpenAtom)
   const active = value.trim().length > 0
   const showHint = !!hint && focused && value === ''
   return (
     <div className="border-border border-b px-3 py-2">
       <div className="flex items-center gap-2">
+        <button
+          aria-label={t('folders.expand')}
+          className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary focus-visible:ring-accent/50 folders-closed:flex hidden h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          onClick={() => setFoldersOpen(true)}
+          title={t('folders.expand')}
+          type="button"
+        >
+          <PanelLeftOpen aria-hidden="true" className="h-4 w-4" />
+        </button>
         <div className="relative flex-1" role="search">
           <Search
             aria-hidden="true"
