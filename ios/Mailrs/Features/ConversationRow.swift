@@ -30,14 +30,13 @@ struct ConversationRow: View {
         return "Important"
     }
 
-    /// Read rows recede — except while choosing, when every row is a
-    /// target and dimming half of them makes the choice harder to see.
-    /// Reported from the phone as not being able to tell what was
-    /// selected.
-    private var rowOpacity: Double {
-        if isSelecting { return 1 }
-        if conversation.unreadCount > 0 { return 1 }
-        return 0.7
+    /// The subject in full colour while unread, receding once read.
+    /// Read rows used to be dimmed whole to 70%, and with the preview
+    /// already in the faintest grey that line could hardly be read; the
+    /// weight, the subject's colour and the dot say read or unread.
+    private var subjectStyle: HierarchicalShapeStyle {
+        if conversation.unreadCount > 0 { return .primary }
+        return .secondary
     }
 
     private var sender: String {
@@ -94,7 +93,7 @@ struct ConversationRow: View {
                 HStack(spacing: 4) {
                     ValueOrPlaceholder(value: conversation.subject, placeholder: "(no subject)")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(subjectStyle)
                         .lineLimit(RowLayout.subjectLines(typeSize))
                     if conversation.flagged {
                         Image(systemName: "star.fill")
@@ -127,7 +126,7 @@ struct ConversationRow: View {
                 if !typeSize.isAccessibilitySize, !conversation.snippet.isEmpty {
                     Text(conversation.snippet)
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 // A team conversation says who answers it, so two people
@@ -141,7 +140,6 @@ struct ConversationRow: View {
             }
         }
         .padding(.vertical, 2)
-        .opacity(rowOpacity)
         // Named, so a test can address a conversation row rather than
         // whatever list happens to be first on screen. Without this an
         // iPad test swiped the *sidebar* and reported that swiping a

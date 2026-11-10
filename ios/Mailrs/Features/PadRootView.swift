@@ -114,8 +114,7 @@ struct PadRootView: View {
         } message: {
             Text("Every conversation in \(listTitle) will be marked read")
         }
-        .overlay(alignment: .bottom) { UndoBar() }
-        .overlay(alignment: .bottom) { SendUndoBar() }
+        .overlay(alignment: .bottom) { UndoBars().padding(.bottom, 24) }
         .animation(.easeOut(duration: 0.2), value: session.pendingSend)
         // Failures were silent on this screen: `session.banner` is set
         // and nobody was reading it, so an archive the server refused
@@ -126,18 +125,25 @@ struct PadRootView: View {
         .onChange(of: session.activeList) { _, _ in dropSelectionIfGone() }
         .onChange(of: session.visibleConversations.count) { _, _ in dropSelectionIfGone() }
         .sheet(isPresented: $composing) { ComposeView() }
-        .confirmationDialog(
+        // An alert with a real binding, as on the phone: a
+        // confirmation dialog is a popover on the iPad and drops its
+        // Cancel button, and a constant binding could not be dismissed
+        // by tapping past it.
+        .alert(
             "Delete forever?",
-            isPresented: .constant(pendingDelete != nil),
-            titleVisibility: .visible
-        ) {
+            isPresented: Binding(
+                get: { pendingDelete != nil },
+                set: { if !$0 { pendingDelete = nil } }
+            ),
+            presenting: pendingDelete
+        ) { doomed in
             Button("Delete forever", role: .destructive) {
-                if let doomed = pendingDelete {
-                    Task { await session.perform(.deleteForever, on: [doomed]) }
-                }
+                Task { await session.perform(.deleteForever, on: [doomed]) }
                 pendingDelete = nil
             }
             Button("Cancel", role: .cancel) { pendingDelete = nil }
+        } message: { _ in
+            Text("This will permanently delete all messages.")
         }
         .sheet(isPresented: $showingSettings) { SettingsView() }
         .sheet(isPresented: $showingDrafts) { DraftsView() }
@@ -154,7 +160,7 @@ struct PadRootView: View {
             SendListSection(searchText: searchText)
         } else if session.visibleConversations.isEmpty {
             if session.initialLoading {
-                ProgressView()
+                ListPlaceholder()
             } else if session.searchQuery != nil {
                 ContentUnavailableView.search(text: searchText)
             } else {
@@ -170,6 +176,12 @@ struct PadRootView: View {
             List(session.visibleConversations, selection: selectionBinding) { conversation in
                 ConversationRow(conversation: conversation, isSelecting: false)
                     .tag(conversation.threadId)
+                    .listRowSeparator(
+                        ListEdges.top(conversation.threadId == session.visibleConversations.first?.threadId),
+                        edges: .top)
+                    .listRowSeparator(
+                        ListEdges.bottom(conversation.threadId == session.visibleConversations.last?.threadId),
+                        edges: .bottom)
                     // Paging. Without it the list simply ends at the
                     // first page, and a mailbox with more in it looks
                     // like a mailbox that does not.

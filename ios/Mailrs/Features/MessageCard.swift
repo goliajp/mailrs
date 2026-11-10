@@ -175,6 +175,42 @@ struct MessageCard: View {
         }
     }
 
+    /// What can be done to *this message*, on a button of its own in
+    /// the header. The thread's bar acts on the whole conversation.
+    ///
+    /// Not a long press on the card: the card holds the body and its
+    /// buttons, so pressing "Load images" a moment too long opened this
+    /// menu over a preview of the whole card — a web view, which
+    /// snapshots as a blank strip.
+    private var messageMenu: some View {
+        Menu {
+            Button {
+                Clipboard.put(MessageActions.plainText(message))
+            } label: {
+                Label("Copy text", systemImage: "doc.on.doc")
+            }
+            ShareLink(item: MessageActions.shareable(message)) {
+                Label("Share", systemImage: "square.and.arrow.up")
+            }
+            Divider()
+            Button {
+                showingSource = true
+            } label: {
+                Label("View source", systemImage: "chevron.left.forwardslash.chevron.right")
+            }
+            let sender = SenderName.extractEmail(message.sender)
+            BlockSenderItem(address: sender) { onBlockSender(sender.lowercased()) }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel("Message actions")
+        .accessibilityIdentifier("message.more")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: RowLayout.gutterAlignment(typeSize), spacing: 8) {
@@ -209,6 +245,7 @@ struct MessageCard: View {
                         .layoutPriority(1)
                     }
                 }
+                messageMenu
             }
             .contentShape(Rectangle())
             .onTapGesture(perform: onHeaderTap)
@@ -233,11 +270,15 @@ struct MessageCard: View {
                 } label: {
                     Label("Load images", systemImage: "photo")
                         .font(.caption.weight(.medium))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .floatingGlass(in: .capsule, tint: .accentColor)
                 }
-                .buttonStyle(.plain)
+                // The system's bordered button, as the verdict panel's:
+                // accent text on a light wash of it, readable in both
+                // themes. It sits in the message, not over it, so it is
+                // not glass — tinted glass put dark text on a dark blue
+                // capsule and could hardly be read.
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .buttonBorderShape(.capsule)
                 .accessibilityIdentifier("load-images")
             }
 
@@ -319,29 +360,6 @@ struct MessageCard: View {
         .padding(12)
         .background(Color.cardBackground,
                     in: RoundedRectangle(cornerRadius: 12))
-        // Long press, which is where every other iOS app keeps the
-        // things you do to one item. The thread's own bar has reply,
-        // archive and the junk verdict — those act on the whole
-        // conversation. These three act on *this message*, and none of
-        // them had anywhere to live.
-        .contextMenu {
-            Button {
-                Clipboard.put(MessageActions.plainText(message))
-            } label: {
-                Label("Copy text", systemImage: "doc.on.doc")
-            }
-            ShareLink(item: MessageActions.shareable(message)) {
-                Label("Share", systemImage: "square.and.arrow.up")
-            }
-            Divider()
-            Button {
-                showingSource = true
-            } label: {
-                Label("View source", systemImage: "chevron.left.forwardslash.chevron.right")
-            }
-            let sender = SenderName.extractEmail(message.sender)
-            BlockSenderItem(address: sender) { onBlockSender(sender.lowercased()) }
-        }
         .task(id: message.messageId) { verdict = await session.fraudVerdict(messageId: message.messageId) }
         .task(id: message.messageId) {
             callbackNumbers = await session.callbackNumbers(in: message, earlier: earlier)

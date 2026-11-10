@@ -36,8 +36,15 @@ struct ThreadHeader: View {
     /// the singular and the count form separately, which is what lets
     /// a language that counts differently say so.
     private var countLabel: LocalizedStringKey {
-        if messages.count == 1 { return "1 message" }
-        return "\(messages.count) messages"
+        if count == 1 { return "1 message" }
+        return "\(count) messages"
+    }
+
+    /// The messages in hand, or the row's count while they load, so the
+    /// header reads the same before and after.
+    private var count: Int {
+        if messages.isEmpty { return conversation.messageCount }
+        return messages.count
     }
 
     var body: some View {

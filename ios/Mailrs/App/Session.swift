@@ -333,26 +333,37 @@ final class Session {
         guard activeList != .send else { return await loadSendRows() }
         guard let client else { return }
         // A cold screen opens on the last-known rows while the network
-        // answers — a mailbox you saw an hour ago beats a spinner. The
-        // fetch then replaces them in place; only a screen with nothing
-        // at all shows the spinner, and pull-to-refresh on a populated
-        // list still never blanks it.
-        if conversations.isEmpty, let cached = cache.readConversations(list: listCacheKey) {
+        // answers — a mailbox you saw an hour ago beats a spinner. A list
+        // switch does not: it has already set `initialLoading`, and the
+        // rows saved the last time that list was open were replaced in
+        // front of the reader a moment later, read as the list flickering
+        // from old mail to new. The switch shows placeholder rows instead
+        // and falls back to the saved ones only if the fetch fails.
+        let asked = listCacheKey
+        let askedLabel = activeLabel?.id
+        if conversations.isEmpty, !initialLoading, let cached = cache.readConversations(list: asked) {
             withAnimation { conversations = cached }
         }
         if conversations.isEmpty { initialLoading = true }
         do {
             let page = try await fetchPage(client, page: nil)
+            cache.writeConversations(page, list: asked)
+            // Still the list that was asked for: an answer that lands
+            // after the reader has moved on belongs to the list they left.
+            guard listCacheKey == asked, activeLabel?.id == askedLabel else { return }
             // Rows slide in and the empty state cross-fades away, the
             // way a List is expected to move. Without the animation
             // block SwiftUI swaps the frames in one step.
             withAnimation { conversations = page }
             reachedEnd = false
-            cache.writeConversations(page, list: listCacheKey)
         } catch {
+            guard listCacheKey == asked, activeLabel?.id == askedLabel else { return }
             // With cached rows on screen, a failed refresh is stale
             // mail, not a broken app — the error state would replace a
             // readable mailbox with an apology.
+            if conversations.isEmpty, let cached = cache.readConversations(list: asked) {
+                conversations = cached
+            }
             if conversations.isEmpty {
                 banner = error.localizedDescription
             }
@@ -392,48 +403,6 @@ final class Session {
         guard let client else { return }
         if let count = try? await client.unseenCount() {
             AppBadge.update(count)
-        }
-    }
-
-    /// Switch lists.
-    ///
-    /// Everything scoped to the old list goes with it: the rows, the
-    /// paging cursor's end flag, and any search. Carrying a search across
-    /// would leave Junk showing hits from Inbox, and carrying `reachedEnd`
-    /// would leave a fresh list unable to page.
-    func select(_ list: MailList) async {
-        clearUndo()
-        guard list != activeList else { return }
-        activeList = list
-        inboxSection = nil
-        // The new list's cached rows, in the same breath as clearing the
-        // old ones — and `initialLoading` set here rather than inside
-        // the load.
-        //
-        // `loadConversations` is awaited, and the await yields: for that
-        // frame the rows were empty and nothing said a load was running,
-        // so SwiftUI drew the empty state. Every switch to an uncached
-        // list flashed "All caught up" at a mailbox that was about to
-        // fill. Reported from the phone as loading and empty being
-        // confused, which is what it is — the view was asked a question
-        // it did not yet have the evidence to answer.
-        let cached = cache.readConversations(list: list.rawValue) ?? []
-        conversations = cached
-        initialLoading = cached.isEmpty
-        searchResults = []
-        searchQuery = nil
-        reachedEnd = false
-        sendRows = []
-        scheduledSends = []
-        if list == .send {
-            initialLoading = true
-            await loadSendRows()
-            // In the same breath: this screen is the only place a
-            // scheduled message can be stopped, and one that loads a
-            // beat later is one the reader has already scrolled past.
-            await loadScheduled()
-        } else {
-            await loadConversations()
         }
     }
 

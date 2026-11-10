@@ -20,7 +20,7 @@ struct DraftsView: View {
         NavigationStack {
             Group {
                 if loading, session.drafts.isEmpty {
-                    ProgressView()
+                    ListPlaceholder()
                 } else if let failure = session.draftsFailure, session.drafts.isEmpty {
                     ContentUnavailableView("Could not load drafts",
                                            systemImage: "exclamationmark.triangle",
@@ -55,7 +55,11 @@ struct DraftsView: View {
                                             .foregroundStyle(.secondary)
                                             .lineLimit(1)
                                     }
+                                    Spacer(minLength: 0)
                                 }
+                                // the whole row answers the tap, not only
+                                // the words in it
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         }

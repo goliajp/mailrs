@@ -30,22 +30,24 @@ struct ScheduledLine: View {
     }
 }
 
-/// The account's templates, as the web composer's template list; absent
-/// when there are none.
+/// The account's templates, as the web composer's template list.
+///
+/// Always on the bar, unable to open while there are none: it used to
+/// appear once the list had loaded and push Attach and Send sideways
+/// under the reader's thumb.
 struct TemplateMenu: View {
     let templates: [Wire.Template]
     let onPick: (Wire.Template) -> Void
 
     var body: some View {
-        if !templates.isEmpty {
-            Menu {
-                ForEach(templates) { template in
-                    Button(template.name) { onPick(template) }
-                }
-            } label: {
-                Label("Templates", systemImage: "doc.on.clipboard")
+        Menu {
+            ForEach(templates) { template in
+                Button(template.name) { onPick(template) }
             }
-            .accessibilityIdentifier("composer-templates")
+        } label: {
+            Label("Templates", systemImage: "doc.on.clipboard")
         }
+        .disabled(templates.isEmpty)
+        .accessibilityIdentifier("composer-templates")
     }
 }

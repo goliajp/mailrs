@@ -110,7 +110,7 @@ struct SignInView: View {
                             Task { await signInWithBiometrics() }
                         } label: {
                             LucideRow(title: BiometricLock.kind().label,
-                                      icon: BiometricLock.kind().symbol)
+                                      icon: BiometricLock.kind().symbol, opens: false)
                         }
                         .accessibilityIdentifier("sign-in-biometric")
                         Button("Use password instead") { showsPassword = true }
@@ -147,6 +147,10 @@ struct SignInView: View {
 
                 Section {
                     Button {
+                        // a second tap while the first is out does nothing;
+                        // the button stays enabled so its accent fill, and
+                        // the white spinner on it, stay visible
+                        guard session.state != .signingIn else { return }
                         Task {
                             await session.signIn(
                                 address: trimmedAddress,
@@ -165,12 +169,11 @@ struct SignInView: View {
                             }
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(height: 22)
+                        .frame(minHeight: 22)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    .disabled(!MailAddress.looksLike(trimmedAddress) || password.isEmpty
-                        || session.state == .signingIn)
+                    .disabled(!MailAddress.looksLike(trimmedAddress) || password.isEmpty)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                 }

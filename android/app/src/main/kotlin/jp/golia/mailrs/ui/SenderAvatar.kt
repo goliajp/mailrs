@@ -66,7 +66,18 @@ object SenderAvatar {
         Color(0xFFEC4899), // pink
     )
 
-    fun colorFor(sender: String): Color {
+    fun colorFor(sender: String): Color = PALETTE[indexFor(sender)]
+
+    /** The entries light enough that a white letter on them cannot be read: amber, yellow, lime and green. */
+    private val LIGHT_ENTRIES = setOf(2, 3, 4, 5)
+
+    /** The letter's colour: white on the darker entries, near-black on the light ones. */
+    fun initialColorFor(sender: String): Color = when (indexFor(sender) in LIGHT_ENTRIES) {
+        true -> Color.Black.copy(alpha = 0.72f)
+        false -> Color.White
+    }
+
+    private fun indexFor(sender: String): Int {
         val email = SenderIdentity.emailOf(sender)
         var hash = 0
         for (ch in email) {
@@ -79,7 +90,7 @@ object SenderAvatar {
         // Swift's `.magnitude` does rather than letting one address in
         // four billion index negatively.
         val magnitude = if (hash == Int.MIN_VALUE) Int.MAX_VALUE else kotlin.math.abs(hash)
-        return PALETTE[magnitude % PALETTE.size]
+        return magnitude % PALETTE.size
     }
 
     fun initialFor(sender: String): String =
@@ -118,7 +129,7 @@ fun SenderAvatarView(sender: String, size: Dp = 36.dp, unread: Boolean = false) 
             if (mark == null) {
                 Text(
                     SenderAvatar.initialFor(sender),
-                    color = Color.White,
+                    color = SenderAvatar.initialColorFor(sender),
                     fontSize = (size.value * 0.42f).sp,
                     fontWeight = FontWeight.SemiBold,
                 )
