@@ -173,10 +173,19 @@ end)
 -- It scores to Junk and never holds: a real company can write from a
 -- secondary domain, and the reader sees it there. A binary without the
 -- facts reads nil: it never fires.
+-- Three signs of a real company writing from a group or second domain let
+-- it through: the reader has written to the domain the site lands on, the
+-- message copies someone the reader knows (an introduction; outreach is
+-- one to one), or the sender's domain is under a suffix that admits one
+-- qualified organisation per domain (co.jp, ac.jp, edu), which cannot be
+-- bought by the dozen. A binary without these facts reads nil: no excuse.
 rule('burner-domain-outreach', 'provenance', 5, false, function(m)
     if external(m) and m.site_elsewhere == true and m.hosted_mailbox == true
         and m.is_bulk ~= true and m.first_contact == true
-        and m.from_correspondent_domain ~= true then
+        and m.from_correspondent_domain ~= true
+        and m.landing_known_domain ~= true
+        and m.copies_someone_known ~= true
+        and m.from_vetted_suffix ~= true then
         return found('a first message from a mailbox on a domain whose website sends visitors to another domain',
             {domain = m.from_domain})
     end

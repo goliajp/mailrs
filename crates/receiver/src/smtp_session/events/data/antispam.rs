@@ -57,9 +57,9 @@ pub(super) async fn run_antispam(
     )
     .await;
     let attachments = reading::read(&mut receive_ctx).await;
-    let evidence = evidence::Evidence::gather(&receive_ctx, attachments, ctx).await;
-    let facts = evidence.facts(&receive_ctx, addr);
     let policy = evidence::policy(ctx).await;
+    let evidence = evidence::Evidence::gather(&receive_ctx, attachments, ctx, &policy).await;
+    let facts = evidence.facts(&receive_ctx, addr);
     let scan = match mailrs_fraud_lua::scan(&facts, &policy) {
         Ok(scan) => scan,
         Err(error) => return outcome::rules_unavailable(error, ctx),

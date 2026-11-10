@@ -138,6 +138,8 @@ pub(crate) fn judge_outgoing(raw: &[u8]) -> Result<mailrs_fraud_lua::Scan, Strin
         org_names: config::csv_env("MAILRS_ORG_NAMES"),
         our_domains: config::csv_env("MAILRS_LOCAL_DOMAINS"),
         allowed_domains: config::csv_env("MAILRS_ORG_NAME_ALLOWED_DOMAINS"),
+        mailbox_providers: mailrs_fraud::burner_domain::mailbox_providers_from_env(),
+        vetted_suffixes: mailrs_fraud::burner_domain::vetted_suffixes_from_env(),
         account_names: Vec::new(),
     };
     mailrs_fraud_lua::scan(&reading.facts(0, 0, Default::default()), &policy)
@@ -510,12 +512,14 @@ Subject: hi\r\n\r\nbody\r\n";
             org_names: vec!["GOLIA K.K.".into()],
             our_domains: vec!["golia.jp".into()],
             allowed_domains: Vec::new(),
+            ..mailrs_fraud::Policy::default()
         };
         let empty = mailrs_fraud::Policy {
             account_names: Vec::new(),
             org_names: Vec::new(),
             our_domains: vec!["golia.jp".into()],
             allowed_domains: Vec::new(),
+            ..mailrs_fraud::Policy::default()
         };
 
         assert!(

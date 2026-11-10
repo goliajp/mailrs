@@ -140,6 +140,13 @@ pub struct Facts<'a> {
     /// message [`crate::burner_domain::worth_visiting`]; false otherwise,
     /// and false when the site did not answer.
     pub site_elsewhere: bool,
+    /// The reader has written to someone at the domain the sender's web
+    /// root lands on. Only read when [`Self::site_elsewhere`].
+    pub landing_known_domain: bool,
+    /// The message's `To` or `Cc`, the reader aside, names someone the
+    /// reader has written to or a colleague. Only read when
+    /// [`Self::site_elsewhere`].
+    pub copies_someone_known: bool,
     /// Seconds the `Date:` header is ahead of the message's arrival:
     /// the clock on the live path, this deployment's own `Received:`
     /// stamp in a sweep. Zero when it is not ahead or either time is

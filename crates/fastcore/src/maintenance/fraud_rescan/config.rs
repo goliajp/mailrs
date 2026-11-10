@@ -43,6 +43,8 @@ pub(super) fn policy_from_env(state: &Arc<FastcoreState>) -> mailrs_fraud::Polic
         org_names: csv_env("MAILRS_ORG_NAMES"),
         our_domains: csv_env("MAILRS_LOCAL_DOMAINS"),
         allowed_domains: csv_env("MAILRS_ORG_NAME_ALLOWED_DOMAINS"),
+        mailbox_providers: mailrs_fraud::burner_domain::mailbox_providers_from_env(),
+        vetted_suffixes: mailrs_fraud::burner_domain::vetted_suffixes_from_env(),
         // **From the account rows, not from the environment.** A
         // deployment knows who holds an account on it, and asking an
         // operator to keep a second copy in a variable is asking for
