@@ -35,6 +35,7 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "logg
 # backend-generic surface (GreylistDb over a GreylistBackend trait, the
 # DMARC verifier), so it carries no SQL driver and no embedded kevy.
 mailrs-core-sidestate = { path = "../core-sidestate" }
+mailrs-egress = { path = "../egress" }
 mailrs-fraud = { path = "../fraud", version = "0" }
 mailrs-fraud-lua = { path = "../fraud-lua", version = "0" }
 mailrs-inbound = { path = "../inbound", version = "2" }

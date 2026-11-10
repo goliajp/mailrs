@@ -166,7 +166,7 @@ pub(super) fn judge(
     );
     let read = mailrs_parse_worker::attachments_inside(&raw, mailrs_parse_worker::Limit::Batch);
     let inside = read.inside;
-    let f = Facts {
+    let mut f = Facts {
         from: &from,
         domain: host,
         registrable: &reg,
@@ -192,6 +192,7 @@ pub(super) fn judge(
         shown_links: &shown_links,
         link_has_kit_placeholder: mailrs_inbound::body::link_has_kit_placeholder(&parsed),
         is_bulk: mailrs_inbound::body::is_bulk(&raw),
+        hosted_mailbox: mailrs_fraud::burner_domain::hosted_mailbox(&raw),
         has_executable_attachment: inside.carries_code,
         has_encrypted_document_archive: inside.encrypted_document_archive,
         parser_failed_on_message: read.parser_failed,
@@ -231,6 +232,7 @@ pub(super) fn judge(
         link_hosts: &link_hosts,
         ..Facts::default()
     };
+    f.site_elsewhere = mailrs_fraud_lua::stored::site_elsewhere(c.hist.as_mut(), &f);
     let (old, old_shadow) = match before {
         Some(r) => {
             let v = r.classify(&f, &c.policy);
