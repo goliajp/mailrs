@@ -67,6 +67,7 @@ fn all_existing_sender_fixtures_match_compiled_rules() {
             "atlassian.net".into(),
         ],
         account_names: vec!["LI HAO".into(), "No Reply".into(), "李好".into()],
+        ..Policy::default()
     };
     let mut rules = Rules::compile(DEFAULT_SOURCE).unwrap();
     // Sixteen migrated rules plus thirty written after the migration,

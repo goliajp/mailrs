@@ -65,7 +65,7 @@ pub(super) async fn receive_context(
 /// the alignment pass can reuse them after the pipeline has run.
 pub(super) struct Evidence {
     hosted_mailbox: bool,
-    site_elsewhere: bool,
+    site: mailrs_fraud_lua::stored::Site,
     decoded_from: String,
     sender_host: String,
     registrable: String,
@@ -120,6 +120,7 @@ impl Evidence {
         receive_ctx: &ReceiveContext,
         attachments: mailrs_parse_worker::AttachmentsRead,
         ctx: &ConnectionContext,
+        policy: &mailrs_fraud::Policy,
     ) -> Self {
         let decoded_from = mailrs_inbound::identity::from_header(&receive_ctx.message);
         let sender_host = decoded_from
@@ -180,21 +181,28 @@ impl Evidence {
         let bucket_hosts = mailrs_fraud::storage_bucket::bucket_hosts(&link_hosts);
         let hosted_mailbox = mailrs_fraud::burner_domain::hosted_mailbox(&receive_ctx.message);
         let is_bulk = mailrs_inbound::body::is_bulk(&receive_ctx.message);
-        let site_elsewhere =
-            mailrs_fraud::burner_domain::worth_visiting(hosted_mailbox, is_bulk, &relation)
-                && crate::site_visit::from_domain_authenticated(
-                    ctx.resolver.clone(),
-                    receive_ctx,
-                    &sender_host,
-                )
-                .await
-                && crate::spam_lists::site_elsewhere_async(
+        let visit = mailrs_fraud::burner_domain::worth_visiting(hosted_mailbox, is_bulk, &relation)
+            && crate::site_visit::from_domain_authenticated(
+                ctx.resolver.clone(),
+                receive_ctx,
+                &sender_host,
+            )
+            .await;
+        let site = match visit {
+            true => {
+                crate::spam_lists::site_async(
                     ctx.spam_lists_client.clone(),
                     &ctx.site_visits,
                     receive_ctx.client_ip,
                     &sender_host,
+                    policy,
+                    &receive_ctx.recipient,
+                    &receive_ctx.message,
                 )
-                .await;
+                .await
+            }
+            false => Default::default(),
+        };
         let novelty = crate::spam_lists::novelty_async(
             ctx.spam_lists_client.clone(),
             &sender_host,
@@ -203,7 +211,7 @@ impl Evidence {
         .await;
         Self {
             hosted_mailbox,
-            site_elsewhere,
+            site,
             has_links,
             bucket_hosts,
             link_hosts,
@@ -263,7 +271,9 @@ impl Evidence {
             link_has_kit_placeholder: self.link_has_kit_placeholder,
             is_bulk: mailrs_inbound::body::is_bulk(&receive_ctx.message),
             hosted_mailbox: self.hosted_mailbox,
-            site_elsewhere: self.site_elsewhere,
+            site_elsewhere: self.site.elsewhere,
+            landing_known_domain: self.site.landing_known_domain,
+            copies_someone_known: self.site.copies_someone_known,
             to_display: &self.to_display,
             reply_rotation: self.reply_rotation,
             payment: self.payment.clone(),
@@ -307,5 +317,15 @@ pub(super) async fn policy(ctx: &ConnectionContext) -> mailrs_fraud::Policy {
         org_names: ctx.org_names.clone(),
         our_domains: ctx.runtime.local_domains.current().to_vec(),
         allowed_domains: ctx.org_name_allowed_domains.clone(),
+        mailbox_providers: MAILBOX_PROVIDERS.clone(),
+        vetted_suffixes: VETTED_SUFFIXES.clone(),
     }
 }
+
+/// [`mailrs_fraud::Policy::mailbox_providers`], read once.
+static MAILBOX_PROVIDERS: std::sync::LazyLock<Vec<String>> =
+    std::sync::LazyLock::new(mailrs_fraud::burner_domain::mailbox_providers_from_env);
+
+/// [`mailrs_fraud::Policy::vetted_suffixes`], read once.
+static VETTED_SUFFIXES: std::sync::LazyLock<Vec<String>> =
+    std::sync::LazyLock::new(mailrs_fraud::burner_domain::vetted_suffixes_from_env);
