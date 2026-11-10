@@ -2,6 +2,8 @@ import SwiftUI
 
 /// A tap on the wrist. The Mac has no Taptic Engine, and silence is
 /// the correct behaviour there rather than a sound substituted for it.
+/// UIKit's feedback generators only run on the main actor.
+@MainActor
 enum Haptics {
     enum Kind { case success, warning, error }
 

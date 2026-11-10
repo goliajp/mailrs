@@ -247,7 +247,9 @@ case "$MODE" in
         tools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
         "$tools/apksigner" verify --print-certs "$out" | grep -E "Signer: certificate (DN|SHA-256 digest)"
         shasum -a 256 "$out"
-        "$tools/aapt2" dump badging "$out" | head -1
+        # `sed -n 1p` reads to the end; `head -1` closed the pipe early and
+        # pipefail turned the SIGPIPE into exit 141 after a good build
+        "$tools/aapt2" dump badging "$out" | sed -n 1p
         ;;
 
     *)
