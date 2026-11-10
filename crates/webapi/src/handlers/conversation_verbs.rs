@@ -193,6 +193,8 @@ pub async fn mark_junk(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
+    let senders = crate::handlers::burner_marks::thread_senders(&state, &user, &thread_id).await;
+    crate::handlers::burner_marks::record(&user, &senders, false);
     state
         .core
         .mark_junk(&user, &thread_id)
@@ -246,6 +248,7 @@ pub async fn mark_not_junk(
         }
     };
 
+    crate::handlers::burner_marks::record(&user, &senders_csv, true);
     if !senders_csv.is_empty() {
         let user_lc = user.to_lowercase();
         let senders = senders_csv;

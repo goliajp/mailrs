@@ -140,7 +140,8 @@ pub struct Site {
     /// The web root lands on another registrable domain, not a mailbox
     /// provider's.
     pub elsewhere: bool,
-    /// The reader has written to someone at the domain it lands on.
+    /// The reader knows the company: written to the domain it lands on,
+    /// or released it from this rule by marking its mail not junk.
     pub landing_known_domain: bool,
     /// The `To` or `Cc` names someone the reader knows
     /// ([`relation::copies_someone_known`]).
@@ -193,7 +194,7 @@ pub fn site_from(
     }
     Site {
         elsewhere: true,
-        landing_known_domain: relation::wrote_to_domain(conn, reader, &landing.registrable()),
+        landing_known_domain: known_domain(conn, reader, from_host, landing),
         copies_someone_known: relation::copies_someone_known(
             conn,
             reader,
@@ -201,6 +202,25 @@ pub fn site_from(
             &policy.our_domains,
         ),
     }
+}
+
+/// Whether the reader knows the company behind a sender whose site lands
+/// elsewhere: they have written to someone at the domain it lands on, or
+/// they marked mail from it not junk, which released the sender's domain
+/// and the one it lands on for them
+/// ([`mailrs_core_sidestate::families::burner_released`]).
+fn known_domain(
+    conn: &mut kevy_client::Connection,
+    reader: &str,
+    from_host: &str,
+    landing: &mailrs_fraud::burner_domain::Landing,
+) -> bool {
+    use mailrs_core_sidestate::families::burner_released;
+    let landed = landing.registrable();
+    let from = mailrs_fraud::brand::registrable(from_host);
+    relation::wrote_to_domain(conn, reader, &landed)
+        || burner_released::knows(conn, reader, &landed).unwrap_or(false)
+        || burner_released::knows(conn, reader, &from).unwrap_or(false)
 }
 
 /// One header's value, by its lowercase name including the colon,
@@ -319,4 +339,48 @@ pub fn reply_rotation(
 ) -> u32 {
     let Some(conn) = conn.as_mut() else { return 0 };
     mailrs_core_sidestate::families::reply_rotation::domains(conn, from_host, reply_addr)
+}
+
+#[cfg(test)]
+mod site_tests {
+    use super::*;
+    use mailrs_core_sidestate::families::{burner_released, site_landing};
+    use mailrs_fraud::burner_domain::{DEFAULT_MAILBOX_PROVIDERS, Landing};
+
+    const ME: &str = "lihao@golia.jp";
+    const RAW: &[u8] = b"From: x@y.com\r\nTo: lihao@golia.jp\r\n\r\nhi";
+
+    fn policy() -> mailrs_fraud::Policy {
+        mailrs_fraud::Policy {
+            mailbox_providers: DEFAULT_MAILBOX_PROVIDERS.iter().map(|s| s.to_string()).collect(),
+            ..Default::default()
+        }
+    }
+
+    fn known(c: &mut kevy_client::Connection, host: &str) -> bool {
+        let landing = site_landing::get(c, host).unwrap().unwrap();
+        let site = site_from(c, host, &landing, &policy(), ME, RAW);
+        assert!(site.elsewhere, "{host} lands elsewhere");
+        site.landing_known_domain
+    }
+
+    #[test]
+    fn a_release_covers_the_senders_other_domains_on_the_same_site_until_marked_junk() {
+        let mut c = kevy_client::Connection::connect("mem://site-tests-release").unwrap();
+        for host in ["dealclosersvoice.com", "247dealclosers.com"] {
+            site_landing::put(&mut c, host, &Landing::At("dealclosers.co".into())).unwrap();
+        }
+        assert!(!known(&mut c, "dealclosersvoice.com"));
+        assert!(!known(&mut c, "247dealclosers.com"));
+
+        burner_released::released(&mut c, ME, "dealclosersvoice.com").unwrap();
+        // the same domain (any address: the fact is the domain's) and a
+        // sister domain landing on the same site
+        assert!(known(&mut c, "dealclosersvoice.com"));
+        assert!(known(&mut c, "247dealclosers.com"));
+
+        burner_released::junked(&mut c, ME, "dealclosersvoice.com").unwrap();
+        assert!(!known(&mut c, "dealclosersvoice.com"));
+        assert!(!known(&mut c, "247dealclosers.com"));
+    }
 }
