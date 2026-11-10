@@ -34,6 +34,8 @@ export const zh: Record<Key, string> = {
   'lang.setting': '语言',
   'lang.setting.browser': '跟随浏览器',
 
+  'folders.collapse': '收起文件夹',
+  'folders.expand': '展开文件夹',
   'list.all': word('zh', 'list.all'),
   'list.all.empty': '没有邮件',
   'list.archived': word('zh', 'list.archived'),

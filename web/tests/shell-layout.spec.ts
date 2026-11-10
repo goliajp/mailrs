@@ -3,12 +3,10 @@ import type { Page } from '@playwright/test'
 import { expect, test } from '@playwright/test'
 
 /**
- * The desktop shell in both themes: the icon rail and the floating panes.
- *
- * In light the shell background was #fafafa behind #ffffff panes, so the
- * gaps and rounded corners that read as floating panes in dark could not
- * be seen, and the rail looked off-centre in a 68 px blank column. Measured
- * in a browser, because jsdom does no layout and computes no colours.
+ * The desktop shell in both themes: the icon rail on a darker band, then
+ * the panes edge to edge with a hairline between them, the mail page's
+ * folder column first. Measured in a browser, because jsdom does no layout
+ * and computes no colours.
  */
 
 /** WCAG contrast ratio of two computed `rgb(...)` colours. */
@@ -62,31 +60,22 @@ for (const colorScheme of ['light', 'dark'] as const) {
   test.describe(colorScheme, () => {
     test.use({ colorScheme })
 
-    test('the rail has a divider on its right and its icons sit in its middle', async ({
-      page,
-    }) => {
+    test('the rail is a darker band and its icons sit in its middle', async ({ page }) => {
       await openMail(page)
-      const rail = await page.locator('aside').evaluate((el) => {
-        const style = getComputedStyle(el)
-        const probe = document.createElement('div')
-        probe.className = 'border-border border'
-        document.body.append(probe)
-        const token = getComputedStyle(probe).borderTopColor
-        probe.remove()
-        const box = el.getBoundingClientRect()
-        const border = parseFloat(style.borderRightWidth)
+      const look = await page.evaluate(() => {
+        const rail = document.querySelector('aside')
+        const pane = document.querySelector('[data-component="panel"]')
+        if (!rail || !pane) throw new Error('rail or pane missing')
+        const box = rail.getBoundingClientRect()
         return {
-          border,
-          borderColor: style.borderRightColor,
-          borderStyle: style.borderRightStyle,
-          middle: box.left + (box.width - border) / 2,
-          right: box.right,
-          token,
+          middle: box.left + box.width / 2,
+          paneBg: getComputedStyle(pane).backgroundColor,
+          // the rail is transparent; the band is the shell behind it
+          railBg: getComputedStyle(rail.closest('[data-component="app-shell"]') as Element)
+            .backgroundColor,
         }
       })
-      expect(rail.border).toBe(1)
-      expect(rail.borderStyle).toBe('solid')
-      expect(rail.borderColor).toBe(rail.token)
+      expect(contrast(look.railBg, look.paneBg)).toBeGreaterThan(1.08)
 
       const centres = await page
         .locator('aside')
@@ -98,36 +87,73 @@ for (const colorScheme of ['light', 'dark'] as const) {
           })
         )
       expect(centres.length).toBeGreaterThan(3)
-      for (const c of centres) expect(Math.abs(c - rail.middle)).toBeLessThanOrEqual(0.5)
+      for (const c of centres) expect(Math.abs(c - look.middle)).toBeLessThanOrEqual(0.5)
     })
 
-    test('the panes stand out from the shell behind them', async ({ page }) => {
+    test('the panes run edge to edge with a hairline between them', async ({ page }) => {
       await openMail(page)
       const look = await page.evaluate(() => {
-        const shell = document.querySelector('[data-component="app-shell"]')
+        const probe = document.createElement('div')
+        probe.className = 'border-border border'
+        document.body.append(probe)
+        const token = getComputedStyle(probe).borderTopColor
+        probe.remove()
         const rail = document.querySelector('aside')
         const panes = [...document.querySelectorAll('[data-component="panel"]')]
-          .map((el) => el.getBoundingClientRect())
-          .filter((r) => r.width > 0)
-          .sort((a, b) => a.left - b.left)
-        const pane = document.querySelector('[data-component="panel"]')
-        if (!shell || !rail || !pane) throw new Error('shell, rail or pane missing')
+          .filter((el) => el.getBoundingClientRect().width > 0)
+          .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left)
+        if (!rail || panes.length < 3) throw new Error('rail or panes missing')
         return {
-          firstPaneLeft: panes[0].left,
-          firstPaneRight: panes[0].right,
-          paneBg: getComputedStyle(pane).backgroundColor,
+          edges: panes.map((el) => {
+            const r = el.getBoundingClientRect()
+            const st = getComputedStyle(el)
+            return {
+              left: r.left,
+              line: st.borderRightColor,
+              lineWidth: parseFloat(st.borderRightWidth),
+              radius: parseFloat(st.borderTopLeftRadius),
+              right: r.right,
+            }
+          }),
           railRight: rail.getBoundingClientRect().right,
-          secondPaneLeft: panes[1].left,
-          shellBg: getComputedStyle(shell).backgroundColor,
+          token,
         }
       })
-      // light was 1.04 (#fafafa behind #ffffff), dark 1.12; the panes only
-      // read as panes when the shell is as far from them as in dark
-      expect(contrast(look.shellBg, look.paneBg)).toBeGreaterThan(1.08)
-      // the rail's divider is as far from the first pane as one pane is from the next
-      const paneGap = look.secondPaneLeft - look.firstPaneRight
-      expect(paneGap).toBeGreaterThan(0)
-      expect(look.firstPaneLeft - look.railRight).toBeCloseTo(paneGap, 0)
+      // folders, list, reader: the first starts where the rail ends
+      expect(look.edges[0].left).toBe(look.railRight)
+      for (const [i, e] of look.edges.entries()) {
+        expect(e.radius).toBe(0)
+        if (i === 0) continue
+        expect(e.left).toBe(look.edges[i - 1].right)
+        expect(look.edges[i - 1].lineWidth).toBe(1)
+        expect(look.edges[i - 1].line).toBe(look.token)
+      }
+    })
+
+    test('the folder column collapses into the tab chips and comes back', async ({ page }) => {
+      await openMail(page)
+      const column = page.getByRole('heading', { name: 'Mail', exact: true })
+      // the folder column's own tablist sits directly in its <nav>; the
+      // chips on top of the list do not
+      const chips = page.locator(':not(nav) > [role="tablist"][aria-label="Mail lists"]')
+      await expect(column).toBeVisible()
+      await expect(chips).toBeHidden()
+
+      await page.getByRole('button', { name: 'Hide folders' }).click()
+      await expect(column).toBeHidden()
+      // the tabs the column stood in for are back on top of the list
+      await expect(chips).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Show folders' })).toBeVisible()
+
+      // kept per browser
+      await page.reload()
+      await expect(page.getByRole('button', { name: 'Show folders' })).toBeVisible()
+      await expect(column).toBeHidden()
+
+      await page.getByRole('button', { name: 'Show folders' }).click()
+      await expect(column).toBeVisible()
+      await expect(chips).toBeHidden()
+      await expect(page.getByRole('button', { name: 'Show folders' })).toBeHidden()
     })
 
     test('dividers inside a pane can be seen', async ({ page }) => {

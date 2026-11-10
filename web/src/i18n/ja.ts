@@ -34,6 +34,8 @@ export const ja: Record<Key, string> = {
   'lang.setting': '言語',
   'lang.setting.browser': 'ブラウザの設定に合わせる',
 
+  'folders.collapse': 'フォルダを隠す',
+  'folders.expand': 'フォルダを表示',
   'list.all': word('ja', 'list.all'),
   'list.all.empty': 'メールはありません',
   'list.archived': word('ja', 'list.archived'),
