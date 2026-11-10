@@ -131,6 +131,15 @@ pub struct Facts<'a> {
     /// more often than a letter does. Absence says nothing: plenty of
     /// bulk mail carries neither header, so this can only excuse.
     pub is_bulk: bool,
+    /// Written in a person's Microsoft 365 or Google mailbox rather
+    /// than sent by a mailing service —
+    /// [`crate::burner_domain::hosted_mailbox`].
+    pub hosted_mailbox: bool,
+    /// The sender's web root redirects to another registrable domain —
+    /// [`crate::burner_domain::Landing::elsewhere`]. Only looked up for a
+    /// message [`crate::burner_domain::worth_visiting`]; false otherwise,
+    /// and false when the site did not answer.
+    pub site_elsewhere: bool,
     /// Seconds the `Date:` header is ahead of the message's arrival:
     /// the clock on the live path, this deployment's own `Received:`
     /// stamp in a sweep. Zero when it is not ahead or either time is

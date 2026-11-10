@@ -107,11 +107,12 @@ pub fn judge_with(
         at,
     );
     let new_qr_domain = qr_domain::new_domain(hist.as_mut(), &msg, at);
-    let facts = mailrs_fraud::Facts {
+    let mut facts = mailrs_fraud::Facts {
         novelty,
         new_qr_domain,
         ..msg.facts(seen, rotation, rel)
     };
+    facts.site_elsewhere = site_elsewhere(hist.as_mut(), &facts);
     let scan = scan(&facts, policy)?;
     let mut verdict = rescan_verdict(raw, &scan.findings);
     verdict.rules_version = scan.version;
@@ -120,6 +121,31 @@ pub fn judge_with(
         findings: scan.findings,
         verdict,
     })
+}
+
+/// Whether the sender's web root lands on another domain, as the receive
+/// path recorded it when it visited. Read only for a message
+/// [`mailrs_fraud::burner_domain::worth_visiting`], the same test the
+/// receive path visits on; never visits itself, so a host it has no
+/// record of reads as not elsewhere.
+pub fn site_elsewhere(
+    conn: Option<&mut kevy_client::Connection>,
+    facts: &mailrs_fraud::Facts<'_>,
+) -> bool {
+    if !mailrs_fraud::burner_domain::worth_visiting(
+        facts.hosted_mailbox,
+        facts.is_bulk,
+        &facts.relation,
+    ) {
+        return false;
+    }
+    let Some(conn) = conn else {
+        return false;
+    };
+    mailrs_core_sidestate::families::site_landing::get(conn, facts.domain)
+        .ok()
+        .flatten()
+        .is_some_and(|landing| landing.elsewhere(facts.domain))
 }
 
 /// One header's value, by its lowercase name including the colon,

@@ -108,8 +108,10 @@ fn all_existing_sender_fixtures_match_compiled_rules() {
     // bucket; its tests are in `tests/bucket_rule.rs`.
     // `platform-mail-links-through-a-shortener` needs a signed platform
     // address and link hosts; its tests are in
-    // `tests/platform_shortener.rs`.
-    assert_eq!(rules.rule_count(), 48);
+    // `tests/platform_shortener.rs`. `burner-domain-outreach` needs a
+    // hosted mailbox and a site that lands elsewhere; its tests are in
+    // `tests/burner_domain.rs`.
+    assert_eq!(rules.rule_count(), 49);
     for from in &senders {
         for (subject, seen, to) in [
             (
