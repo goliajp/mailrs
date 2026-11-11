@@ -96,6 +96,33 @@ rule('claims-our-domain', 'identity', 6, true, function(m)
     return found('the From address is at this organisation\'s own domain, from a public address, and DMARC says it is not us',
         {domain = m.from_domain})
 end)
+-- A display name that writes out one of our own domains as a word of
+-- its own, on mail from a domain that is not ours.  Reported
+-- 2026-11-12: `Mail Delivery System - golia.jp <jade@stellarbbs.com>`,
+-- "your password expires today", both buttons to a page with the
+-- reader's address after the `#`.  The sender's domain passes SPF, and
+-- the organisation names are `GOLIA株式会社` / `GOLIA K.K.`, so neither
+-- the name rules nor authentication see it; the domain in the name is
+-- the claim.
+--
+-- Scouted over 46,214 production messages: 7 external senders wear one
+-- of our domains as a word of the display name, every one this kind of
+-- letter (`golia.jp | HR`, `FileRespond - golia.jp`).  A host inside
+-- an address — `lihao@golia.jp (Google Drive)`, which sharing notices
+-- wear — is not counted (`mailrs_fraud::display_domains`).
+--
+-- **Held.**  Speaking as our own domain from someone else's is the
+-- deception itself.  A sender the reader has written to, and the
+-- operator's allowed domains, are let through.
+rule('display-names-our-domain', 'identity', 6, true, function(m)
+    if reader_wrote_to(m) or not external(m) then return end
+    for d in m.display_domains:gmatch('[^\n]+') do
+        if owns(m.our_domains, d) then
+            return found('the display name says ' .. d .. ', but the address is at ' .. m.from_domain,
+                {claimed = d, domain = m.from_domain})
+        end
+    end
+end)
 -- A From under a name reserved so that it can never be anybody's mail
 -- domain: `.invalid`, `.test`, `.example`, `.localhost` (RFC 6761) and
 -- `example.com/.net/.org` (RFC 2606).  Nobody can receive a reply there,

@@ -48,6 +48,10 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ("from", f.from.to_string()),
         ("from_domain", domain),
         ("display", fold(&display_name_of(f.from))),
+        (
+            "display_domains",
+            mailrs_fraud::display_domains::display_domains(f.from).join("\n"),
+        ),
         ("domain", f.domain.to_string()),
         ("registrable", f.registrable.to_string()),
         ("host_registrable", reg.clone()),
