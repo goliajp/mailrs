@@ -352,7 +352,10 @@ mod site_tests {
 
     fn policy() -> mailrs_fraud::Policy {
         mailrs_fraud::Policy {
-            mailbox_providers: DEFAULT_MAILBOX_PROVIDERS.iter().map(|s| s.to_string()).collect(),
+            mailbox_providers: DEFAULT_MAILBOX_PROVIDERS
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
             ..Default::default()
         }
     }
