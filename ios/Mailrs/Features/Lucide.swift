@@ -185,7 +185,7 @@ struct LucideRow: View {
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Color(.tertiaryLabel))
+                    .foregroundStyle(Color.tertiaryText)
                     .accessibilityHidden(true)
             }
         }

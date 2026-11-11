@@ -119,6 +119,8 @@ fn lookalike() -> Relation {
 mod bucket;
 #[path = "reason_params/burner.rs"]
 mod burner;
+#[path = "reason_params/display.rs"]
+mod display;
 #[path = "reason_params/payment.rs"]
 mod payment;
 #[path = "reason_params/platform.rs"]
@@ -373,14 +375,6 @@ fn cases() -> Vec<Case> {
             &[("domain", "sender.example")],
         ),
         (
-            "display-names-our-domain",
-            Facts {
-                from: "Mail Delivery System - golia.jp <jade@sender.example>",
-                ..base()
-            },
-            &[("claimed", "golia.jp"), ("domain", "sender.example")],
-        ),
-        (
             "link-shows-our-address",
             Facts {
                 shown_links: "golia.jp login.evil.example\n",
@@ -434,6 +428,7 @@ fn each_shipped_rule_names_the_facts_its_sentence_needs() {
         .chain(qr::cases(base()))
         .chain(bucket::cases(base()))
         .chain(burner::cases(base()))
+        .chain(display::cases(base()))
         .chain(payment::cases(base()))
         .chain(platform::cases(base()))
     {

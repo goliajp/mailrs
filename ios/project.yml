@@ -192,6 +192,8 @@ targets:
       - path: Mailrs/Features/ConversationRowMenu.swift
       - path: Mailrs/Features/SwipeActions.swift
       - path: Mailrs/Features/ThreadView.swift
+      - path: Mailrs/Features/ThreadLoading.swift
+      - path: Mailrs/Features/ListPlaceholder.swift
       - path: Mailrs/Features/ThreadHeader.swift
       - path: Mailrs/Features/TeamViews.swift
       - path: Mailrs/Features/SenderSettingsActions.swift
