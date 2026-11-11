@@ -57,6 +57,15 @@ extension Color {
         }
     #endif
 
+    /// The faintest of the label greys: a chevron, a hint beside a row.
+    static var tertiaryText: Color {
+        #if os(macOS)
+            Color(nsColor: .tertiaryLabelColor)
+        #else
+            Color(.tertiaryLabel)
+        #endif
+    }
+
     /// Orange for words that warn, dark enough to read in light mode.
     /// The system orange on white, or on a wash of itself, is about
     /// 2:1, and one of the lines drawn in it is a fraud warning.
