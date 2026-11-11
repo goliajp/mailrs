@@ -373,6 +373,14 @@ fn cases() -> Vec<Case> {
             &[("domain", "sender.example")],
         ),
         (
+            "display-names-our-domain",
+            Facts {
+                from: "Mail Delivery System - golia.jp <jade@sender.example>",
+                ..base()
+            },
+            &[("claimed", "golia.jp"), ("domain", "sender.example")],
+        ),
+        (
             "link-shows-our-address",
             Facts {
                 shown_links: "golia.jp login.evil.example\n",

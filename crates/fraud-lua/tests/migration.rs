@@ -111,8 +111,10 @@ fn all_existing_sender_fixtures_match_compiled_rules() {
     // address and link hosts; its tests are in
     // `tests/platform_shortener.rs`. `burner-domain-outreach` needs a
     // hosted mailbox and a site that lands elsewhere; its tests are in
-    // `tests/burner_domain.rs`.
-    assert_eq!(rules.rule_count(), 49);
+    // `tests/burner_domain.rs`. `display-names-our-domain` needs one of
+    // our domains, which these fixtures have none of; its tests are in
+    // `tests/display_domain.rs`.
+    assert_eq!(rules.rule_count(), 50);
     for from in &senders {
         for (subject, seen, to) in [
             (

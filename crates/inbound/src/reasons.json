@@ -149,6 +149,16 @@
       "zh": "信上的日期比到达时间晚 {days} 天，会一直排在后来的信前面。"
     }
   },
+  "display-names-our-domain": {
+    "en": "The display name names our own domain, but the address is at another domain.",
+    "ja": "表示名に自組織のドメインが書かれていますが、アドレスは別のドメインです。",
+    "zh": "显示名里写着本组织的域名，发件地址却在别的域名下。",
+    "params": {
+      "en": "The display name says {claimed}, but the mail comes from {domain}.",
+      "ja": "表示名には {claimed} と書かれていますが、送信元は {domain} です。",
+      "zh": "显示名写着 {claimed}，信却来自 {domain}。"
+    }
+  },
   "encrypted-archive-of-documents": {
     "en": "An attached archive is encrypted, and the files it lists are documents.",
     "ja": "添付の圧縮ファイルは暗号化されており、中のファイルはどれも文書です。",
