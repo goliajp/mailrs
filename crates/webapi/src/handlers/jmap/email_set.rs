@@ -55,9 +55,15 @@ pub async fn move_thread(
     }
     match (has(Role::Junk), junk) {
         (true, false) => {
+            let senders =
+                crate::handlers::burner_marks::thread_senders(&ctx.state, &ctx.user, tid).await;
+            crate::handlers::burner_marks::record(&ctx.user, &senders, false);
             core.mark_junk(&ctx.user, tid).await.map_err(e)?;
         }
         (false, true) if has(Role::Inbox) || has(Role::Archive) => {
+            let senders =
+                crate::handlers::burner_marks::thread_senders(&ctx.state, &ctx.user, tid).await;
+            crate::handlers::burner_marks::record(&ctx.user, &senders, true);
             core.mark_not_junk(&ctx.user, tid).await.map_err(e)?;
         }
         _ => {}

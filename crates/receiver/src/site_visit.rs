@@ -1,6 +1,6 @@
 //! Who may make the receiver visit a sender's web root, and how often.
 //!
-//! The visit ([`crate::spam_lists::site_elsewhere_async`]) is an outbound
+//! The visit ([`crate::spam_lists::site_async`]) is an outbound
 //! request the sender of a message chooses the target of. Two gates keep
 //! it from being used to aim the receiver at a host: the `From` domain
 //! must have authenticated the message itself
