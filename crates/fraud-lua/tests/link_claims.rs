@@ -117,7 +117,10 @@ fn the_kit_placeholder_and_the_subject_are_scored_not_held() {
 
     let subject = classify(
         &Facts {
-            from: "golia.jp <sakaino@motorcoach.jp>",
+            // the reported letter wore `golia.jp` as its display name,
+            // which `display-names-our-domain` holds on its own; a bare
+            // name keeps this about the subject
+            from: "Support <sakaino@motorcoach.jp>",
             subject: "Support Service: LiHao@Golia.jp Password Expiry Alert!",
             to_display: "lihao@golia.jp",
             ..Facts::default()

@@ -53,6 +53,7 @@ pub mod brand;
 pub mod burner_domain;
 pub mod callback;
 mod checks;
+pub mod display_domains;
 mod facts;
 pub mod finding;
 pub mod greeting;
