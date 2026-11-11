@@ -22,6 +22,7 @@ pub mod auth;
 pub mod auth_recovery;
 pub mod autodiscover;
 pub mod block_sender;
+pub mod burner_marks;
 pub mod calendar;
 pub mod callback_numbers;
 pub mod complete;

@@ -140,8 +140,10 @@ pub struct Facts<'a> {
     /// message [`crate::burner_domain::worth_visiting`]; false otherwise,
     /// and false when the site did not answer.
     pub site_elsewhere: bool,
-    /// The reader has written to someone at the domain the sender's web
-    /// root lands on. Only read when [`Self::site_elsewhere`].
+    /// The reader knows the company: they have written to someone at the
+    /// domain the sender's web root lands on, or marked mail from the
+    /// sender's domain or one landing on the same site not junk. Only read
+    /// when [`Self::site_elsewhere`].
     pub landing_known_domain: bool,
     /// The message's `To` or `Cc`, the reader aside, names someone the
     /// reader has written to or a colleague. Only read when
