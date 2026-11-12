@@ -94,6 +94,16 @@ pub(super) async fn record_seven_z(
     .await;
 }
 
+/// A finding's detail with the facts it named: `the display name is a
+/// company's ... (brand=docusign domain=xjgh.org)`.
+fn what_it_said(f: &mailrs_fraud::Finding) -> String {
+    let named: Vec<String> = f.params.iter().map(|(k, v)| format!("{k}={v}")).collect();
+    match named.is_empty() {
+        true => f.detail.clone(),
+        false => format!("{} ({})", f.detail, named.join(" ")),
+    }
+}
+
 /// Keep each hit of a rule under review
 /// ([`mailrs_core_sidestate::families::rule_triggers::REVIEWED`]) one by
 /// one, with whom the message was for and what the rule saw, for the
@@ -107,10 +117,10 @@ pub(super) async fn keep_reviewed(
     client: Option<Arc<KevyNetClient>>,
 ) {
     use mailrs_core_sidestate::families::{rule_triggers, site_landing};
-    let reviewed: Vec<String> = findings
+    let reviewed: Vec<(String, String)> = findings
         .iter()
-        .map(|f| f.rule.clone())
-        .filter(|r| rule_triggers::REVIEWED.contains(&r.as_str()))
+        .filter(|f| rule_triggers::REVIEWED.contains(&f.rule.as_str()))
+        .map(|f| (f.rule.clone(), what_it_said(f)))
         .collect();
     let Some(client) = client else { return };
     if reviewed.is_empty() {
@@ -120,19 +130,23 @@ pub(super) async fn keep_reviewed(
     let (from_domain, recipients) = (sender_domain.to_string(), recipients.to_vec());
     let done = tokio::task::spawn_blocking(move || {
         client.with_conn(|c| {
-            // the landing this message was judged by, written just before
-            let detail = match site_landing::get(c, &from_domain)? {
-                Some(mailrs_fraud::burner_domain::Landing::At(host)) => host,
-                _ => String::new(),
-            };
-            let trigger = rule_triggers::Trigger {
-                at: chrono::Utc::now().timestamp(),
-                recipients,
-                from_domain,
-                detail,
-                message_id,
-            };
-            for rule in &reviewed {
+            let at = chrono::Utc::now().timestamp();
+            for (rule, said) in &reviewed {
+                let detail = match rule.as_str() {
+                    // the landing this message was judged by, written just before
+                    "burner-domain-outreach" => match site_landing::get(c, &from_domain)? {
+                        Some(mailrs_fraud::burner_domain::Landing::At(host)) => host,
+                        _ => String::new(),
+                    },
+                    _ => said.clone(),
+                };
+                let trigger = rule_triggers::Trigger {
+                    at,
+                    recipients: recipients.clone(),
+                    from_domain: from_domain.clone(),
+                    detail,
+                    message_id: message_id.clone(),
+                };
                 rule_triggers::record(c, rule, &trigger)?;
             }
             Ok::<(), std::io::Error>(())
@@ -162,6 +176,15 @@ async fn count(client: Arc<KevyNetClient>, rules: Vec<String>, now: i64) {
 mod tests {
     use super::*;
     use mailrs_fraud::{Finding, Findings, Layer};
+
+    #[test]
+    fn a_reviewed_hit_keeps_the_facts_its_rule_named() {
+        let mut f = Finding::new("brand-is-the-display-name", Layer::Identity, 6.0, "a brand");
+        assert_eq!(what_it_said(&f), "a brand");
+        f.params.insert("domain".into(), "xjgh.org".into());
+        f.params.insert("brand".into(), "docusign".into());
+        assert_eq!(what_it_said(&f), "a brand (brand=docusign domain=xjgh.org)");
+    }
 
     #[test]
     fn every_enforced_rule_that_fired_is_one_hit_and_the_hold_is_the_messages() {

@@ -104,4 +104,4 @@
 
 # ---- read by an operator while a rule is under review ----
 
-/api/admin/fraud/rules/{rule}/triggers   # every delivery a newly enabled rule fired on, listed by a super administrator with curl for the rule's review (burner-domain-outreach, 30 days after it was enabled). A review is a few times a year; no admin page has been asked for.
+/api/admin/fraud/rules/{rule}/triggers   # every delivery a newly enabled rule fired on, listed by a super administrator with curl for the rule's review (the rules in rule_triggers::REVIEWED, 30 days after each was enabled). A review is a few times a year; no admin page has been asked for.
