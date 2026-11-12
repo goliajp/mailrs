@@ -87,6 +87,8 @@ impl MailrsMcpService {
             .release_quarantined(&user, &params.thread_id)
             .await
             .map_err(|e| McpError::internal_error(format!("release_quarantined: {e}"), None))?;
+        crate::handlers::burner_marks::released_from_hold(&self.state, &user, &params.thread_id)
+            .await;
         Ok(super::ok_result())
     }
 }

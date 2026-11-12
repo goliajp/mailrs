@@ -188,6 +188,43 @@ pub fn accepted(conn: &mut kevy_client::Connection, user: &str, email: &str) -> 
     hget_str(conn, &contact_key(user, email), "accepted_at").is_some()
 }
 
+/// `user` let a held conversation from `email` go: the sender is not
+/// claiming to be us, whatever its display name says. Read by the
+/// display-name rule ([`released`]); a junk mark takes it back
+/// ([`unrelease`]), so the last word the reader gave wins.
+pub fn release(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+    email: &str,
+    now: i64,
+) -> std::io::Result<()> {
+    conn.hset(
+        contact_key(user, email).as_bytes(),
+        &[(b"released_at" as &[u8], now.to_string().as_bytes())],
+    )?;
+    Ok(())
+}
+
+/// `user` marked mail from `email` junk: an earlier release no longer
+/// speaks for it.
+pub fn unrelease(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+    email: &str,
+) -> std::io::Result<()> {
+    conn.hdel(
+        contact_key(user, email).as_bytes(),
+        &[b"released_at" as &[u8]],
+    )?;
+    Ok(())
+}
+
+/// Whether `user` has released held mail from `email` since last marking
+/// it junk.
+pub fn released(conn: &mut kevy_client::Connection, user: &str, email: &str) -> bool {
+    hget_str(conn, &contact_key(user, email), "released_at").is_some()
+}
+
 /// A sender with no record yields the all-false / zero default, which is
 /// the correct reading: no relationship is known yet.
 pub fn scoring_for(conn: &mut kevy_client::Connection, user: &str, email: &str) -> ContactScoring {
@@ -361,6 +398,21 @@ mod tests {
         assert!(is_self("lihao@golia.jp", "lihao@golia.jp"));
         assert!(is_self("lihao@golia.jp", "LIHAO@GOLIA.JP"));
         assert!(is_self("lihao@golia.jp", "  lihao@golia.jp "));
+    }
+
+    #[test]
+    fn a_release_lasts_until_a_junk_mark() {
+        let mut c = kevy_client::Connection::connect("mem://contacts-release").unwrap();
+        let (me, them) = ("lihao@golia.jp", "a@x.example");
+        assert!(!super::released(&mut c, me, them));
+        super::release(&mut c, me, them, 1).unwrap();
+        assert!(super::released(&mut c, me, them));
+        // only for this reader
+        assert!(!super::released(&mut c, "tj@golia.jp", them));
+        super::unrelease(&mut c, me, them).unwrap();
+        assert!(!super::released(&mut c, me, them));
+        super::release(&mut c, me, them, 2).unwrap();
+        assert!(super::released(&mut c, me, them));
     }
 
     #[test]
