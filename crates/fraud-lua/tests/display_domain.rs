@@ -90,3 +90,17 @@ fn only_this_deployments_domains_count() {
         (false, false)
     );
 }
+
+/// A reader who let held mail from this address go has said it is not a
+/// forgery; until they mark it junk, its next letter is not held either.
+#[test]
+fn a_sender_the_reader_released_is_let_through() {
+    let f = Facts {
+        relation: Relation {
+            from_released: true,
+            ..Relation::default()
+        },
+        ..from("golia.jp 担当 <sakaino@motorcoach.jp>")
+    };
+    assert_eq!(judge(f, &policy()), (false, false));
+}

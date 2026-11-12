@@ -28,6 +28,9 @@ pub struct History {
     pub sent: u32,
     /// The reader accepted the sender as no longer new.
     pub accepted: bool,
+    /// The reader let held mail from this address go, and has not
+    /// marked it junk since.
+    pub released: bool,
 }
 
 /// The relationship facts for one message.
@@ -59,6 +62,10 @@ pub struct Relation {
     /// host, which reads the per-sender account history; [`assess`] does
     /// not.
     pub account_changed: bool,
+    /// The reader let held mail from this very address go, and has not
+    /// marked it junk since: whatever the sender calls itself, the reader
+    /// has seen it and said it is not a forgery.
+    pub from_released: bool,
 }
 
 /// Weigh `from_address` (lowercased) and its folded `display` name
@@ -102,6 +109,7 @@ pub fn assess(
         name_borrowed,
         reply_to_correspondent: false,
         account_changed: false,
+        from_released: history.is_some_and(|h| h.released),
     }
 }
 
@@ -168,6 +176,7 @@ mod tests {
         received: 0,
         sent: 0,
         accepted: false,
+        released: false,
     });
 
     #[test]
@@ -184,6 +193,17 @@ mod tests {
             ..History::default()
         });
         assert!(!assess("a@x.example", "", &[], accepted, never).first_contact);
+    }
+
+    #[test]
+    fn a_release_is_the_history_saying_so() {
+        let released = Some(History {
+            released: true,
+            ..History::default()
+        });
+        assert!(assess("a@x.example", "", &[], released, never).from_released);
+        assert!(!assess("a@x.example", "", &[], NEW, never).from_released);
+        assert!(!assess("a@x.example", "", &[], None, never).from_released);
     }
 
     #[test]
