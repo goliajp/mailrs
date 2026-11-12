@@ -170,6 +170,9 @@ pub struct Facts<'a> {
     /// A link carries an address from `To:` with its characters swapped
     /// for codes ([`crate::disguised_address`]).
     pub link_disguises_recipient: bool,
+    /// Where links carrying an address go, when the message names that
+    /// place nowhere else ([`crate::link_address`]).
+    pub link_address: crate::link_address::LinkAddress,
     /// Check-digit-valid IBANs and Bitcoin addresses in the text and the
     /// attachment text — [`crate::payment::find`].
     pub payment: crate::payment::PaymentIds,
