@@ -125,6 +125,10 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
             f.has_zero_width_inside_a_word,
         ),
         ("has_bidi_override", f.has_bidi_override),
+        (
+            "display_mixes_scripts",
+            mailrs_fraud::mixed_script::mixes_scripts(&display_name_of(f.from)),
+        ),
         ("has_executable_attachment", f.has_executable_attachment),
         // no rule under rules/ reads this one yet; deployed packs do
         (
@@ -139,6 +143,7 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ("offers_the_reader_a_sum", f.offers_the_reader_a_sum),
         ("asks_for_the_readers_line", f.asks_for_the_readers_line),
         ("link_has_kit_placeholder", f.link_has_kit_placeholder),
+        ("link_disguises_recipient", f.link_disguises_recipient),
         ("is_bulk", f.is_bulk),
         ("hosted_mailbox", f.hosted_mailbox),
         ("site_elsewhere", f.site_elsewhere),

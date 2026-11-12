@@ -167,6 +167,9 @@ pub struct Facts<'a> {
     /// A link target still carries a kit's `[[name(...)]]` template call
     /// — [`crate::links::has_kit_placeholder`].
     pub link_has_kit_placeholder: bool,
+    /// A link carries an address from `To:` with its characters swapped
+    /// for codes ([`crate::disguised_address`]).
+    pub link_disguises_recipient: bool,
     /// Check-digit-valid IBANs and Bitcoin addresses in the text and the
     /// attachment text — [`crate::payment::find`].
     pub payment: crate::payment::PaymentIds,
