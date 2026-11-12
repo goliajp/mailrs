@@ -80,6 +80,7 @@ pub mod scan_input;
 pub mod stage;
 pub mod thread_claim;
 pub mod verdict;
+pub mod vouched;
 
 // Public re-exports — the surface most consumers reach for.
 pub use auth_header::{

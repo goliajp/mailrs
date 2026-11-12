@@ -36,6 +36,7 @@ pub struct Reading {
     shown_links: String,
     link_has_kit_placeholder: bool,
     link_disguises_recipient: bool,
+    link_address: mailrs_fraud::link_address::LinkAddress,
     is_bulk: bool,
     hosted_mailbox: bool,
     date_ahead: i64,
@@ -133,6 +134,7 @@ impl Reading {
             asks_for_the_readers_line: mailrs_inbound::body::asks_for_the_readers_line(&parsed),
             shown_links: mailrs_inbound::body::shown_links(&parsed),
             link_has_kit_placeholder: mailrs_inbound::body::link_has_kit_placeholder(&parsed),
+            link_address: mailrs_inbound::body::link_address(&parsed, raw),
             link_disguises_recipient: mailrs_inbound::body::link_disguises_recipient(
                 &parsed,
                 &mailrs_inbound::identity::to_addresses(raw),
@@ -204,6 +206,7 @@ impl Reading {
             shown_links: &self.shown_links,
             link_has_kit_placeholder: self.link_has_kit_placeholder,
             link_disguises_recipient: self.link_disguises_recipient,
+            link_address: self.link_address.clone(),
             is_bulk: self.is_bulk,
             hosted_mailbox: self.hosted_mailbox,
             // from the store, by the caller that has one: [`super::site_elsewhere`]

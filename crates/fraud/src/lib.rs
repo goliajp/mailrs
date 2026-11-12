@@ -62,6 +62,7 @@ pub mod hostname_claim;
 pub mod html_attachment;
 pub mod impersonation;
 pub mod line_handoff;
+pub mod link_address;
 pub mod links;
 pub mod mailer_fingerprint;
 pub mod minted_address;
