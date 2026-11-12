@@ -74,8 +74,8 @@ pub struct QuarantineListResponse {
 /// POST /api/quarantine/{thread_id}/release — it was not fraud.
 ///
 /// The senders are let through the display-name rule for this reader
-/// from then on ([`super::burner_marks::released_from_hold`]); a junk
-/// mark takes that back.
+/// from then on (`burner_marks::released_from_hold`); a junk mark takes
+/// that back.
 pub async fn release_quarantine(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
