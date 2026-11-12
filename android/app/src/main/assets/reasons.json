@@ -149,6 +149,11 @@
       "zh": "信上的日期比到达时间晚 {days} 天，会一直排在后来的信前面。"
     }
   },
+  "display-mixes-scripts": {
+    "en": "A word of the display name mixes Latin letters with look-alike letters of another script.",
+    "ja": "表示名の単語に、ラテン文字と見た目の似た別の文字が混在しています。",
+    "zh": "显示名的某个词把拉丁字母和外形相似的其他文字混在一起写。"
+  },
   "display-names-our-domain": {
     "en": "The display name names our own domain, but the address is at another domain.",
     "ja": "表示名に自組織のドメインが書かれていますが、アドレスは別のドメインです。",
@@ -238,6 +243,11 @@
     "en": "Your filter put it in Junk.",
     "ja": "あなたのフィルタが迷惑メールに振り分けました。",
     "zh": "你的过滤规则把它放进了垃圾邮件。"
+  },
+  "link-disguises-the-recipient": {
+    "en": "A link carries your address with its letters swapped for codes, the way phishing pages fill in a fake sign-in form.",
+    "ja": "リンクにあなたのアドレスが文字を符号に置き換えた形で埋め込まれています。偽のログイン画面に自動入力するための手口です。",
+    "zh": "链接里藏着你的邮箱地址，字母被换成了代码，钓鱼页面就是用它来预填假登录框的。"
   },
   "link-host-listed": {
     "en": "This link goes to {host}, which is on the list of hosts used in fraud.",

@@ -139,6 +139,28 @@ rule('link-kit-placeholder', 'content', 5, false, function(m)
         return 'a link still carries the unfilled template of a phishing kit'
     end
 end)
+-- A link that carries the recipient's address with its letters swapped
+-- for codes: `…/v/l75b0haMfy1=Ulth=gMfy1l75b0ajg7Tjp` for
+-- `lihao@golia.jp`, every `i` `75b0`, every `o` `Mfy1`, the `@` `=Ulth=`.
+-- The page behind it reads the address back into a fake sign-in form;
+-- the codes are there so filters that look for an address do not see
+-- one.  Reported 2026-11-12 on a fake signature request
+-- (`Document Signature Request <billy@jenkinsguidingservice.com>`, SPF
+-- and DKIM passing for the sender's own domain).
+--
+-- Measured over 46,219 production messages: 4 matches, all fake
+-- signature requests from one kit across 2025-05 to 2026-11.  A plain or
+-- base64 address in a link matched 198 non-bulk messages, sign-in and
+-- verification links among them; the codes are what nothing genuine
+-- does (`mailrs_fraud::disguised_address`).
+--
+-- **Held.**  Disguising the reader's own address inside the link is the
+-- deception.  A sender the reader released is let through.
+rule('link-disguises-the-recipient', 'content', 6, true, function(m)
+    if external(m) and m.link_disguises_recipient and m.from_released ~= true then
+        return 'a link carries your address with its letters swapped for codes'
+    end
+end)
 -- A subject that carries the recipient's own full address: "Password
 -- Reminder for lihao@golia.jp", "Attention! takagi@golia.jp",
 -- "Support Service: lihao@golia.jp Password Expiry Alert!".
