@@ -113,9 +113,10 @@ end)
 --
 -- **Held.**  Speaking as our own domain from someone else's is the
 -- deception itself.  A sender the reader has written to, and the
--- operator's allowed domains, are let through.
+-- operator's allowed domains, are let through; so is an address whose
+-- held mail the reader released, until they mark it junk.
 rule('display-names-our-domain', 'identity', 6, true, function(m)
-    if reader_wrote_to(m) or not external(m) then return end
+    if reader_wrote_to(m) or m.from_released or not external(m) then return end
     for d in m.display_domains:gmatch('[^\n]+') do
         if owns(m.our_domains, d) then
             return found('the display name says ' .. d .. ', but the address is at ' .. m.from_domain,

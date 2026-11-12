@@ -72,6 +72,10 @@ pub struct QuarantineListResponse {
 }
 
 /// POST /api/quarantine/{thread_id}/release — it was not fraud.
+///
+/// The senders are let through the display-name rule for this reader
+/// from then on ([`super::burner_marks::released_from_hold`]); a junk
+/// mark takes that back.
 pub async fn release_quarantine(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
@@ -81,8 +85,9 @@ pub async fn release_quarantine(
         .core
         .release_quarantined(&user, &thread_id)
         .await
-        .map(|_| StatusCode::NO_CONTENT)
-        .map_err(map_err)
+        .map_err(map_err)?;
+    super::burner_marks::released_from_hold(&state, &user, &thread_id).await;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// GET /api/messages/{message_id}/fraud-verdict — the four layers, as

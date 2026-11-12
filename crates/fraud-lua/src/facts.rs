@@ -165,6 +165,7 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         // "the reader wrote to this sender", for an exemption a deployed
         // pack can make where the domain half cannot (a shared platform)
         ("from_correspondent", f.relation.from_correspondent),
+        ("from_released", f.relation.from_released),
         // the same, for the Reply-To address; read by deployed packs
         ("reply_to_correspondent", f.relation.reply_to_correspondent),
         (

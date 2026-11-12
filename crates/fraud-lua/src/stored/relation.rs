@@ -57,6 +57,7 @@ pub fn relation(
         received: scoring.received_count.saturating_sub(already),
         sent: scoring.sent_count,
         accepted: contacts::accepted(conn, user, &address),
+        released: contacts::released(conn, user, &address),
     };
     let correspondents = correspondents(conn, user);
     Relation {
