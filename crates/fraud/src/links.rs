@@ -103,7 +103,7 @@ pub fn disguises_an_address<'a>(
 }
 
 /// Every web link (`href` starting `http`) and the host of every image
-/// (`<img src>`), in the HTML bodies, at most [`MAX_READ_LINKS`] of each.
+/// (`<img src>`), in the HTML bodies, at most 200 of each.
 /// What [`crate::link_address`] reads.
 pub fn web_links_and_image_hosts<'a>(
     bodies: impl IntoIterator<Item = Body<'a>>,
