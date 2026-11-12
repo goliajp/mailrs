@@ -61,6 +61,23 @@ pub fn link_disguises_recipient(parsed: &mailrs_mime::Part<'_>, addresses: &[Str
     links::disguises_an_address(bodies(&texts), addresses)
 }
 
+/// Where links carrying an address go, against the domains the message
+/// names ([`mailrs_fraud::link_address`]).
+pub fn link_address(
+    parsed: &mailrs_mime::Part<'_>,
+    raw: &[u8],
+) -> mailrs_fraud::link_address::LinkAddress {
+    let texts = texts(parsed);
+    let (links, images) = links::web_links_and_image_hosts(bodies(&texts));
+    let links: Vec<&str> = links.iter().map(String::as_str).collect();
+    mailrs_fraud::link_address::assess(
+        &links,
+        &images,
+        &crate::vouched::hosts(raw),
+        &crate::identity::to_addresses(raw),
+    )
+}
+
 /// Payment identifiers in the message's text and in `attachment_text`
 /// (what extraction stored): the same parts as [`offers_the_reader_a_sum`],
 /// HTML read as its text, so a Japanese account laid out as a table reads

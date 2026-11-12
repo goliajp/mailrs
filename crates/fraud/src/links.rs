@@ -102,6 +102,60 @@ pub fn disguises_an_address<'a>(
     })
 }
 
+/// Every web link (`href` starting `http`) and the host of every image
+/// (`<img src>`), in the HTML bodies, at most 200 of each.
+/// What [`crate::link_address`] reads.
+pub fn web_links_and_image_hosts<'a>(
+    bodies: impl IntoIterator<Item = Body<'a>>,
+) -> (Vec<String>, Vec<String>) {
+    let mut links = Vec::new();
+    let mut images = Vec::new();
+    for html in html_bodies(bodies) {
+        for (href, _) in anchors(html) {
+            let href = href.trim();
+            let web = href
+                .get(..4)
+                .is_some_and(|h| h.eq_ignore_ascii_case("http"));
+            if web && links.len() < MAX_READ_LINKS {
+                links.push(href.to_string());
+            }
+        }
+        for src in image_sources(html) {
+            let host = src
+                .split_once("://")
+                .map(|(_, r)| r.split(['/', '?', '#', ':']).next().unwrap_or(""))
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            if !host.is_empty() && images.len() < MAX_READ_LINKS {
+                images.push(host);
+            }
+        }
+    }
+    (links, images)
+}
+
+/// Links and images read per message.
+const MAX_READ_LINKS: usize = 200;
+
+/// The `src` of each `<img ...>`.
+fn image_sources(html: &str) -> impl Iterator<Item = &str> {
+    let mut rest = html;
+    std::iter::from_fn(move || {
+        loop {
+            let at = find_ci(rest, "<img")?;
+            let after = &rest[at + 4..];
+            let Some(close) = tag_end(after) else {
+                rest = "";
+                return None;
+            };
+            rest = &after[close..];
+            if let Some(src) = attribute(&after[..close], "src") {
+                return Some(src);
+            }
+        }
+    })
+}
+
 fn html_bodies<'a>(bodies: impl IntoIterator<Item = Body<'a>>) -> impl Iterator<Item = &'a str> {
     bodies.into_iter().filter_map(|b| match b {
         Body::Html(h) => Some(cut(h)),

@@ -249,6 +249,26 @@
     "ja": "リンクにあなたのアドレスが文字を符号に置き換えた形で埋め込まれています。偽のログイン画面に自動入力するための手口です。",
     "zh": "链接里藏着你的邮箱地址，字母被换成了代码，钓鱼页面就是用它来预填假登录框的。"
   },
+  "link-forwards-your-address": {
+    "en": "A link carries your address, encoded, through another site to a place the message names nowhere else.",
+    "ja": "リンクにあなたのアドレスが符号化されて埋め込まれ、別のサイトを経由して、メールのどこにも出てこない宛先に送られます。",
+    "zh": "链接里藏着编码后的你的邮箱地址，经另一个网站转到这封信别处都没提到的地方。",
+    "params": {
+      "en": "A link carries your address, encoded, through another site to {domain}.",
+      "ja": "リンクにあなたのアドレスが符号化されて埋め込まれ、別のサイトを経由して {domain} に送られます。",
+      "zh": "链接里藏着编码后的你的邮箱地址，经另一个网站转到 {domain}。"
+    }
+  },
+  "link-fragment-carries-an-address": {
+    "en": "A link hands an email address to a site the message names nowhere else.",
+    "ja": "リンクがメールアドレスを、メールのどこにも出てこないサイトに渡します。",
+    "zh": "链接把一个邮箱地址交给了这封信别处都没提到的网站。",
+    "params": {
+      "en": "A link hands an email address to {domain}, a site the message names nowhere else.",
+      "ja": "リンクがメールアドレスを {domain} に渡します。このサイトはメールのほかの場所には出てきません。",
+      "zh": "链接把一个邮箱地址交给 {domain}，这个网站在信的其他地方都没出现。"
+    }
+  },
   "link-host-listed": {
     "en": "This link goes to {host}, which is on the list of hosts used in fraud.",
     "ja": "このリンクの行き先 {host} は、詐欺に使われたホストの一覧に載っています。",
