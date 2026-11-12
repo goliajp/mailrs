@@ -199,6 +199,12 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
     ] {
         t.set(lua, k, v).map_err(|e| lua.vm().error_text(&e))?;
     }
+    set_policy_lists(lua, t, p)
+}
+
+/// The policy's name and domain lists as Lua arrays; domains lowercased
+/// and blank entries dropped.
+fn set_policy_lists(lua: &mut Lua, t: LuaTable, p: &Policy) -> Result<(), String> {
     for (k, list, domains) in [
         ("org_names", &p.org_names, false),
         ("account_names", &p.account_names, false),
