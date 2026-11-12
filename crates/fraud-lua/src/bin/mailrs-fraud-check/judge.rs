@@ -191,6 +191,10 @@ pub(super) fn judge(
         asks_for_the_readers_line: mailrs_inbound::body::asks_for_the_readers_line(&parsed),
         shown_links: &shown_links,
         link_has_kit_placeholder: mailrs_inbound::body::link_has_kit_placeholder(&parsed),
+        link_disguises_recipient: mailrs_inbound::body::link_disguises_recipient(
+            &parsed,
+            &mailrs_inbound::identity::to_addresses(&raw),
+        ),
         is_bulk: mailrs_inbound::body::is_bulk(&raw),
         hosted_mailbox: mailrs_fraud::burner_domain::hosted_mailbox(&raw),
         has_executable_attachment: inside.carries_code,

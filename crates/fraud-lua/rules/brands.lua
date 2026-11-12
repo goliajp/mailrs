@@ -26,6 +26,17 @@ BRANDS = {
     {name = "etc利用照会", domains = {"etc-meisai.jp"}},
     {name = "sagawa", domains = {"sagawa-exp.co.jp"}},
     {name = "ヤマト運輸", domains = {"kuronekoyamato.co.jp"}},
+    -- e-signature services: every sending domain each documents for
+    -- allow-listing (DocuSign community and production mail; Adobe's
+    -- echosign.com to adobesign.com migration guide; Dropbox Sign help;
+    -- PandaDoc's delivery article). A customer's own name in front,
+    -- `Qualcomm Esignature via Docusign`, is not the brand alone.
+    {name = "docusign", domains = {"docusign.net", "docusign.com"}},
+    {name = "adobe sign", domains = {"adobesign.com", "echosign.com", "adobe.com"}},
+    {name = "adobe acrobat sign", domains = {"adobesign.com", "echosign.com", "adobe.com"}},
+    {name = "dropbox sign", domains = {"hellosign.com", "hellofax.com", "dropbox.com"}},
+    {name = "hellosign", domains = {"hellosign.com", "hellofax.com", "dropbox.com"}},
+    {name = "pandadoc", domains = {"pandadoc.com", "pandadoc.net"}},
 }
 SUBJECT_CLAIMS = {
     {name = "chatgpt", domains = {"openai.com", "c-openai.com"}},

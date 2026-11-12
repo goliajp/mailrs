@@ -305,6 +305,19 @@ pub fn to_display_name(raw: &[u8]) -> String {
     }
 }
 
+/// The bare addresses in `To:`, lowercased: the message's own word for
+/// whom it was written to. A display name holding a comma inside quotes
+/// splits wrongly and yields no address from that piece, which reads as
+/// fewer addresses, never wrong ones.
+pub fn to_addresses(raw: &[u8]) -> Vec<String> {
+    decoded_identity(raw)
+        .2
+        .split(',')
+        .map(bare_address)
+        .filter(|a| a.contains('@') && !a.contains(char::is_whitespace))
+        .collect()
+}
+
 /// The bare address in `Reply-To:`, lowercased.
 ///
 /// Empty when the message carries no `Reply-To`, which is most of

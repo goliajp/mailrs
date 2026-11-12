@@ -124,6 +124,21 @@ rule('display-names-our-domain', 'identity', 6, true, function(m)
         end
     end
 end)
+-- A display name with a word that mixes Latin letters and letters of a
+-- script drawn like them: `ᏚhiеldеdFilе - ꓖoliа` (Cherokee, Cyrillic,
+-- Lisu) reads as `ShieldedFile - Golia`.  Reported 2026-11-12; in 41,752
+-- external production messages the only display name that did this
+-- (`mailrs_fraud::mixed_script`).
+--
+-- **Scored, not held.**  The corpus has no mail in Cyrillic or Greek to
+-- show what an ordinary name in those languages next to a Latin brand
+-- looks like; 6 is over the Junk threshold, and Junk is where a mistake
+-- is cheap to undo.
+rule('display-mixes-scripts', 'identity', 6, false, function(m)
+    if external(m) and m.display_mixes_scripts and m.from_released ~= true then
+        return 'a word of the display name mixes Latin letters with look-alike letters of another script'
+    end
+end)
 -- A From under a name reserved so that it can never be anybody's mail
 -- domain: `.invalid`, `.test`, `.example`, `.localhost` (RFC 6761) and
 -- `example.com/.net/.org` (RFC 2606).  Nobody can receive a reply there,
