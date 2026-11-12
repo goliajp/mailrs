@@ -25,6 +25,8 @@ pub const REVIEWED: &[&str] = &[
     "link-disguises-the-recipient",
     "display-mixes-scripts",
     "brand-is-the-display-name",
+    "link-forwards-your-address",
+    "link-fragment-carries-an-address",
 ];
 
 /// Days a day's list is kept: a 30-day review plus time to hold it late.
