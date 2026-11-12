@@ -78,6 +78,7 @@ pub(super) struct Evidence {
     asks_for_the_readers_line: bool,
     shown_links: String,
     link_has_kit_placeholder: bool,
+    link_disguises_recipient: bool,
     subject: String,
     to_display: String,
     reply_rotation: u32,
@@ -144,6 +145,10 @@ impl Evidence {
         let asks_for_the_readers_line = mailrs_inbound::body::asks_for_the_readers_line(&parsed);
         let shown_links = mailrs_inbound::body::shown_links(&parsed);
         let link_has_kit_placeholder = mailrs_inbound::body::link_has_kit_placeholder(&parsed);
+        let link_disguises_recipient = mailrs_inbound::body::link_disguises_recipient(
+            &parsed,
+            &mailrs_inbound::identity::to_addresses(&receive_ctx.message),
+        );
         let subject = mailrs_inbound::subject_header(&receive_ctx.message);
         let to_display = mailrs_inbound::identity::to_display_name(&receive_ctx.message);
         let reply_to = mailrs_inbound::identity::reply_to_address(&receive_ctx.message);
@@ -228,6 +233,7 @@ impl Evidence {
             asks_for_the_readers_line,
             shown_links,
             link_has_kit_placeholder,
+            link_disguises_recipient,
             subject,
             to_display,
             reply_rotation,
@@ -269,6 +275,7 @@ impl Evidence {
             asks_for_the_readers_line: self.asks_for_the_readers_line,
             shown_links: &self.shown_links,
             link_has_kit_placeholder: self.link_has_kit_placeholder,
+            link_disguises_recipient: self.link_disguises_recipient,
             is_bulk: mailrs_inbound::body::is_bulk(&receive_ctx.message),
             hosted_mailbox: self.hosted_mailbox,
             site_elsewhere: self.site.elsewhere,

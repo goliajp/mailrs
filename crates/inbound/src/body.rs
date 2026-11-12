@@ -54,6 +54,13 @@ pub fn link_has_kit_placeholder(parsed: &mailrs_mime::Part<'_>) -> bool {
     links::has_kit_placeholder(bodies(&texts))
 }
 
+/// Whether a link carries one of `addresses` (the `To:` addresses) with
+/// its characters swapped for codes.
+pub fn link_disguises_recipient(parsed: &mailrs_mime::Part<'_>, addresses: &[String]) -> bool {
+    let texts = texts(parsed);
+    links::disguises_an_address(bodies(&texts), addresses)
+}
+
 /// Payment identifiers in the message's text and in `attachment_text`
 /// (what extraction stored): the same parts as [`offers_the_reader_a_sum`],
 /// HTML read as its text, so a Japanese account laid out as a table reads

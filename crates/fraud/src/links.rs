@@ -78,6 +78,30 @@ pub fn has_kit_placeholder<'a>(bodies: impl IntoIterator<Item = Body<'a>>) -> bo
     })
 }
 
+/// Whether a link carries one of `addresses` with its characters swapped
+/// for codes ([`crate::disguised_address`]). Only links that go to the
+/// web are read; at most the first [`MAX_SHOWN_LINKS`] addresses.
+pub fn disguises_an_address<'a>(
+    bodies: impl IntoIterator<Item = Body<'a>>,
+    addresses: &[String],
+) -> bool {
+    let addresses = &addresses[..addresses.len().min(MAX_SHOWN_LINKS)];
+    if addresses.is_empty() {
+        return false;
+    }
+    html_bodies(bodies).any(|html| {
+        anchors(html).any(|(href, _)| {
+            let href = href.trim();
+            let web = href
+                .get(..4)
+                .is_some_and(|h| h.eq_ignore_ascii_case("http"));
+            web && addresses
+                .iter()
+                .any(|a| crate::disguised_address::disguises(href, a))
+        })
+    })
+}
+
 fn html_bodies<'a>(bodies: impl IntoIterator<Item = Body<'a>>) -> impl Iterator<Item = &'a str> {
     bodies.into_iter().filter_map(|b| match b {
         Body::Html(h) => Some(cut(h)),

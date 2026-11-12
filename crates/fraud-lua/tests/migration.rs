@@ -113,8 +113,10 @@ fn all_existing_sender_fixtures_match_compiled_rules() {
     // hosted mailbox and a site that lands elsewhere; its tests are in
     // `tests/burner_domain.rs`. `display-names-our-domain` needs one of
     // our domains, which these fixtures have none of; its tests are in
-    // `tests/display_domain.rs`.
-    assert_eq!(rules.rule_count(), 50);
+    // `tests/display_domain.rs`. `link-disguises-the-recipient` and
+    // `display-mixes-scripts` need a disguised link or a look-alike
+    // letter; theirs are in `tests/esign_lures.rs`.
+    assert_eq!(rules.rule_count(), 52);
     for from in &senders {
         for (subject, seen, to) in [
             (
