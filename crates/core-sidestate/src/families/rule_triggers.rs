@@ -19,7 +19,13 @@ use kevy_client::Connection;
 use serde::{Deserialize, Serialize};
 
 /// The rules whose every trigger is kept while they are new.
-pub const REVIEWED: &[&str] = &["burner-domain-outreach"];
+pub const REVIEWED: &[&str] = &[
+    "burner-domain-outreach",
+    "display-names-our-domain",
+    "link-disguises-the-recipient",
+    "display-mixes-scripts",
+    "brand-is-the-display-name",
+];
 
 /// Days a day's list is kept: a 30-day review plus time to hold it late.
 pub const KEEP_DAYS: i64 = 60;
@@ -34,7 +40,11 @@ pub struct Trigger {
     /// The `From` domain.
     pub from_domain: String,
     /// What the rule went by beyond the sender: for
-    /// `burner-domain-outreach`, the host the sender's web root landed on.
+    /// `burner-domain-outreach`, the host the sender's web root landed on;
+    /// for the others, the rule's own detail and the facts it named
+    /// (`brand=docusign domain=xjgh.org`). Whether the reader later
+    /// released the conversation is not known here; the review reads it
+    /// from the conversation's release facts by `message_id`.
     pub detail: String,
     pub message_id: String,
 }
