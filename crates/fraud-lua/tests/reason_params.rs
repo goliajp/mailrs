@@ -121,6 +121,8 @@ mod bucket;
 mod burner;
 #[path = "reason_params/display.rs"]
 mod display;
+#[path = "reason_params/links.rs"]
+mod links;
 #[path = "reason_params/payment.rs"]
 mod payment;
 #[path = "reason_params/platform.rs"]
@@ -375,14 +377,6 @@ fn cases() -> Vec<Case> {
             &[("domain", "sender.example")],
         ),
         (
-            "link-shows-our-address",
-            Facts {
-                shown_links: "golia.jp login.evil.example\n",
-                ..base()
-            },
-            &[("shown", "golia.jp"), ("target", "login.evil.example")],
-        ),
-        (
             "new-domain-asks-for-payment",
             Facts {
                 payment: pays(),
@@ -429,6 +423,7 @@ fn each_shipped_rule_names_the_facts_its_sentence_needs() {
         .chain(bucket::cases(base()))
         .chain(burner::cases(base()))
         .chain(display::cases(base()))
+        .chain(links::cases(base()))
         .chain(payment::cases(base()))
         .chain(platform::cases(base()))
     {

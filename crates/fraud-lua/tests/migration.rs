@@ -115,8 +115,10 @@ fn all_existing_sender_fixtures_match_compiled_rules() {
     // our domains, which these fixtures have none of; its tests are in
     // `tests/display_domain.rs`. `link-disguises-the-recipient` and
     // `display-mixes-scripts` need a disguised link or a look-alike
-    // letter; theirs are in `tests/esign_lures.rs`.
-    assert_eq!(rules.rule_count(), 52);
+    // letter; theirs are in `tests/esign_lures.rs`. The two link-address
+    // rules need links that carry an address; theirs are in
+    // `tests/link_address_rules.rs`.
+    assert_eq!(rules.rule_count(), 54);
     for from in &senders {
         for (subject, seen, to) in [
             (

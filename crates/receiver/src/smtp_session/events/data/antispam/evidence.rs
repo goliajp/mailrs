@@ -79,6 +79,7 @@ pub(super) struct Evidence {
     shown_links: String,
     link_has_kit_placeholder: bool,
     link_disguises_recipient: bool,
+    link_address: mailrs_fraud::link_address::LinkAddress,
     subject: String,
     to_display: String,
     reply_rotation: u32,
@@ -145,6 +146,7 @@ impl Evidence {
         let asks_for_the_readers_line = mailrs_inbound::body::asks_for_the_readers_line(&parsed);
         let shown_links = mailrs_inbound::body::shown_links(&parsed);
         let link_has_kit_placeholder = mailrs_inbound::body::link_has_kit_placeholder(&parsed);
+        let link_address = mailrs_inbound::body::link_address(&parsed, &receive_ctx.message);
         let link_disguises_recipient = mailrs_inbound::body::link_disguises_recipient(
             &parsed,
             &mailrs_inbound::identity::to_addresses(&receive_ctx.message),
@@ -234,6 +236,7 @@ impl Evidence {
             shown_links,
             link_has_kit_placeholder,
             link_disguises_recipient,
+            link_address,
             subject,
             to_display,
             reply_rotation,
@@ -276,6 +279,7 @@ impl Evidence {
             shown_links: &self.shown_links,
             link_has_kit_placeholder: self.link_has_kit_placeholder,
             link_disguises_recipient: self.link_disguises_recipient,
+            link_address: self.link_address.clone(),
             is_bulk: mailrs_inbound::body::is_bulk(&receive_ctx.message),
             hosted_mailbox: self.hosted_mailbox,
             site_elsewhere: self.site.elsewhere,

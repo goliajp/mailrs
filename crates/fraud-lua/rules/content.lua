@@ -161,6 +161,49 @@ rule('link-disguises-the-recipient', 'content', 6, true, function(m)
         return 'a link carries your address with its letters swapped for codes'
     end
 end)
+-- Links that carry an address to a place the message never otherwise
+-- names (`mailrs_fraud::link_address`).  The page behind such a link
+-- reads the address back into a fake sign-in form.  Measured over 41,783
+-- external production messages on 2026-11-12, neither touched genuine
+-- mail; see the module for what "names" and "ends up" mean.
+--
+-- Both leave alone: our own mail, list mail, a sender the reader has
+-- written to or released, a sender domain with a history here
+-- (`sender_domain_established`, first seen over 30 days ago or 5
+-- messages), and a destination on our own domains.
+local function unknown_sender_linking(m, to)
+    return to ~= '' and external(m) and m.is_bulk ~= true
+        and not reader_wrote_to(m) and m.from_released ~= true
+        and m.sender_domain_established ~= true and not owns(m.our_domains, to)
+end
+-- The recipient's address in base64, through a forwarder, to a host the
+-- message names nowhere: 2 in the corpus, both credential phishing
+-- (`crockadoodle.com` and `satmagazine.com` forwarding to
+-- `smartechla.com`).  Anthropic's sign-in links carry the address the
+-- same way but go straight to `claude.ai`.
+--
+-- **Held.**  A forwarder on an unrelated host is the disguise.
+rule('link-forwards-your-address', 'content', 6, true, function(m)
+    local to = m.link_base64_via_redirect_to
+    if unknown_sender_linking(m, to) then
+        return found('a link carries your address, encoded, through another site to ' .. to,
+            {domain = to})
+    end
+end)
+-- Any address in a link's `#` part, to a host the message names nowhere:
+-- 5 in the corpus, all credential phishing.
+--
+-- **Scored, not held.**  A new service's verification mail could put the
+-- address there too, linking to an app on another domain, and that mail
+-- is awaited: held mail is shown without a count, so a reader would not
+-- know it came.  The corpus has none; 6 is over the Junk threshold.
+rule('link-fragment-carries-an-address', 'content', 6, false, function(m)
+    local to = m.link_fragment_address_to
+    if unknown_sender_linking(m, to) then
+        return found('a link hands an email address to ' .. to .. ', a site the message names nowhere else',
+            {domain = to})
+    end
+end)
 -- A subject that carries the recipient's own full address: "Password
 -- Reminder for lihao@golia.jp", "Attention! takagi@golia.jp",
 -- "Support Service: lihao@golia.jp Password Expiry Alert!".

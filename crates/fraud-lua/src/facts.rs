@@ -49,6 +49,17 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ("from_domain", domain),
         ("display", fold(&display_name_of(f.from))),
         (
+            "link_base64_via_redirect_to",
+            f.link_address
+                .base64_via_redirect
+                .clone()
+                .unwrap_or_default(),
+        ),
+        (
+            "link_fragment_address_to",
+            f.link_address.fragment_address.clone().unwrap_or_default(),
+        ),
+        (
             "display_domains",
             mailrs_fraud::display_domains::display_domains(f.from).join("\n"),
         ),
