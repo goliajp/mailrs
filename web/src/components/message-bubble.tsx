@@ -8,6 +8,7 @@ import { HtmlFrame } from '@/components/html-frame'
 import { linkifyNodes } from '@/components/linkify-nodes'
 import { MobileModal } from '@/components/mobile-modal'
 import { PdfPreview } from '@/components/pdf-preview'
+import { PlainTextLines } from '@/components/plain-text-lines'
 import { type Key, useT } from '@/i18n'
 import { splitEmail } from '@/lib/email-split'
 import { formatSize } from '@/lib/format'
@@ -259,18 +260,23 @@ function ocrLabel(loading: boolean, shown: boolean, t: (k: Key) => string): stri
   return t('attachment.ocr')
 }
 
+function plainColors(isOwn: boolean): { link: string; text: string } {
+  if (isOwn) return { link: 'text-white', text: 'text-white' }
+  return { link: 'text-accent', text: 'text-fg' }
+}
+
 function PlainPre({ body, isOwn }: { body: string; isOwn: boolean }) {
   // linkify bare http(s) URLs — a text/plain body (e.g. a bank/transactional
   // notice) would otherwise show its links as dead text. HTML bodies keep
   // their own anchors (HtmlFrame); markdown bodies autolink via remark-gfm.
   return (
-    <pre
-      className={`font-sans text-sm leading-relaxed break-words whitespace-pre-wrap ${
-        isOwn ? 'text-white' : 'text-fg'
-      }`}
-    >
-      {linkifyNodes([body], `no-underline hover:underline ${isOwn ? 'text-white' : 'text-accent'}`)}
-    </pre>
+    <PlainTextLines
+      className={`font-sans text-sm break-words ${plainColors(isOwn).text}`}
+      renderLine={(line) =>
+        linkifyNodes([line], `no-underline hover:underline ${plainColors(isOwn).link}`)
+      }
+      text={body}
+    />
   )
 }
 
