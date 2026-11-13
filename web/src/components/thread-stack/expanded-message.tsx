@@ -13,6 +13,7 @@ import { linkifyNodes } from '@/components/linkify-nodes'
 import { MessageBubble } from '@/components/message-bubble'
 import { MessageMenu } from '@/components/message-menu'
 import { MessageSource } from '@/components/message-source'
+import { PlainTextLines } from '@/components/plain-text-lines'
 import { MessageRecipients } from '@/components/recipient-list'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { SenderClaimBadge } from '@/components/sender-claim-badge'
@@ -147,12 +148,16 @@ export function ExpandedMessage({
       )}
       {!showHtml && (
         <div className="px-4 py-3 select-text">
-          <div className="text-fg text-mid font-sans leading-relaxed break-words whitespace-pre-wrap">
-            {linkifyNodes(
-              highlightMentions(m.clean_text || m.text_body || t('read.noText'), myEmail, myName),
-              'text-accent no-underline hover:underline'
-            )}
-          </div>
+          <PlainTextLines
+            className="text-fg text-mid font-sans break-words"
+            renderLine={(line) =>
+              linkifyNodes(
+                highlightMentions(line, myEmail, myName),
+                'text-accent no-underline hover:underline'
+              )
+            }
+            text={m.clean_text || m.text_body || t('read.noText')}
+          />
         </div>
       )}
       <div className="px-4 pb-3">
