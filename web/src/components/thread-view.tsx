@@ -132,9 +132,13 @@ export function ThreadView() {
     if (!selectedId || !threadQuery.data) return
     if (scrolledFor.current === selectedId) return
     scrolledFor.current = selectedId
+    // the message's own top, not its header button's: the button sits
+    // inside the message's padding, and aligning it scrolled a one-message
+    // conversation a few pixels down from the top
     requestAnimationFrame(() => {
       contentScrollRef.current
         ?.querySelector('[data-stack-header][aria-expanded="true"]')
+        ?.closest('article')
         ?.scrollIntoView?.({ behavior: 'instant', block: 'start' })
     })
   }, [threadQuery.data, selectedId])
