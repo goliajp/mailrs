@@ -1,6 +1,7 @@
 //! The SQL store's side of held mail, for the shared routes.
 
 use mailrs_core_api::method::thread::ReleaseFact;
+use mailrs_core_api::types::ConversationSummaryWire;
 use mailrs_core_routes::store::{HoldStore, StoreError, StoreResult};
 use mailrs_mailbox::pg::{Held, ThreadQuery};
 
@@ -11,6 +12,24 @@ fn failed(e: sqlx::Error) -> StoreError {
 }
 
 impl HoldStore for CoreRpcState {
+    async fn held_page(
+        &self,
+        user: &str,
+        before_ts: Option<i64>,
+        n: usize,
+    ) -> StoreResult<(Vec<ConversationSummaryWire>, usize)> {
+        let query = ThreadQuery {
+            held: Held::Only,
+            before_ts,
+            ..ThreadQuery::all(user)
+        };
+        let rows = self.mailbox.thread_rows(&query).await.map_err(failed)?;
+        let total = rows.len();
+        let items = rows.iter().take(n).map(Into::into).collect();
+        let items = super::handlers::labels::with_labels(self, user, items).await;
+        Ok((items, total))
+    }
+
     async fn held(&self, user: &str, thread_id: &str) -> StoreResult<Option<bool>> {
         let ids = [thread_id.to_string()];
         let q = ThreadQuery {
@@ -86,5 +105,34 @@ impl HoldStore for CoreRpcState {
                 rules_version: f.rules_version,
             })
             .collect())
+    }
+
+    async fn fraud_verdict(
+        &self,
+        user: &str,
+        message_id: &str,
+    ) -> StoreResult<Option<Option<serde_json::Value>>> {
+        if self
+            .mailbox
+            .find_message_by_message_id(user, message_id)
+            .await
+            .map_err(failed)?
+            .is_none()
+        {
+            return Ok(None);
+        }
+        let verdict = self
+            .mailbox
+            .fraud_verdict(message_id)
+            .await
+            .map_err(failed)?;
+        let placement = self
+            .mailbox
+            .message_placement(user, message_id)
+            .await
+            .map_err(failed)?
+            .and_then(|v| serde_json::from_value(v).ok())
+            .unwrap_or_default();
+        Ok(Some(mailrs_intake::why::joined(verdict, placement)))
     }
 }

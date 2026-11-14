@@ -137,7 +137,28 @@ pub async fn check_hold_store<S: super::HoldStore>(
     user: &str,
     unheld_thread: &str,
     stranger_thread: &str,
+    own_message_id: &str,
 ) {
+    assert!(
+        store
+            .fraud_verdict(user, own_message_id)
+            .await
+            .unwrap()
+            .is_some(),
+        "the reader's own message has no verdict answer"
+    );
+    assert_eq!(
+        store
+            .fraud_verdict(user, "<nobody-has-this@nowhere.test>")
+            .await
+            .unwrap(),
+        None,
+        "a message the reader never had answers a verdict"
+    );
+    let (_, held) = store.held_page(user, None, 1000).await.unwrap();
+    let (none, same) = store.held_page(user, None, 0).await.unwrap();
+    assert!(none.is_empty(), "a page of 0 has rows");
+    assert_eq!(same, held, "asking only for the count changes the count");
     assert_eq!(
         store.held(user, stranger_thread).await.unwrap(),
         None,
