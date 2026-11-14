@@ -17,6 +17,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = "0.4"
 thiserror = "2"
+argon2 = { workspace = true }
 kevy-client = { workspace = true }
 tokio = { version = "1", features = ["rt"] }
 tracing = "0.1"

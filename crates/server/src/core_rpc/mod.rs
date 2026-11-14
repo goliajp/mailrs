@@ -6,6 +6,7 @@
 //! `0.0.0.0:3300`) and checks `Authorization: Bearer <MAILRS_CORE_API_SECRET>`
 //! on authenticated routes.
 
+mod account_store;
 pub(crate) mod handlers;
 mod hold_store;
 mod label_store;

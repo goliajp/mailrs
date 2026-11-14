@@ -210,21 +210,26 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         )
         .route(
             adm_paths::PATH_GET_ACCOUNT_HASH,
-            get(handlers::admin::get_account_with_hash),
+            get(mailrs_core_routes::account::account_with_hash::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_LIST_ACCOUNTS,
-            get(handlers::admin::list_accounts).post(handlers::admin::add_account),
+            get(mailrs_core_routes::account::list_accounts::<CoreRpcState>)
+                .post(mailrs_core_routes::account::add_account::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_UPDATE_ACCOUNT,
-            put(handlers::admin::update_account).delete(handlers::admin::remove_account),
+            put(mailrs_core_routes::account::update_account::<CoreRpcState>)
+                .delete(handlers::admin::remove_account),
         )
         .route(
             adm_paths::PATH_RESTORE_ACCOUNT,
             post(handlers::admin::restore_account),
         )
-        .route(adm_paths::PATH_SET_QUOTA, post(handlers::admin::set_quota))
+        .route(
+            adm_paths::PATH_SET_QUOTA,
+            post(mailrs_core_routes::account::set_quota::<CoreRpcState>),
+        )
         .route(
             adm_paths::PATH_QUOTA_LIMITS,
             post(handlers::admin::quota_limits_route),
@@ -247,15 +252,15 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         )
         .route(
             adm_paths::PATH_UPDATE_RECOVERY_EMAIL,
-            post(handlers::admin::set_recovery_email),
+            post(mailrs_core_routes::account::set_recovery_email::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_SET_ACCOUNT_PASSWORD,
-            post(handlers::admin::set_account_password),
+            post(mailrs_core_routes::account::set_password::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_CLEAR_ACCOUNT_PASSWORD,
-            post(handlers::admin::clear_account_password),
+            post(mailrs_core_routes::account::clear_password::<CoreRpcState>),
         )
         // the operator's clearing, on the host only: see password_clear
         .route(

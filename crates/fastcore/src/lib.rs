@@ -42,6 +42,7 @@ mod measure_hooks;
 pub mod outbound_fraud;
 mod protocols;
 pub use protocols::{FastcoreDirectory, listen_for_signouts};
+mod account_store;
 mod hold_store;
 mod import;
 mod label_store;
