@@ -147,15 +147,18 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         )
         .route(
             lb::PATH_LABELS,
-            get(handlers::labels::list_labels).post(handlers::labels::create_label),
+            get(mailrs_core_routes::label::list_labels::<CoreRpcState>)
+                .post(mailrs_core_routes::label::create_label::<CoreRpcState>),
         )
         .route(
             lb::PATH_LABEL,
-            post(handlers::labels::update_label).delete(handlers::labels::delete_label),
+            post(mailrs_core_routes::label::update_label::<CoreRpcState>)
+                .delete(mailrs_core_routes::label::delete_label::<CoreRpcState>),
         )
         .route(
             lb::PATH_THREAD_LABEL,
-            post(handlers::labels::label_thread).delete(handlers::labels::unlabel_thread),
+            post(mailrs_core_routes::label::label_thread::<CoreRpcState>)
+                .delete(mailrs_core_routes::label::unlabel_thread::<CoreRpcState>),
         )
         .route(
             th_paths::PATH_PREFETCH_IMAGES,

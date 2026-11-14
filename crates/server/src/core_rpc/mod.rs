@@ -8,6 +8,7 @@
 
 pub(crate) mod handlers;
 mod hold_store;
+mod label_store;
 mod message_store;
 mod operator_clear;
 mod router;

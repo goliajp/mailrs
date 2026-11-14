@@ -60,4 +60,6 @@ async fn both_stores_read_a_users_messages_as_the_trait_says() {
         .await;
     mailrs_core_routes::store::check_hold_store(&*c.pg_core_state, ALICE, own, stranger, &mid)
         .await;
+    mailrs_core_routes::store::check_label_store(&*c.fastcore_state, ALICE, own, stranger).await;
+    mailrs_core_routes::store::check_label_store(&*c.pg_core_state, ALICE, own, stranger).await;
 }
