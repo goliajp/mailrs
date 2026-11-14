@@ -85,11 +85,17 @@ impl PgMailboxStore {
         let r = super::uids::reserve(&mut conn, user, mailbox_name, 1).await?;
         let (mailbox_id, uid, new_modseq) = (r.mailbox_id, r.first_uid, r.base_modseq + 1);
 
-        sqlx::query(
+        // A second index of the same file that got past the check above
+        // (reconcile racing the live path, or a migration's delivery) finds
+        // the row the first one wrote, as the check would have; the uid
+        // reserved here is left unused, a gap RFC 9051 allows.
+        let inserted: Option<(i32,)> = sqlx::query_as(
             "INSERT INTO messages (mailbox_id, uid, maildir_id, sender, recipients, subject,
                                    size, date_epoch, internal_date, message_id,
                                    in_reply_to, thread_id, modseq)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+             ON CONFLICT (mailbox_id, maildir_id) DO NOTHING
+             RETURNING uid",
         )
         .bind(mailbox_id)
         .bind(uid)
@@ -104,10 +110,18 @@ impl PgMailboxStore {
         .bind(in_reply_to)
         .bind(thread_id)
         .bind(new_modseq)
-        .execute(&mut *conn)
+        .fetch_optional(&mut *conn)
         .await?;
-
-        Ok(uid as u32)
+        if inserted.is_some() {
+            return Ok(uid as u32);
+        }
+        let (existing_uid,): (i32,) =
+            sqlx::query_as("SELECT uid FROM messages WHERE mailbox_id = $1 AND maildir_id = $2")
+                .bind(mailbox_id)
+                .bind(maildir_id)
+                .fetch_one(&mut *conn)
+                .await?;
+        Ok(existing_uid as u32)
     }
 
     /// Index an already-delivered message: extract headers, resolve
