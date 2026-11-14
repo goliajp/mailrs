@@ -8,7 +8,7 @@ use std::sync::Arc;
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use mailrs_core_sidestate::families::permission_groups::{self, Membership};
+use mailrs_core_sidestate::families::permission_groups;
 use mailrs_core_sidestate::families::{email_groups, send_as};
 
 use crate::*;
@@ -35,56 +35,19 @@ pub(crate) async fn effective_permissions(
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
-    let member = group_membership(&state, &address).await;
-    if own.is_none() && member.groups.is_empty() {
-        return Err(StatusCode::NOT_FOUND);
-    }
+    let member = {
+        let (url, addr) = (state.net_url.clone(), address.clone());
+        tokio::task::spawn_blocking(move || permission_groups::membership_at(url.as_deref(), &addr))
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    };
+    let mut perms = member
+        .grant_to(own, &address)
+        .ok_or(StatusCode::NOT_FOUND)?;
     let derived = derived_send_as(&state, &address).await;
-    let mut perms = own.unwrap_or_else(|| adm::EffectivePermissionsResponse {
-        address: address.clone(),
-        permissions: Vec::new(),
-        groups: Vec::new(),
-        is_super: false,
-        send_as: Vec::new(),
-        masks: Vec::new(),
-    });
     perms.send_as = send_as::union(&perms.send_as, derived.aliases, derived.groups);
     perms.masks = derived.masks;
-    perms.permissions.extend(member.permissions);
-    perms.permissions.sort();
-    perms.permissions.dedup();
-    for g in member.groups {
-        if !perms.groups.iter().any(|have| have.id == g.id) {
-            perms.groups.push(g);
-        }
-    }
     Ok(Json(perms))
-}
-
-/// Deliberate degradation: when the network kevy cannot be reached the
-/// account keeps its own permissions and loses only what groups grant, so a
-/// kevy-server outage cannot lock every admin out. Logged at warn.
-async fn group_membership(state: &Arc<FastcoreState>, address: &str) -> Membership {
-    let Some(url) = state.net_url.clone() else {
-        return Membership::default();
-    };
-    let addr = address.to_string();
-    let read = tokio::task::spawn_blocking(move || {
-        let mut conn = kevy_client::Connection::connect(&url)?;
-        permission_groups::membership(&mut conn, &addr)
-    })
-    .await;
-    match read {
-        Ok(Ok(m)) => m,
-        Ok(Err(e)) => {
-            tracing::warn!(error = %e, %address, "permission groups unreadable; own permissions only");
-            Membership::default()
-        }
-        Err(e) => {
-            tracing::warn!(error = %e, %address, "permission group read panicked; own permissions only");
-            Membership::default()
-        }
-    }
 }
 
 struct DerivedSendAs {
