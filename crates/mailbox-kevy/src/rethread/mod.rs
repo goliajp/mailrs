@@ -185,7 +185,13 @@ impl KevyMailboxStore {
         let sender = wire["sender"].as_str().unwrap_or("").to_string();
         // Read or not is this reader's, off their own row: the shared blob
         // is every holder's and its `flags` is not anyone's.
-        let flags = self.user_message_facts(user, mid)?.map_or(0, |f| f.flags);
+        // and only a reader of the message may move it: the blob is shared,
+        // so a split asked for in another account's name would move the
+        // reader's conversation for them
+        let Some(facts) = self.user_message_facts(user, mid)? else {
+            return Ok(None);
+        };
+        let flags = facts.flags;
         wire["thread_id"] = serde_json::Value::String(new_tid.clone());
         if let Ok(payload) = serde_json::to_vec(&wire) {
             store.set(blob_key.as_bytes(), &payload)?;

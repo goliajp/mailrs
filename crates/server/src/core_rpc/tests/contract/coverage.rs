@@ -106,6 +106,7 @@ pub(super) const ELSEWHERE: &[(&str, &str)] = &[
     ("GET /v1/users/*/reports/*", "reports"),
     ("POST /v1/admin/reports/*/confirm", "reports"),
     ("POST /v1/admin/reports/*/dismiss", "reports-dismiss"),
+    ("POST /v1/admin/threads:split-message", "split"),
 ];
 
 /// Calls the SQL core does not answer with success yet, each with the gap it

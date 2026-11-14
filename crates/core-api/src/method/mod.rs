@@ -63,6 +63,7 @@ pub mod ops;
 pub mod ops_alert;
 pub mod outbound;
 pub mod report;
+pub mod rethread;
 pub mod senders;
 pub mod sent;
 pub mod shared;
