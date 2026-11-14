@@ -51,4 +51,20 @@ impl PgMailboxStore {
             .map(|(id, n)| (id, n.max(0) as u32))
             .collect())
     }
+
+    /// The invitation method (`REQUEST`, `CANCEL`, ...) of each message in
+    /// `ids` that carries one, which the message reads do not select.
+    pub async fn invite_methods(
+        &self,
+        ids: &[i64],
+    ) -> Result<std::collections::HashMap<i64, String>, sqlx::Error> {
+        let rows: Vec<(i64, String)> = sqlx::query_as(
+            "SELECT id, invite_method FROM messages \
+             WHERE id = ANY($1) AND invite_method IS NOT NULL AND invite_method <> ''",
+        )
+        .bind(ids)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().collect())
+    }
 }

@@ -38,23 +38,26 @@ pub async fn get_message_by_uid_for_user(
         .ok_or(StatusCode::NOT_FOUND)?;
     let mut w: wire::MessageWire = (&row).into();
     w.user_address = user;
-    fill_attachments(&state, std::slice::from_mut(&mut w)).await?;
+    fill_message_facts(&state, std::slice::from_mut(&mut w)).await?;
     Ok(Json(w))
 }
 
-/// The attachment count each message was stored with, which the message
-/// rows these reads come from do not select.
-pub(crate) async fn fill_attachments(
+/// The attachment count each message was stored with and the invitation
+/// it carries, which the message rows these reads come from do not select.
+pub(crate) async fn fill_message_facts(
     state: &CoreRpcState,
     items: &mut [wire::MessageWire],
 ) -> Result<(), StatusCode> {
     let ids: Vec<i64> = items.iter().map(|w| w.id).collect();
-    let counts = state.mailbox.attachment_counts(&ids).await.map_err(|e| {
-        tracing::warn!(error = %e, "attachment counts failed");
+    let fail = |e: sqlx::Error| {
+        tracing::warn!(error = %e, "message facts failed");
         StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    };
+    let counts = state.mailbox.attachment_counts(&ids).await.map_err(fail)?;
+    let mut invites = state.mailbox.invite_methods(&ids).await.map_err(fail)?;
     for w in items {
         w.attachments = counts.get(&w.id).copied();
+        w.invite_method = invites.remove(&w.id).unwrap_or_default();
     }
     Ok(())
 }
@@ -100,7 +103,7 @@ pub async fn find_message_by_message_id(
     // MessageMeta → MessageWire, then fill in user_address from path.
     let mut w: wire::MessageWire = (&row).into();
     w.user_address = user;
-    fill_attachments(&state, std::slice::from_mut(&mut w)).await?;
+    fill_message_facts(&state, std::slice::from_mut(&mut w)).await?;
     Ok(Json(w))
 }
 

@@ -29,6 +29,7 @@ mod importance;
 mod intake;
 mod intake_redrain;
 mod intake_rules;
+mod invites;
 mod junk_corrections;
 mod labels;
 mod mail;
@@ -46,6 +47,7 @@ mod quota;
 mod quota_limits;
 mod rejudge;
 mod reports;
+mod reports_dismiss;
 mod search;
 mod search_scope;
 mod sections;
@@ -96,6 +98,8 @@ async fn the_two_cores_answer_every_client_call_alike() {
     group_purge::run(&cores, &mut d).await;
     ops::run(&cores, &mut d).await;
     sections::fixtures(&cores, &mut d).await;
+    // after every list and search: it adds a conversation to Alice's mail
+    invites::run(&cores, &mut d).await;
     accounts::teardown(&cores, &mut d).await;
     d.both(
         "healthz",
@@ -122,6 +126,11 @@ async fn the_two_cores_answer_every_client_call_alike() {
         }
     }
 
+    let (fc_hits, pg_hits) = (
+        cores.fastcore_hits.lock().expect("hits").clone(),
+        cores.pg_core_hits.lock().expect("hits").clone(),
+    );
+    gaps.extend(coverage::paid(&fc_hits, &pg_hits));
     let mut report = d.0;
     report.extend(gaps);
 

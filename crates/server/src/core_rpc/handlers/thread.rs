@@ -36,7 +36,7 @@ pub async fn list_thread_messages(
             w
         })
         .collect();
-    super::message::fill_attachments(&state, &mut items).await?;
+    super::message::fill_message_facts(&state, &mut items).await?;
     Ok(Json(wire::ListThreadMessagesResponse { items }))
 }
 
