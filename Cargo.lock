@@ -4035,6 +4035,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-core-routes"
+version = "0.0.0"
+dependencies = [
+ "axum",
+ "kevy-client",
+ "mailrs-core-api",
+ "mailrs-core-sidestate",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "mailrs-core-sidestate"
 version = "0.0.1"
 dependencies = [
@@ -4196,6 +4208,7 @@ dependencies = [
  "mailrs-clean",
  "mailrs-core",
  "mailrs-core-api",
+ "mailrs-core-routes",
  "mailrs-core-sidestate",
  "mailrs-dkim",
  "mailrs-dmarc",
@@ -4894,6 +4907,7 @@ dependencies = [
  "mailrs-clean",
  "mailrs-core",
  "mailrs-core-api",
+ "mailrs-core-routes",
  "mailrs-core-sidestate",
  "mailrs-core-sync",
  "mailrs-fastcore",

@@ -62,6 +62,7 @@ mod side_drafts;
 mod split;
 mod standing;
 mod submission;
+mod thread_store;
 mod threads;
 mod trash;
 mod usage_drift;
