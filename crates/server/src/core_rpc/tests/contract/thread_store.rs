@@ -35,3 +35,19 @@ async fn both_stores_keep_a_readers_conversation_state_as_the_trait_says() {
         check.await;
     }
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn both_stores_read_a_users_messages_as_the_trait_says() {
+    let c = harness::start_on(
+        "mem://message-reads-fastcore",
+        "mem://message-reads-pg-core",
+    )
+    .await;
+    let mut d = Diffs::default();
+    accounts::seed(&c, &mut d).await;
+    mail::seed(&c, &mut d).await;
+    assert!(d.0.is_empty(), "{}", d.0.join("\n\n"));
+    let (own, stranger) = ("t-hello@partner.test", "nobody-has-this@nowhere.test");
+    mailrs_core_routes::store::check_message_reads(&*c.fastcore_state, ALICE, own, stranger).await;
+    mailrs_core_routes::store::check_message_reads(&*c.pg_core_state, ALICE, own, stranger).await;
+}

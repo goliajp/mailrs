@@ -5,40 +5,11 @@
 use std::sync::Arc;
 
 use axum::{
-    Json,
     extract::{Path, State},
     http::StatusCode,
 };
 
-use mailrs_core_api::method::thread as wire;
-
 use crate::core_rpc::CoreRpcState;
-
-/// GET /v1/users/{user}/threads/{thread_id}/messages
-pub async fn list_thread_messages(
-    State(state): State<Arc<CoreRpcState>>,
-    Path((user, thread_id)): Path<(String, String)>,
-) -> Result<Json<wire::ListThreadMessagesResponse>, StatusCode> {
-    let rows = state
-        .mailbox
-        .list_thread_messages(&user, &thread_id, None)
-        .await
-        .map_err(|e| {
-            tracing::warn!(error = %e, user = %user, thread_id = %thread_id, "list_thread_messages failed");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-    let user_clone = user.clone();
-    let mut items: Vec<mailrs_core_api::method::message::MessageWire> = rows
-        .iter()
-        .map(|m| {
-            let mut w: mailrs_core_api::method::message::MessageWire = m.into();
-            w.user_address = user_clone.clone();
-            w
-        })
-        .collect();
-    super::message::fill_message_facts(&state, &mut items).await?;
-    Ok(Json(wire::ListThreadMessagesResponse { items }))
-}
 
 /// Helper that wraps `Result<u32, sqlx::Error>` into a `ThreadActionResponse`.
 /// 404 unless `user` is in the thread: a thread somebody else holds and

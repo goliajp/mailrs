@@ -2,9 +2,11 @@
 //! store awaits its database, the kevy store answers from memory inline.
 
 mod check;
+mod message;
 mod thread;
 
-pub use check::check_thread_store;
+pub use check::{check_message_reads, check_thread_store};
+pub use message::MessageReads;
 pub use thread::{ReaderView, ThreadStore};
 
 /// A store that could not do what it was asked. The route logs it and
@@ -22,3 +24,9 @@ impl std::fmt::Display for StoreError {
 impl std::error::Error for StoreError {}
 
 pub type StoreResult<T> = Result<T, StoreError>;
+
+impl From<std::io::Error> for StoreError {
+    fn from(e: std::io::Error) -> Self {
+        StoreError(e.to_string())
+    }
+}
