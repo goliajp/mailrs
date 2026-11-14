@@ -78,3 +78,52 @@ pub async fn check_thread_store<S: ThreadStore>(
         "a reader's acts leave the conversation theirs and read"
     );
 }
+
+/// `user` must hold messages in `own_thread` and none in `stranger_thread`.
+pub async fn check_message_reads<S: super::MessageReads>(
+    store: &S,
+    user: &str,
+    own_thread: &str,
+    stranger_thread: &str,
+) {
+    let mine = store.thread_messages(user, own_thread).await.unwrap();
+    assert!(!mine.is_empty(), "the reader's conversation lists nothing");
+    for m in &mine {
+        assert_eq!(
+            m.thread_id, own_thread,
+            "a listed message is in another conversation"
+        );
+    }
+    let first = &mine[0];
+    let by_uid = store.message_by_uid(user, first.uid).await.unwrap();
+    assert_eq!(
+        by_uid.map(|m| m.message_id),
+        Some(first.message_id.clone()),
+        "the uid of a listed message finds it"
+    );
+    let by_mid = store
+        .message_by_message_id(user, &first.message_id)
+        .await
+        .unwrap();
+    assert_eq!(
+        by_mid.map(|m| m.uid),
+        Some(first.uid),
+        "its Message-ID finds the same copy"
+    );
+    assert!(
+        store
+            .thread_messages(user, stranger_thread)
+            .await
+            .unwrap()
+            .is_empty(),
+        "a stranger's conversation lists something"
+    );
+    assert!(
+        store
+            .message_by_uid(user, u32::MAX)
+            .await
+            .unwrap()
+            .is_none(),
+        "a uid the reader never had finds something"
+    );
+}
