@@ -192,6 +192,38 @@ if [ "$CORE" = pg ]; then
         --to "http://127.0.0.1:$PG_CORE_PORT" > "$WORK/core-sync.log" 2>&1 || {
         echo "core-sync failed:" >&2; tail -20 "$WORK/core-sync.log" >&2; exit 1; }
     tail -3 "$WORK/core-sync.log"
+
+    # what the reader would see must not change with the switch: the counts
+    # and the newest page of the list, on both cores
+    echo "== migrated view: fastcore vs pg-core =="
+    python3 -I - "$CORE_PORT" "$PG_CORE_PORT" "$SECRET" <<'PY' || exit 1
+import json, sys, urllib.request
+fc, pg, secret = sys.argv[1:]
+user = "bench%40latency.local"
+
+def call(port, path, body=None):
+    data = None if body is None else json.dumps(body).encode()
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{port}/v1/users/{user}/{path}",
+        data=data,
+        headers={"Authorization": f"Bearer {secret}", "Content-Type": "application/json"},
+    )
+    return json.load(urllib.request.urlopen(req))
+
+def view(port):
+    cats = sorted((c["category"], c["count"]) for c in call(port, "conversations/categories")["categories"])
+    unseen = call(port, "conversations/unseen-count")
+    page = call(port, "conversations:list", {"limit": 50})["items"]
+    rows = [(r["thread_id"], r["last_date"], r["unread_count"], r["message_count"]) for r in page]
+    return {"categories": cats, "unseen": unseen, "first page": rows}
+
+a, b = view(fc), view(pg)
+bad = [k for k in a if a[k] != b[k]]
+for k in bad:
+    print(f"!! {k} differs\n   fastcore: {str(a[k])[:300]}\n   pg-core:  {str(b[k])[:300]}")
+print(f"migrated view: {len(a) - len(bad)}/{len(a)} alike")
+sys.exit(1 if bad else 0)
+PY
     WEB_CORE_PORT="$PG_CORE_PORT"
 fi
 
