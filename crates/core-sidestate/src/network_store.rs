@@ -36,14 +36,18 @@ pub fn supported(info: &str) -> Result<Server, String> {
         return Ok(Server::Kevy(v));
     }
     if let Some(v) = field("valkey_version") {
-        return at_least(&v, (9, 0)).then(|| Server::Valkey(v.clone())).ok_or(format!(
-            "Valkey {v} has no per-field hash expiry; 9.0 or later is needed"
-        ));
+        return at_least(&v, (9, 0))
+            .then(|| Server::Valkey(v.clone()))
+            .ok_or(format!(
+                "Valkey {v} has no per-field hash expiry; 9.0 or later is needed"
+            ));
     }
     match field("redis_version") {
-        Some(v) => at_least(&v, (7, 4)).then(|| Server::Redis(v.clone())).ok_or(format!(
-            "Redis {v} has no per-field hash expiry; 7.4 or later is needed"
-        )),
+        Some(v) => at_least(&v, (7, 4))
+            .then(|| Server::Redis(v.clone()))
+            .ok_or(format!(
+                "Redis {v} has no per-field hash expiry; 7.4 or later is needed"
+            )),
         None => Err("the server does not say what it is (no version in INFO server)".into()),
     }
 }
