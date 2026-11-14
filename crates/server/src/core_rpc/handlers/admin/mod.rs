@@ -54,34 +54,54 @@ pub(crate) async fn effective_permissions_of(
     net_url: Option<&str>,
     address: &str,
 ) -> Result<wire::EffectivePermissionsResponse, StatusCode> {
-    let perms = domain
-        .load_account_permissions(address)
+    let is_account = domain
+        .get_account_with_hash(address)
         .await
         .map_err(|e| {
-            tracing::warn!(error = %e, address = %address, "load perms failed");
+            tracing::warn!(error = %e, address = %address, "load account failed");
             StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+        })?
+        .is_some();
+    let member = {
+        let (url, addr) = (net_url.map(str::to_string), address.to_string());
+        tokio::task::spawn_blocking(move || {
+            mailrs_core_sidestate::families::permission_groups::membership_at(url.as_deref(), &addr)
+        })
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    };
+    let own = match is_account {
+        true => {
+            let perms = domain
+                .load_account_permissions(address)
+                .await
+                .map_err(|e| {
+                    tracing::warn!(error = %e, address = %address, "load perms failed");
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
+            Some(wire::EffectivePermissionsResponse {
+                address: address.to_string(),
+                permissions: perms.permission_list(),
+                groups: Vec::new(),
+                is_super: perms.is_super(),
+                send_as: Vec::new(),
+                masks: Vec::new(),
+            })
+        }
+        false => None,
+    };
+    let mut perms = member.grant_to(own, address).ok_or(StatusCode::NOT_FOUND)?;
     // degrades as the kevy core does: an unreadable alias or group store
     // costs the derived addresses, not the permission check
-    let send_as = match domain.send_as(address, net_url).await {
+    perms.send_as = match domain.send_as(address, net_url).await {
         Ok(s) => s,
         Err(e) => {
             tracing::warn!(error = %e, address = %address, "send-as unreadable; own grants only");
             domain.send_as_grants(address).await.unwrap_or_default()
         }
     };
-
-    Ok(wire::EffectivePermissionsResponse {
-        address: address.to_string(),
-        permissions: perms.permission_list(),
-        // Group resolution is left for a separate RPC call to keep this
-        // endpoint cheap; webapi can hit /accounts/{address}/groups when it
-        // needs the group list (rarely; not part of the auth-me hot path).
-        groups: Vec::new(),
-        is_super: perms.is_super(),
-        send_as,
-        masks: masks_of(net_url.map(str::to_string), address).await,
-    })
+    perms.masks = masks_of(net_url.map(str::to_string), address).await;
+    Ok(perms)
 }
 
 /// The account's masks that take mail, from the network kevy both cores

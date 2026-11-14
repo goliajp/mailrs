@@ -12,7 +12,7 @@
 use std::fmt::Display;
 
 use kevy_client::{Connection, KevyResult};
-use mailrs_core_api::method::admin::GroupWire;
+use mailrs_core_api::method::admin::{EffectivePermissionsResponse, GroupWire};
 
 pub const GROUPS_KEY: &str = "admin:groups";
 pub const GROUPS_COUNTER: &str = "admin:groups:counter";
@@ -103,6 +103,57 @@ pub fn membership(conn: &mut Connection, address: &str) -> KevyResult<Membership
         groups,
         permissions,
     })
+}
+
+/// What groups grant `address`, read from the network kevy at `url`.
+/// Deliberate degradation: when it cannot be read the account keeps its own
+/// permissions and loses only what groups grant, so a kevy-server outage
+/// cannot lock every admin out. Logged at warn. Blocking.
+pub fn membership_at(url: Option<&str>, address: &str) -> Membership {
+    let Some(url) = url else {
+        return Membership::default();
+    };
+    let read = Connection::connect(url).and_then(|mut c| membership(&mut c, address));
+    match read {
+        Ok(m) => m,
+        Err(e) => {
+            tracing::warn!(error = %e, %address, "permission groups unreadable; own permissions only");
+            Membership::default()
+        }
+    }
+}
+
+impl Membership {
+    /// An account's effective permissions: `own` (`None` when the account
+    /// has none of its own) plus what its groups grant. `is_super` comes
+    /// only from `own`. `None` when there is neither: not an account and in
+    /// no group, which the route answers 404.
+    pub fn grant_to(
+        self,
+        own: Option<EffectivePermissionsResponse>,
+        address: &str,
+    ) -> Option<EffectivePermissionsResponse> {
+        if own.is_none() && self.groups.is_empty() {
+            return None;
+        }
+        let mut perms = own.unwrap_or_else(|| EffectivePermissionsResponse {
+            address: address.to_string(),
+            permissions: Vec::new(),
+            groups: Vec::new(),
+            is_super: false,
+            send_as: Vec::new(),
+            masks: Vec::new(),
+        });
+        perms.permissions.extend(self.permissions);
+        perms.permissions.sort();
+        perms.permissions.dedup();
+        for g in self.groups {
+            if !perms.groups.iter().any(|have| have.id == g.id) {
+                perms.groups.push(g);
+            }
+        }
+        Some(perms)
+    }
 }
 
 /// Create a group and return its row. `now` is unix seconds.
@@ -226,5 +277,61 @@ mod tests {
                 .groups
                 .is_empty()
         );
+    }
+
+    fn wire(id: i64) -> GroupWire {
+        GroupWire {
+            id,
+            name: format!("g{id}"),
+            domain: None,
+            description: String::new(),
+            is_builtin: false,
+            created_at: 0,
+        }
+    }
+
+    fn own(perms: &[&str], is_super: bool) -> EffectivePermissionsResponse {
+        EffectivePermissionsResponse {
+            address: "a@x.test".into(),
+            permissions: perms.iter().map(|p| p.to_string()).collect(),
+            groups: Vec::new(),
+            is_super,
+            send_as: Vec::new(),
+            masks: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn groups_add_their_permissions_to_the_accounts_own() {
+        let m = Membership {
+            groups: vec![wire(1)],
+            permissions: vec!["admin.accounts".into(), "mail.read".into()],
+        };
+        let p = m
+            .grant_to(Some(own(&["mail.read"], false)), "a@x.test")
+            .expect("an account");
+        assert_eq!(p.permissions, ["admin.accounts", "mail.read"]);
+        assert_eq!(p.groups.len(), 1);
+        assert!(!p.is_super, "no group makes an account super");
+    }
+
+    #[test]
+    fn a_group_member_without_an_account_is_still_answered() {
+        let m = Membership {
+            groups: vec![wire(1)],
+            permissions: vec!["admin.accounts".into()],
+        };
+        let p = m.grant_to(None, "a@x.test").expect("held by a group");
+        assert_eq!(p.address, "a@x.test");
+        assert_eq!(p.permissions, ["admin.accounts"]);
+    }
+
+    #[test]
+    fn neither_an_account_nor_a_member_is_nobody() {
+        assert!(Membership::default().grant_to(None, "a@x.test").is_none());
+        let p = Membership::default()
+            .grant_to(Some(own(&[], true)), "a@x.test")
+            .expect("an account");
+        assert!(p.is_super, "an account's own super survives");
     }
 }
