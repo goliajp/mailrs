@@ -39,6 +39,7 @@ mod own_unread;
 mod ownerless;
 mod paging;
 mod participants;
+mod permission_groups;
 mod placement;
 mod purge_fixture;
 mod quota;
@@ -74,6 +75,7 @@ async fn the_two_cores_answer_every_client_call_alike() {
     accounts::seed(&cores, &mut d).await;
     mail::seed(&cores, &mut d).await;
     accounts::run(&cores, &mut d).await;
+    permission_groups::run(&cores, &mut d).await;
     quota_limits::run(&cores, &mut d).await;
     mail::run(&cores, &mut d).await;
     threads::run(&cores, &mut d).await;
