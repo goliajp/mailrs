@@ -66,11 +66,20 @@ pub(super) const AUTHSERV: &str = "mail.contract.test";
 pub(super) const FASTCORE_KEVY: &str = "mem://contract-fastcore-side-state";
 pub(super) const PG_CORE_KEVY: &str = "mem://contract-pg-core-side-state";
 
+/// Record `METHOD /route` for every call the core answered with success: a
+/// 404 or 405 reached the route without exercising what it does.
 async fn record(State(hits): State<Hits>, req: Request, next: Next) -> Response {
-    if let Some(p) = req.extensions().get::<MatchedPath>() {
-        hits.lock().expect("hits").insert(p.as_str().to_string());
+    let asked = req
+        .extensions()
+        .get::<MatchedPath>()
+        .map(|p| format!("{} {}", req.method(), p.as_str()));
+    let res = next.run(req).await;
+    if let Some(asked) = asked
+        && res.status().is_success()
+    {
+        hits.lock().expect("hits").insert(asked);
     }
-    next.run(req).await
+    res
 }
 
 async fn serve(router: axum::Router) -> String {

@@ -9,12 +9,12 @@ use super::{ALICE, BOB, accounts};
 use mailrs_core_api::method::report::{ReportOutcomeWire, ReportState};
 
 /// Each core mints its own ids and times.
-const MINTED: &[&str] = &["report_id", "at", "decided_at"];
+pub(super) const MINTED: &[&str] = &["report_id", "at", "decided_at"];
 
 /// The template. Handed over from a private address, as the test fixtures
 /// are: the rules in force that hold mail from a reserved domain leave it
 /// alone, so only a rule a test means to fire holds it.
-fn scam(name: &str, addr: &str, message_id: &str) -> Vec<u8> {
+pub(super) fn scam(name: &str, addr: &str, message_id: &str) -> Vec<u8> {
     format!(
         "Received: from bridge (172.17.0.1:25)\r\n\tby {} with ESMTP\r\n\
          From: Parcel Desk <notice@parcel-desk.example>\r\nTo: {name} <{addr}>\r\n\
@@ -57,7 +57,12 @@ fn later_copy(name: &str, addr: &str, message_id: &str) -> Vec<u8> {
     raw
 }
 
-async fn held_threads(c: &harness::Cores, d: &mut Diffs, user: &str, call: &str) -> Vec<String> {
+pub(super) async fn held_threads(
+    c: &harness::Cores,
+    d: &mut Diffs,
+    user: &str,
+    call: &str,
+) -> Vec<String> {
     let page = d.both(
         call,
         c.fastcore.list_quarantined(user, 50, None).await,
@@ -353,6 +358,7 @@ async fn a_report_finds_and_takes_back_the_other_copies_alike_on_both_cores() {
     let bob_held = held_threads(&c, &mut d, BOB, "Bob's held list after the new copy").await;
     assert_eq!(bob_held, vec!["s2@parcel-desk.example".to_string()]);
 
+    d.0.extend(super::coverage::require("reports", &c));
     assert!(
         d.0.is_empty(),
         "{} difference(s) between the cores:\n\n{}",
