@@ -5,6 +5,42 @@ use crate::pg::BackendPool;
 use crate::pg::PgMailboxStore;
 
 impl PgMailboxStore {
+    /// Put a stored message's conversation, dates and read state to what
+    /// another store says they are: a migration's delivery may find the
+    /// file already indexed here (by the reconcile sweep, which guesses
+    /// them from the file), and the store it migrates from is the
+    /// authority. `\Seen` is the low flag bit; the other flags stay.
+    /// Returns how many rows changed.
+    #[allow(clippy::too_many_arguments)] // one row's facts, each a column
+    pub async fn restate_arrival(
+        &self,
+        user: &str,
+        maildir_id: &str,
+        thread_id: &str,
+        date: i64,
+        internal_date: i64,
+        seen: bool,
+    ) -> Result<u64, sqlx::Error> {
+        let r = sqlx::query(
+            "UPDATE messages
+             SET thread_id = $1, date_epoch = $2, internal_date = $3,
+                 flags = flags - (flags % 2) + $4
+             FROM mailboxes
+             WHERE messages.mailbox_id = mailboxes.id
+               AND mailboxes.user_address = $5
+               AND messages.maildir_id = $6",
+        )
+        .bind(thread_id)
+        .bind(date)
+        .bind(internal_date)
+        .bind(i32::from(seen))
+        .bind(user)
+        .bind(maildir_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(r.rows_affected())
+    }
+
     /// Attach an iTIP invite payload (parsed by `mailrs::ical` upstream) to
     /// a previously-stored message. Idempotent: rerunning with new content
     /// overwrites. The caller (server inbound pipeline, MRS-4) extracts
