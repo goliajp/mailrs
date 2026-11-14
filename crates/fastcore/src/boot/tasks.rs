@@ -31,10 +31,13 @@ pub(super) fn spawn_workers(state: &Arc<FastcoreState>, kevy_dir: &str) {
     bounce::spawn_bounce_drain(state.clone());
 
     // TLS-RPT daily aggregate submission (G8.3).
-    tlsrpt::spawn_submit(state.clone());
+    drop(mailrs_intake::tlsrpt_submit::spawn_submit());
 
     // retention sweep: mock mail past 3 days
-    crate::mock_sweep::spawn(state.clone());
+    if let Some(url) = state.net_url.clone() {
+        mailrs_intake::mock_sweep::spawn(url.clone());
+        mailrs_intake::domain_prune::spawn(url);
+    }
     snooze_wake::spawn(state.clone());
     // read state, moves and deletes reach open web clients
     crate::mailbox_watch::spawn(state.clone());
@@ -48,7 +51,6 @@ pub(super) fn spawn_workers(state: &Arc<FastcoreState>, kevy_dir: &str) {
     crate::senders::spawn_retention(state.clone());
     crate::ledger::spawn_link_prune(state.clone());
     crate::rejudge::spawn(state.clone());
-    crate::domain_prune::spawn(state.clone());
     // Say now whether push is on, rather than at the first delivery.
     push::warm();
     aof_compact::spawn(state.clone(), kevy_dir.to_string());
@@ -78,6 +80,15 @@ pub(super) fn spawn_listeners(state: &Arc<FastcoreState>) {
     crate::protocols::spawn(state.clone(), crate::tls::from_env());
 }
 
+/// This core's accounts, for the work every core runs the same way.
+struct Accounts(Arc<FastcoreState>);
+
+impl mailrs_intake::calendar_sync::AccountList for Accounts {
+    async fn accounts(&self) -> std::io::Result<Vec<String>> {
+        self.0.mailbox.list_account_addresses()
+    }
+}
+
 /// Webhook delivery and calendar feed sync.
 pub(super) fn spawn_outbound_feeds(state: &Arc<FastcoreState>) {
     // Webhook delivery — drains the kevy outbox. Until 2026-07-31 a
@@ -91,8 +102,13 @@ pub(super) fn spawn_outbound_feeds(state: &Arc<FastcoreState>) {
     }
     // Calendar feed sync — subscribing to an .ics URL stored a row that
     // nothing read, so no event ever appeared.
-    let calendar_state = state.clone();
-    tokio::spawn(async move {
-        calendar_sync::spawn(calendar_state).await;
-    });
+    if let Some(net_url) = state.net_url.clone() {
+        let st = state.clone();
+        tokio::spawn(mailrs_intake::calendar_sync::run(
+            mailrs_intake::calendar_sync::CalendarHost {
+                net_url,
+                accounts: Accounts(st),
+            },
+        ));
+    }
 }

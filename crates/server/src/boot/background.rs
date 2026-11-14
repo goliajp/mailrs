@@ -105,6 +105,7 @@ pub(super) fn spawn_snooze_wake(mailbox_store: &Option<Arc<PgMailboxStore>>) {
 }
 
 pub(super) fn spawn_core_rpc_server(
+    ops: &mailrs_ops_report::push::Reporter,
     cfg: &ServerConfig,
     mailbox_store: &Option<Arc<PgMailboxStore>>,
     domain_store: &Option<Arc<domain_store::DomainStore>>,
@@ -133,9 +134,29 @@ pub(super) fn spawn_core_rpc_server(
         // is a future, and `let _ =` on one reads as "ignore the result" while
         // actually detaching it (clippy::let_underscore_future).
         core_rpc::spawn_trash_purge(core_rpc_state.clone());
+        // TLS-RPT reports the sender records, submitted once a day
+        drop(mailrs_intake::tlsrpt_submit::spawn_submit());
+        if let Some(net_url) = core_rpc_state.net_url.clone() {
+            mailrs_intake::mock_sweep::spawn(net_url.clone());
+            mailrs_intake::domain_prune::spawn(net_url.clone());
+            tokio::spawn(mailrs_intake::calendar_sync::run(
+                mailrs_intake::calendar_sync::CalendarHost {
+                    net_url,
+                    accounts: Accounts(ds.clone()),
+                },
+            ));
+        }
+        let ops = ops.clone();
         drop(core_rpc::spawn_core_rpc(
             core_rpc_state,
             shutdown_rx.clone(),
+            // the schema is checked at boot; a database it could not bring
+            // to this binary's version stopped the process before here
+            move || {
+                ops.ready(Some(mailrs_ops_report::wire::Detail::CoreReady {
+                    boot_intact: true,
+                }))
+            },
         ));
     }
 }
@@ -161,4 +182,18 @@ pub(super) async fn wait_for_shutdown_signal() {
     tokio::signal::ctrl_c()
         .await
         .expect("failed to listen for ctrl+c");
+}
+
+/// This core's accounts, for the work every core runs the same way.
+struct Accounts(Arc<domain_store::DomainStore>);
+
+impl mailrs_intake::calendar_sync::AccountList for Accounts {
+    async fn accounts(&self) -> std::io::Result<Vec<String>> {
+        let accounts = self
+            .0
+            .list_accounts()
+            .await
+            .map_err(|e| std::io::Error::other(e.to_string()))?;
+        Ok(accounts.into_iter().map(|a| a.address).collect())
+    }
 }
