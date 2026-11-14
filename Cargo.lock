@@ -3859,6 +3859,8 @@ version = "0.0.1"
 dependencies = [
  "kevy-client",
  "mailrs-alias-store",
+ "mailrs-test-docker",
+ "tokio",
 ]
 
 [[package]]
