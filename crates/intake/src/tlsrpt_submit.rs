@@ -7,7 +7,7 @@
 //! RPUSH mailrs:tlsrpt:<domain>:<yyyymmdd> <json event>
 //! ```
 //!
-//! Once a day fastcore's submit task walks yesterday's buckets, and for
+//! Once a day the core's submit task walks yesterday's buckets, and for
 //! any domain that published a `_smtp._tls.<domain>` TXT policy with a
 //! `rua=` endpoint, builds the RFC 8460 report from the stored events,
 //! gzips it, and submits it (mailto → outbound queue as a null-envelope
@@ -17,15 +17,11 @@
 //! Everything is fail-open + best-effort — TLS-RPT is diagnostic, it
 //! must never affect delivery.
 
-use std::sync::Arc;
-
 use mailrs_tls_rpt::{
     FailureEvent, FailureType, PolicyType, ReportBuilder, RuaEndpoint, SubmissionEmailOpts,
     SuccessEvent, TlsRptRecord, build_submission_email, gzip_report,
 };
 use serde::{Deserialize, Serialize};
-
-use crate::FastcoreState;
 
 /// Compact wire form of a delivery TLS observation. Stored as JSON in
 /// the per-domain daily kevy list; reconstructed into the stone's
@@ -75,14 +71,14 @@ pub fn record(kevy_url: &str, ev: &TlsEvent) {
 
 /// Spawn the daily submission task. Runs one sweep at boot (covering
 /// yesterday) then every 24 h.
-pub fn spawn_submit(state: Arc<FastcoreState>) -> tokio::task::JoinHandle<()> {
+pub fn spawn_submit() -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let Some(url) = crate::live_sync::network_kevy_url() else {
             tracing::info!("no network kevy — TLS-RPT submit disabled");
             return;
         };
         loop {
-            if let Err(e) = submit_yesterday(&state, &url).await {
+            if let Err(e) = submit_yesterday(&url).await {
                 tracing::warn!(error = %e, "tls-rpt submit sweep failed");
             }
             tokio::time::sleep(std::time::Duration::from_secs(24 * 3600)).await;
@@ -90,10 +86,7 @@ pub fn spawn_submit(state: Arc<FastcoreState>) -> tokio::task::JoinHandle<()> {
     })
 }
 
-async fn submit_yesterday(
-    state: &Arc<FastcoreState>,
-    url: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn submit_yesterday(url: &str) -> Result<(), Box<dyn std::error::Error>> {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
         .as_secs() as i64;
@@ -115,7 +108,7 @@ async fn submit_yesterday(
         let Some(domain) = parts.get(2).map(|s| s.to_string()) else {
             continue;
         };
-        if let Err(e) = submit_domain(state, url, &domain, &yesterday, &submitter).await {
+        if let Err(e) = submit_domain(url, &domain, &yesterday, &submitter).await {
             tracing::warn!(%domain, error = %e, "tls-rpt: domain submit failed");
         }
     }
@@ -123,7 +116,6 @@ async fn submit_yesterday(
 }
 
 async fn submit_domain(
-    _state: &Arc<FastcoreState>,
     url: &str,
     domain: &str,
     day: &str,

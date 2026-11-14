@@ -21,13 +21,11 @@ mod ledger;
 pub use boot::run;
 pub mod bounce;
 pub mod bounce_queue;
-mod calendar_sync;
 pub use mailrs_intake::reports::{dmarc as dmarc_ingest, fbl, tlsrpt as tlsrpt_ingest};
 mod file_message_id;
 pub mod fraud_backfill;
 mod headers;
 mod hold_facts;
-mod idle_backoff;
 pub mod image_prefetch;
 mod imap;
 mod importance;
@@ -41,11 +39,9 @@ mod maildir_scan;
 mod maintenance;
 #[cfg(feature = "measure-hooks")]
 mod measure_hooks;
-mod mock_sweep;
 pub mod outbound_fraud;
 mod protocols;
 pub use protocols::{FastcoreDirectory, listen_for_signouts};
-mod domain_prune;
 mod import;
 mod push;
 mod rejudge;
@@ -85,7 +81,8 @@ pub async fn purge_trash_once(
 pub mod sender_sts;
 pub mod spool_drain;
 mod tls;
-pub mod tlsrpt;
+/// TLS-RPT recording and the daily submission, shared with the SQL core.
+pub use mailrs_intake::tlsrpt_submit as tlsrpt;
 pub mod usage;
 
 use kevy_embedded::{Config, Store};

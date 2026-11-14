@@ -82,18 +82,33 @@ pub(crate) async fn init_tls_state(
             Some(tls)
         }
         TlsMode::Manual => {
-            let tls_config = tls::load_tls_config(
-                cfg.tls_cert
-                    .as_ref()
-                    .expect("MAILRS_TLS_CERT must be set when TLS mode is Manual"),
-                cfg.tls_key
-                    .as_ref()
-                    .expect("MAILRS_TLS_KEY must be set when TLS mode is Manual"),
-            )
-            .expect("failed to load TLS certificate and key files");
-            Some(tls::TlsState::new(
+            let cert = cfg
+                .tls_cert
+                .as_ref()
+                .expect("MAILRS_TLS_CERT must be set when TLS mode is Manual");
+            let key = cfg
+                .tls_key
+                .as_ref()
+                .expect("MAILRS_TLS_KEY must be set when TLS mode is Manual");
+            let tls_config = tls::load_tls_config(cert, key)
+                .expect("failed to load TLS certificate and key files");
+            let state = tls::TlsState::new(
                 std::sync::Arc::try_unwrap(tls_config).unwrap_or_else(|arc| (*arc).clone()),
-            ))
+            );
+            // followed on disk, so a renewed certificate is served without a
+            // restart: compared once a minute, as fastcore does
+            let watcher = mailrs_tls_reload::CertWatcher::new(
+                std::path::Path::new(cert),
+                std::path::Path::new(key),
+            )
+            .expect("read the TLS certificate and key files just loaded");
+            mailrs_tls_reload::spawn_watch(
+                state.clone(),
+                watcher,
+                std::time::Duration::from_secs(60),
+                "pg-core",
+            );
+            Some(state)
         }
         TlsMode::None => None,
     }
