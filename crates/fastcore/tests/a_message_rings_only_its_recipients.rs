@@ -68,24 +68,11 @@ async fn pushes_settled(kv: &mut kevy_client::Connection, want: (i64, i64)) -> (
 }
 
 /// `(user, subject)` of every new-mail event so far.
-fn events(kv: &mut kevy_client::Connection) -> Vec<(String, String)> {
-    let prefix = mailrs_core_sidestate::keys::events::NOTIFY_PREFIX;
-    let mut pattern = prefix.to_vec();
-    pattern.push(b'*');
-    let mut keys = Vec::new();
-    let mut cursor = 0u64;
-    loop {
-        let (next, batch) = kv.scan(cursor, Some(pattern.as_slice()), None).unwrap();
-        keys.extend(batch);
-        if next == 0 {
-            break;
-        }
-        cursor = next;
-    }
-    let mut out: Vec<(String, String)> = keys
+fn events(frames: &mailrs_test_docker::kevy::Published) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = frames
+        .all()
         .iter()
-        .filter_map(|k| kv.get(k).unwrap())
-        .map(|v| serde_json::from_slice::<serde_json::Value>(&v).unwrap())
+        .map(|v| serde_json::from_slice::<serde_json::Value>(v).unwrap())
         .filter(|e| e["type"] == "NewMessage")
         .map(|e| {
             (
@@ -127,6 +114,8 @@ async fn a_message_for_one_member_notifies_only_them() {
     }
     let key = vapid_key(tmp.path());
     let (_kevy, url) = mailrs_test_docker::kevy::kevy_server().await;
+    let frames =
+        mailrs_test_docker::kevy::listen(&url, mailrs_core_sidestate::keys::events::EVENTS_CHANNEL);
     // SAFETY: the only test in this binary, before anything reads them
     unsafe {
         std::env::set_var("MAILRS_KEVY_URL", &url);
@@ -201,7 +190,7 @@ async fn a_message_for_one_member_notifies_only_them() {
         "(Alice, Bob) pushes: Bob was notified of mail he never received"
     );
     assert_eq!(
-        events(&mut kv),
+        events(&frames),
         [
             (ALICE.to_string(), "Friday".to_string()),
             (ALICE.to_string(), "Re: Friday (private)".to_string()),

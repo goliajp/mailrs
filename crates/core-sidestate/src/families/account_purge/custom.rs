@@ -156,9 +156,27 @@ pub(super) fn mock_namespaces(c: &mut Connection, address: &str, dry_run: bool) 
 
 /// Aliases whose target is the address: they would deliver to nobody, or
 /// to whoever takes the address next.
+/// Each goes from the network store's source set too, which lists them;
+/// the embedded store has no such set and the removal does nothing there.
 pub(super) fn aliases_to(c: &mut Connection, address: &str, dry_run: bool) -> io::Result<u64> {
-    let pattern = mailrs_alias_store::keys::alias_v2_key("*");
-    hash_field_is(c, &pattern, "target", address, dry_run)
+    use mailrs_alias_store::keys::{ALIAS_SOURCES_KEY, ALIAS_V2_PREFIX, alias_v2_key};
+    let mut n = 0;
+    for key in scan_all(c, &alias_v2_key("*"))? {
+        if c.type_of(&key)? != "hash" {
+            continue;
+        }
+        if !c.hget(&key, b"target")?.is_some_and(|v| same(&v, address)) {
+            continue;
+        }
+        n += 1;
+        if !dry_run {
+            c.del(&[key.as_slice()])?;
+            if let Some(source) = key.strip_prefix(ALIAS_V2_PREFIX) {
+                c.srem(ALIAS_SOURCES_KEY, &[source])?;
+            }
+        }
+    }
+    Ok(n)
 }
 
 /// The pre-split admin panel's alias mirror, `admin:aliases`: JSON rows by

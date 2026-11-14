@@ -133,6 +133,9 @@ pub async fn run() {
         .with_writer(std::io::stderr)
         .init();
 
+    if let Ok(url) = std::env::var("MAILRS_KEVY_URL") {
+        mailrs_core_sidestate::network_store::require_supported(&url);
+    }
     let ops = mailrs_ops_report::push::Reporter::start("webapi");
     // the counts behind the decision to enforce the content security policy
     ops.spawn_heartbeat(std::time::Duration::from_secs(60), || {

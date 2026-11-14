@@ -1,23 +1,21 @@
 //! `/api/events` — real-time inbox updates via WebSocket.
 //!
-//! v2.3 §P7-C (2026-07-12): forwards events from kevy's change feed
-//! (SET frames under the `mailrs:events:notify:*` prefix) — durable
-//! across webapi restarts, no PUBSUB dependency.
+//! Forwards the frames published on `mailrs:events`
+//! (`mailrs_core_sidestate::keys::events`). One subscriber per process;
+//! a frame published while it is reconnecting is missed, and a client
+//! refetches everything when its own socket reconnects.
 //!
 //! Auth: checked in the handler, from the same token sources as the
 //! session middleware (the browser sends its session cookie on a
 //! same-origin upgrade). A missing or invalid session gets a 401 before
 //! the upgrade completes.
 //!
-//! These connections are deliberately **not pooled**. A feed consumer holds
-//! one for the life of the process and blocks on it; handing it back to a
-//! round-robin pool between reads would let another caller desync the stream
-//! mid-frame, and there is nothing to amortize — the connect happens once.
+//! The subscriber's connection is its own, not pooled: a subscribed
+//! connection takes no other commands.
 //!
-//! Fan-out: one feed_read loop per kevy shard (see
-//! `spawn_kevy_feed_consumers`); each WS client gets its own receiver on
-//! the shared broadcast bus, and is sent only the events addressed to the
-//! session's own user. Clean up on disconnect.
+//! Fan-out: each WS client gets its own receiver on the shared broadcast
+//! bus, and is sent only the events addressed to the session's own user.
+//! Clean up on disconnect.
 
 use std::sync::Arc;
 
@@ -135,108 +133,40 @@ pub(crate) async fn get_or_init_bus(state: Arc<WebState>) -> EventBus {
     // Best-effort insert — if another task raced ahead, use their bus.
     match state.event_bus.set(tx.clone()) {
         Ok(()) => {
-            // v2.3 §P7-C (2026-07-12): legacy pubsub subscriber dropped.
-            // feed_read consumer is now the sole realtime path — durable
-            // across webapi restarts (unlike PUBSUB which discards
-            // messages when no subscriber is attached at publish time).
             let _ = state;
-            spawn_kevy_feed_consumers(tx.clone());
+            spawn_subscriber(tx.clone());
             tx
         }
         Err(_) => state.event_bus.get().unwrap().clone(),
     }
 }
 
-fn spawn_kevy_feed_consumers(tx: EventBus) {
-    let Some(kevy_url) = std::env::var("MAILRS_KEVY_URL").ok() else {
+fn spawn_subscriber(tx: EventBus) {
+    use mailrs_core_sidestate::keys::events::EVENTS_CHANNEL;
+    const RECONNECT: std::time::Duration = std::time::Duration::from_secs(1);
+    let Some(url) = std::env::var("MAILRS_KEVY_URL").ok() else {
         return;
     };
-    // Discover shard count in a scratch connection. If the discovery
-    // itself fails the migration path is a no-op — pubsub is still up.
-    let shards = match kevy_client::Connection::connect(&kevy_url) {
-        Ok(mut c) => c.feed_shards().unwrap_or(1),
-        Err(e) => {
-            tracing::warn!(err = %e, url = %kevy_url, "feed_shards probe failed; skipping feed consumer");
-            return;
-        }
-    };
-    tracing::info!(shards, "spawning kevy feed consumers");
-    for shard in 0..shards {
-        let tx = tx.clone();
-        let kevy_url = kevy_url.clone();
-        tokio::task::spawn_blocking(move || feed_consumer_loop(&kevy_url, shard, tx));
-    }
-}
-
-fn feed_consumer_loop(kevy_url: &str, shard: usize, tx: EventBus) {
-    use mailrs_core_sidestate::keys::events::NOTIFY_PREFIX as PREFIX;
-    const IDLE_SLEEP: std::time::Duration = std::time::Duration::from_millis(250);
-    const RECONNECT_SLEEP: std::time::Duration = std::time::Duration::from_secs(5);
-    'outer: loop {
-        let mut conn = match kevy_client::Connection::connect(kevy_url) {
-            Ok(c) => c,
-            Err(e) => {
-                tracing::warn!(err = %e, shard, "feed consumer connect failed; retry 5s");
-                std::thread::sleep(RECONNECT_SLEEP);
-                continue;
-            }
-        };
-        let (mut generation, mut off) = match conn.feed_tail(shard) {
-            Ok(t) => t,
-            Err(e) => {
-                tracing::warn!(err = %e, shard, "feed_tail failed; retry 5s");
-                std::thread::sleep(RECONNECT_SLEEP);
-                continue;
-            }
-        };
-        tracing::info!(shard, generation, off, "feed consumer online");
-        loop {
-            let batch = match conn.feed_read(shard, generation, off, Some(256), &[PREFIX]) {
-                Ok(b) => b,
-                Err(e) => {
-                    // FeedError::Resync surfaces as an io::Error whose
-                    // Display contains the wire verb "FEEDRESYNC".
-                    // Recover by re-tailing so we skip the invalidated
-                    // window; the frontend refetches full state on the
-                    // next WS reconnect, so brief resync gaps are
-                    // acceptable.
-                    if e.to_string().contains("FEEDRESYNC") {
-                        tracing::info!(shard, "feed resync; re-tailing");
-                        continue 'outer;
+    std::thread::Builder::new()
+        .name("live-events".into())
+        .spawn(move || {
+            loop {
+                match kevy_client::Subscriber::connect_channels(&url, &[EVENTS_CHANNEL]) {
+                    Ok(mut sub) => {
+                        tracing::info!("live events: subscribed");
+                        while let Ok((_, frame)) = sub.recv_message() {
+                            if let Ok(msg) = String::from_utf8(frame) {
+                                let _ = tx.send(msg);
+                            }
+                        }
+                        tracing::warn!("live events: subscription ended; reconnecting");
                     }
-                    tracing::warn!(err = %e, shard, "feed_read failed; reconnect 5s");
-                    std::thread::sleep(RECONNECT_SLEEP);
-                    continue 'outer;
+                    Err(e) => tracing::warn!(err = %e, "live events: subscribe failed; retry 1s"),
                 }
-            };
-            generation = batch.generation;
-            off = batch.next_offset;
-            if batch.frames.is_empty() {
-                std::thread::sleep(IDLE_SLEEP);
-                continue;
+                std::thread::sleep(RECONNECT);
             }
-            for frame in batch.frames {
-                // Only SET frames carry a publishable payload — EXPIRE /
-                // DEL / etc. also match the prefix but their argv layout
-                // has no value at position 2.
-                let Some(verb) = frame.argv.first() else {
-                    continue;
-                };
-                if verb.as_slice() != b"SET" {
-                    continue;
-                }
-                let Some(value) = frame.argv.get(2) else {
-                    continue;
-                };
-                let Ok(msg) = std::str::from_utf8(value) else {
-                    continue;
-                };
-                // Shape unchanged from pubsub — same JSON envelope the
-                // frontend `use-mail-events.ts` parses today.
-                let _ = tx.send(msg.to_string());
-            }
-        }
-    }
+        })
+        .expect("spawn live-events thread");
 }
 
 #[cfg(test)]

@@ -157,7 +157,6 @@ pub const OWNED: &[Owned] = &[
     net("push:upwindow:{user}", Shape::Key(push::unified_push_window_key)),
     net("push:uptrailing:{user}", Shape::Key(push::unified_push_trailing_key)),
     net("push:stats:{user}:*", Shape::Globs(|a| under("push:stats:", &a.to_lowercase(), ":"))),
-    net("mailrs:events:notify:*:{user}", Shape::Globs(|a| vec![format!("mailrs:events:notify:*:{}", glob_escape(&a.to_ascii_lowercase()))])),
     // what the user's account is allowed and counted
     net("mailrs:quota:{user}:used_bytes", Shape::Key(quota::used_key)),
     net("mailrs:quota:{user}:limit_bytes", Shape::Key(quota::limit_key)),
@@ -268,7 +267,9 @@ pub const KEPT: &[Kept] = &[
     Kept { name: "scan:hashobs", why: "attachment hash observations" },
     Kept { name: "screening:rules", why: "the screening rules" },
     Kept { name: "aliases_by_target", why: "kevy's index over the alias rows; follows them" },
+    Kept { name: "mailrs:alias:sources", why: "the set listing the alias rows; each alias purged leaves it with its row" },
     Kept { name: "notify:new-mail", why: "a pub/sub channel, not a key" },
+    Kept { name: "mailrs:events", why: "a pub/sub channel, not a key" },
     Kept { name: "notify:reputation", why: "a pub/sub channel, not a key" },
     Kept { name: "notify:account-signout", why: "a pub/sub channel, not a key" },
     Kept { name: "bayes:tokens:*", why: "the spam model's token counts, not by user" },

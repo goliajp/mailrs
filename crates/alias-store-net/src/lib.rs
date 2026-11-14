@@ -8,8 +8,8 @@
 //!
 //! Keyspace matches the embedded backend byte-for-byte:
 //! `mailrs:alias:v2:<address>` hash `{target, domain, created_at,
-//! active}`; range-indexed by `aliases_by_domain` /
-//! `aliases_by_target` for `list()`'s 2-RTT walk.
+//! active}`. The set `mailrs:alias:sources` lists them, written in the same
+//! MULTI as each alias, so every command here is one Redis and Valkey have.
 
 use std::io;
 
@@ -17,9 +17,7 @@ use mailrs_alias_store::AliasStore;
 
 const MAX_HOPS: usize = 4;
 
-use mailrs_alias_store::keys::{
-    ALIAS_V2_PREFIX, IDX_ALIASES_BY_DOMAIN, IDX_ALIASES_BY_TARGET, alias_v2_key as alias_key_v2,
-};
+use mailrs_alias_store::keys::{ALIAS_SOURCES_KEY, ALIAS_V2_PREFIX, alias_v2_key as alias_key_v2};
 
 fn now_secs() -> i64 {
     std::time::SystemTime::now()
@@ -45,25 +43,41 @@ impl NetworkKevyAliasStore {
         kevy_client::Connection::connect(&self.url)
     }
 
-    /// v2.6.0 §P6 dual-write: idempotently declare the alias-side range
-    /// indexes on the network kevy. Callers invoke once at startup;
-    /// duplicate declarations on the server return an error which we
-    /// swallow (the catalog persists the spec on first call).
-    pub fn ensure_indexes(&self) -> io::Result<()> {
+    /// Bring the source set in line with the alias hashes: add the
+    /// sources it is missing, drop the ones whose alias is gone. Run at
+    /// boot; it also covers an alias written straight into the store
+    /// (`kevy-cli`) rather than through [`AliasStore::upsert`]. A set that
+    /// already matches is read and nothing is written. Returns
+    /// `(added, dropped)`.
+    pub fn reconcile_sources(&self) -> io::Result<(usize, usize)> {
         let mut conn = self.connect()?;
-        let _ = conn.idx_create_range(
-            IDX_ALIASES_BY_DOMAIN,
-            ALIAS_V2_PREFIX,
-            b"domain",
-            kevy_client::IdxType::Str,
-        );
-        let _ = conn.idx_create_range(
-            IDX_ALIASES_BY_TARGET,
-            ALIAS_V2_PREFIX,
-            b"target",
-            kevy_client::IdxType::Str,
-        );
-        Ok(())
+        let mut pattern = ALIAS_V2_PREFIX.to_vec();
+        pattern.push(b'*');
+        let mut held = std::collections::BTreeSet::new();
+        let mut cursor = 0;
+        loop {
+            let (next, batch) = conn.scan(cursor, Some(&pattern), Some(1000))?;
+            for key in batch {
+                if let Some(source) = key.strip_prefix(ALIAS_V2_PREFIX) {
+                    held.insert(source.to_vec());
+                }
+            }
+            if next == 0 {
+                break;
+            }
+            cursor = next;
+        }
+        let listed: std::collections::BTreeSet<Vec<u8>> =
+            conn.smembers(ALIAS_SOURCES_KEY)?.into_iter().collect();
+        let missing: Vec<&[u8]> = held.difference(&listed).map(Vec::as_slice).collect();
+        let stale: Vec<&[u8]> = listed.difference(&held).map(Vec::as_slice).collect();
+        if !missing.is_empty() {
+            conn.sadd(ALIAS_SOURCES_KEY, &missing)?;
+        }
+        if !stale.is_empty() {
+            conn.srem(ALIAS_SOURCES_KEY, &stale)?;
+        }
+        Ok((missing.len(), stale.len()))
     }
 }
 
@@ -113,55 +127,43 @@ impl AliasStore for NetworkKevyAliasStore {
         let key_v2 = alias_key_v2(source);
         let domain = source.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
         let created_at = now_secs().to_string();
-        conn.hset(
+        let mut tx = conn.multi()?;
+        tx.queue(&[
+            b"HSET",
             key_v2.as_bytes(),
-            &[
-                (b"target".as_slice(), target.as_bytes()),
-                (b"domain".as_slice(), domain.as_bytes()),
-                (b"created_at".as_slice(), created_at.as_bytes()),
-                (b"active".as_slice(), b"1".as_slice()),
-            ],
-        )?;
+            b"target",
+            target.as_bytes(),
+            b"domain",
+            domain.as_bytes(),
+            b"created_at",
+            created_at.as_bytes(),
+            b"active",
+            b"1",
+        ])?;
+        tx.queue(&[b"SADD", ALIAS_SOURCES_KEY, source.as_bytes()])?;
+        tx.exec()?;
         Ok(())
     }
 
     fn delete(&self, source: &str) -> io::Result<bool> {
         let mut conn = self.connect()?;
         let key_v2 = alias_key_v2(source);
-        let removed = conn.del(&[key_v2.as_bytes()])?;
-        Ok(removed > 0)
+        let mut tx = conn.multi()?;
+        tx.queue(&[b"DEL", key_v2.as_bytes()])?;
+        tx.queue(&[b"SREM", ALIAS_SOURCES_KEY, source.as_bytes()])?;
+        let replies = tx.exec()?;
+        Ok(matches!(replies.first(), Some(kevy_client::Reply::Int(n)) if *n > 0))
     }
 
-    /// v2.6.1 §P6 read cutover: 2-RTT list via `IDX.QUERY RANGE` on
-    /// `aliases_by_domain` + a single pipelined `HGET target` batch.
-    /// Replaces the pre-Phase-10 `SMEMBERS + N × GET` fanout
-    /// (41 RTT for the 40-alias prod dataset → 2 RTT).
-    ///
-    /// The index is sorted by `(domain, key)` — same result set as
-    /// the legacy path, just server-sorted. The empty min / `\xff\xff`
-    /// max span every Str value. `IdxRow.key` is the full kevy key
-    /// including the `mailrs:alias:v2:` prefix which we strip to
-    /// recover the source address.
+    /// Two round trips: the source set, then one pipelined `HGET target`
+    /// per alias.
     fn list(&self) -> io::Result<Vec<(String, String)>> {
         let mut conn = self.connect()?;
-        let mut keys: Vec<Vec<u8>> = Vec::new();
-        let mut cursor: Option<Vec<u8>> = None;
-        loop {
-            let page = conn.idx_query_range(
-                IDX_ALIASES_BY_DOMAIN,
-                b"",
-                b"\xff\xff",
-                10_000,
-                cursor.as_deref(),
-            )?;
-            for row in page.rows {
-                keys.push(row.key);
-            }
-            match page.cursor {
-                Some(c) => cursor = Some(c),
-                None => break,
-            }
-        }
+        let keys: Vec<Vec<u8>> = conn
+            .smembers(ALIAS_SOURCES_KEY)?
+            .into_iter()
+            .map(|source| [ALIAS_V2_PREFIX, &source].concat())
+            .collect();
         if keys.is_empty() {
             return Ok(Vec::new());
         }
@@ -195,45 +197,76 @@ impl AliasStore for NetworkKevyAliasStore {
 mod tests {
     use super::*;
 
-    /// Opt-in integration test — set `MAILRS_TEST_KEVY_URL` to a live
-    /// kevy-server URL (e.g. `kevy://127.0.0.1:6379`) to exercise the
-    /// full RESP roundtrip. CI leaves it unset so the workspace test
-    /// pass stays hermetic; the store's contract shape is already
-    /// covered by `mailrs_alias_store::MemoryAliasStore` and the
-    /// embedded-kevy trait impl tests.
-    /// Opt-in like the roundtrip below — the catch-all contract cannot
-    /// be checked hermetically here, but this is the impl prod runs, so
-    /// it is the one that most needs checking.
-    #[test]
-    fn honours_the_shared_catch_all_contract_when_kevy_url_set() {
-        let Ok(url) = std::env::var("MAILRS_TEST_KEVY_URL") else {
-            eprintln!("skipping: MAILRS_TEST_KEVY_URL not set");
-            return;
-        };
-        let store = NetworkKevyAliasStore::new(url);
-        mailrs_alias_store::assert_catch_all_contract(&store);
+    /// The store production runs, against a real server: kevy-server, or
+    /// Redis or Valkey when `MAILRS_TEST_NETWORK_STORE` says so.
+    async fn on_a_server(check: impl FnOnce(NetworkKevyAliasStore) + Send + 'static) {
+        let (_server, url) = mailrs_test_docker::kevy::kevy_server().await;
+        tokio::task::spawn_blocking(move || {
+            let store = NetworkKevyAliasStore::new(url);
+            // as fastcore does at boot
+            store.reconcile_sources().expect("sources");
+            check(store)
+        })
+        .await
+        .expect("check");
     }
 
-    #[test]
-    fn network_roundtrip_when_kevy_url_set() {
-        let Ok(url) = std::env::var("MAILRS_TEST_KEVY_URL") else {
-            eprintln!("skipping: MAILRS_TEST_KEVY_URL not set");
-            return;
-        };
-        let store = NetworkKevyAliasStore::new(url);
-        let src = "test-net-alias@example.com";
-        let tgt = "recipient@example.com";
-        // Clean slate — the shared kevy may have leftovers from prior runs.
-        store.delete(src).unwrap();
-        store.upsert(src, tgt).unwrap();
-        assert_eq!(store.resolve(src).unwrap().as_deref(), Some(tgt));
-        // Case-normalization regression from the embed backend applies here too.
-        let upper = "Test-Net-Alias@example.com";
-        store.delete(upper).unwrap();
-        store.upsert(upper, tgt).unwrap();
-        assert_eq!(store.resolve(upper).unwrap().as_deref(), Some(tgt));
-        // Cleanup.
-        assert!(store.delete(src).unwrap());
-        assert!(store.delete(upper).unwrap());
+    #[tokio::test(flavor = "multi_thread")]
+    async fn honours_the_shared_catch_all_contract() {
+        on_a_server(|store| mailrs_alias_store::assert_catch_all_contract(&store)).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_alias_resolves_lists_and_goes() {
+        on_a_server(|store| {
+            let src = "test-net-alias@example.com";
+            let tgt = "recipient@example.com";
+            store.upsert(src, tgt).unwrap();
+            assert_eq!(store.resolve(src).unwrap().as_deref(), Some(tgt));
+            // case is kept as given, as on the embedded store
+            let upper = "Test-Net-Alias@example.com";
+            store.upsert(upper, tgt).unwrap();
+            assert_eq!(store.resolve(upper).unwrap().as_deref(), Some(tgt));
+            let mut listed = store.list().unwrap();
+            listed.sort();
+            assert_eq!(
+                listed,
+                vec![
+                    (upper.to_string(), tgt.to_string()),
+                    (src.to_string(), tgt.to_string()),
+                ]
+            );
+            assert!(store.delete(src).unwrap());
+            assert!(store.delete(upper).unwrap());
+            assert!(store.list().unwrap().is_empty());
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn boot_lists_what_was_written_past_the_store() {
+        on_a_server(|store| {
+            let mut conn = store.connect().unwrap();
+            // an alias written straight into the store, as `kevy-cli` would
+            conn.hset(
+                alias_key_v2("cli@example.com").as_bytes(),
+                &[(b"target".as_slice(), b"to@example.com".as_slice())],
+            )
+            .unwrap();
+            // and a listed source whose alias is gone
+            conn.sadd(ALIAS_SOURCES_KEY, &[b"gone@example.com".as_slice()])
+                .unwrap();
+            assert_eq!(store.reconcile_sources().unwrap(), (1, 1));
+            assert_eq!(
+                store.list().unwrap(),
+                vec![("cli@example.com".to_string(), "to@example.com".to_string())]
+            );
+            assert_eq!(
+                store.reconcile_sources().unwrap(),
+                (0, 0),
+                "in line already"
+            );
+        })
+        .await;
     }
 }

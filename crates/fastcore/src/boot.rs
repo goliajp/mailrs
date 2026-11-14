@@ -44,6 +44,9 @@ pub async fn run() {
 
     let kevy_dir =
         std::env::var("MAILRS_KEVY_DATA_DIR").unwrap_or_else(|_| "/data/kevy-fastcore".to_string());
+    if let Ok(url) = std::env::var("MAILRS_KEVY_URL") {
+        mailrs_core_sidestate::network_store::require_supported(&url);
+    }
     let state = store::open_state(&kevy_dir);
     // Held for the shutdown path — the router takes ownership of the
     // original below.

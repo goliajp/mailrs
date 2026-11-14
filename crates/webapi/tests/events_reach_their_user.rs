@@ -25,10 +25,9 @@ async fn connect(live: &live::Live, token: &str) -> Socket {
     tokio_tungstenite::connect_async(req).await.expect("ws").0
 }
 
-/// An event on webapi's bus, as the feed consumer puts it there from what
-/// fastcore's `publish_new_mail` wrote. The in-process kevy these tests
-/// share has no change feed, so the test feeds the bus itself; what is
-/// under test is the fan-out from the bus to each socket.
+/// An event on webapi's bus, as its subscriber puts it there from what
+/// fastcore's `publish_new_mail` published. The test feeds the bus itself;
+/// what is under test is the fan-out from the bus to each socket.
 fn publish(live: &live::Live, user: &str, subject: &str) {
     let body = serde_json::json!({
         "type": "NewMessage", "user": user, "thread_id": "t", "sender": "a@b.c",
