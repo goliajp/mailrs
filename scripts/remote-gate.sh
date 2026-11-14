@@ -79,7 +79,6 @@ fi
 # credentials the Docker CLI has, so a cold pull fails with
 # "401 authentication required" and reads like an auth bug rather
 # than a missing image. Warm them first; each is a no-op once cached.
-docker pull -q postgres:11-alpine >/dev/null
 docker pull -q axllent/mailpit:latest >/dev/null
 docker pull -q pgvector/pgvector:pg18 >/dev/null
 
