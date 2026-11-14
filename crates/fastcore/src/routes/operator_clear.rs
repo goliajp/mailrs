@@ -17,12 +17,11 @@ impl PasswordStore for FastcoreState {
     }
 
     async fn clear_password(&self, address: &str, by: &str) -> io::Result<bool> {
-        let res = super::account::clear_password(self, address, by.to_string()).await;
-        match res.status() {
-            axum::http::StatusCode::NO_CONTENT => Ok(true),
-            axum::http::StatusCode::NOT_FOUND => Ok(false),
-            s => Err(io::Error::other(format!("clearing answered {s}"))),
-        }
+        let at = chrono::Utc::now().timestamp();
+        let patch = mailrs_core_routes::store::AccountPatch::ClearPassword { by, at };
+        mailrs_core_routes::store::AccountStore::patch_account(self, address, patch)
+            .await
+            .map_err(io::Error::other)
     }
 
     fn net_url(&self) -> Option<String> {

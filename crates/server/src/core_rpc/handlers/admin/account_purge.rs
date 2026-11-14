@@ -260,20 +260,6 @@ pub(crate) async fn unmark(state: &Arc<CoreRpcState>, address: &str) -> Result<(
     net(state, move |c| pending::clear(c, &a)).await
 }
 
-/// Whether `address` waits for its purge; `false` without a network kevy.
-pub(crate) async fn is_pending(
-    state: &Arc<CoreRpcState>,
-    address: &str,
-) -> Result<bool, StatusCode> {
-    if state.net_url.is_none() {
-        return Ok(false);
-    }
-    let a = address.to_string();
-    net(state, move |c| pending::deleted_at(c, &a))
-        .await
-        .map(|d| d.is_some())
-}
-
 const BASE: Duration = Duration::from_secs(3600);
 const MAX: Duration = Duration::from_secs(24 * 3600);
 

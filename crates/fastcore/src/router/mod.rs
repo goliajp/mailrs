@@ -172,25 +172,39 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         .route(th::PATH_MARK_PROMOTION, post(mark_promotion))
         .route(th::PATH_MOVE_TO_INBOX, post(move_to_inbox))
         .route(th::PATH_DELETE_THREAD, delete(delete_thread))
-        .route(adm::PATH_GET_ACCOUNT_HASH, get(get_account_with_hash))
+        .route(
+            adm::PATH_GET_ACCOUNT_HASH,
+            get(mailrs_core_routes::account::account_with_hash::<FastcoreState>),
+        )
         .route(adm::PATH_EFFECTIVE_PERMISSIONS, get(effective_permissions))
         .route(adm::PATH_SEND_AS, get(get_send_as).put(set_send_as))
         .route(
             adm::PATH_LIST_ACCOUNTS,
-            get(list_accounts).post(add_account_route),
+            get(mailrs_core_routes::account::list_accounts::<FastcoreState>)
+                .post(mailrs_core_routes::account::add_account::<FastcoreState>),
         )
         .route(
             adm::PATH_UPDATE_ACCOUNT,
-            put(update_account_route).delete(remove_account_route),
+            put(mailrs_core_routes::account::update_account::<FastcoreState>)
+                .delete(remove_account_route),
         )
         .route(adm::PATH_RESTORE_ACCOUNT, post(restore_account_route))
-        .route(adm::PATH_SET_QUOTA, post(set_quota_route))
+        .route(
+            adm::PATH_SET_QUOTA,
+            post(mailrs_core_routes::account::set_quota::<FastcoreState>),
+        )
         .route(
             adm::PATH_UPDATE_RECOVERY_EMAIL,
-            post(set_recovery_email_route),
+            post(mailrs_core_routes::account::set_recovery_email::<FastcoreState>),
         )
-        .route(adm::PATH_SET_ACCOUNT_PASSWORD, post(set_password_route))
-        .route(adm::PATH_CLEAR_ACCOUNT_PASSWORD, post(clear_password_route))
+        .route(
+            adm::PATH_SET_ACCOUNT_PASSWORD,
+            post(mailrs_core_routes::account::set_password::<FastcoreState>),
+        )
+        .route(
+            adm::PATH_CLEAR_ACCOUNT_PASSWORD,
+            post(mailrs_core_routes::account::clear_password::<FastcoreState>),
+        )
         // the operator's clearing, on the host only: see password_clear
         .route(
             adm::PATH_OPERATOR_PASSWORD_CLEAR,
