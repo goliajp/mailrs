@@ -52,6 +52,8 @@ mailrs-arf = { version = "1.0.0", path = "../arf" }
 mailrs-dmarc = { version = "3", path = "../dmarc" }
 mailrs-sieve = { path = "../sieve" }
 mailrs-tls-rpt = { path = "../tls-rpt", version = "1" }
+# the TXT lookup of a domain's TLS-RPT endpoint
+mailrs-smtp-client = { path = "../smtp-client" }
 psl = "2.1.222"
 mailrs-report = { path = "../report", version = "0.1" }
 mailrs-fraud = { path = "../fraud", version = "0" }
