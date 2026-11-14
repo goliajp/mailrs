@@ -65,7 +65,8 @@ impl Default for SyncOpts {
 ///
 /// Under `dry_run` the same fields answer "would": `messages_delivered` is what
 /// a real run would deliver and `messages_skipped_dupe` is what the destination
-/// already holds. `accounts_only_on_dst` is only ever populated by a dry run,
+/// already holds. A real run delivers those again too, putting their
+/// conversation, dates and read state to the source's. `accounts_only_on_dst` is only ever populated by a dry run,
 /// because a real one has no reason to look.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SyncReport {
@@ -313,24 +314,24 @@ async fn sync_thread(
     let src_msgs = src.list_thread_messages(user, thread_id).await?;
     let before = report.messages_delivered;
 
-    // client-side dedup keyed on blob_ref — the maildir filename is the
-    // physically-unique per-message key the store dedupes on
-    // (index_message's `(mailbox, maildir_id)`). message_id is NOT
-    // reliable: real mail has duplicate Message-IDs and empties, which
-    // made a message_id-keyed set collapse rows and re-deliver them on
-    // re-run (harmless — the store's uniqueness backstop absorbed it —
-    // but it inflated the delivered count). Seed from the destination and
-    // update in-loop so intra-run duplicates are caught too.
-    let mut existing: HashSet<String> = match dst.list_thread_messages(user, thread_id).await {
+    // Keyed on blob_ref, the maildir filename the stores key a message on
+    // (message_id is not unique: real mail has duplicate Message-IDs and
+    // empty ones). A message the destination already holds is counted as
+    // held, and delivered again all the same: delivery is idempotent on the
+    // file and puts the destination's conversation, dates and read state to
+    // the source's, which the destination may have guessed when it indexed
+    // the file itself from a shared maildir.
+    let held: HashSet<String> = match dst.list_thread_messages(user, thread_id).await {
         Ok(r) => r.items.iter().map(|m| m.blob_ref.clone()).collect(),
         Err(_) => HashSet::new(), // thread not present yet on dst
     };
+    let mut this_run: HashSet<String> = HashSet::new();
 
     for wire in &src_msgs.items {
-        if !existing.insert(wire.blob_ref.clone()) {
-            report.messages_skipped_dupe += 1;
+        if !this_run.insert(wire.blob_ref.clone()) {
             continue;
         }
+        let already_held = held.contains(&wire.blob_ref);
         // From the message's own `\Seen` bit, not from who sent it.
         //
         // This asked `!senders_csv_contains_user(sender, user)` — kevy's rule
@@ -366,7 +367,11 @@ async fn sync_thread(
         if !opts.dry_run {
             dst.deliver_message(user, thread_id, &req).await?;
         }
-        report.messages_delivered += 1;
+        if already_held {
+            report.messages_skipped_dupe += 1;
+        } else {
+            report.messages_delivered += 1;
+        }
     }
     if report.messages_delivered == before {
         report.threads_already_identical += 1;
