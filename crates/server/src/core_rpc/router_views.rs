@@ -14,7 +14,7 @@ use mailrs_core_api::method::message as msg;
 use mailrs_core_api::method::thread as th;
 
 use super::CoreRpcState;
-use super::handlers::{admin, filing, holds, message, views};
+use super::handlers::{admin, filing, holds, views};
 
 pub(super) fn view_routes(state: Arc<CoreRpcState>) -> Router {
     Router::new()
@@ -41,7 +41,10 @@ pub(super) fn view_routes(state: Arc<CoreRpcState>) -> Router {
             adm::PATH_RECIPIENT_DELIVERABLE,
             get(holds::recipient_deliverable),
         )
-        .route(msg::PATH_GET_INVITE, get(message::get_invite))
+        .route(
+            msg::PATH_GET_INVITE,
+            get(mailrs_core_routes::message::invite::<CoreRpcState>),
+        )
         .route(adm::PATH_REJUDGE_BATCHES, get(admin::rejudge_batches))
         .route(
             adm::PATH_RELEASE_REJUDGE_BATCH,

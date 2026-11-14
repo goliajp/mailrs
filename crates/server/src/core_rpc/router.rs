@@ -8,6 +8,7 @@
 use mailrs_core_api::method::label as lb;
 
 use mailrs_core_api::method::rethread;
+use mailrs_core_routes::message as msgs;
 use mailrs_core_routes::thread as shared;
 use std::sync::Arc;
 
@@ -84,7 +85,7 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         // on an identical path panic at startup).
         .route(
             th_paths::PATH_LIST_THREAD_MESSAGES,
-            get(handlers::thread::list_thread_messages).post(handlers::deliver::deliver_message),
+            get(msgs::thread_messages::<CoreRpcState>).post(handlers::deliver::deliver_message),
         )
         .route(
             senders_paths::PATH_RECLASSIFY_SENDER,
@@ -182,11 +183,11 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
     let msg = Router::new()
         .route(
             msg_paths::PATH_GET_MESSAGE_BY_UID_USER,
-            get(handlers::message::get_message_by_uid_for_user),
+            get(msgs::message_by_uid::<CoreRpcState>),
         )
         .route(
             msg_paths::PATH_FIND_BY_MESSAGE_ID,
-            get(handlers::message::find_message_by_message_id),
+            get(msgs::message_by_message_id::<CoreRpcState>),
         )
         .route(
             mix::PATH_MESSAGE_INDEX,

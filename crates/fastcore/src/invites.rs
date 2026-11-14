@@ -60,7 +60,7 @@ pub(crate) fn store(state: &Arc<FastcoreState>, message_id: &str, found: &FoundI
 }
 
 /// The stored event for a message, as JSON, or `None`.
-pub fn payload_json(state: &Arc<FastcoreState>, message_id: &str) -> Option<String> {
+pub fn payload_json(state: &FastcoreState, message_id: &str) -> Option<String> {
     let key = format!("mailrs:invite:{message_id}");
     let raw = state
         .mailbox
