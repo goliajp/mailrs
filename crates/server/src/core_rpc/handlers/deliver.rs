@@ -16,33 +16,20 @@ use crate::core_rpc::CoreRpcState;
 /// into the PG store (the landing route for `mailrs-core-sync` running
 /// kevy→PG; the fastcore equivalent lives in fastcore's `deliver_message`).
 ///
-/// Message-ID idempotent: re-delivering the same message is a no-op that
-/// echoes the existing thread, so a re-run of sync never double-inserts.
-/// The message's raw bytes are NOT transported — `blob_ref` points at the
-/// shared maildir both cores mount, so only metadata/threading lands here.
+/// Idempotent on the maildir file, not the Message-ID (two different
+/// messages can carry one): re-delivering a file finds its row and puts its
+/// conversation, dates and read state to what the request says, whoever
+/// indexed it first — the reconcile sweep indexes files of a shared maildir
+/// on its own, with what it can guess from the file. The message's raw
+/// bytes are NOT transported — `blob_ref` points at the shared maildir both
+/// cores mount, so only metadata/threading lands here.
 pub async fn deliver_message(
     State(state): State<Arc<CoreRpcState>>,
     Path((user, thread_id)): Path<(String, String)>,
     Json(req): Json<wire::DeliverMessageRequest>,
 ) -> Result<Json<wire::DeliverMessageResponse>, StatusCode> {
     use mailrs_core_api::method::message::MessageWire;
-    use mailrs_mailbox::{InsertMessage, MailboxStore};
-
-    // idempotency: already ingested → echo, do not re-insert
-    if let Some(existing) = state
-        .mailbox
-        .find_by_message_id(&user, &req.message_id)
-        .await
-        .map_err(|e| {
-            tracing::warn!(error = %e, user = %user, "deliver_message: lookup failed");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?
-    {
-        return Ok(Json(wire::DeliverMessageResponse {
-            thread_id: existing.thread_id,
-            message_id: req.message_id,
-        }));
-    }
+    use mailrs_mailbox::InsertMessage;
 
     let wire: MessageWire = serde_json::from_str(&req.payload_wire_json).map_err(|e| {
         tracing::warn!(error = %e, user = %user, "deliver_message: bad payload_wire_json");
@@ -130,6 +117,21 @@ pub async fn deliver_message(
         .await
         .map_err(|e| {
             tracing::warn!(error = %e, user = %user, thread_id = %thread_id, "deliver_message: insert failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    state
+        .mailbox
+        .restate_arrival(
+            &user,
+            &wire.blob_ref,
+            &thread_id,
+            wire.date,
+            wire.internal_date,
+            !req.unread,
+        )
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, user = %user, thread_id = %thread_id, "deliver_message: restate failed");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
