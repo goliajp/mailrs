@@ -1,1 +1,72 @@
-POST /v1/admin/backfill-threading
+GET /v1/admin/maintenance:rejudge-status  # owed: the re-judge counts, with the re-judge itself (H2)
+GET /v1/admin/maintenance:sieve-survey  # owed: Sieve scripts live in the network kevy, the same for either store
+GET /v1/admin/maintenance:template-footprint  # kevy: read-only: how many report fingerprints and findable index rows are stored, the bytes their fields hold, and that per ten thousand messages; for sizing on a copy
+POST /v1/admin/backfill-decode-headers  # history: decode RFC 2047 encoded-words left raw in thread rows and contacts by mail ingested before 2.9.18
+POST /v1/admin/backfill-threading  # history: merge conversations fragmented before reply threading, and seed the Message-ID to thread index
+POST /v1/admin/debug:run-periodic  # kevy: test-build-only (measure-hooks feature, not in release images): starts one round of a periodic task on demand to measure its effect on serving latency
+POST /v1/admin/maintenance:allocate-missing-uids  # kevy: give a UID to every per-user message row that has none, so raw view and attachments resolve
+POST /v1/admin/maintenance:audit-verify  # owed: the audit chain lives in the network kevy, the same for either store
+POST /v1/admin/maintenance:axis-shadow  # kevy: read-only: the two declared columns that pick a thread's list, against the engine's per-user counts
+POST /v1/admin/maintenance:backfill-attachment-counts  # history: count the attachments of mail stored before delivery counted them, for has:attachment
+POST /v1/admin/maintenance:backfill-attachment-text  # owed: resuming the attachment-text backlog (RFC W7)
+POST /v1/admin/maintenance:backfill-callback-numbers  # history: record the phone numbers each sender gave each reader from stored mail, for the reading pane's callback-number hint
+POST /v1/admin/maintenance:backfill-contact-relationships  # history: rebuild per-sender received/sent counters from history for importance scoring
+POST /v1/admin/maintenance:backfill-domain-seen  # history: record sending-domain familiarity from stored mail for the brand-impersonation check
+POST /v1/admin/maintenance:backfill-invites  # history: read the calendar part out of stored mail that arrived before invitations were parsed
+POST /v1/admin/maintenance:backfill-ledger  # kevy: operator: records mail delivered before the fact ledger existed, run by hand on a copy first, then on prod
+POST /v1/admin/maintenance:backfill-message-files  # kevy: record every file each copy of a message has, so a delete removes them all
+POST /v1/admin/maintenance:backfill-payment-accounts  # history: record the payment account keys each sender gave each reader from stored mail, for the account_changed fraud fact
+POST /v1/admin/maintenance:backfill-reply-rotation  # history: record which sending domains funnel into each off-domain reply address, for the rotation fraud rule
+POST /v1/admin/maintenance:backfill-sections  # history: decide the sectioned inbox's section for mail delivered before sections existed
+POST /v1/admin/maintenance:backfill-thread-importance  # history: score importance for threads that predate the feature (?all=1 rescores all)
+POST /v1/admin/maintenance:backfill-thread-user  # kevy: one paged segment of the threaduser membership-row backfill
+POST /v1/admin/maintenance:backfill-triage  # history: seed the triage corpus and re-sort existing Inbox mail into notifications and promotions
+POST /v1/admin/maintenance:backfill-user-messages  # kevy: give every user their own message rows for the messages they have (per-user projection, stage 2)
+POST /v1/admin/maintenance:backfill-webhook-owners  # history: record the owner of each existing webhook subscription, which delete needs
+POST /v1/admin/maintenance:bayes-bootstrap  # owed: a new deployment seeds its spam corpus from stored mail
+POST /v1/admin/maintenance:bayes-rebuild-v2  # owed: retraining the spam corpus reads stored mail
+POST /v1/admin/maintenance:drop-empty-threads  # kevy: remove thread rows a user has no readable message in
+POST /v1/admin/maintenance:drop-legacy-zsets  # kevy: delete the hand-maintained per-user thread zsets nothing reads any more
+POST /v1/admin/maintenance:drop-stray-usermsg-keys  # kevy: remove per-user message index keys written under the wrong prefix
+POST /v1/admin/maintenance:duplicate-blob-census  # kevy: read-only: maildir files registered under two message rows
+POST /v1/admin/maintenance:duplicate-blob-repair  # kevy: drop the synthetic-id second row of a file registered twice
+POST /v1/admin/maintenance:fraud-rescan  # owed: deploy-fraud-rules.sh activates a rule pack through it
+POST /v1/admin/maintenance:future-dates  # history: re-date stored mail whose Date: header is later than its arrival
+POST /v1/admin/maintenance:group-backfill  # kevy: write the group column onto membership rows that predate it
+POST /v1/admin/maintenance:idx-advice  # kevy: read-only: queries running without a declared path, and declared paths nothing queries
+POST /v1/admin/maintenance:junk-bulk-correct  # history: one-off: move authenticated newsletters the old score put in Junk to the bucket triage gives them; dry by default, paged, audited
+POST /v1/admin/maintenance:ledger-estimate  # kevy: read-only measurement of the fact ledger's memory on real mail, run by hand on a copy before the ledger is built
+POST /v1/admin/maintenance:legacy-zset-census  # kevy: read-only: how alive each legacy per-user zset still is
+POST /v1/admin/maintenance:migrate-agent-webhooks  # history: fold webhook subscriptions from the retired agent namespace into the admin one
+POST /v1/admin/maintenance:read-state-backfill  # kevy: write the maildir's read flags onto the index (?dry_run=true reports first)
+POST /v1/admin/maintenance:read-state-shadow  # kevy: read-only: maildir flags against the index's read state
+POST /v1/admin/maintenance:recompute-message-dates  # history: put stored message dates back to what ingest computes from the file (zone ignored, or 0) and recount each reader's row time; counts per account the messages and rows whose time changes and the rows that move (dry run unless dry_run=false; skip/limit; user=)
+POST /v1/admin/maintenance:recompute-sender-trust  # history: re-derive the stored sender verdict from each message file
+POST /v1/admin/maintenance:recompute-thread-display  # kevy: put each reader's subject and preview back to their own messages and count what showed other people's mail (dry run unless dry_run=false; skip/limit; all=true for single-reader conversations)
+POST /v1/admin/maintenance:recompute-thread-importance  # kevy: put each reader's own importance verdict back on their row (dry run unless dry_run=false; skip/limit; all=true also rescores conversations one reader holds)
+POST /v1/admin/maintenance:recompute-thread-participants  # kevy: put each reader's participant list back to the senders of their own messages (dry run unless dry_run=false; skip/limit; all=true for single-reader conversations)
+POST /v1/admin/maintenance:recompute-thread-standing  # kevy: put each reader's tab and time back to their own messages and count, per account, the conversations that would move tab or re-sort (dry run unless dry_run=false; skip/limit; all=true for single-reader conversations)
+POST /v1/admin/maintenance:recompute-unread-column  # kevy: put each reader's unread column back to what their own message rows say (dry run unless dry_run=false; skip/limit; all=true for single-reader conversations)
+POST /v1/admin/maintenance:reindex  # kevy: put the maildir's own facts back onto every thread row
+POST /v1/admin/maintenance:rejudge-now  # owed: one re-judge round on demand, with the re-judge itself (H2)
+POST /v1/admin/maintenance:repair-blob-refs  # kevy: give back the file reference to rows listed with an empty blob_ref
+POST /v1/admin/maintenance:rewrite-aof  # kevy: compact the embedded store's AOF from memory (recovery from a corrupt tail frame)
+POST /v1/admin/maintenance:rewrite-threaduser-markers  # kevy: write the sparse index markers onto membership rows written before they existed (paged by offset)
+POST /v1/admin/maintenance:screening-replay  # owed: rule bundles are approved after a replay over stored mail
+POST /v1/admin/maintenance:sent-axis-shadow  # kevy: read-only: the declared is_sender axis against the legacy sent zset
+POST /v1/admin/maintenance:settle-own-unseen  # history: operator, run by hand before a group rewrite: sets own sent mail without \Seen to seen (dry run by default), keeping the newest own message unseen where the reader marked a sent-only conversation unread; counts only
+POST /v1/admin/maintenance:shadow-read  # kevy: read-only: the declared ORDERPATH's answer against the zset's, per account
+POST /v1/admin/maintenance:spoof-landing  # owed: where forged mail ended up, a question for either store
+POST /v1/admin/maintenance:strip-shared-per-user-fields  # kevy: strip one owner's per-user fields off shared message blobs (per-user projection, stage 6; dry run unless dry_run=false; skip/limit over conversations)
+POST /v1/admin/maintenance:sweep-legacy-admin-keys  # kevy: delete the pre-P6 admin keyspace in process
+POST /v1/admin/maintenance:table-verify  # kevy: read-only: the engine's drift check of each declared index against the rows
+POST /v1/admin/maintenance:thread-date-audit  # kevy: threads dated later than anything that arrived in them ({"repair": true} fixes)
+POST /v1/admin/maintenance:threadrow-shadow  # kevy: read-only: the conversation list from membership rows against the shared thread hash
+POST /v1/admin/maintenance:threaduser-census  # kevy: read-only: which membership rows an index could not encode
+POST /v1/admin/maintenance:threaduser-marker-check  # kevy: read-only: every index marker against its column, before the full-row flag indexes are dropped
+POST /v1/admin/maintenance:tier-info  # kevy: read-only: what the store holds in RAM versus on disk
+POST /v1/admin/maintenance:uidlist-backfill  # kevy: write each mailbox's uidlist from the UIDs its index holds
+POST /v1/admin/maintenance:uidlist-compact  # kevy: compact the append-only uidlist to one record per message
+POST /v1/admin/maintenance:usermsg-shadow  # kevy: read-only: shared thread index against per-user index (per-user projection, stage 3)
+POST /v1/admin/sync/reset-cursors  # kevy: reset every user's core-sync cursor so the next tick re-diffs all threads from the other core
+POST /v1/admin/threads:split-message  # owed: the operator repair of a wrongly joined conversation (RFC H10)
