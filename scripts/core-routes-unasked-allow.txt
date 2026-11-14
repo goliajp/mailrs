@@ -70,14 +70,12 @@ POST /v1/admin/maintenance:usermsg-shadow | read-only: shared thread index again
 POST /v1/admin/password-clear | the operator clears passwords on the host (127.0.0.1:3201, core secret); same procedure as POST /api/admin/password-clear
 POST /v1/admin/password-clear:preview | what the operator's clearing would cut off, run on the host before clearing
 POST /v1/admin/maintenance:screening-replay | read-only replay of the screening rules over stored mail, run by hand on the host before a rule bundle is approved
-POST /v1/admin/maintenance:audit-verify | read-only check of the audit hash chain and its replica, run by hand between the daily checks
 POST /v1/admin/maintenance:ledger-estimate | read-only measurement of the fact ledger's memory on real mail, run by hand on a copy before the ledger is built
 POST /v1/admin/maintenance:backfill-ledger | operator: records mail delivered before the fact ledger existed, run by hand on a copy first, then on prod
 GET /v1/admin/maintenance:rejudge-status | read-only counts of the shadow re-judge: observations seen, mail judged again, verdicts changed, what acting would have done
 POST /v1/admin/maintenance:rejudge-now | operator: one shadow re-judge round now instead of at the next announcement, for timing the path on a copy; records verdicts, moves nothing
 POST /v1/admin/maintenance:rewrite-threaduser-markers | write the sparse index markers onto membership rows written before they existed (paged by offset)
 POST /v1/admin/maintenance:threaduser-marker-check | read-only: every index marker against its column, before the full-row flag indexes are dropped
-GET /v1/admin/maintenance:sieve-survey | read-only: which stored Sieve scripts redirect out of our domains (account and target domain, verified or not) and how many vacation replies name another sender; no script text
 GET /v1/admin/maintenance:usage-drift | read-only: each account's usage counter against the bytes its maildir takes, the accounts that differ and those the backfill would raise; numbers and account names only
 GET /v1/admin/maintenance:template-footprint | read-only: how many report fingerprints and findable index rows are stored, the bytes their fields hold, and that per ten thousand messages; for sizing on a copy
 POST /v1/admin/debug:run-periodic | test-build-only (measure-hooks feature, not in release images): starts one round of a periodic task on demand to measure its effect on serving latency

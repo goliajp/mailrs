@@ -40,6 +40,16 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
             rethread::PATH_SPLIT_MESSAGE,
             post(handlers::rethread::split_message),
         )
+        // read-only: the audit chain, kept in the network kevy, checked now
+        .route(
+            "/v1/admin/maintenance:audit-verify",
+            post(mailrs_core_sidestate::families::audit_chain::verify_route::<CoreRpcState>),
+        )
+        // read-only: which stored Sieve scripts the forwarding rules change
+        .route(
+            "/v1/admin/maintenance:sieve-survey",
+            get(handlers::maintenance::sieve_survey),
+        )
         .route(
             conv_paths::PATH_LIST_CONVERSATIONS,
             post(handlers::conversation::list_conversations),

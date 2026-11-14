@@ -16,6 +16,7 @@ pub mod images;
 pub mod import;
 pub mod labels;
 pub mod mailbox;
+pub mod maintenance;
 pub mod message;
 pub mod reports;
 pub mod rethread;
