@@ -12,6 +12,7 @@
 use mailrs_core_api::method::label as lb;
 
 use mailrs_core_api::method::rethread;
+use mailrs_core_routes::message as msgs;
 use mailrs_core_routes::thread as shared;
 use std::sync::Arc;
 
@@ -59,7 +60,10 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         )
         .route(conv::PATH_CONVERSATION_CATEGORIES, get(get_categories))
         .route(conv::PATH_UNSEEN_COUNT, get(get_unseen_count))
-        .route(th::PATH_LIST_THREAD_MESSAGES, get(thread_messages))
+        .route(
+            th::PATH_LIST_THREAD_MESSAGES,
+            get(msgs::thread_messages::<FastcoreState>),
+        )
         .route(th::PATH_LIST_SENT_MESSAGES, get(list_sent_messages))
         .route(rethread::PATH_SPLIT_MESSAGE, post(split_message_route))
         .route(th::PATH_DELIVER_MESSAGE, post(deliver_message))
@@ -219,9 +223,9 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         .route(mb::PATH_LIST_MAILBOXES, get(list_mailboxes))
         .route(
             msg::PATH_GET_MESSAGE_BY_UID_USER,
-            get(get_message_by_uid_for_user),
+            get(msgs::message_by_uid::<FastcoreState>),
         )
-        .route(msg::PATH_GET_INVITE, get(get_invite))
+        .route(msg::PATH_GET_INVITE, get(msgs::invite::<FastcoreState>))
         .route(mix::PATH_MESSAGE_INDEX, get(message_index))
         // ── shared side-state (network kevy): drafts / signatures /
         // templates — same keys webapi + pg-core read (v2 point 3) ──
@@ -273,7 +277,7 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         )
         .route(
             msg::PATH_FIND_BY_MESSAGE_ID,
-            get(routes::message::find_by_message_id),
+            get(msgs::message_by_message_id::<FastcoreState>),
         );
     // Before `with_state`: the maintenance routes take the same state,
     // and applying it first would leave them nothing to attach to.

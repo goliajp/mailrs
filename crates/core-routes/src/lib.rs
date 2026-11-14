@@ -4,5 +4,6 @@
 //! instantiated with that state, so the business rules — who may act,
 //! what an act tells the ranker, what the answer looks like — exist once.
 
+pub mod message;
 pub mod store;
 pub mod thread;
