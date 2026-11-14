@@ -62,7 +62,7 @@ fn letter_for(user: &str, name: &str) -> Option<char> {
 /// Per message, because that is where a Maildir++ keyword lives, and per
 /// user, because the thread is shared and the decision is not.
 pub(crate) fn set_on_thread(
-    state: &Arc<FastcoreState>,
+    state: &FastcoreState,
     user: &str,
     thread_id: &str,
     name: &str,

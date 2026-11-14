@@ -46,6 +46,7 @@ mailrs-alias-store = { path = "../alias-store" }
 mailrs-alias-store-net = { path = "../alias-store-net" }
 mailrs-core-api = { path = "../core-api", features = ["server"] }
 mailrs-core-sidestate = { path = "../core-sidestate" }
+mailrs-core-routes = { path = "../core-routes" }
 mailrs-intake = { path = "../intake" }
 mailrs-parse-worker = { path = "../parse-worker" }
 mailrs-clean = { path = "../clean", version = "1" }

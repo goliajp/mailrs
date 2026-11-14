@@ -202,7 +202,7 @@ const FAST_READ_SECS: i64 = 600;
 /// Best-effort throughout — this rides on user actions (open, archive,
 /// star) that must never fail because a counter could not be written.
 pub(crate) fn record_engagement(
-    state: &Arc<FastcoreState>,
+    state: &FastcoreState,
     user: &str,
     thread_id: &str,
     event: mailrs_core_sidestate::families::contacts::Engagement,
