@@ -56,6 +56,7 @@ mod shared;
 mod snooze_wake;
 mod store_motion;
 mod thread_events;
+mod thread_store;
 pub use store_motion::store_motion_probe;
 mod threadstate;
 mod uidlist;

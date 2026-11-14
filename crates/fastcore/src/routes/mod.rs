@@ -27,7 +27,6 @@ mod reads;
 mod search;
 pub(crate) mod section_list;
 pub(crate) mod thread_actions;
-mod thread_park;
 pub(crate) mod trash;
 
 pub(crate) use account::*;
@@ -42,7 +41,6 @@ pub(crate) use quarantine::*;
 pub(crate) use reads::*;
 pub(crate) use search::*;
 pub(crate) use thread_actions::*;
-pub(crate) use thread_park::*;
 
 pub mod mail_admin;
 pub mod message;

@@ -1,0 +1,18 @@
+[package]
+name = "mailrs-core-routes"
+version = "0.0.0"
+edition = "2024"
+description = "The core-api route handlers both mailrs cores serve, written once over storage traits each store implements."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mailrs-core-api = { path = "../core-api", features = ["server"] }
+mailrs-core-sidestate = { path = "../core-sidestate" }
+axum = { version = "0.8" }
+kevy-client = { workspace = true }
+tokio = { version = "1", features = ["rt"] }
+tracing = "0.1"
