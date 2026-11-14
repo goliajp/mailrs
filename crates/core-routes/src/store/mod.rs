@@ -2,10 +2,12 @@
 //! store awaits its database, the kevy store answers from memory inline.
 
 mod check;
+mod hold;
 mod message;
 mod thread;
 
-pub use check::{check_message_reads, check_thread_store};
+pub use check::{check_hold_store, check_message_reads, check_thread_store};
+pub use hold::HoldStore;
 pub use message::MessageReads;
 pub use thread::{ReaderView, ThreadStore};
 

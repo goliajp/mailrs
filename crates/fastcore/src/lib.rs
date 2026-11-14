@@ -43,6 +43,7 @@ pub mod outbound_fraud;
 mod protocols;
 pub use protocols::{FastcoreDirectory, listen_for_signouts};
 mod import;
+mod hold_store;
 mod message_store;
 mod push;
 mod rejudge;
