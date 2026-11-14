@@ -4038,10 +4038,15 @@ dependencies = [
 name = "mailrs-core-routes"
 version = "0.0.0"
 dependencies = [
+ "argon2",
  "axum",
+ "chrono",
  "kevy-client",
  "mailrs-core-api",
  "mailrs-core-sidestate",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
 ]
