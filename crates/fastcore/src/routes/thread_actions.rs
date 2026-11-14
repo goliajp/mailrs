@@ -21,7 +21,7 @@ use crate::*;
 ///
 /// Returns whatever `mark_seen` returns — whether `user` is in the thread.
 pub(crate) fn mark_thread_read_everywhere(
-    state: &Arc<FastcoreState>,
+    state: &FastcoreState,
     user: &str,
     thread_id: &str,
 ) -> bool {
@@ -45,103 +45,12 @@ pub(crate) fn mark_thread_read_everywhere(
     found
 }
 
-pub(crate) async fn mark_read(
-    State(state): State<Arc<FastcoreState>>,
-    Path((user, thread_id)): Path<(String, String)>,
-) -> axum::response::Response {
-    // Only a genuine unread -> read transition is an engagement event.
-    // `mark_seen` returns whether the hash carried an unread_count
-    // field, not whether anything changed, so the unread state has to
-    // be read here. Without this a client that re-marks an open thread
-    // inflates read_count, and the ranker would later learn from a
-    // number that measures UI chatter rather than attention.
-    let was_unread = state
-        .mailbox
-        .get_thread_for_user(&user, &thread_id)
-        .ok()
-        .flatten()
-        .is_some_and(|r| r.unread_count > 0);
-    let event = crate::importance::read_event(&state, &thread_id, now_secs());
-    let member = mark_thread_read_everywhere(&state, &user, &thread_id);
-    if was_unread {
-        crate::importance::record_engagement(&state, &user, &thread_id, event);
-    }
-    member_result(member)
-}
-
-pub(crate) async fn pin_thread(
-    State(state): State<Arc<FastcoreState>>,
-    Path((user, thread_id)): Path<(String, String)>,
-) -> axum::response::Response {
-    let ok = state
-        .mailbox
-        .set_pinned(&user, &thread_id, true)
-        .unwrap_or(false);
-    // Tier 1: a person's decision, written where a rebuilt index cannot
-    // lose it. The row above is the index the list reads.
-    if ok {
-        crate::keywords::set_on_thread(&state, &user, &thread_id, crate::keywords::PINNED, true);
-    }
-    member_result(ok)
-}
-
-pub(crate) async fn star_thread(
-    State(state): State<Arc<FastcoreState>>,
-    Path((user, thread_id)): Path<(String, String)>,
-) -> axum::response::Response {
-    let ok = state
-        .mailbox
-        .set_starred(&user, &thread_id, true)
-        .unwrap_or(false);
-    if ok {
-        crate::importance::record_engagement(
-            &state,
-            &user,
-            &thread_id,
-            mailrs_core_sidestate::families::contacts::Engagement::Starred,
-        );
-    }
-    member_result(ok)
-}
-
-pub(crate) async fn unstar_thread(
-    State(state): State<Arc<FastcoreState>>,
-    Path((user, thread_id)): Path<(String, String)>,
-) -> axum::response::Response {
-    member_result(
-        state
-            .mailbox
-            .set_starred(&user, &thread_id, false)
-            .unwrap_or(false),
-    )
-}
-
-pub(crate) async fn unpin_thread(
-    State(state): State<Arc<FastcoreState>>,
-    Path((user, thread_id)): Path<(String, String)>,
-) -> axum::response::Response {
-    let ok = state
-        .mailbox
-        .set_pinned(&user, &thread_id, false)
-        .unwrap_or(false);
-    if ok {
-        crate::keywords::set_on_thread(&state, &user, &thread_id, crate::keywords::PINNED, false);
-    }
-    member_result(ok)
-}
-
-pub(crate) async fn archive_thread(
-    State(state): State<Arc<FastcoreState>>,
-    Path((user, thread_id)): Path<(String, String)>,
-) -> axum::response::Response {
-    member_result(set_archived_everywhere(&state, &user, &thread_id, true))
-}
-
-/// Archive `thread_id` for `user`, or bring it back to the Inbox: the row,
-/// and the keyword bit a rebuilt index finds it by. The web and IMAP both
-/// archive through here. `false` when `user` is not in the thread.
+/// Archive `thread_id` for `user`, or bring it back to the Inbox, and
+/// credit archiving something still unread to its sender. IMAP archives
+/// through here; the web through the shared route, which credits it
+/// itself. `false` when `user` is not in the thread.
 pub(crate) fn set_archived_everywhere(
-    state: &Arc<FastcoreState>,
+    state: &FastcoreState,
     user: &str,
     thread_id: &str,
     archived: bool,
@@ -156,15 +65,7 @@ pub(crate) fn set_archived_everywhere(
             .ok()
             .flatten()
             .is_some_and(|r| r.unread_count > 0);
-    let ok = state
-        .mailbox
-        .set_archived(user, thread_id, archived)
-        .unwrap_or(false);
-    // Tier 1: no standard maildir flag means "archived", so it goes in a
-    // keyword bit, which is where a rebuilt index can find it again.
-    if ok {
-        crate::keywords::set_on_thread(state, user, thread_id, crate::keywords::ARCHIVED, archived);
-    }
+    let ok = set_archived_state(state, user, thread_id, archived).unwrap_or(false);
     if ok && dismissed_unread {
         crate::importance::record_engagement(
             state,
@@ -174,6 +75,21 @@ pub(crate) fn set_archived_everywhere(
         );
     }
     ok
+}
+
+/// The store's half of an archive: the row, and the keyword bit a rebuilt
+/// index finds it by (no standard maildir flag means "archived").
+pub(crate) fn set_archived_state(
+    state: &FastcoreState,
+    user: &str,
+    thread_id: &str,
+    archived: bool,
+) -> std::io::Result<bool> {
+    let ok = state.mailbox.set_archived(user, thread_id, archived)?;
+    if ok {
+        crate::keywords::set_on_thread(state, user, thread_id, crate::keywords::ARCHIVED, archived);
+    }
+    Ok(ok)
 }
 
 /// v2.4.1 Phase 3 (RFC-B §3.4) — mark a thread as junk.
@@ -315,13 +231,6 @@ pub(crate) async fn move_to_inbox(
         crate::image_prefetch::queue_thread(&state, &user, &thread_id);
     }
     member_result(ok)
-}
-
-pub(crate) async fn unarchive_thread(
-    State(state): State<Arc<FastcoreState>>,
-    Path((user, thread_id)): Path<(String, String)>,
-) -> axum::response::Response {
-    member_result(set_archived_everywhere(&state, &user, &thread_id, false))
 }
 
 pub(crate) async fn delete_thread(

@@ -8,6 +8,7 @@
 use mailrs_core_api::method::label as lb;
 
 use mailrs_core_api::method::rethread;
+use mailrs_core_routes::thread as shared;
 use std::sync::Arc;
 
 use axum::Router;
@@ -123,17 +124,26 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
                 sent_paths::MAX_REQUEST_BYTES,
             )),
         )
-        .route(th_paths::PATH_MARK_READ, post(handlers::thread::mark_read))
+        .route(
+            th_paths::PATH_MARK_READ,
+            post(shared::mark_read::<CoreRpcState>),
+        )
         .route(
             th_paths::PATH_MARK_UNREAD,
-            post(handlers::thread::mark_unread),
+            post(shared::mark_unread::<CoreRpcState>),
         )
-        .route(th_paths::PATH_STAR, post(handlers::thread::star))
-        .route(th_paths::PATH_UNSTAR, post(handlers::thread::unstar))
-        .route(th_paths::PATH_PIN, post(handlers::thread::pin))
-        .route(th_paths::PATH_UNPIN, post(handlers::thread::unpin))
-        .route(th_paths::PATH_ARCHIVE, post(handlers::thread::archive))
-        .route(th_paths::PATH_UNARCHIVE, post(handlers::thread::unarchive))
+        .route(th_paths::PATH_STAR, post(shared::star::<CoreRpcState>))
+        .route(th_paths::PATH_UNSTAR, post(shared::unstar::<CoreRpcState>))
+        .route(th_paths::PATH_PIN, post(shared::pin::<CoreRpcState>))
+        .route(th_paths::PATH_UNPIN, post(shared::unpin::<CoreRpcState>))
+        .route(
+            th_paths::PATH_ARCHIVE,
+            post(shared::archive::<CoreRpcState>),
+        )
+        .route(
+            th_paths::PATH_UNARCHIVE,
+            post(shared::unarchive::<CoreRpcState>),
+        )
         .route(
             lb::PATH_LABELS,
             get(handlers::labels::list_labels).post(handlers::labels::create_label),
@@ -153,8 +163,11 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         .route(th_paths::PATH_TRASH, post(handlers::trash::trash))
         .route(th_paths::PATH_UNTRASH, post(handlers::trash::untrash))
         .route(th_paths::PATH_EMPTY_TRASH, post(handlers::trash::empty))
-        .route(th_paths::PATH_SNOOZE, put(handlers::thread::snooze))
-        .route(th_paths::PATH_UNSNOOZE, delete(handlers::thread::unsnooze))
+        .route(th_paths::PATH_SNOOZE, put(shared::snooze::<CoreRpcState>))
+        .route(
+            th_paths::PATH_UNSNOOZE,
+            delete(shared::unsnooze::<CoreRpcState>),
+        )
         .route(
             th_paths::PATH_DELETE_THREAD,
             delete(handlers::thread::delete_thread),

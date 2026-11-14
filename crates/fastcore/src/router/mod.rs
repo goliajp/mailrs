@@ -12,6 +12,7 @@
 use mailrs_core_api::method::label as lb;
 
 use mailrs_core_api::method::rethread;
+use mailrs_core_routes::thread as shared;
 use std::sync::Arc;
 
 use axum::Router;
@@ -100,16 +101,19 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
                 sent::MAX_REQUEST_BYTES,
             )),
         )
-        .route(th::PATH_MARK_READ, post(mark_read))
+        .route(th::PATH_MARK_READ, post(shared::mark_read::<FastcoreState>))
         .route(th::PATH_MARK_ALL_READ, post(mark_all_read_route))
         .route(th::PATH_MARK_LIST_READ, post(mark_list_read_route))
-        .route(th::PATH_MARK_UNREAD, post(mark_unread_route))
-        .route(th::PATH_SNOOZE, put(snooze_thread_route))
-        .route(th::PATH_UNSNOOZE, delete(unsnooze_thread_route))
-        .route(th::PATH_PIN, post(pin_thread))
-        .route(th::PATH_UNPIN, post(unpin_thread))
-        .route(th::PATH_STAR, post(star_thread))
-        .route(th::PATH_UNSTAR, post(unstar_thread))
+        .route(
+            th::PATH_MARK_UNREAD,
+            post(shared::mark_unread::<FastcoreState>),
+        )
+        .route(th::PATH_SNOOZE, put(shared::snooze::<FastcoreState>))
+        .route(th::PATH_UNSNOOZE, delete(shared::unsnooze::<FastcoreState>))
+        .route(th::PATH_PIN, post(shared::pin::<FastcoreState>))
+        .route(th::PATH_UNPIN, post(shared::unpin::<FastcoreState>))
+        .route(th::PATH_STAR, post(shared::star::<FastcoreState>))
+        .route(th::PATH_UNSTAR, post(shared::unstar::<FastcoreState>))
         .route(th::PATH_QUARANTINE_LIST, get(list_quarantined))
         .route(th::PATH_QUARANTINE_RELEASE, post(release_quarantined))
         .route(th::PATH_THREAD_RELEASES, get(thread_releases))
@@ -119,8 +123,8 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         .route(rp::PATH_PENDING_REPORTS, get(crate::report::pending))
         .route(rp::PATH_CONFIRM_REPORT, post(crate::report::confirm))
         .route(rp::PATH_DISMISS_REPORT, post(crate::report::dismiss))
-        .route(th::PATH_ARCHIVE, post(archive_thread))
-        .route(th::PATH_UNARCHIVE, post(unarchive_thread))
+        .route(th::PATH_ARCHIVE, post(shared::archive::<FastcoreState>))
+        .route(th::PATH_UNARCHIVE, post(shared::unarchive::<FastcoreState>))
         .route(
             lb::PATH_LABELS,
             get(crate::routes::labels::list_labels).post(crate::routes::labels::create_label),
