@@ -93,9 +93,11 @@ extract() {
     # The call is bounded by paren depth rather than by a line count, because
     # these are multi-line and a fixed window reaches into the next one.
     #
-    # Routes spelled as string literals are deliberately skipped. They are
-    # fastcore's `/v1/admin/maintenance:*` family, which is not part of the
-    # core-api contract and has no pg-core counterpart by design.
+    # Routes spelled as string literals count too: fastcore's
+    # `/v1/admin/maintenance:*` operator family and a few admin routes. They
+    # are not client methods, but a pg-core deployment needs the
+    # store-neutral ones as much as fastcore does, and a skipped family is a
+    # debt nobody can see.
     python3 - "$@" <<'PY'
 import pathlib
 import re
@@ -128,16 +130,21 @@ for path in sys.argv[1:]:
     for m in re.finditer(r"\.route\(", src):
         body = call_body(src, m.end() - 1)
         c = re.search(r"\bPATH_[A-Z0-9_]+", body)
-        if not c:
+        literal = re.search(r'"(/v1/[^"]+)"', body)
+        if c:
+            name = c.group(0)
+            if name not in consts:
+                # An unresolvable constant would silently drop a route from
+                # the comparison — a smaller set that still reports parity,
+                # which is the failure mode this rewrite exists to remove.
+                # Say so and stop.
+                unresolved.append(name)
+                continue
+            url = consts[name]
+        elif literal:
+            name, url = literal.group(1), literal.group(1)
+        else:
             continue
-        name = c.group(0)
-        if name not in consts:
-            # An unresolvable constant would silently drop a route from the
-            # comparison — a smaller set that still reports parity, which is
-            # the failure mode this rewrite exists to remove. Say so and stop.
-            unresolved.append(name)
-            continue
-        url = consts[name]
         verbs = {
             v.group(1)
             for v in re.finditer(r"\b(" + "|".join(VERBS) + r")\s*\(", body)
@@ -167,7 +174,15 @@ pg_only=$(comm -23 <(printf '%s\n' "$PG") <(printf '%s\n' "$FC") | grep . || tru
 fc_only=$(comm -13 <(printf '%s\n' "$PG") <(printf '%s\n' "$FC") | grep . || true)
 
 if [ "${1:-}" = "--update" ]; then
-    printf '%s\n' "$fc_only" > "$BASELINE"
+    # keeps the reason of every entry still owed; a new one gets a
+    # placeholder the check below refuses until someone writes the reason
+    tmp=$(mktemp)
+    while IFS= read -r route; do
+        [ -n "$route" ] || continue
+        line=$(grep -F "$route  #" "$BASELINE" 2>/dev/null | head -1 || true)
+        printf '%s\n' "${line:-$route  # TODO: why fastcore-only}" >> "$tmp"
+    done <<< "$fc_only"
+    mv "$tmp" "$BASELINE"
     echo "baseline updated: $(printf '%s\n' "$fc_only" | grep -c . || true) endpoints fastcore serves and pg-core does not"
     exit 0
 fi
@@ -193,10 +208,23 @@ if [ ! -f "$BASELINE" ]; then
     exit 1
 fi
 
-new=$(comm -13 <(sort "$BASELINE" | grep . || true) <(printf '%s\n' "$fc_only") | grep . || true)
-closed=$(comm -23 <(sort "$BASELINE" | grep . || true) <(printf '%s\n' "$fc_only") | grep . || true)
+# Every entry says why: `METHOD /url  # kevy|history|owed: reason`. kevy is
+# the embedded store's own machinery, history a backfill for mail stored
+# before a feature shipped (a SQL deployment starts with the feature), owed
+# what a SQL deployment needs and does not have yet.
+unexplained=$(grep . "$BASELINE" | grep -vE '#[[:space:]]*(kevy|history|owed):[[:space:]]*[^[:space:]]' || true)
+if [ -n "$unexplained" ]; then
+    echo
+    echo "!! baseline entries without '# kevy|history|owed: reason':"
+    printf '%s\n' "$unexplained" | sed 's/^/    /'
+    exit 1
+fi
+listed=$(sed -E 's/[[:space:]]*#.*$//' "$BASELINE" | grep . | sort || true)
+new=$(comm -13 <(printf '%s\n' "$listed" | grep . || true) <(printf '%s\n' "$fc_only") | grep . || true)
+closed=$(comm -23 <(printf '%s\n' "$listed" | grep . || true) <(printf '%s\n' "$fc_only") | grep . || true)
 n_debt=$(printf '%s\n' "$fc_only" | grep -c . || true)
-n_base=$(grep -c . "$BASELINE" || true)
+n_base=$(printf '%s\n' "$listed" | grep -c . || true)
+n_owed=$(grep -cE '#[[:space:]]*owed:' "$BASELINE" || true)
 
 if [ -n "$new" ]; then
     echo
@@ -220,4 +248,4 @@ if [ -n "$closed" ]; then
     exit 0
 fi
 
-echo "core parity OK — pg-core ⊆ fastcore; reactivation debt $n_debt/$n_base endpoints"
+echo "core parity OK — pg-core ⊆ fastcore; $n_debt endpoints fastcore-only ($n_owed owed to pg-core, the rest kevy-only or history)"
