@@ -44,6 +44,8 @@ mod client_accounts;
 #[cfg(feature = "client")]
 mod client_labels;
 #[cfg(feature = "client")]
+mod client_maintenance;
+#[cfg(feature = "client")]
 mod client_messages;
 #[cfg(feature = "client")]
 mod client_ops;

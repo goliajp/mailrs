@@ -33,6 +33,7 @@ mod invites;
 mod junk_corrections;
 mod labels;
 mod mail;
+mod maintenance;
 mod mark_list_read;
 mod operator;
 mod ops;
@@ -78,6 +79,7 @@ async fn the_two_cores_answer_every_client_call_alike() {
     accounts::seed(&cores, &mut d).await;
     mail::seed(&cores, &mut d).await;
     accounts::run(&cores, &mut d).await;
+    maintenance::run(&cores, &mut d).await;
     permission_groups::run(&cores, &mut d).await;
     quota_limits::run(&cores, &mut d).await;
     mail::run(&cores, &mut d).await;

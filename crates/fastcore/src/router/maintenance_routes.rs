@@ -133,7 +133,7 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
         // replica, now rather than at the daily check.
         .route(
             "/v1/admin/maintenance:audit-verify",
-            post(crate::maintenance::audit_verify_route),
+            post(mailrs_core_sidestate::families::audit_chain::verify_route::<FastcoreState>),
         )
         // Read-only: what the shadow re-judge has done and would have done.
         .route(
