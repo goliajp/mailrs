@@ -84,25 +84,11 @@ async fn pushes_settled(kv: &mut kevy_client::Connection, want: i64) -> i64 {
 
 /// The `held` flag of every new-mail event about [`TID`] so far, oldest
 /// first; `None` for an event that does not say.
-fn held_flags(kv: &mut kevy_client::Connection) -> Vec<Option<bool>> {
-    let prefix = mailrs_core_sidestate::keys::events::NOTIFY_PREFIX;
-    let mut pattern = prefix.to_vec();
-    pattern.push(b'*');
-    let mut keys = Vec::new();
-    let mut cursor = 0u64;
-    loop {
-        let (next, batch) = kv.scan(cursor, Some(pattern.as_slice()), None).unwrap();
-        keys.extend(batch);
-        if next == 0 {
-            break;
-        }
-        cursor = next;
-    }
-    let nanos = |k: &[u8]| -> u128 { String::from_utf8_lossy(&k[prefix.len()..]).parse().unwrap() };
-    keys.sort_by_key(|k| nanos(k));
-    keys.iter()
-        .filter_map(|k| kv.get(k).unwrap())
-        .map(|v| serde_json::from_slice::<serde_json::Value>(&v).unwrap())
+fn held_flags(frames: &mailrs_test_docker::kevy::Published) -> Vec<Option<bool>> {
+    frames
+        .all()
+        .iter()
+        .map(|v| serde_json::from_slice::<serde_json::Value>(v).unwrap())
         .filter(|e| e["type"] == "NewMessage" && e["thread_id"] == TID)
         .map(|e| e["held"].as_bool())
         .collect()
@@ -137,6 +123,8 @@ async fn mail_into_a_held_conversation_rings_no_phone_until_it_is_released() {
     // a kevy-server: the new-mail event is written by a pipeline, which the
     // in-process store does not run
     let (_kevy, url) = mailrs_test_docker::kevy::kevy_server().await;
+    let frames =
+        mailrs_test_docker::kevy::listen(&url, mailrs_core_sidestate::keys::events::EVENTS_CHANNEL);
     // SAFETY: the only test in this binary, before anything reads them
     unsafe {
         std::env::set_var("MAILRS_KEVY_URL", &url);
@@ -196,7 +184,7 @@ async fn mail_into_a_held_conversation_rings_no_phone_until_it_is_released() {
         "the verdict did not hold it"
     );
     assert_eq!(pushes_settled(&mut kv, 0).await, 0);
-    assert_eq!(held_flags(&mut kv), [Some(true)], "the hold's event");
+    assert_eq!(held_flags(&frames), [Some(true)], "the hold's event");
     let badge_held = badge(&state);
 
     // a follow-up with no verdict of its own, into the held conversation
@@ -215,7 +203,7 @@ async fn mail_into_a_held_conversation_rings_no_phone_until_it_is_released() {
     assert_eq!(badge(&state), badge_held, "held mail moved the badge");
     // the clients still hear of it, to refresh Review, told it is held
     assert_eq!(
-        held_flags(&mut kv),
+        held_flags(&frames),
         [Some(true), Some(true)],
         "the follow-up's event"
     );
@@ -235,7 +223,7 @@ async fn mail_into_a_held_conversation_rings_no_phone_until_it_is_released() {
         "released, and not in the badge"
     );
     assert_eq!(
-        held_flags(&mut kv),
+        held_flags(&frames),
         [Some(true), Some(true), Some(false)],
         "after the release, an ordinary event"
     );

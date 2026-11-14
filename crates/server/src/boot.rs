@@ -20,6 +20,9 @@ pub(crate) async fn run() {
     let cfg = ServerConfig::from_env();
 
     startup::log_startup(&cfg);
+    if let Ok(url) = std::env::var("MAILRS_KEVY_URL") {
+        mailrs_core_sidestate::network_store::require_supported(&url);
+    }
 
     let bootstrap::connections::Connections {
         event_bus,

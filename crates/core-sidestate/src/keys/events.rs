@@ -1,12 +1,16 @@
-//! Live-update frames: intake SETs one per change, the webapi's feed
-//! consumers pick up every key under the prefix.
+//! Live-update frames: every change the web clients should hear of is
+//! published on one channel, and the webapi's subscriber forwards each frame
+//! to the sockets of the user it names. A channel rather than keys a change
+//! feed reads: PUBLISH and SUBSCRIBE are what any Redis-compatible server
+//! has, and a frame nobody is subscribed for is not missed, because a client
+//! whose socket reconnects refetches everything.
 
-/// What every frame key starts with.
-pub const NOTIFY_PREFIX: &[u8] = b"mailrs:events:notify:";
+/// The channel every frame is published on.
+pub const EVENTS_CHANNEL: &[u8] = b"mailrs:events";
 
-/// One frame, named by the nanosecond it was written.
-pub fn notify_key(nanos: u128) -> String {
-    format!("mailrs:events:notify:{nanos}")
+/// Publish one frame, a JSON object naming the `user` it is for.
+pub fn send(conn: &mut kevy_client::Connection, frame: &[u8]) -> kevy_client::KevyResult<()> {
+    conn.publish(EVENTS_CHANNEL, frame).map(|_| ())
 }
 
 #[cfg(test)]
@@ -14,9 +18,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn event_keys_keep_their_prod_spelling() {
-        assert_eq!(NOTIFY_PREFIX, b"mailrs:events:notify:");
-        assert_eq!(notify_key(17), "mailrs:events:notify:17");
-        assert!(notify_key(17).as_bytes().starts_with(NOTIFY_PREFIX));
+    fn the_channel_keeps_its_prod_spelling() {
+        assert_eq!(EVENTS_CHANNEL, b"mailrs:events");
     }
 }

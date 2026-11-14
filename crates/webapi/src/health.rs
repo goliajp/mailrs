@@ -337,7 +337,7 @@ fn kevy_server_memory() -> serde_json::Value {
         _ => return serde_json::Value::Null,
     };
     let field = |name: &str| info_field(&text, name);
-    let Some(used) = field("process_rss_bytes") else {
+    let Some(used) = resident_bytes(&text) else {
         return serde_json::Value::Null;
     };
     let limit = std::env::var("MAILRS_KEVY_SERVER_MEMORY_LIMIT")
@@ -350,6 +350,13 @@ fn kevy_server_memory() -> serde_json::Value {
         "kevy_used_bytes": field("used_memory"),
         "high": limit.map(|l| is_high(used, l, percent)),
     })
+}
+
+/// The server's resident size from its `INFO memory`: kevy-server names it
+/// `process_rss_bytes`, Redis and Valkey `used_memory_rss`, and neither
+/// reports the other's.
+fn resident_bytes(info: &str) -> Option<u64> {
+    info_field(info, "process_rss_bytes").or_else(|| info_field(info, "used_memory_rss"))
 }
 
 /// The percentage of a limit at which memory reads as high.
@@ -527,6 +534,15 @@ mod tests {
             Some(47_800_320)
         );
         assert_eq!(super::info_field(info, "maxmemory"), None);
+    }
+
+    #[test]
+    fn the_resident_size_is_read_from_kevy_redis_and_valkey_alike() {
+        let kevy = "# Memory\r\nused_memory:0\r\nmaxmemory:0\r\nprocess_rss_bytes:7999488\r\n";
+        let redis = "# Memory\r\nused_memory:987032\r\nused_memory_rss:14348288\r\n";
+        assert_eq!(super::resident_bytes(kevy), Some(7_999_488));
+        assert_eq!(super::resident_bytes(redis), Some(14_348_288));
+        assert_eq!(super::resident_bytes("# Memory\r\nused_memory:1\r\n"), None);
     }
 
     #[test]
