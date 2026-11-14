@@ -3,25 +3,23 @@
 //! A sweep with nothing to remove only reads, and consecutive empty sweeps
 //! back off to the idle interval.
 
-use std::sync::Arc;
 use std::time::Duration;
 
 use mailrs_core_sidestate::families::mock;
 
-use crate::FastcoreState;
-
 const BUSY_INTERVAL: Duration = Duration::from_secs(3600);
 const IDLE_INTERVAL: Duration = Duration::from_secs(6 * 3600);
 
-pub fn spawn(state: Arc<FastcoreState>) {
+/// Sweep the test mailboxes of the network kevy at `net_url`.
+pub fn spawn(net_url: String) {
     if mock::domain().is_empty() {
         return;
     }
     tokio::spawn(async move {
         let mut idle_rounds = 0u32;
         loop {
-            let s = state.clone();
-            let changed = tokio::task::spawn_blocking(move || sweep_once(&s))
+            let url = net_url.clone();
+            let changed = tokio::task::spawn_blocking(move || sweep_once(&url))
                 .await
                 .unwrap_or(false);
             idle_rounds = if changed {
@@ -35,8 +33,8 @@ pub fn spawn(state: Arc<FastcoreState>) {
     });
 }
 
-fn sweep_once(state: &FastcoreState) -> bool {
-    let Some(mut conn) = state.net_conn() else {
+fn sweep_once(net_url: &str) -> bool {
+    let Ok(mut conn) = kevy_client::Connection::connect(net_url) else {
         return false;
     };
     let now = std::time::SystemTime::now()

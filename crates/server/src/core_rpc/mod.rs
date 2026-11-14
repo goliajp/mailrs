@@ -171,6 +171,7 @@ impl CoreRpcState {
 pub fn spawn_core_rpc(
     state: Arc<CoreRpcState>,
     shutdown_rx: tokio::sync::watch::Receiver<bool>,
+    on_listening: impl FnOnce() + Send + 'static,
 ) -> tokio::task::JoinHandle<()> {
     let addr = std::env::var("MAILRS_CORE_RPC_ADDR")
         .unwrap_or_else(|_| format!("0.0.0.0:{}", mailrs_core_api::DEFAULT_CORE_RPC_PORT));
@@ -199,6 +200,7 @@ pub fn spawn_core_rpc(
             addr = %addr,
             "mailrs-core-api server listening"
         );
+        on_listening();
         let mut shutdown_rx = shutdown_rx;
         let server = axum::serve(listener, router).with_graceful_shutdown(async move {
             // Drop on `true` — same pattern as the rest of the server.

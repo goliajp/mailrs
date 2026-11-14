@@ -9,12 +9,27 @@
 //! changed answers 304 and costs one round trip instead of a re-parse of a
 //! year of meetings.
 
-use std::sync::Arc;
 use std::time::Duration;
 
 use mailrs_core_sidestate::families::calendar_feeds::{self, FeedRow};
 
-use crate::FastcoreState;
+/// The accounts of the core the sync runs in, whichever store holds them.
+pub trait AccountList: Send + Sync + 'static {
+    fn accounts(&self) -> impl Future<Output = std::io::Result<Vec<String>>> + Send;
+}
+
+/// What the sync needs of the core it runs in: its accounts, and the
+/// network kevy the feeds and their events live in.
+pub struct CalendarHost<A> {
+    pub net_url: String,
+    pub accounts: A,
+}
+
+impl<A> CalendarHost<A> {
+    fn net_conn(&self) -> Option<kevy_client::Connection> {
+        kevy_client::Connection::connect(&self.net_url).ok()
+    }
+}
 
 /// How often the loop looks for due feeds when it last found one. Each
 /// feed's own interval decides whether it is actually fetched.
@@ -36,7 +51,7 @@ fn now_secs() -> i64 {
 }
 
 /// Poll subscribed feeds until the process ends.
-pub async fn spawn(state: Arc<FastcoreState>) {
+pub async fn run<A: AccountList>(state: CalendarHost<A>) {
     // feed URLs are the subscriber's to choose, so they go through the
     // egress check
     let client = mailrs_egress::Egress::new("mailrs-calendar-sync/1.0", Duration::from_secs(30));
@@ -60,8 +75,8 @@ pub async fn spawn(state: Arc<FastcoreState>) {
 
 /// One pass. Returns how many feeds were fetched, which is what tells the
 /// loop whether this round accomplished anything.
-async fn tick(state: &Arc<FastcoreState>, client: &mailrs_egress::Egress) -> usize {
-    let users = match state.mailbox.list_account_addresses() {
+async fn tick<A: AccountList>(state: &CalendarHost<A>, client: &mailrs_egress::Egress) -> usize {
+    let users = match state.accounts.accounts().await {
         Ok(u) => u,
         Err(e) => {
             tracing::warn!(err = %e, "calendar sync: cannot list accounts");
@@ -100,7 +115,7 @@ async fn tick(state: &Arc<FastcoreState>, client: &mailrs_egress::Egress) -> usi
     synced
 }
 
-fn read_feeds(state: &Arc<FastcoreState>, user: &str) -> Option<Vec<FeedRow>> {
+fn read_feeds<A>(state: &CalendarHost<A>, user: &str) -> Option<Vec<FeedRow>> {
     let mut conn = state.net_conn()?;
     let flat = conn
         .hgetall(calendar_feeds::feeds_key(user).as_bytes())
@@ -116,7 +131,7 @@ fn read_feeds(state: &Arc<FastcoreState>, user: &str) -> Option<Vec<FeedRow>> {
     Some(out)
 }
 
-fn write_feed(state: &Arc<FastcoreState>, user: &str, row: &FeedRow) {
+fn write_feed<A>(state: &CalendarHost<A>, user: &str, row: &FeedRow) {
     let Some(mut conn) = state.net_conn() else {
         return;
     };
@@ -137,9 +152,9 @@ const MAX_REDIRECTS: u8 = 5;
 const MAX_FEED_BYTES: usize = 16 * 1024 * 1024;
 
 /// Fetch one feed and file what it holds. Returns the row to store.
-async fn sync_one(
+async fn sync_one<A>(
     client: &mailrs_egress::Egress,
-    state: &Arc<FastcoreState>,
+    state: &CalendarHost<A>,
     user: &str,
     feed: FeedRow,
 ) -> FeedRow {
@@ -200,7 +215,7 @@ fn header(resp: &reqwest::Response, name: reqwest::header::HeaderName) -> Option
 }
 
 /// File every event in the document. Returns how many were stored.
-fn apply(state: &Arc<FastcoreState>, user: &str, feed_id: &str, text: &str) -> usize {
+fn apply<A>(state: &CalendarHost<A>, user: &str, feed_id: &str, text: &str) -> usize {
     let Some(mut conn) = state.net_conn() else {
         return 0;
     };

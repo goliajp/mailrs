@@ -20,6 +20,10 @@ pub(crate) async fn run() {
     let cfg = ServerConfig::from_env();
 
     startup::log_startup(&cfg);
+    // reported as the core the deployment runs, the service this one
+    // stands in for (`fastcore` in the compose files); before anything
+    // that can fail, so a start that never gets ready is still counted
+    let ops = mailrs_ops_report::push::Reporter::start("fastcore");
     if let Ok(url) = std::env::var("MAILRS_KEVY_URL") {
         mailrs_core_sidestate::network_store::require_supported(&url);
     }
@@ -58,6 +62,7 @@ pub(crate) async fn run() {
     background::spawn_snooze_wake(&mailbox_store);
 
     background::spawn_core_rpc_server(
+        &ops,
         &cfg,
         &mailbox_store,
         &domain_store,

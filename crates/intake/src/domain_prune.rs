@@ -7,10 +7,7 @@
 //! finds nothing, the next waits twice as long, up to a day, and a pass
 //! that deletes something goes back to hourly.
 
-use std::sync::Arc;
 use std::time::Duration;
-
-use crate::FastcoreState;
 
 const BASE: Duration = Duration::from_secs(3600);
 const MAX: Duration = Duration::from_secs(24 * 3600);
@@ -23,14 +20,15 @@ fn next_wait(wait: Duration, pruned: u64) -> Duration {
     }
 }
 
-pub(crate) fn spawn(state: Arc<FastcoreState>) {
+/// Prune the first-seen domains of the network kevy at `net_url`.
+pub fn spawn(net_url: String) {
     tokio::spawn(async move {
         let mut wait = BASE;
         loop {
             tokio::time::sleep(wait).await;
-            let st = state.clone();
+            let url = net_url.clone();
             let pruned = tokio::task::spawn_blocking(move || {
-                let mut conn = st.net_conn()?;
+                let mut conn = kevy_client::Connection::connect(&url).ok()?;
                 let now = chrono::Utc::now().timestamp();
                 mailrs_core_sidestate::families::domain_first::prune(&mut conn, now)
                     .map_err(|e| tracing::warn!(error = %e, "first-seen domain prune failed"))
