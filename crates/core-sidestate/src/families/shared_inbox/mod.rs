@@ -226,13 +226,7 @@ pub fn publish(
         let mut event = payload.clone();
         event["user"] = serde_json::Value::String(user.clone());
         let body = serde_json::to_vec(&event).map_err(std::io::Error::other)?;
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let key = crate::keys::events::notify_key(nanos);
-        conn.set(key.as_bytes(), &body)?;
-        conn.expire(key.as_bytes(), std::time::Duration::from_secs(300))?;
+        crate::keys::events::send(conn, &body)?;
     }
     Ok(())
 }

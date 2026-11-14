@@ -132,6 +132,7 @@ pub(super) fn publish_dkim_signers(
 /// now, and publish which domains this process signs for: webapi's domain
 /// check cannot read the key files and asks this instead.
 pub(super) fn boot_kevy(cfg: &Cfg) {
+    mailrs_core_sidestate::network_store::require_supported(&cfg.kevy_url);
     let mut conn = match kevy(&cfg.kevy_url) {
         Ok(c) => c,
         Err(e) => {

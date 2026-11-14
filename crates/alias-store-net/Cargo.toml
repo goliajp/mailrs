@@ -12,3 +12,7 @@ workspace = true
 [dependencies]
 mailrs-alias-store = { path = "../alias-store" }
 kevy-client = { workspace = true }
+
+[dev-dependencies]
+mailrs-test-docker = { path = "../test-docker" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
