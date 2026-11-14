@@ -44,6 +44,7 @@ mod protocols;
 pub use protocols::{FastcoreDirectory, listen_for_signouts};
 mod hold_store;
 mod import;
+mod label_store;
 mod message_store;
 mod push;
 mod rejudge;
