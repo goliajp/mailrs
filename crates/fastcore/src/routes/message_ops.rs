@@ -104,23 +104,27 @@ pub(crate) fn unlink_maildir_file(
     })
 }
 
-/// `POST /v1/admin/threads:split-message` `{user, message_id}` — move a
-/// message out of its thread into its own conversation (manual fix for
-/// topic-change replies that were glued before the subject gate landed).
+/// `POST /v1/admin/threads:split-message` — move a message out of its
+/// thread into its own conversation (manual fix for topic-change replies
+/// that were glued before the subject gate landed).
 pub(crate) async fn split_message_route(
     State(state): State<Arc<FastcoreState>>,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<mailrs_core_api::method::rethread::SplitMessageRequest>,
 ) -> axum::response::Response {
-    let user = req["user"].as_str().unwrap_or("");
-    let mid = req["message_id"].as_str().unwrap_or("");
-    if user.is_empty() || mid.is_empty() {
+    if req.user.is_empty() || req.message_id.is_empty() {
         return axum::http::StatusCode::BAD_REQUEST.into_response();
     }
-    match state.mailbox.split_message_to_new_thread(user, mid) {
-        Ok(Some(tid)) => Json(serde_json::json!({"thread_id": tid})).into_response(),
+    match state
+        .mailbox
+        .split_message_to_new_thread(&req.user, &req.message_id)
+    {
+        Ok(Some(thread_id)) => {
+            Json(mailrs_core_api::method::rethread::SplitMessageResponse { thread_id })
+                .into_response()
+        }
         Ok(None) => axum::http::StatusCode::NOT_FOUND.into_response(),
         Err(e) => {
-            tracing::error!(err = %e, %user, %mid, "split_message failed");
+            tracing::error!(err = %e, user = %req.user, mid = %req.message_id, "split_message failed");
             axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }

@@ -50,6 +50,8 @@ mod client_ops;
 #[cfg(feature = "client")]
 mod client_rejudge;
 #[cfg(feature = "client")]
+mod client_repair;
+#[cfg(feature = "client")]
 mod client_reports;
 #[cfg(feature = "client")]
 mod client_senders;
