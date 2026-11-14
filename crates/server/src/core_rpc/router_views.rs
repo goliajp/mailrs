@@ -30,13 +30,22 @@ pub(super) fn view_routes(state: Arc<CoreRpcState>) -> Router {
         .route(th::PATH_MARK_NOTIFICATION, post(filing::mark_notification))
         .route(th::PATH_MARK_PROMOTION, post(filing::mark_promotion))
         .route(th::PATH_MOVE_TO_INBOX, post(filing::move_to_inbox))
-        .route(th::PATH_QUARANTINE_LIST, get(holds::list_quarantined))
+        .route(
+            th::PATH_QUARANTINE_LIST,
+            get(mailrs_core_routes::hold::list_held::<CoreRpcState>),
+        )
         .route(
             th::PATH_QUARANTINE_RELEASE,
-            post(holds::release_quarantined),
+            post(mailrs_core_routes::hold::release::<CoreRpcState>),
         )
-        .route(th::PATH_THREAD_RELEASES, get(holds::thread_releases))
-        .route(th::PATH_FRAUD_VERDICT, get(holds::fraud_verdict))
+        .route(
+            th::PATH_THREAD_RELEASES,
+            get(mailrs_core_routes::hold::thread_releases::<CoreRpcState>),
+        )
+        .route(
+            th::PATH_FRAUD_VERDICT,
+            get(mailrs_core_routes::hold::fraud_verdict::<CoreRpcState>),
+        )
         .route(
             adm::PATH_RECIPIENT_DELIVERABLE,
             get(holds::recipient_deliverable),

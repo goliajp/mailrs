@@ -43,12 +43,12 @@ pub(crate) fn queue(
 
 /// Queue the remote images of `user`'s thread, for a thread taken out of
 /// Junk or Review.
-pub(crate) fn queue_thread(state: &Arc<FastcoreState>, user: &str, thread_id: &str) {
+pub(crate) fn queue_thread(state: &FastcoreState, user: &str, thread_id: &str) {
     if shared::fetcher().is_none() {
         return;
     }
     let raws = crate::bayes_train::fetch_thread_raw(state, user, thread_id);
-    shared::queue_thread(state.as_ref(), user, thread_id, &raws);
+    shared::queue_thread(state, user, thread_id, &raws);
 }
 
 /// Queue the remote images of `user`'s thread for a reader who has it open
@@ -174,7 +174,11 @@ Content-Type: text/html; charset=utf-8\r\n\
                 }
                 _ => {
                     state.mailbox.set_quarantined(&user, &tid, true).unwrap();
-                    crate::release_quarantined(State(state.clone()), path).await;
+                    mailrs_core_routes::hold::release::<crate::FastcoreState>(
+                        State(state.clone()),
+                        path,
+                    )
+                    .await;
                 }
             }
             assert_eq!(

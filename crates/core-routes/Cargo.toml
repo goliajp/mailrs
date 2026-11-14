@@ -13,6 +13,10 @@ workspace = true
 mailrs-core-api = { path = "../core-api", features = ["server"] }
 mailrs-core-sidestate = { path = "../core-sidestate" }
 axum = { version = "0.8" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = "0.4"
+thiserror = "2"
 kevy-client = { workspace = true }
 tokio = { version = "1", features = ["rt"] }
 tracing = "0.1"
