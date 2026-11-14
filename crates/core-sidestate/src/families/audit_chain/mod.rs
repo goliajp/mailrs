@@ -26,10 +26,12 @@ use crate::keys::admin::{
 };
 
 mod replica;
+mod route;
 mod run;
 mod verify;
 
 pub use replica::{compare as compare_replica, write as write_replica};
+pub use route::verify_route;
 pub use run::{Status, daily, read_status, spawn};
 pub use verify::{Report, prune, verify};
 
