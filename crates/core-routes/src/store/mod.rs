@@ -1,13 +1,18 @@
 //! What the shared routes need of a store. Every method is async: the SQL
 //! store awaits its database, the kevy store answers from memory inline.
 
+mod account;
 mod check;
 mod hold;
 mod label;
 mod message;
 mod thread;
 
-pub use check::{check_hold_store, check_label_store, check_message_reads, check_thread_store};
+pub use account::{AccountPatch, AccountStore, NewAccount};
+pub use check::{
+    check_account_store, check_hold_store, check_label_store, check_message_reads,
+    check_thread_store,
+};
 pub use hold::HoldStore;
 pub use label::{LabelFailure, LabelResult, LabelStore};
 pub use message::MessageReads;
