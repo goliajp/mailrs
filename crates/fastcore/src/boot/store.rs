@@ -144,13 +144,14 @@ fn alias_store(mailbox: &KevyMailboxStore) -> Arc<dyn AliasStore> {
             );
             tracing::info!(url = %url, "alias-store backend = network kevy");
             let store = mailrs_alias_store_net::NetworkKevyAliasStore::new(url);
-            // v2.6.0 §P6 dual-write: declare the network-side alias
-            // range indexes idempotently. Best-effort — network kevy
-            // may momentarily be unavailable at boot; the next writer
-            // will retry the declaration on any subsequent upsert /
-            // ensure call.
-            if let Err(e) = store.ensure_indexes() {
-                tracing::warn!(error = %e, "alias-store network idx_create failed at boot");
+            // the source set the listing reads, in line with the aliases;
+            // the next boot tries again if the network kevy is not up yet
+            match store.reconcile_sources() {
+                Ok((0, 0)) => {}
+                Ok((added, dropped)) => {
+                    tracing::info!(added, dropped, "alias-store: source set reconciled");
+                }
+                Err(e) => tracing::warn!(error = %e, "alias-store: source set not reconciled"),
             }
             Arc::new(store)
         }

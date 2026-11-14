@@ -40,6 +40,7 @@ pub async fn start() -> Receiver {
              notify with the core over a network kevy-server"
         );
     }
+    mailrs_core_sidestate::network_store::require_supported(&cfg.kevy_url);
 
     tracing::info!(
         hostname = %cfg.hostname,

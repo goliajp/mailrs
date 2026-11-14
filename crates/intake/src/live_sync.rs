@@ -157,23 +157,7 @@ pub fn publish_new_mail(
     let Ok(bytes) = serde_json::to_vec(&payload) else {
         return;
     };
-    // v2.3 §P7-C (2026-07-12): legacy pubsub PUBLISH dropped. The
-    // feed_read consumer wired in webapi handles realtime delivery
-    // via kevy's change feed — durable across webapi restarts
-    // (unlike PUBSUB which discards messages when no subscriber is
-    // attached at publish time). SET+EXPIRE 300 keeps the AOF bound
-    // — a consumer offline > 5 min misses those events, which is
-    // fine because the frontend refetches full state on WS reconnect.
-    let key = mailrs_core_sidestate::keys::events::notify_key(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0),
-    );
-    let _ = conn.pipeline(|p| {
-        p.cmd(&[b"SET", key.as_bytes(), bytes.as_slice()]);
-        p.cmd(&[b"EXPIRE", key.as_bytes(), b"300"]);
-    });
+    let _ = mailrs_core_sidestate::keys::events::send(&mut conn, &bytes);
 }
 
 /// Adjust the user's used-bytes counter in `net`, the network kevy the
