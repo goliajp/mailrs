@@ -10,6 +10,8 @@
 //! went out with the REST API in a restart loop.
 
 use mailrs_core_api::method::label as lb;
+
+use mailrs_core_api::method::rethread;
 use std::sync::Arc;
 
 use axum::Router;
@@ -58,7 +60,7 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         .route(conv::PATH_UNSEEN_COUNT, get(get_unseen_count))
         .route(th::PATH_LIST_THREAD_MESSAGES, get(thread_messages))
         .route(th::PATH_LIST_SENT_MESSAGES, get(list_sent_messages))
-        .route("/v1/admin/threads:split-message", post(split_message_route))
+        .route(rethread::PATH_SPLIT_MESSAGE, post(split_message_route))
         .route(th::PATH_DELIVER_MESSAGE, post(deliver_message))
         .route(
             senders_paths::PATH_RECLASSIFY_SENDER,

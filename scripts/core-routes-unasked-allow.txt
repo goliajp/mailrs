@@ -11,7 +11,6 @@
 POST /v1/admin/backfill-decode-headers | decode RFC 2047 encoded-words left raw in thread rows and contacts by mail ingested before 2.9.18
 POST /v1/admin/backfill-threading | merge conversations fragmented before reply threading, and seed the Message-ID to thread index
 POST /v1/admin/sync/reset-cursors | reset every user's core-sync cursor so the next tick re-diffs all threads from the other core
-POST /v1/admin/threads:split-message | move one message out of its conversation into its own (topic-change replies glued before the subject gate)
 POST /v1/admin/maintenance:allocate-missing-uids | give a UID to every per-user message row that has none, so raw view and attachments resolve
 POST /v1/admin/maintenance:axis-shadow | read-only: the two declared columns that pick a thread's list, against the engine's per-user counts
 POST /v1/admin/maintenance:backfill-attachment-counts | count the attachments of mail stored before delivery counted them, for has:attachment
