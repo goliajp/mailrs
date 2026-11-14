@@ -24,6 +24,7 @@ pub use labels::LabelDbError;
 mod mutate;
 mod query;
 mod search_facts;
+mod split;
 mod templates;
 mod trash;
 

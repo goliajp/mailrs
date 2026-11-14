@@ -6,6 +6,8 @@
 //! here and not there is a feature that works or 404s depending on which is deployed.
 
 use mailrs_core_api::method::label as lb;
+
+use mailrs_core_api::method::rethread;
 use std::sync::Arc;
 
 use axum::Router;
@@ -34,6 +36,10 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
 
     // ── conversations (Rock 1 + categories + counts) ─────────────────
     let convo = Router::new()
+        .route(
+            rethread::PATH_SPLIT_MESSAGE,
+            post(handlers::rethread::split_message),
+        )
         .route(
             conv_paths::PATH_LIST_CONVERSATIONS,
             post(handlers::conversation::list_conversations),
