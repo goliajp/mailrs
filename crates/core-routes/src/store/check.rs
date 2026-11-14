@@ -127,3 +127,33 @@ pub async fn check_message_reads<S: super::MessageReads>(
         "a uid the reader never had finds something"
     );
 }
+
+/// `user` must be in `unheld_thread`, which is not held and was never
+/// released, and in nothing called `stranger_thread`. Releasing held mail
+/// is compared across stores with mail that arrived held, which takes the
+/// intake to set up.
+pub async fn check_hold_store<S: super::HoldStore>(
+    store: &S,
+    user: &str,
+    unheld_thread: &str,
+    stranger_thread: &str,
+) {
+    assert_eq!(
+        store.held(user, stranger_thread).await.unwrap(),
+        None,
+        "a stranger's conversation reads as theirs"
+    );
+    assert_eq!(
+        store.held(user, unheld_thread).await.unwrap(),
+        Some(false),
+        "ordinary mail reads as held"
+    );
+    assert!(
+        store
+            .releases(user, unheld_thread)
+            .await
+            .unwrap()
+            .is_empty(),
+        "mail never held has releases"
+    );
+}
