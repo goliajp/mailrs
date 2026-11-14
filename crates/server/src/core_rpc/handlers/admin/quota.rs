@@ -32,15 +32,6 @@ pub(super) fn with_net<T>(
     })
 }
 
-/// The default limit for a new account, unless it already has one.
-pub(super) fn give_default(state: &CoreRpcState, address: &str) -> Result<(), StatusCode> {
-    with_net(state, |c| quota_limits::give_default(c, address)).map(|_| ())
-}
-
-pub(super) fn set_limit(state: &CoreRpcState, address: &str, bytes: i64) -> Result<(), StatusCode> {
-    with_net(state, |c| quota_limits::set_limit(c, address, bytes)).map(|_| ())
-}
-
 #[derive(serde::Deserialize)]
 pub struct QuotaLimitsQuery {
     #[serde(default = "dry_run_unless_asked")]

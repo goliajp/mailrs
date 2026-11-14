@@ -238,3 +238,82 @@ pub async fn check_label_store<S: super::LabelStore>(
         "a deleted label was deleted again"
     );
 }
+
+/// `address` must have no account; one is made there.
+pub async fn check_account_store<S: super::AccountStore>(store: &S, address: &str) {
+    use super::{AccountPatch, NewAccount};
+    let domain = address.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
+    assert!(
+        store.account(address).await.unwrap().is_none(),
+        "the address already has an account"
+    );
+    assert!(
+        !store
+            .patch_account(address, AccountPatch::DisplayName("x"))
+            .await
+            .unwrap(),
+        "an account that does not exist was changed"
+    );
+    let new = NewAccount {
+        address,
+        domain,
+        display_name: "Check",
+        password_hash: "hash-1",
+        created_at: 1_700_000_000,
+        quota_bytes: 1024,
+    };
+    store.insert_account(&new).await.unwrap();
+    let made = store
+        .account(address)
+        .await
+        .unwrap()
+        .expect("the new account is not found");
+    assert_eq!(made.public.display_name, "Check");
+    assert_eq!(made.public.domain, domain);
+    assert!(made.public.active, "a new account is inactive");
+    assert_eq!(made.password_hash.as_deref(), Some("hash-1"));
+    assert!(
+        store
+            .accounts()
+            .await
+            .unwrap()
+            .iter()
+            .any(|a| a.address == address),
+        "the new account is not listed"
+    );
+    for p in [
+        AccountPatch::DisplayName("Renamed"),
+        AccountPatch::Quota(2048),
+        AccountPatch::RecoveryEmail("back@up.test"),
+        AccountPatch::ClearPassword {
+            by: "op",
+            at: 1_700_000_100,
+        },
+    ] {
+        assert!(store.patch_account(address, p).await.unwrap());
+    }
+    let a = store.account(address).await.unwrap().unwrap();
+    assert_eq!(a.public.display_name, "Renamed");
+    assert_eq!(a.public.quota_bytes, 2048);
+    assert_eq!(a.public.recovery_email.as_deref(), Some("back@up.test"));
+    assert_eq!(
+        a.password_hash.as_deref(),
+        Some(""),
+        "a cleared password still signs in"
+    );
+    assert_eq!(a.public.password_cleared_at, Some(1_700_000_100));
+    assert_eq!(a.public.password_cleared_by.as_deref(), Some("op"));
+    assert!(
+        store
+            .patch_account(address, AccountPatch::PasswordHash("hash-2"))
+            .await
+            .unwrap()
+    );
+    let a = store.account(address).await.unwrap().unwrap();
+    assert_eq!(a.password_hash.as_deref(), Some("hash-2"));
+    assert_eq!(
+        a.public.password_cleared_at, None,
+        "a password set still reads as cleared"
+    );
+    assert_eq!(a.public.password_cleared_by, None);
+}
