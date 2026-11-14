@@ -50,4 +50,16 @@ async fn both_stores_read_a_users_messages_as_the_trait_says() {
     let (own, stranger) = ("t-hello@partner.test", "nobody-has-this@nowhere.test");
     mailrs_core_routes::store::check_message_reads(&*c.fastcore_state, ALICE, own, stranger).await;
     mailrs_core_routes::store::check_message_reads(&*c.pg_core_state, ALICE, own, stranger).await;
+    let mid =
+        mailrs_core_routes::store::MessageReads::thread_messages(&*c.pg_core_state, ALICE, own)
+            .await
+            .unwrap()[0]
+            .message_id
+            .clone();
+    mailrs_core_routes::store::check_hold_store(&*c.fastcore_state, ALICE, own, stranger, &mid)
+        .await;
+    mailrs_core_routes::store::check_hold_store(&*c.pg_core_state, ALICE, own, stranger, &mid)
+        .await;
+    mailrs_core_routes::store::check_label_store(&*c.fastcore_state, ALICE, own, stranger).await;
+    mailrs_core_routes::store::check_label_store(&*c.pg_core_state, ALICE, own, stranger).await;
 }

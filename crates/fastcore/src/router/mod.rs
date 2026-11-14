@@ -118,10 +118,22 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         .route(th::PATH_UNPIN, post(shared::unpin::<FastcoreState>))
         .route(th::PATH_STAR, post(shared::star::<FastcoreState>))
         .route(th::PATH_UNSTAR, post(shared::unstar::<FastcoreState>))
-        .route(th::PATH_QUARANTINE_LIST, get(list_quarantined))
-        .route(th::PATH_QUARANTINE_RELEASE, post(release_quarantined))
-        .route(th::PATH_THREAD_RELEASES, get(thread_releases))
-        .route(th::PATH_FRAUD_VERDICT, get(get_fraud_verdict))
+        .route(
+            th::PATH_QUARANTINE_LIST,
+            get(mailrs_core_routes::hold::list_held::<FastcoreState>),
+        )
+        .route(
+            th::PATH_QUARANTINE_RELEASE,
+            post(mailrs_core_routes::hold::release::<FastcoreState>),
+        )
+        .route(
+            th::PATH_THREAD_RELEASES,
+            get(mailrs_core_routes::hold::thread_releases::<FastcoreState>),
+        )
+        .route(
+            th::PATH_FRAUD_VERDICT,
+            get(mailrs_core_routes::hold::fraud_verdict::<FastcoreState>),
+        )
         .route(rp::PATH_REPORT_MESSAGE, post(crate::report::report))
         .route(rp::PATH_REPORT_OUTCOME, get(crate::report::outcome))
         .route(rp::PATH_PENDING_REPORTS, get(crate::report::pending))
@@ -131,15 +143,18 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         .route(th::PATH_UNARCHIVE, post(shared::unarchive::<FastcoreState>))
         .route(
             lb::PATH_LABELS,
-            get(crate::routes::labels::list_labels).post(crate::routes::labels::create_label),
+            get(mailrs_core_routes::label::list_labels::<FastcoreState>)
+                .post(mailrs_core_routes::label::create_label::<FastcoreState>),
         )
         .route(
             lb::PATH_LABEL,
-            post(crate::routes::labels::update_label).delete(crate::routes::labels::delete_label),
+            post(mailrs_core_routes::label::update_label::<FastcoreState>)
+                .delete(mailrs_core_routes::label::delete_label::<FastcoreState>),
         )
         .route(
             lb::PATH_THREAD_LABEL,
-            post(crate::routes::labels::label_thread).delete(crate::routes::labels::unlabel_thread),
+            post(mailrs_core_routes::label::label_thread::<FastcoreState>)
+                .delete(mailrs_core_routes::label::unlabel_thread::<FastcoreState>),
         )
         .route(
             th::PATH_PREFETCH_IMAGES,

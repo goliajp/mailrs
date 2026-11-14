@@ -85,9 +85,11 @@ async fn badge(state: &std::sync::Arc<crate::FastcoreState>) -> (i64, i64) {
 }
 
 async fn release(state: &std::sync::Arc<crate::FastcoreState>, tid: &str) {
-    let res =
-        crate::routes::release_quarantined(State(state.clone()), Path((USER.into(), tid.into())))
-            .await;
+    let res = mailrs_core_routes::hold::release::<crate::FastcoreState>(
+        State(state.clone()),
+        Path((USER.into(), tid.into())),
+    )
+    .await;
     assert!(
         res.status().is_success(),
         "release answered {}",

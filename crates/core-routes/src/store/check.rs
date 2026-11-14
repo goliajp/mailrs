@@ -127,3 +127,114 @@ pub async fn check_message_reads<S: super::MessageReads>(
         "a uid the reader never had finds something"
     );
 }
+
+/// `user` must be in `unheld_thread`, which is not held and was never
+/// released, and in nothing called `stranger_thread`. Releasing held mail
+/// is compared across stores with mail that arrived held, which takes the
+/// intake to set up.
+pub async fn check_hold_store<S: super::HoldStore>(
+    store: &S,
+    user: &str,
+    unheld_thread: &str,
+    stranger_thread: &str,
+    own_message_id: &str,
+) {
+    assert!(
+        store
+            .fraud_verdict(user, own_message_id)
+            .await
+            .unwrap()
+            .is_some(),
+        "the reader's own message has no verdict answer"
+    );
+    assert_eq!(
+        store
+            .fraud_verdict(user, "<nobody-has-this@nowhere.test>")
+            .await
+            .unwrap(),
+        None,
+        "a message the reader never had answers a verdict"
+    );
+    let (_, held) = store.held_page(user, None, 1000).await.unwrap();
+    let (none, same) = store.held_page(user, None, 0).await.unwrap();
+    assert!(none.is_empty(), "a page of 0 has rows");
+    assert_eq!(same, held, "asking only for the count changes the count");
+    assert_eq!(
+        store.held(user, stranger_thread).await.unwrap(),
+        None,
+        "a stranger's conversation reads as theirs"
+    );
+    assert_eq!(
+        store.held(user, unheld_thread).await.unwrap(),
+        Some(false),
+        "ordinary mail reads as held"
+    );
+    assert!(
+        store
+            .releases(user, unheld_thread)
+            .await
+            .unwrap()
+            .is_empty(),
+        "mail never held has releases"
+    );
+}
+
+/// `user` must be in `own_thread` and not in `stranger_thread`, and have no
+/// label named "check-label" or "check-label-renamed".
+pub async fn check_label_store<S: super::LabelStore>(
+    store: &S,
+    user: &str,
+    own_thread: &str,
+    stranger_thread: &str,
+) {
+    use super::LabelFailure;
+    use mailrs_core_api::method::label::{LABEL_COLORS, LabelError};
+    let color = LABEL_COLORS[0];
+    let label = store
+        .create_label(user, "check-label", color, 1)
+        .await
+        .unwrap();
+    assert!(
+        matches!(
+            store.create_label(user, "check-label", color, 2).await,
+            Err(LabelFailure::Refused(LabelError::Taken(_)))
+        ),
+        "a second label of the same name was made"
+    );
+    let renamed = store
+        .update_label(user, &label.id, Some("check-label-renamed"), None)
+        .await
+        .unwrap();
+    assert_eq!(renamed.name, "check-label-renamed");
+    assert!(
+        store
+            .labels(user)
+            .await
+            .unwrap()
+            .iter()
+            .any(|l| l.id == label.id && l.name == "check-label-renamed"),
+        "the renamed label is not listed"
+    );
+    assert!(
+        matches!(
+            store
+                .set_label(user, &label.id, stranger_thread, true)
+                .await,
+            Err(LabelFailure::Refused(LabelError::NotFound))
+        ),
+        "a stranger's conversation took the label"
+    );
+    store
+        .set_label(user, &label.id, own_thread, true)
+        .await
+        .unwrap();
+    store
+        .set_label(user, &label.id, own_thread, false)
+        .await
+        .unwrap();
+    assert!(store.delete_label(user, &label.id).await.unwrap());
+    assert!(
+        !store.delete_label(user, &label.id).await.unwrap(),
+        "a deleted label was deleted again"
+    );
+}
