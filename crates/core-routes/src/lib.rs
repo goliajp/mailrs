@@ -11,6 +11,7 @@ pub mod label;
 pub mod maintenance;
 pub mod message;
 pub mod purge;
+pub mod rejudge;
 pub mod search;
 pub mod store;
 pub mod thread;

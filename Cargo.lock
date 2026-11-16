@@ -4413,6 +4413,7 @@ dependencies = [
  "mailrs-reputation",
  "mailrs-rfc2047",
  "mailrs-rfc5322",
+ "mailrs-screening-lua",
  "mailrs-sieve",
  "mailrs-smtp-client",
  "mailrs-srs",

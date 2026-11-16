@@ -1,6 +1,6 @@
 //! A round decides once: what it would hold is gathered while its pages
-//! are judged, kept in fastcore's store so a restart loses none of it, and
-//! held or set aside when the last page is done.
+//! are judged, kept in the store so a restart loses none of it, and held
+//! or set aside when the last page is done.
 
 use std::collections::BTreeMap;
 
@@ -11,7 +11,7 @@ use super::*;
 /// confirmation. `MAILRS_REJUDGE_HOLD_CAP` overrides it.
 const HOLD_CAP: usize = 50;
 
-pub(crate) fn hold_cap() -> usize {
+pub fn hold_cap() -> usize {
     std::env::var("MAILRS_REJUDGE_HOLD_CAP")
         .ok()
         .and_then(|v| v.trim().parse().ok())
@@ -26,12 +26,11 @@ fn candidates_key(observation: &str) -> String {
 
 /// Keep `c` for `observation`'s decision. The first message found for a
 /// conversation stands for it.
-pub(crate) fn offer(state: &FastcoreState, observation: &str, c: &Candidate) -> Result<(), String> {
-    let store = state.mailbox.store_ref();
+pub fn offer<S: RejudgeStore>(store: &S, observation: &str, c: &Candidate) -> Result<(), String> {
     let key = candidates_key(observation);
     let field = format!("{}\t{}", c.user, c.tid);
     if store
-        .hget(key.as_bytes(), field.as_bytes())
+        .state_hget(&key, &field)
         .map_err(|e| e.to_string())?
         .is_some()
     {
@@ -39,16 +38,13 @@ pub(crate) fn offer(state: &FastcoreState, observation: &str, c: &Candidate) -> 
     }
     let json = serde_json::to_vec(c).map_err(|e| e.to_string())?;
     store
-        .hset(key.as_bytes(), &[(field.as_bytes(), json.as_slice())])
-        .map_err(|e| e.to_string())?;
-    Ok(())
+        .state_hset(&key, &field, &json)
+        .map_err(|e| e.to_string())
 }
 
-pub(super) fn candidates(state: &FastcoreState, observation: &str) -> Vec<Candidate> {
-    let mut out: Vec<(Vec<u8>, Candidate)> = state
-        .mailbox
-        .store_ref()
-        .hgetall(candidates_key(observation).as_bytes())
+pub(super) fn candidates<S: RejudgeStore>(store: &S, observation: &str) -> Vec<Candidate> {
+    let mut out: Vec<(String, Candidate)> = store
+        .state_hgetall(&candidates_key(observation))
         .unwrap_or_default()
         .into_iter()
         .filter_map(|(f, v)| Some((f, serde_json::from_slice(&v).ok()?)))
@@ -57,9 +53,8 @@ pub(super) fn candidates(state: &FastcoreState, observation: &str) -> Vec<Candid
     out.into_iter().map(|(_, c)| c).collect()
 }
 
-pub(super) fn forget(state: &FastcoreState, observation: &str) {
-    let key = candidates_key(observation);
-    if let Err(e) = state.mailbox.store_ref().del(&[key.as_bytes()]) {
+pub(super) fn forget<S: RejudgeStore>(store: &S, observation: &str) {
+    if let Err(e) = store.state_del(&candidates_key(observation)) {
         tracing::warn!(error = %e, %observation, "rejudge: the gathered conversations were not cleared");
     }
 }
@@ -74,33 +69,33 @@ pub(super) fn rules_of_all(cs: &[Candidate]) -> Vec<String> {
 /// Decide `observation`'s round: hold what it gathered when that is no
 /// more than [`hold_cap`] conversations, or record it as a pending batch
 /// that holds nothing. A round already recorded as pending stays so.
-pub(crate) fn settle(state: &Arc<FastcoreState>, observation: &str) -> Result<(), String> {
-    let gathered = candidates(state, observation);
-    if gathered.is_empty() || entry(state, observation).is_some_and(|e| e.pending) {
+pub fn settle<S: RejudgeStore>(store: &S, observation: &str) -> Result<(), String> {
+    let gathered = candidates(store, observation);
+    if gathered.is_empty() || entry(store, observation).is_some_and(|e| e.pending) {
         return Ok(());
     }
     let mut takeable = Vec::new();
     for c in gathered {
-        if may_take(state, &c)? {
+        if may_take(store, &c)? {
             takeable.push(c);
         }
     }
     if takeable.is_empty() {
-        forget(state, observation);
+        forget(store, observation);
         return Ok(());
     }
     let rules = rules_of_all(&takeable);
     let cap = hold_cap();
     let over = takeable.len() > cap;
     put_entry(
-        state,
+        store,
         observation,
         &Entry::new(now(), over, takeable.len() as u64, &rules),
     )?;
     if over {
         tracing::warn!(%observation, would_hold = takeable.len(), cap,
             "rejudge: more to hold than one observation may; held nothing, waiting for a decision");
-        if let Some(mut conn) = state.net_conn() {
+        if let Some(mut conn) = store.net_conn() {
             let detail = format!(
                 "batch={observation} would_hold={} cap={cap} rules={}",
                 takeable.len(),
@@ -119,19 +114,19 @@ pub(crate) fn settle(state: &Arc<FastcoreState>, observation: &str) -> Result<()
         }
         return Ok(());
     }
-    hold_all(state, observation, &takeable);
-    forget(state, observation);
+    hold_all(store, observation, &takeable);
+    forget(store, observation);
     Ok(())
 }
 
 /// Hold each of `cs` that may still be taken, then tell each reader once.
 /// Returns how many were held.
-pub(super) fn hold_all(state: &Arc<FastcoreState>, observation: &str, cs: &[Candidate]) -> u64 {
-    let mut conn = state.net_conn();
+pub(super) fn hold_all<S: RejudgeStore>(store: &S, observation: &str, cs: &[Candidate]) -> u64 {
+    let mut conn = store.net_conn();
     let at = now();
     let mut by_reader: BTreeMap<&str, Vec<&Candidate>> = BTreeMap::new();
     for c in cs {
-        match recall(state, c, observation) {
+        match recall(store, c, observation) {
             Ok(true) => {
                 crate::rejudge::Counts::add(&crate::rejudge::COUNTS.acted, 1);
                 tracing::info!(event = "rejudge_acted", user = %c.user, tid = %c.tid,
