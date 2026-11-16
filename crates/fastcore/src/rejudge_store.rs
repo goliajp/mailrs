@@ -204,4 +204,39 @@ impl RejudgeStore for FastcoreState {
             .map(text)
             .collect())
     }
+
+    fn state_hdel(&self, key: &str, field: &str) -> io::Result<()> {
+        self.mailbox
+            .store_ref()
+            .hdel(key.as_bytes(), &[field.as_bytes()])?;
+        Ok(())
+    }
+
+    fn state_srem(&self, key: &str, member: &str) -> io::Result<()> {
+        self.mailbox
+            .store_ref()
+            .srem(key.as_bytes(), &[member.as_bytes()])?;
+        Ok(())
+    }
+
+    fn state_keys(&self, prefix: &str) -> io::Result<Vec<String>> {
+        let pattern = format!(
+            "{}*",
+            mailrs_core_sidestate::families::account_purge::glob_escape(prefix)
+        );
+        Ok(self
+            .mailbox
+            .store_ref()
+            .keys_iter(Some(pattern.as_bytes()))
+            .map(text)
+            .collect())
+    }
+}
+
+impl mailrs_core_routes::rejudge::RejudgeHost for FastcoreState {
+    type Store = FastcoreState;
+
+    fn rejudge_store(self: &std::sync::Arc<Self>) -> std::sync::Arc<Self> {
+        self.clone()
+    }
 }

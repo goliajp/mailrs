@@ -101,7 +101,14 @@ impl PurgeStore for CoreRpcState {
             .execute(&mut *tx)
             .await
             .map_err(failed)?;
-        tx.commit().await.map_err(failed)
+        tx.commit().await.map_err(failed)?;
+        // the re-judge's marks and gathered conversations of this reader
+        let core = self.pg_core();
+        let address = address.to_string();
+        tokio::task::spawn_blocking(move || mailrs_intake::rejudge::forget_reader(&core, &address))
+            .await
+            .map_err(|e| StoreError(e.to_string()))??;
+        Ok(())
     }
 
     /// Every table this core keeps for an account is in the registry.

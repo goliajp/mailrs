@@ -18,9 +18,18 @@ use mailrs_core_api::method::admin::{
 use mailrs_intake::rejudge::recall::{self, Refused};
 use mailrs_intake::rejudge::{COUNTS, RejudgeStore, judge, tick};
 
+/// A core's state as the re-judge routes see it: the store the re-judge
+/// runs over, for one request.
+pub trait RejudgeHost: Send + Sync + 'static {
+    type Store: RejudgeStore;
+
+    fn rejudge_store(self: &Arc<Self>) -> Arc<Self::Store>;
+}
+
 /// `GET /v1/admin/rejudge-batches`
-pub async fn batches<S: RejudgeStore>(State(state): State<Arc<S>>) -> Response {
-    let found = tokio::task::spawn_blocking(move || recall::batches(&*state)).await;
+pub async fn batches<H: RejudgeHost>(State(host): State<Arc<H>>) -> Response {
+    let store = host.rejudge_store();
+    let found = tokio::task::spawn_blocking(move || recall::batches(&*store)).await;
     match found {
         Ok(items) => Json(RejudgeBatchesResponse {
             items: items
@@ -65,42 +74,45 @@ async fn decided<T: serde::Serialize>(
 }
 
 /// `POST /v1/admin/rejudge-batches/{observation}/release`
-pub async fn release<S: RejudgeStore>(
-    State(state): State<Arc<S>>,
+pub async fn release<H: RejudgeHost>(
+    State(host): State<Arc<H>>,
     Path(observation): Path<String>,
     Json(req): Json<ReleaseRejudgeBatchRequest>,
 ) -> Response {
+    let store = host.rejudge_store();
     decided(
         "release",
-        move || recall::release_batch(&*state, &observation, &req.actor),
+        move || recall::release_batch(&*store, &observation, &req.actor),
         |released| ReleaseRejudgeBatchResponse { released },
     )
     .await
 }
 
 /// `POST /v1/admin/rejudge-batches/{observation}/confirm`
-pub async fn confirm<S: RejudgeStore>(
-    State(state): State<Arc<S>>,
+pub async fn confirm<H: RejudgeHost>(
+    State(host): State<Arc<H>>,
     Path(observation): Path<String>,
     Json(req): Json<DecideRejudgeBatchRequest>,
 ) -> Response {
+    let store = host.rejudge_store();
     decided(
         "confirm",
-        move || recall::confirm_batch(&*state, &observation, &req.actor),
+        move || recall::confirm_batch(&*store, &observation, &req.actor),
         |held| ConfirmRejudgeBatchResponse { held },
     )
     .await
 }
 
 /// `POST /v1/admin/rejudge-batches/{observation}/discard`
-pub async fn discard<S: RejudgeStore>(
-    State(state): State<Arc<S>>,
+pub async fn discard<H: RejudgeHost>(
+    State(host): State<Arc<H>>,
     Path(observation): Path<String>,
     Json(req): Json<DecideRejudgeBatchRequest>,
 ) -> Response {
+    let store = host.rejudge_store();
     decided(
         "discard",
-        move || recall::discard_batch(&*state, &observation, &req.actor),
+        move || recall::discard_batch(&*store, &observation, &req.actor),
         |would_hold| DiscardRejudgeBatchResponse { would_hold },
     )
     .await
@@ -115,10 +127,11 @@ pub async fn status() -> Json<serde_json::Value> {
 /// `POST /v1/admin/maintenance:rejudge-now`: one round now rather than at
 /// the next announcement or poll, for an operator timing the path on a
 /// copy. It acts only when acting is switched on, like every round.
-pub async fn now<S: RejudgeStore>(State(state): State<Arc<S>>) -> Response {
+pub async fn now<H: RejudgeHost>(State(host): State<Arc<H>>) -> Response {
+    let store = host.rejudge_store();
     let round = tokio::task::spawn_blocking(move || {
-        let mut judge = judge::Judge::new(&*state);
-        tick(&*state, &mut judge)
+        let mut judge = judge::Judge::new(&*store);
+        tick(&*store, &mut judge)
     })
     .await;
     match round {

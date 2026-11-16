@@ -48,6 +48,7 @@ mod purge_fixture;
 mod quota;
 mod quota_limits;
 mod rejudge;
+mod rejudge_rounds;
 mod reports;
 mod reports_dismiss;
 mod search;

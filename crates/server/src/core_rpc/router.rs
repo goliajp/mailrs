@@ -42,6 +42,15 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
             rethread::PATH_SPLIT_MESSAGE,
             post(handlers::rethread::split_message),
         )
+        // read-only: what the re-judge has done and would have done
+        .route(
+            "/v1/admin/maintenance:rejudge-status",
+            get(mailrs_core_routes::rejudge::status),
+        )
+        .route(
+            "/v1/admin/maintenance:rejudge-now",
+            post(mailrs_core_routes::rejudge::now::<CoreRpcState>),
+        )
         // read-only: the audit chain, kept in the network kevy, checked now
         .route(
             "/v1/admin/maintenance:audit-verify",
