@@ -44,6 +44,8 @@ pub(super) fn spawn_spool_drain(
         mailbox,
         event_bus: event_bus.clone(),
     });
+    // re-judging after a reputation change, as the kevy core does it
+    mailrs_intake::rejudge::spawn(core.clone(), core.dir.net_url.clone());
     // the drain queues webhooks for arriving mail on the network kevy; this
     // core sends them, as the kevy core does
     if let Some(url) = core.dir.net_url.clone() {

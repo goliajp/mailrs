@@ -7,11 +7,10 @@ use mailrs_core_routes::store::IntakeStore;
 use crate::core_rpc::CoreRpcState;
 use crate::intake::{PgCore, PgDirectory};
 
-impl IntakeStore for CoreRpcState {
-    type Core = PgCore;
-
-    /// Built on a runtime thread: the directory keeps its handle.
-    fn intake_core(self: &Arc<Self>) -> PgCore {
+impl CoreRpcState {
+    /// This core as the shared intake and re-judge code see it. Built on a
+    /// runtime thread: the directory keeps its handle.
+    pub(crate) fn pg_core(&self) -> PgCore {
         PgCore {
             dir: PgDirectory {
                 authserv_id: self.authserv_id.clone(),
@@ -24,5 +23,21 @@ impl IntakeStore for CoreRpcState {
             mailbox: self.mailbox.clone(),
             event_bus: self.event_bus.clone(),
         }
+    }
+}
+
+impl IntakeStore for CoreRpcState {
+    type Core = PgCore;
+
+    fn intake_core(self: &Arc<Self>) -> PgCore {
+        self.pg_core()
+    }
+}
+
+impl mailrs_core_routes::rejudge::RejudgeHost for CoreRpcState {
+    type Store = PgCore;
+
+    fn rejudge_store(self: &Arc<Self>) -> Arc<PgCore> {
+        Arc::new(self.pg_core())
     }
 }
