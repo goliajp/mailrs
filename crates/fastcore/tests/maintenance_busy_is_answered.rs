@@ -36,6 +36,29 @@ async fn call(router: axum::Router) -> (axum::http::StatusCode, serde_json::Valu
     )
 }
 
+/// The next connection to `kevy`, or a failure once `limit` has passed: a
+/// walk that never reaches the network store fails the test, not hangs it.
+fn accept_within(kevy: &TcpListener, limit: Duration) -> std::net::TcpStream {
+    kevy.set_nonblocking(true).unwrap();
+    let deadline = std::time::Instant::now() + limit;
+    loop {
+        match kevy.accept() {
+            Ok((conn, _)) => {
+                conn.set_nonblocking(false).unwrap();
+                return conn;
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "a walk did not reach the network kevy"
+                );
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(e) => panic!("{e}"),
+        }
+    }
+}
+
 #[test]
 fn a_maintenance_request_past_the_workers_is_told_it_is_busy() {
     let kevy = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -68,7 +91,7 @@ fn a_maintenance_request_past_the_workers_is_told_it_is_busy() {
     let walks: Vec<_> = (0..2).map(|_| rt.spawn(call(router.clone()))).collect();
     let mut held = Vec::new();
     for _ in 0..2 {
-        let (mut conn, _) = kevy.accept().unwrap();
+        let mut conn = accept_within(&kevy, Duration::from_secs(60));
         let mut first = [0u8; 1];
         conn.read_exact(&mut first).unwrap();
         held.push(conn);
