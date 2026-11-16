@@ -105,10 +105,6 @@ impl AccountStore for FastcoreState {
         Ok(())
     }
 
-    async fn purge_now(self: std::sync::Arc<Self>, address: String, _now: i64) {
-        crate::account_purge::purge_now(self, address).await;
-    }
-
     async fn patch_account(&self, address: &str, patch: AccountPatch<'_>) -> StoreResult<bool> {
         let Some(blob) = self.mailbox.get_account_blob(address)? else {
             return Ok(false);

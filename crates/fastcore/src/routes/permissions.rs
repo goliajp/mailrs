@@ -113,6 +113,15 @@ fn read_derived(state: &FastcoreState, addr: &str) -> std::io::Result<DerivedSen
 /// (the spool drain). Degrades the same way: unreadable stores cost the
 /// derived addresses, never grant one.
 pub(crate) fn may_send_as_blocking(state: &FastcoreState, user: &str, from: &str) -> bool {
+    send_as_permissions_blocking(state, user).may_send_as(from)
+}
+
+/// The permissions [`may_send_as_blocking`] decides by: the account's own
+/// grants, with the addresses its aliases and groups give.
+pub(crate) fn send_as_permissions_blocking(
+    state: &FastcoreState,
+    user: &str,
+) -> adm::EffectivePermissionsResponse {
     let own = match state.mailbox.get_permissions_blob(user) {
         Ok(Some(json)) => serde_json::from_str::<adm::EffectivePermissionsResponse>(&json).ok(),
         Ok(None) => None,
@@ -138,7 +147,7 @@ pub(crate) fn may_send_as_blocking(state: &FastcoreState, user: &str, from: &str
     };
     perms.send_as = send_as::union(&perms.send_as, derived.aliases, derived.groups);
     perms.masks = derived.masks;
-    perms.may_send_as(from)
+    perms
 }
 
 /// `GET /v1/admin/accounts/{address}/send-as` — the granted list only.

@@ -47,7 +47,7 @@ pub(super) fn spawn_workers(state: &Arc<FastcoreState>, kevy_dir: &str) {
     crate::maintenance::attachment_backlog::resume_on_boot(state.clone());
     crate::image_prefetch::spawn(state.clone());
     crate::routes::trash::spawn_purge(state.clone());
-    crate::account_purge::spawn(state.clone());
+    mailrs_core_routes::purge::spawn(state.clone());
     crate::senders::spawn_retention(state.clone());
     crate::ledger::spawn_link_prune(state.clone());
     crate::rejudge::spawn(state.clone());

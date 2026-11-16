@@ -18,19 +18,13 @@ use crate::core_rpc::CoreRpcState;
 
 // ── effective permissions ───────────────────────────────────────────
 
-pub(crate) mod account_purge;
 mod aliases;
-pub(crate) mod group_purge;
 mod ownerless;
-mod quota;
 mod rejudge;
-mod sent_to;
 
 pub(crate) use aliases::*;
 pub(crate) use ownerless::*;
-pub(crate) use quota::{quota_limits_route, usage_drift_apply_route, usage_drift_route};
 pub(crate) use rejudge::*;
-pub(crate) use sent_to::backfill_sent_to_route;
 
 /// GET /v1/admin/accounts/{address}/effective-permissions
 ///
