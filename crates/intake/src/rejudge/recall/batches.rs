@@ -37,43 +37,39 @@ impl Entry {
     }
 }
 
-pub(super) fn entry(state: &FastcoreState, observation: &str) -> Option<Entry> {
-    let raw = state
-        .mailbox
-        .store_ref()
-        .hget(BATCHES, observation.as_bytes())
-        .ok()
-        .flatten()?;
+pub(super) fn entry<S: RejudgeStore>(store: &S, observation: &str) -> Option<Entry> {
+    let raw = store.state_hget(BATCHES, observation).ok().flatten()?;
     serde_json::from_slice(&raw).ok()
 }
 
-pub(super) fn put_entry(state: &FastcoreState, observation: &str, e: &Entry) -> Result<(), String> {
+pub(super) fn put_entry<S: RejudgeStore>(
+    store: &S,
+    observation: &str,
+    e: &Entry,
+) -> Result<(), String> {
     let json = serde_json::to_vec(e).map_err(|e| e.to_string())?;
-    state
-        .mailbox
-        .store_ref()
-        .hset(BATCHES, &[(observation.as_bytes(), json.as_slice())])
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    store
+        .state_hset(BATCHES, observation, &json)
+        .map_err(|e| e.to_string())
 }
 
 /// One batch, for the administrator.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Batch {
-    pub(crate) observation: String,
-    pub(crate) at: i64,
-    pub(crate) conversations: u64,
-    pub(crate) released_at: i64,
-    pub(crate) pending: bool,
-    pub(crate) would_hold: u64,
-    pub(crate) rules: Vec<String>,
-    pub(crate) discarded_at: i64,
-    pub(crate) confirmed_at: i64,
+pub struct Batch {
+    pub observation: String,
+    pub at: i64,
+    pub conversations: u64,
+    pub released_at: i64,
+    pub pending: bool,
+    pub would_hold: u64,
+    pub rules: Vec<String>,
+    pub discarded_at: i64,
+    pub confirmed_at: i64,
 }
 
 /// Why a decision on a batch was refused.
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) enum Refused {
+pub enum Refused {
     /// No such batch.
     Missing,
     /// The batch is not in the state the decision is for: a pending or a
@@ -83,17 +79,15 @@ pub(crate) enum Refused {
 }
 
 /// Every batch, newest first.
-pub(crate) fn batches(state: &FastcoreState) -> Vec<Batch> {
-    let store = state.mailbox.store_ref();
+pub fn batches<S: RejudgeStore>(store: &S) -> Vec<Batch> {
     let mut out: Vec<Batch> = store
-        .hgetall(BATCHES)
+        .state_hgetall(BATCHES)
         .unwrap_or_default()
         .into_iter()
-        .filter_map(|(obs, raw)| {
-            let observation = String::from_utf8(obs).ok()?;
+        .filter_map(|(observation, raw)| {
             let e: Entry = serde_json::from_slice(&raw).ok()?;
             let conversations = store
-                .smembers(batch_key(&observation).as_bytes())
+                .state_smembers(&batch_key(&observation))
                 .map(|m| m.len() as u64)
                 .unwrap_or(0);
             Some(Batch {
@@ -116,8 +110,8 @@ pub(crate) fn batches(state: &FastcoreState) -> Vec<Batch> {
     out
 }
 
-fn audit(state: &FastcoreState, actor: &str, action: &str, observation: &str, detail: &str) {
-    let Some(mut c) = state.net_conn() else {
+fn audit<S: RejudgeStore>(store: &S, actor: &str, action: &str, observation: &str, detail: &str) {
+    let Some(mut c) = store.net_conn() else {
         tracing::warn!(%action, %observation, "rejudge: no shared store; the batch was not audited");
         return;
     };
@@ -133,8 +127,8 @@ fn audit(state: &FastcoreState, actor: &str, action: &str, observation: &str, de
     }
 }
 
-fn pending_entry(state: &FastcoreState, observation: &str) -> Result<Entry, Refused> {
-    let e = entry(state, observation).ok_or(Refused::Missing)?;
+fn pending_entry<S: RejudgeStore>(store: &S, observation: &str) -> Result<Entry, Refused> {
+    let e = entry(store, observation).ok_or(Refused::Missing)?;
     if !e.pending {
         return Err(Refused::Conflict);
     }
@@ -145,99 +139,96 @@ fn pending_entry(state: &FastcoreState, observation: &str) -> Result<Entry, Refu
 /// they are now: one held since, released by a person since its message
 /// came, or no longer held by the rules stays out. Returns how many were
 /// held.
-pub(crate) fn confirm_batch(
-    state: &Arc<FastcoreState>,
+pub fn confirm_batch<S: RejudgeStore>(
+    store: &S,
     observation: &str,
     actor: &str,
 ) -> Result<u64, Refused> {
-    let mut e = pending_entry(state, observation)?;
-    let recorded: Vec<Candidate> = candidates(state, observation)
+    let mut e = pending_entry(store, observation)?;
+    let recorded: Vec<Candidate> = candidates(store, observation)
         .into_iter()
         .filter(|c| {
-            state
-                .mailbox
+            store
                 .ledger_verdict(&c.user, &c.mid)
                 .ok()
                 .flatten()
                 .is_some_and(|v| v.holds)
         })
         .collect();
-    let held = hold_all(state, observation, &recorded);
+    let held = hold_all(store, observation, &recorded);
     e.pending = false;
     e.confirmed_at = now();
-    if let Err(error) = put_entry(state, observation, &e) {
+    if let Err(error) = put_entry(store, observation, &e) {
         tracing::error!(%error, %observation, "rejudge: the confirmed batch was not marked");
     }
-    forget(state, observation);
+    forget(store, observation);
     let detail = format!(
         "batch={observation} would_hold={} held={held} rules={}",
         e.would_hold,
         e.rules.join(",")
     );
-    audit(state, actor, "rejudge.batch_confirm", observation, &detail);
+    audit(store, actor, "rejudge.batch_confirm", observation, &detail);
     Ok(held)
 }
 
 /// Hold nothing of a pending batch. Returns how many it would have held.
-pub(crate) fn discard_batch(
-    state: &FastcoreState,
+pub fn discard_batch<S: RejudgeStore>(
+    store: &S,
     observation: &str,
     actor: &str,
 ) -> Result<u64, Refused> {
-    let mut e = pending_entry(state, observation)?;
+    let mut e = pending_entry(store, observation)?;
     // their verdicts read "hold": the mark lets a later observation offer them
-    for c in candidates(state, observation) {
-        if let Err(error) = leave_unheld(state, &c.user, &c.mid, observation) {
+    for c in candidates(store, observation) {
+        if let Err(error) = leave_unheld(store, &c.user, &c.mid, observation) {
             tracing::warn!(%error, user = %c.user, tid = %c.tid,
                 "rejudge: a discarded conversation was not marked; no later observation offers it");
         }
     }
     e.pending = false;
     e.discarded_at = now();
-    if let Err(error) = put_entry(state, observation, &e) {
+    if let Err(error) = put_entry(store, observation, &e) {
         tracing::error!(%error, %observation, "rejudge: the discarded batch was not marked");
     }
-    forget(state, observation);
+    forget(store, observation);
     let detail = format!(
         "batch={observation} would_hold={} rules={}",
         e.would_hold,
         e.rules.join(",")
     );
-    audit(state, actor, "rejudge.batch_discard", observation, &detail);
+    audit(store, actor, "rejudge.batch_discard", observation, &detail);
     Ok(e.would_hold)
 }
 
 /// Put every conversation of one batch back, each audited. A pending or a
 /// discarded batch holds nothing and is refused, and so is one already put
 /// back: its time and its audit line say when that was, once.
-pub(crate) fn release_batch(
-    state: &FastcoreState,
+pub fn release_batch<S: RejudgeStore>(
+    store: &S,
     observation: &str,
     actor: &str,
 ) -> Result<u64, Refused> {
-    let mut e = entry(state, observation).ok_or(Refused::Missing)?;
+    let mut e = entry(store, observation).ok_or(Refused::Missing)?;
     if e.pending || e.discarded_at != 0 || e.released_at != 0 {
         return Err(Refused::Conflict);
     }
-    let store = state.mailbox.store_ref();
     let members = store
-        .smembers(batch_key(observation).as_bytes())
+        .state_smembers(&batch_key(observation))
         .unwrap_or_default();
     let mut released = 0;
     let conversations = members.len();
     // the rules the batch held for, for the line that says what was put back
     let mut batch_rules = std::collections::BTreeSet::new();
     let scope = format!("batch={observation}");
-    let mut conn = state.net_conn();
+    let mut conn = store.net_conn();
     for m in members {
-        let m = String::from_utf8_lossy(&m).to_string();
         let Some((user, tid)) = m.split_once('\t') else {
             continue;
         };
         // only what this batch still holds: a conversation released since,
         // or taken again by a later round, is not this batch's to move
         let still = store
-            .hget(recalled_key(user, tid).as_bytes(), b"observation")
+            .state_hget(&recalled_key(user, tid), "observation")
             .ok()
             .flatten()
             .is_some_and(|o| o == observation.as_bytes());
@@ -245,22 +236,12 @@ pub(crate) fn release_batch(
             continue;
         }
         // read before `note_released` clears the recall mark
-        let rules = rules_of(store.hget(recalled_key(user, tid).as_bytes(), b"rules"));
-        if state
-            .mailbox
-            .set_quarantined(user, tid, false)
-            .unwrap_or(false)
-        {
-            note_released(state, user, tid);
-            if let Err(error) = crate::hold_facts::record_release(
-                state,
-                user,
-                tid,
-                crate::hold_facts::BATCH,
-                actor,
-                "",
-                &scope,
-            ) {
+        let rules = rules_of(store.state_hget(&recalled_key(user, tid), "rules"));
+        if store.release(user, tid).unwrap_or(false) {
+            note_released(store, user, tid);
+            if let Err(error) =
+                facts::record_release(store, user, tid, facts::BATCH, actor, "", &scope)
+            {
                 tracing::error!(%error, %user, %tid, "rejudge: the batch release was not recorded");
             }
             released += 1;
@@ -287,9 +268,9 @@ pub(crate) fn release_batch(
         "{scope} conversations={conversations} released={released} rules={}",
         batch_rules.into_iter().collect::<Vec<_>>().join(",")
     );
-    audit(state, actor, "rejudge.batch_release", observation, &detail);
+    audit(store, actor, "rejudge.batch_release", observation, &detail);
     e.released_at = now();
-    if let Err(error) = put_entry(state, observation, &e) {
+    if let Err(error) = put_entry(store, observation, &e) {
         tracing::error!(%error, %observation, "rejudge: the released batch was not marked");
     }
     Ok(released)

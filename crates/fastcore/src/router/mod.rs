@@ -247,19 +247,19 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         )
         .route(
             adm::PATH_REJUDGE_BATCHES,
-            get(crate::rejudge::routes::batches),
+            get(mailrs_core_routes::rejudge::batches::<FastcoreState>),
         )
         .route(
             adm::PATH_RELEASE_REJUDGE_BATCH,
-            post(crate::rejudge::routes::release),
+            post(mailrs_core_routes::rejudge::release::<FastcoreState>),
         )
         .route(
             adm::PATH_CONFIRM_REJUDGE_BATCH,
-            post(crate::rejudge::routes::confirm),
+            post(mailrs_core_routes::rejudge::confirm::<FastcoreState>),
         )
         .route(
             adm::PATH_DISCARD_REJUDGE_BATCH,
-            post(crate::rejudge::routes::discard),
+            post(mailrs_core_routes::rejudge::discard::<FastcoreState>),
         )
         .route(adm::PATH_SET_MESSAGE_FLAGS, post(set_message_flags_route))
         // Ops endpoint — reset every user's ingest cursor to 0 so the

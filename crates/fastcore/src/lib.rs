@@ -48,7 +48,7 @@ mod hold_store;
 mod label_store;
 mod message_store;
 mod push;
-mod rejudge;
+mod rejudge_store;
 mod report;
 mod router;
 mod routes;

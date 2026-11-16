@@ -62,7 +62,7 @@ fn a_report_hold_is_a_fact_and_a_delete_takes_the_facts() {
     let state = fresh_state();
     ingest_delivered_file(&state, USER, "p1.eml", PHISH, "INBOX", None);
     let tid = "p1@outside.example";
-    let taken = crate::rejudge::recall::hold_reported(&state, USER, tid, None, "obs-1");
+    let taken = mailrs_intake::rejudge::recall::hold_reported(&*state, USER, tid, None, "obs-1");
     assert_eq!(taken, Ok(true));
 
     let facts = holds(&state, USER, tid).expect("facts");
@@ -82,7 +82,7 @@ fn a_rule_change_does_not_release_what_a_report_holds() {
     ingest_delivered_file(&state, USER, "p1.eml", PHISH, "INBOX", None);
     let tid = "p1@outside.example";
     assert_eq!(
-        crate::rejudge::recall::hold_reported(&state, USER, tid, None, "obs-1"),
+        mailrs_intake::rejudge::recall::hold_reported(&*state, USER, tid, None, "obs-1"),
         Ok(true)
     );
     assert_eq!(
@@ -90,7 +90,7 @@ fn a_rule_change_does_not_release_what_a_report_holds() {
         Ok(true)
     );
 
-    let released = crate::rejudge::recall::unrecall(&state, USER, tid, "lua:new");
+    let released = mailrs_intake::rejudge::recall::unrecall(&*state, USER, tid, "lua:new");
     assert_eq!(released, Ok(false));
     let row = state
         .mailbox

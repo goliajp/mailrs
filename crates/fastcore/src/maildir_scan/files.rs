@@ -66,11 +66,11 @@ pub(crate) fn mailbox_dir(user: &str) -> Option<std::path::PathBuf> {
 /// a billion directory entries. `maintenance:reindex` took minutes on
 /// production that way before this existed.
 pub(crate) fn names_on_disk(
-    state: &std::sync::Arc<crate::FastcoreState>,
+    _state: &crate::FastcoreState,
     user: &str,
 ) -> std::collections::HashMap<String, (Vec<mailrs_maildir::Flag>, Vec<char>)> {
     let mut out = std::collections::HashMap::new();
-    for e in entries_on_disk(state, user) {
+    for e in entries_on_disk(user) {
         // keywords come off the name the flags were parsed from, no stat
         let name = e.path.file_name().unwrap_or_default().to_string_lossy();
         let keywords = match name.find(':') {
@@ -84,19 +84,14 @@ pub(crate) fn names_on_disk(
 
 /// [`names_on_disk`]'s single scan, giving each file's path.
 pub(crate) fn paths_on_disk(
-    state: &std::sync::Arc<crate::FastcoreState>,
+    _state: &crate::FastcoreState,
     user: &str,
 ) -> std::collections::HashMap<String, std::path::PathBuf> {
-    entries_on_disk(state, user)
-        .map(|e| (e.id.0, e.path))
-        .collect()
+    entries_on_disk(user).map(|e| (e.id.0, e.path)).collect()
 }
 
-fn entries_on_disk(
-    state: &std::sync::Arc<crate::FastcoreState>,
-    user: &str,
-) -> impl Iterator<Item = mailrs_maildir::Entry> {
-    crate::imap::backend::list_mailboxes(state, user)
+fn entries_on_disk(user: &str) -> impl Iterator<Item = mailrs_maildir::Entry> {
+    crate::imap::backend::list_mailboxes_in(&crate::imap::backend::maildir_root(), user)
         .into_iter()
         .flat_map(|mb| {
             let md = mailrs_maildir::Maildir::open(&mb.path);

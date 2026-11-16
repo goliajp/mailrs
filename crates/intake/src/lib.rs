@@ -46,6 +46,7 @@ pub mod notice;
 pub mod outbound;
 pub mod push;
 pub mod push_policy;
+pub mod rejudge;
 pub mod reports;
 pub mod route;
 pub mod rules;
