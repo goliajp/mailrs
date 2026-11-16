@@ -3,7 +3,6 @@
 //! shared with the SQL core.
 
 use std::io;
-use std::sync::Arc;
 
 use mailrs_intake::scam_report::{ReportStore, hold_rule};
 use mailrs_report::Template;
@@ -38,15 +37,13 @@ pub(crate) fn record(state: &FastcoreState, user: &str, mid: &str, raw: &[u8], a
 }
 
 /// The kevy core as a report sees it.
-pub(crate) struct Reports<'a>(pub(crate) &'a Arc<FastcoreState>);
-
-impl ReportStore for Reports<'_> {
+impl ReportStore for crate::sent::Store {
     fn net_conn(&self) -> Option<kevy_client::Connection> {
         self.0.net_conn()
     }
 
     fn conversation_of(&self, user: &str, mid: &str) -> io::Result<Option<(String, bool)>> {
-        Ok(crate::rejudge::judge::thread_of(self.0, user, mid)
+        Ok(crate::rejudge::judge::thread_of(&self.0, user, mid)
             .map(|(tid, row)| (tid, row.quarantined)))
     }
 
@@ -87,7 +84,7 @@ impl ReportStore for Reports<'_> {
     fn fraud_inputs(&self, mid: &str) -> hold_rule::Inputs {
         use crate::maintenance::fraud_rescan::config;
         hold_rule::Inputs {
-            policy: hold_rule::policy(config::account_display_names(self.0)),
+            policy: hold_rule::policy(config::account_display_names(&self.0)),
             our_stamp: config::our_authserv_id(),
             attachment_texts: self.0.mailbox.attachment_texts(mid).unwrap_or_default(),
             qr_urls: self.0.mailbox.attachment_qr_urls(mid).unwrap_or_default(),
@@ -100,7 +97,7 @@ impl ReportStore for Reports<'_> {
         if !self.0.mailbox.set_quarantined(user, tid, true)? {
             return Err(io::Error::other("thread membership disappeared"));
         }
-        crate::hold_facts::record_hold_fact(self.0, user, tid, crate::hold_facts::REPORT, "")
+        crate::hold_facts::record_hold_fact(&self.0, user, tid, crate::hold_facts::REPORT, "")
             .map_err(io::Error::other)
     }
 
@@ -112,6 +109,6 @@ impl ReportStore for Reports<'_> {
             .template_of(mid)
             .map_err(|e| e.to_string())?
             .map(|t| t.at);
-        crate::rejudge::recall::hold_reported(self.0, user, tid, arrived, batch)
+        crate::rejudge::recall::hold_reported(&self.0, user, tid, arrived, batch)
     }
 }

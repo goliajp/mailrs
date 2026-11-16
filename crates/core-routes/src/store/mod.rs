@@ -5,6 +5,7 @@ mod account;
 mod check;
 mod check_search;
 mod hold;
+mod intake;
 mod label;
 mod message;
 mod search;
@@ -17,6 +18,7 @@ pub use check::{
 };
 pub use check_search::{check_search_store, search_fixtures};
 pub use hold::HoldStore;
+pub use intake::IntakeStore;
 pub use label::{LabelFailure, LabelResult, LabelStore};
 pub use message::MessageReads;
 pub use search::SearchStore;
