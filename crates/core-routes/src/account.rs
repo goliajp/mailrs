@@ -10,7 +10,7 @@ use mailrs_core_api::method::admin as adm;
 use mailrs_core_sidestate::families::account_purge::{maildir, pending};
 use mailrs_core_sidestate::families::{audit, quota_limits};
 
-use crate::store::{AccountPatch, AccountStore, NewAccount, StoreError};
+use crate::store::{AccountPatch, AccountStore, NewAccount, PurgeStore, StoreError};
 
 fn now() -> i64 {
     chrono::Utc::now().timestamp()
@@ -222,7 +222,7 @@ pub async fn clear_password<S: AccountStore>(
 /// account owns stays until the retention period has passed: the address
 /// is marked pending purge, and the purge removes it all then, or at once
 /// under a retention of 0 days.
-pub async fn remove_account<S: AccountStore>(
+pub async fn remove_account<S: PurgeStore>(
     State(state): State<Arc<S>>,
     Path(address): Path<String>,
     Query(by): Query<adm::ActorQuery>,
@@ -268,7 +268,7 @@ pub async fn remove_account<S: AccountStore>(
     }
     audit::record_by_core(&*state, by.actor(), audit::ACCOUNT_DELETE, &address, "", at);
     if marked && pending::retention_days() == 0 {
-        state.clone().purge_now(address, at).await;
+        crate::purge::purge_now(state.clone(), address).await;
     }
     StatusCode::NO_CONTENT.into_response()
 }

@@ -11,8 +11,10 @@ pub(crate) mod handlers;
 mod hold_store;
 mod intake_store;
 mod label_store;
+mod maintenance_store;
 mod message_store;
 mod operator_clear;
+mod purge_store;
 mod router;
 mod router_views;
 mod search_store;
@@ -63,7 +65,7 @@ pub struct CoreRpcState {
 /// Start the Trash purge over this core's store.
 pub(crate) fn spawn_trash_purge(state: Arc<CoreRpcState>) {
     handlers::trash::spawn_purge(state.clone());
-    handlers::admin::account_purge::spawn(state.clone());
+    mailrs_core_routes::purge::spawn(state.clone());
     handlers::sender_rules::spawn_retention(state);
 }
 
