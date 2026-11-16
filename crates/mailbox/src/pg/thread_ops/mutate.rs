@@ -1,5 +1,5 @@
 //! Thread-level mutation operations: read/unread flags, star/pin/archive,
-//! snooze/unsnooze, delete, and email-analysis dismissal.
+//! snooze/unsnooze, and email-analysis dismissal.
 
 use crate::pg::PgMailboxStore;
 use crate::types::{FLAG_FLAGGED, FLAG_SEEN};
@@ -358,43 +358,5 @@ impl PgMailboxStore {
             .await?;
         }
         Ok(due.len() as u64)
-    }
-
-    /// delete all mailbox entries for a thread belonging to a user
-    /// messages table rows are left intact (other users may share them)
-    /// returns list of (user_address, maildir_id) for physical file cleanup
-    pub async fn delete_thread(
-        &self,
-        user: &str,
-        thread_id: &str,
-    ) -> Result<Vec<String>, sqlx::Error> {
-        // collect maildir_ids to delete from disk
-        let maildir_ids: Vec<(String,)> = sqlx::query_as(
-            "SELECT m.maildir_id FROM messages m
-             JOIN mailboxes mb ON m.mailbox_id = mb.id
-             WHERE m.thread_id = $1 AND mb.user_address = $2",
-        )
-        .bind(thread_id)
-        .bind(user)
-        .fetch_all(&self.pool)
-        .await?;
-
-        // remove from messages table for this user's mailboxes
-        sqlx::query(
-            "DELETE FROM messages
-             WHERE thread_id = $1
-               AND mailbox_id IN (SELECT id FROM mailboxes WHERE user_address = $2)",
-        )
-        .bind(thread_id)
-        .bind(user)
-        .execute(&self.pool)
-        .await?;
-        // nothing left to keep in the Trash: the purge would find this row
-        // again on every pass
-        self.untrash_thread(user, thread_id).await?;
-        self.drop_thread_labels(user, thread_id).await?;
-        self.drop_hold_facts(user, thread_id).await?;
-
-        Ok(maildir_ids.into_iter().map(|(id,)| id).collect())
     }
 }
