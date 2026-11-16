@@ -183,7 +183,7 @@ fn replay(
         inspector: &inspector,
         own: &own,
         observed: &observed,
-        fraud: super::fraud_rescan::FraudJudge::new(state),
+        fraud: super::fraud_rescan::fraud_judge(state),
         fraud_version: String::new(),
         samples: [Sample::default(), Sample::default(), Sample::default()],
         coverage: [Coverage::new(), Coverage::new(), Coverage::new()],
@@ -311,7 +311,11 @@ impl Walk<'_> {
         if self.scope == Scope::All {
             self.coverage[which].add(&coverage::seen(raw, self.inspector));
         }
-        match self.fraud.judge(state, user, message_id, raw) {
+        match self.fraud.judge(
+            user,
+            raw,
+            &super::fraud_rescan::extracted(state, message_id),
+        ) {
             Ok(j) => {
                 self.fraud_version = j.version;
                 sample.fraud_hold += u64::from(j.holds);

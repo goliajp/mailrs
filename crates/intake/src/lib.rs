@@ -29,6 +29,7 @@ pub mod domain_prune;
 pub mod domains;
 pub mod dsn;
 pub mod effects;
+pub mod fraud_judge;
 pub mod headers;
 pub mod idle_backoff;
 pub mod image_prefetch;

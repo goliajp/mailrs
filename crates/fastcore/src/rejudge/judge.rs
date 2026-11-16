@@ -44,7 +44,7 @@ impl Judge {
             .map(|d| d.to_ascii_lowercase())
             .collect();
         Self {
-            fraud: FraudJudge::new(state),
+            fraud: crate::maintenance::fraud_rescan::fraud_judge(state),
             screening: mailrs_core_sidestate::families::screening::Live::new(own.clone()),
             never: NeverList::builtin(&own),
             own,
@@ -127,7 +127,11 @@ impl Judge {
             return false;
         };
         Counts::add(&COUNTS.messages, 1);
-        let judged = match self.fraud.judge(state, user, mid, &raw) {
+        let judged = match self.fraud.judge(
+            user,
+            &raw,
+            &crate::maintenance::fraud_rescan::extracted(state, mid),
+        ) {
             Ok(j) => j,
             Err(e) => {
                 tracing::warn!(error = %e, %user, %mid, "rejudge: the fraud rules could not run");
