@@ -32,6 +32,7 @@ mod intake_rules;
 mod invites;
 mod junk_corrections;
 mod labels;
+mod ledger;
 mod mail;
 mod maintenance;
 mod mark_list_read;

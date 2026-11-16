@@ -936,7 +936,51 @@ CREATE INDEX idx_messages_header_words_null ON messages (id) WHERE header_words 
 CREATE INDEX idx_messages_snippet_trgm ON messages USING gin (snippet gin_trgm_ops)
     WHERE snippet != '';
 
+-- the fact ledger (migrate-068)
+CREATE TABLE ledger_messages (
+    user_address TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    arrived BIGINT NOT NULL,
+    from_addr TEXT NOT NULL,
+    from_domain TEXT NOT NULL,
+    from_reg TEXT NOT NULL,
+    reply_to TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    link_hosts TEXT NOT NULL,
+    attachment_sha256 TEXT NOT NULL,
+    PRIMARY KEY (user_address, message_id)
+);
+CREATE INDEX idx_ledger_messages_reg ON ledger_messages (from_reg);
+CREATE TABLE ledger_links (
+    user_address TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    host TEXT NOT NULL,
+    reg TEXT NOT NULL,
+    until BIGINT,
+    PRIMARY KEY (user_address, message_id, host)
+);
+CREATE INDEX idx_ledger_links_reg ON ledger_links (reg);
+CREATE INDEX idx_ledger_links_until ON ledger_links (until) WHERE until IS NOT NULL;
+CREATE TABLE ledger_files (
+    user_address TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    sha256 TEXT NOT NULL,
+    PRIMARY KEY (user_address, message_id, sha256)
+);
+CREATE INDEX idx_ledger_files_sha256 ON ledger_files (sha256);
+CREATE TABLE ledger_verdicts (
+    user_address TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    rules TEXT NOT NULL,
+    score DOUBLE PRECISION NOT NULL,
+    rules_version TEXT NOT NULL,
+    judged_at BIGINT NOT NULL,
+    holds BOOLEAN NOT NULL,
+    screening TEXT NOT NULL,
+    PRIMARY KEY (user_address, message_id)
+);
+
 -- The migration this schema is equal to; the core reads it at boot and
 -- applies whatever it carries beyond it.
 CREATE TABLE schema_version (version INTEGER NOT NULL);
-INSERT INTO schema_version (version) VALUES (67);
+INSERT INTO schema_version (version) VALUES (68);

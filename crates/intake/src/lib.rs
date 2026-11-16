@@ -35,6 +35,7 @@ pub mod image_prefetch;
 pub mod import;
 pub mod importance;
 pub mod invite;
+pub mod ledger;
 pub mod live_sync;
 pub mod mail_files;
 pub mod maildir;

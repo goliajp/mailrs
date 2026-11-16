@@ -16,6 +16,7 @@ use crate::pg::helpers::row_to_message_meta_from_row;
 use crate::types::MessageMeta;
 
 mod backfill;
+mod delete;
 mod filing;
 mod holds;
 pub use holds::{HoldFact, ReleaseFact};

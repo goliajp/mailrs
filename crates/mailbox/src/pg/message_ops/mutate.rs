@@ -87,7 +87,17 @@ impl PgMailboxStore {
         uids: &[u32],
     ) -> Result<Vec<u32>, sqlx::Error> {
         let mut gone = Vec::with_capacity(uids.len());
+        let mut mids = Vec::new();
         for &uid in uids {
+            let mid: Option<(String,)> = sqlx::query_as(
+                "SELECT message_id FROM messages
+                  WHERE mailbox_id = $1 AND uid = $2 AND (flags & $3) != 0",
+            )
+            .bind(mailbox_id)
+            .bind(uid as i32)
+            .bind(crate::types::FLAG_DELETED as i32)
+            .fetch_optional(&self.pool)
+            .await?;
             let deleted = sqlx::query(
                 "DELETE FROM messages WHERE mailbox_id = $1 AND uid = $2 AND (flags & $3) != 0",
             )
@@ -98,8 +108,10 @@ impl PgMailboxStore {
             .await?;
             if deleted.rows_affected() > 0 {
                 gone.push(uid);
+                mids.extend(mid.map(|(m,)| m));
             }
         }
+        self.forget_ledger_in(mailbox_id, &mids).await?;
         Ok(gone)
     }
 
@@ -114,12 +126,21 @@ impl PgMailboxStore {
         .await?;
 
         let uids: Vec<u32> = uid_rows.into_iter().map(|r| r.0 as u32).collect();
+        let mids: Vec<(String,)> = sqlx::query_as(
+            "SELECT DISTINCT message_id FROM messages WHERE mailbox_id = $1 AND (flags & $2) != 0",
+        )
+        .bind(mailbox_id)
+        .bind(crate::types::FLAG_DELETED as i32)
+        .fetch_all(&self.pool)
+        .await?;
 
         sqlx::query("DELETE FROM messages WHERE mailbox_id = $1 AND (flags & $2) != 0")
             .bind(mailbox_id)
             .bind(crate::types::FLAG_DELETED as i32)
             .execute(&self.pool)
             .await?;
+        let mids: Vec<String> = mids.into_iter().map(|(m,)| m).collect();
+        self.forget_ledger_in(mailbox_id, &mids).await?;
 
         Ok(uids)
     }

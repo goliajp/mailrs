@@ -111,6 +111,14 @@ impl PgMailboxStore {
     /// Delete a mailbox and every message inside it. Returns `true` when a
     /// mailbox row was removed.
     pub async fn delete_mailbox(&self, user: &str, name: &str) -> Result<bool, sqlx::Error> {
+        let mids: Vec<(String,)> = sqlx::query_as(
+            "SELECT DISTINCT message_id FROM messages WHERE mailbox_id IN
+             (SELECT id FROM mailboxes WHERE user_address = $1 AND name = $2)",
+        )
+        .bind(user)
+        .bind(name)
+        .fetch_all(&self.pool)
+        .await?;
         // messages are CASCADE-deleted via FK, but be explicit
         sqlx::query(
             "DELETE FROM messages WHERE mailbox_id IN
@@ -126,6 +134,8 @@ impl PgMailboxStore {
             .bind(name)
             .execute(&self.pool)
             .await?;
+        let mids: Vec<String> = mids.into_iter().map(|(m,)| m).collect();
+        self.forget_ledger_of_gone(user, &mids).await?;
 
         Ok(result.rows_affected() > 0)
     }

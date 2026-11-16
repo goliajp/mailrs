@@ -19,6 +19,7 @@ pub mod attachment_text;
 pub mod fixtures;
 /// A user's labels and the naming rules every core applies to them.
 pub mod labels;
+pub mod ledger;
 /// Paging a conversation list by time and a second key every store shares.
 pub mod page_cursor;
 /// Who a conversation is with, in the order the mail arrived.
