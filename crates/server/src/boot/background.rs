@@ -35,6 +35,7 @@ pub(super) fn spawn_spool_drain(
         maildir_root: cfg.maildir_root.clone(),
         net_url: net_url.clone(),
     }));
+    crate::intake::spawn_ledger_fill(mailbox.clone(), cfg.maildir_root.clone(), authserv_id(cfg));
     let core = Arc::new(crate::intake::PgCore {
         dir: crate::intake::PgDirectory {
             authserv_id: authserv_id(cfg),
