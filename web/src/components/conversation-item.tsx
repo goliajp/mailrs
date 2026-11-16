@@ -20,6 +20,7 @@ import {
   MAIL_ROW_FRAME,
   mailRowStateClass,
 } from '@/lib/list-row-class'
+import { rowCategory } from '@/lib/row-category'
 
 export const ConversationItem = memo(function ConversationItem({
   batchMode,
@@ -68,6 +69,7 @@ export const ConversationItem = memo(function ConversationItem({
   const isFlagged = convo.flagged
   const isPinned = convo.pinned
   const isArchived = convo.archived
+  const category = rowCategory(convo, Math.floor(Date.now() / 1000))
   // A thread that is asleep is filed away, so it shows up in Archived
   // and nowhere else. Without saying when it comes back, that reads as
   // an ordinary archived thread and the way out is not obvious.
@@ -305,9 +307,9 @@ export const ConversationItem = memo(function ConversationItem({
             <span className="shrink-0">
               <ImportanceBadge level={convo.importance_level} />
             </span>
-            {convo.category && convo.category !== 'general' && (
+            {category !== null && (
               <span className="shrink-0">
-                <CategoryBadge category={convo.category} />
+                <CategoryBadge category={category} />
               </span>
             )}
             {hasUnread && (
