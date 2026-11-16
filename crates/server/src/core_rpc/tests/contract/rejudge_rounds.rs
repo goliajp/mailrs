@@ -1,19 +1,19 @@
 //! Re-judging after a reputation change, alike on both cores: the same
 //! mail, arriving through each core's intake, is found by the same
 //! observation, judged by the same rules, and given the same verdicts; the
-//! batch routes answer alike.
+//! batch routes answer alike, and a round over the hold cap is decided
+//! alike.
 
 use std::sync::Arc;
 
 use mailrs_intake::rejudge::{judge::Judge, tick};
 use mailrs_reputation::{Kind, Observation, Source, Stance};
 
+use super::ALICE;
 use super::harness;
 use super::intake::{Spools, envelope};
-use super::{ALICE, accounts};
 
-const FASTCORE: &str = "mem://rejudge-fastcore";
-const PG_CORE: &str = "mem://rejudge-pg-core";
+use super::harness::{FASTCORE_KEVY as FASTCORE, PG_CORE_KEVY as PG_CORE};
 
 fn letter(n: u32, from: &str) -> Vec<u8> {
     format!(
@@ -54,19 +54,22 @@ async fn round<S: mailrs_intake::rejudge::RejudgeStore>(store: Arc<S>) -> u64 {
     .expect("round task")
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn both_cores_judge_the_same_mail_again_alike() {
-    let c = harness::start_on(FASTCORE, PG_CORE).await;
-    let mut d = harness::Diffs::default();
-    accounts::seed(&c, &mut d).await;
-    assert!(d.0.is_empty(), "{}", d.0.join("\n\n"));
-    let spools = Spools::new(&c);
+/// Run in the call-by-call contract, so the batch decisions count as
+/// reached on both cores. No other scenario there adds an observation.
+pub(super) async fn run(c: &harness::Cores, d: &mut harness::Diffs) {
+    // SAFETY: only re-judge rounds read these, and this test runs the only
+    // rounds in this binary
+    unsafe {
+        std::env::set_var(mailrs_intake::rejudge::recall::ACT_ENV, "on");
+        std::env::set_var("MAILRS_REJUDGE_HOLD_CAP", "1");
+    }
+    let spools = Spools::new(c);
     for (n, from) in [
         (1, "news@mail.shop.example"),
         (2, "billing@shop.example"),
         (3, "friend@elsewhere.example"),
     ] {
-        spools.arrive(&c, &envelope(None), &letter(n, from)).await;
+        spools.arrive(c, &envelope(None), &letter(n, from)).await;
     }
     let fc = c.fastcore_state.clone();
     let pg = Arc::new(c.pg_core_state.pg_core());
@@ -107,14 +110,22 @@ async fn both_cores_judge_the_same_mail_again_alike() {
         );
     }
     // nothing more to judge until another observation
-    assert_eq!((round(fc).await, round(pg).await), (0, 0), "a quiet round");
-
-    let batches = d.both(
-        "rejudge_batches",
-        c.fastcore.rejudge_batches().await,
-        c.pg_core.rejudge_batches().await,
-        &[],
+    assert_eq!(
+        (round(fc.clone()).await, round(pg.clone()).await),
+        (0, 0),
+        "a quiet round"
     );
-    assert!(batches.is_some(), "the batch list answers on both cores");
-    assert!(d.0.is_empty(), "{}", d.0.join("\n\n"));
+    super::rejudge_batches::discard_the_waiting_round(c, d).await;
+
+    for (n, from) in [(4, "a@deals.example"), (5, "b@deals.example")] {
+        spools.arrive(c, &envelope(None), &letter(n, from)).await;
+    }
+    observe(FASTCORE, "deals.example");
+    observe(PG_CORE, "deals.example");
+    assert_eq!(
+        (round(fc).await, round(pg).await),
+        (2, 2),
+        "messages judged for the second observation"
+    );
+    super::rejudge_batches::confirm_then_release_the_next(c, d).await;
 }

@@ -112,20 +112,7 @@ pub(super) const ELSEWHERE: &[(&str, &str)] = &[
 /// Calls the SQL core does not answer with success yet, each with the gap it
 /// is. An entry that both cores come to answer fails the run until it is
 /// taken off, so the list only shrinks.
-pub(super) const OWED: &[(&str, &str)] = &[
-    (
-        "POST /v1/admin/rejudge-batches/*/release",
-        "the SQL core does not re-judge yet, so it has no rounds (H2)",
-    ),
-    (
-        "POST /v1/admin/rejudge-batches/*/confirm",
-        "the SQL core does not re-judge yet, so it has no rounds (H2)",
-    ),
-    (
-        "POST /v1/admin/rejudge-batches/*/discard",
-        "the SQL core does not re-judge yet, so it has no rounds (H2)",
-    ),
-];
+pub(super) const OWED: &[(&str, &str)] = &[];
 
 /// Calls that succeed only on one store's own kind of damage, which the
 /// other store cannot hold; their success is tested on that store itself.
