@@ -47,30 +47,26 @@ impl HoldStore for CoreRpcState {
             .release_thread(user, thread_id)
             .await
             .map_err(failed)?;
-        let fact = mailrs_mailbox::pg::ReleaseFact {
-            at: chrono::Utc::now().timestamp(),
-            source: "person".to_string(),
-            actor: user.to_string(),
-            rules_version: String::new(),
-        };
-        self.mailbox
-            .record_release(user, thread_id, &fact)
-            .await
-            .map_err(failed)?;
-        // the audit line fastcore's release record writes, alike
-        let detail = format!(
-            "user={user} source={} actor={} rules_version={}",
-            fact.source, fact.actor, fact.rules_version
-        );
-        mailrs_core_sidestate::families::audit::record_by_core(
-            self,
-            &fact.actor,
-            "quarantine.release",
-            thread_id,
-            &detail,
-            fact.at,
-        );
-        Ok(())
+        // the release fact a later re-judge consults, its audit line, and
+        // the rules it was put back despite, as on the kevy core
+        let core = self.pg_core();
+        let (user, tid) = (user.to_string(), thread_id.to_string());
+        tokio::task::spawn_blocking(move || {
+            mailrs_intake::rejudge::facts::record_release(
+                &core,
+                &user,
+                &tid,
+                mailrs_intake::rejudge::facts::PERSON,
+                &user,
+                "",
+                "",
+            )?;
+            mailrs_intake::rejudge::recall::note_released(&core, &user, &tid);
+            Ok::<(), String>(())
+        })
+        .await
+        .map_err(|e| StoreError(e.to_string()))?
+        .map_err(StoreError)
     }
 
     async fn queue_images(&self, user: &str, thread_id: &str) {

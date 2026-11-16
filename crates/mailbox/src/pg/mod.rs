@@ -20,6 +20,7 @@ mod ledger;
 mod mailbox_ops;
 mod message_ops;
 mod reconcile_ops;
+mod rejudge;
 pub use reconcile_ops::ReconcileReport;
 mod search_ids;
 mod search_words;
