@@ -74,15 +74,6 @@ pub trait AccountStore: NetKevy {
     fn drop_account(&self, address: &str, now: i64)
     -> impl Future<Output = StoreResult<()>> + Send;
 
-    /// Purge what the deleted account at `address` owns now, rather than
-    /// after the retention period. Failures are logged: the retention task
-    /// retries.
-    fn purge_now(
-        self: std::sync::Arc<Self>,
-        address: String,
-        now: i64,
-    ) -> impl Future<Output = ()> + Send;
-
     /// Put back the account a delete dropped, from `kept` (what
     /// [`Self::record_for_restore`] gave, if anything). `false` when there
     /// is nothing to put back.

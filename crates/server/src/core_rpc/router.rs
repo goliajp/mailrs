@@ -50,7 +50,7 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         // read-only: which stored Sieve scripts the forwarding rules change
         .route(
             "/v1/admin/maintenance:sieve-survey",
-            get(handlers::maintenance::sieve_survey),
+            get(mailrs_core_routes::maintenance::sieve_survey::<CoreRpcState>),
         )
         .route(
             conv_paths::PATH_LIST_CONVERSATIONS,
@@ -232,23 +232,24 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         )
         .route(
             adm_paths::PATH_QUOTA_LIMITS,
-            post(handlers::admin::quota_limits_route),
+            post(mailrs_core_routes::maintenance::quota_limits::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_ACCOUNT_PURGE,
-            post(handlers::admin::account_purge::account_purge_route),
+            post(mailrs_core_routes::purge::account_purge::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_GROUP_PURGE,
-            post(handlers::admin::group_purge::group_purge_route),
+            post(mailrs_core_routes::purge::group_purge::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_BACKFILL_SENT_TO,
-            post(handlers::admin::backfill_sent_to_route),
+            post(mailrs_core_routes::maintenance::backfill_sent_to::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_USAGE_DRIFT,
-            get(handlers::admin::usage_drift_route).post(handlers::admin::usage_drift_apply_route),
+            get(mailrs_core_routes::maintenance::usage_drift::<CoreRpcState>)
+                .post(mailrs_core_routes::maintenance::usage_drift_apply::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_UPDATE_RECOVERY_EMAIL,

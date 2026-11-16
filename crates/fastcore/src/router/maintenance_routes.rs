@@ -25,18 +25,21 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
         )
         // Usage against the default quota limit; `?dry_run=false` gives the
         // default to accounts created without one.
-        .route(adm::PATH_QUOTA_LIMITS, post(quota_limits_route))
+        .route(
+            adm::PATH_QUOTA_LIMITS,
+            post(mailrs_core_routes::maintenance::quota_limits::<FastcoreState>),
+        )
         // Deleted accounts whose retention has passed, counted per store;
         // `?dry_run=false` removes them for good, one audit row each.
         .route(
             adm::PATH_ACCOUNT_PURGE,
-            post(crate::account_purge::account_purge_route),
+            post(mailrs_core_routes::purge::account_purge::<FastcoreState>),
         )
         // Deleted email groups whose retention has passed, their team
         // state counted; `?dry_run=false` removes it, one audit row each.
         .route(
             adm::PATH_GROUP_PURGE,
-            post(crate::account_purge::group_purge_route),
+            post(mailrs_core_routes::purge::group_purge::<FastcoreState>),
         )
         // Read-only. Answers "is a query running with no declared path" and
         // "is a declared path carrying no queries" — neither of which this
@@ -152,14 +155,14 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
         // Read-only: which stored Sieve scripts the forwarding rules change.
         .route(
             "/v1/admin/maintenance:sieve-survey",
-            get(crate::maintenance::sieve_survey_route),
+            get(mailrs_core_routes::maintenance::sieve_survey::<FastcoreState>),
         )
         // Each account's usage counter against its maildir: GET reports,
         // POST `?dry_run=false` corrects.
         .route(
             adm::PATH_USAGE_DRIFT,
-            get(crate::maintenance::usage_drift_route)
-                .post(crate::maintenance::usage_drift_apply_route),
+            get(mailrs_core_routes::maintenance::usage_drift::<FastcoreState>)
+                .post(mailrs_core_routes::maintenance::usage_drift_apply::<FastcoreState>),
         )
         // Read-only: what the report fingerprints and their index hold.
         .route(
@@ -373,7 +376,10 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
         )
         // The list of addresses each user sent mail to, from the
         // relationship counters, for the fraud rules (dry by default).
-        .route(adm::PATH_BACKFILL_SENT_TO, post(backfill_sent_to_route))
+        .route(
+            adm::PATH_BACKFILL_SENT_TO,
+            post(mailrs_core_routes::maintenance::backfill_sent_to::<FastcoreState>),
+        )
         // Importance verdicts for threads that predate the feature —
         // scoring only runs at ingest, so without this every existing
         // thread would stay blank forever.

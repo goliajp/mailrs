@@ -7,7 +7,9 @@ mod check_search;
 mod hold;
 mod intake;
 mod label;
+mod maintenance;
 mod message;
+mod purge;
 mod search;
 mod thread;
 
@@ -20,7 +22,9 @@ pub use check_search::{check_search_store, search_fixtures};
 pub use hold::HoldStore;
 pub use intake::IntakeStore;
 pub use label::{LabelFailure, LabelResult, LabelStore};
+pub use maintenance::MaintenanceStore;
 pub use message::MessageReads;
+pub use purge::PurgeStore;
 pub use search::SearchStore;
 pub use thread::{ReaderView, ThreadStore};
 
