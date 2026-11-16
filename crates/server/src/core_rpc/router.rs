@@ -220,11 +220,11 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         .route(
             adm_paths::PATH_UPDATE_ACCOUNT,
             put(mailrs_core_routes::account::update_account::<CoreRpcState>)
-                .delete(handlers::admin::remove_account),
+                .delete(mailrs_core_routes::account::remove_account::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_RESTORE_ACCOUNT,
-            post(handlers::admin::restore_account),
+            post(mailrs_core_routes::account::restore_account::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_SET_QUOTA,

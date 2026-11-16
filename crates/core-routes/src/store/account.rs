@@ -38,6 +38,9 @@ pub enum AccountPatch<'a> {
 pub trait AccountStore: NetKevy {
     fn net_configured(&self) -> bool;
 
+    /// Whether `address` has an account, without reading it whole.
+    fn exists(&self, address: &str) -> impl Future<Output = StoreResult<bool>> + Send;
+
     fn account(
         &self,
         address: &str,
@@ -54,5 +57,38 @@ pub trait AccountStore: NetKevy {
         &self,
         address: &str,
         patch: AccountPatch<'_>,
+    ) -> impl Future<Output = StoreResult<bool>> + Send;
+
+    /// Where the account maildirs are, which a delete moves aside.
+    fn maildir_root(&self) -> &std::path::Path;
+
+    /// What to keep beside the purge mark for a restore to put back, for a
+    /// store that drops the account itself; `None` for one that keeps the
+    /// deleted account in place.
+    fn record_for_restore(
+        &self,
+        address: &str,
+    ) -> impl Future<Output = StoreResult<Option<String>>> + Send;
+
+    /// The account stops being one; harmless when there is none.
+    fn drop_account(&self, address: &str, now: i64)
+    -> impl Future<Output = StoreResult<()>> + Send;
+
+    /// Purge what the deleted account at `address` owns now, rather than
+    /// after the retention period. Failures are logged: the retention task
+    /// retries.
+    fn purge_now(
+        self: std::sync::Arc<Self>,
+        address: String,
+        now: i64,
+    ) -> impl Future<Output = ()> + Send;
+
+    /// Put back the account a delete dropped, from `kept` (what
+    /// [`Self::record_for_restore`] gave, if anything). `false` when there
+    /// is nothing to put back.
+    fn bring_back(
+        &self,
+        address: &str,
+        kept: Option<String>,
     ) -> impl Future<Output = StoreResult<bool>> + Send;
 }

@@ -32,6 +32,12 @@ impl AccountStore for CoreRpcState {
         self.net_url.is_some()
     }
 
+    async fn exists(&self, address: &str) -> StoreResult<bool> {
+        super::handlers::admin::account_purge::is_account(self, address)
+            .await
+            .map_err(|code| StoreError(format!("reading the account answered {code}")))
+    }
+
     async fn account(&self, address: &str) -> StoreResult<Option<AccountWithHashWire>> {
         let found = self
             .domain
@@ -71,6 +77,32 @@ impl AccountStore for CoreRpcState {
             .map_err(failed)
     }
 
+    fn maildir_root(&self) -> &std::path::Path {
+        std::path::Path::new(&self.maildir_root)
+    }
+
+    /// The deleted account stays in its row, marked, for a restore.
+    async fn record_for_restore(&self, _address: &str) -> StoreResult<Option<String>> {
+        Ok(None)
+    }
+
+    async fn drop_account(&self, address: &str, now: i64) -> StoreResult<()> {
+        self.domain
+            .remove_account(address, now)
+            .await
+            .map(|_| ())
+            .map_err(failed)
+    }
+
+    async fn purge_now(self: std::sync::Arc<Self>, address: String, now: i64) {
+        let purged =
+            super::handlers::admin::account_purge::run(&self, false, Some(address.clone()), now, 0)
+                .await;
+        if let Err(code) = purged {
+            tracing::error!(%code, %address, "purging at the delete failed; the retention task retries");
+        }
+    }
+
     async fn patch_account(&self, address: &str, patch: AccountPatch<'_>) -> StoreResult<bool> {
         let d = &self.domain;
         let done = match patch {
@@ -81,5 +113,10 @@ impl AccountStore for CoreRpcState {
             AccountPatch::ClearPassword { by, at } => d.clear_password(address, by, at).await,
         };
         done.map_err(failed)
+    }
+
+    /// The row never left; restoring clears its `deleted_at`.
+    async fn bring_back(&self, address: &str, _kept: Option<String>) -> StoreResult<bool> {
+        self.domain.restore_account(address).await.map_err(failed)
     }
 }
