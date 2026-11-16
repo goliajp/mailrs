@@ -24,44 +24,7 @@ pub(crate) const MSG_PREFIX: &[u8] = b"L:m:";
 pub(crate) const LINK_PREFIX: &[u8] = b"L:l:";
 pub(crate) const FILE_PREFIX: &[u8] = b"L:f:";
 
-/// What one delivered message was, as delivery read it.
-#[derive(Debug, Clone, Default)]
-pub struct LedgerFacts {
-    pub message_id: String,
-    pub user: String,
-    pub from_addr: String,
-    pub from_domain: String,
-    pub reply_to: String,
-    pub link_hosts: Vec<String>,
-    pub attachment_sha256: Vec<String>,
-    /// SPF, DKIM and DMARC results as the receiver recorded them.
-    pub auth: String,
-    /// Epoch seconds the message arrived.
-    pub arrived: i64,
-    /// The registrable domain of `from_domain`, which the row is indexed
-    /// by, so an observation on a domain finds mail from its subdomains.
-    pub from_reg: String,
-}
-
-/// A link host to index the message by, with its registrable domain.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IndexedLink {
-    pub host: String,
-    pub reg: String,
-}
-
-/// What the rules made of a message: derived, recomputed at will.
-#[derive(Debug, Clone, Default)]
-pub struct LedgerVerdict {
-    pub rules: Vec<String>,
-    pub score: f64,
-    pub rules_version: String,
-    pub judged_at: i64,
-    /// The fraud rules hold the conversation.
-    pub holds: bool,
-    /// What the screening rules matched, in whichever mode they run.
-    pub screening: Vec<String>,
-}
+pub use mailrs_mailbox::ledger::{IndexedLink, LedgerFacts, LedgerVerdict};
 
 fn col(name: &str, t: ValType) -> (Vec<u8>, ValType) {
     (name.as_bytes().to_vec(), t)
@@ -366,44 +329,40 @@ fn number<T: std::str::FromStr + Default>(v: &[u8]) -> T {
     text(v).parse().unwrap_or_default()
 }
 
-impl LedgerFacts {
-    fn from_pairs(pairs: &[(Vec<u8>, Vec<u8>)]) -> Self {
-        let mut f = Self::default();
-        for (k, v) in pairs {
-            match text(k).as_str() {
-                "mid" => f.message_id = text(v),
-                "user" => f.user = text(v),
-                "from_addr" => f.from_addr = text(v),
-                "from_domain" => f.from_domain = text(v),
-                "reg" => f.from_reg = text(v),
-                "reply_to" => f.reply_to = text(v),
-                "auth" => f.auth = text(v),
-                "arrived" => f.arrived = number(v),
-                "links" => f.link_hosts = words(v),
-                "files" => f.attachment_sha256 = words(v),
-                _ => {}
-            }
+fn facts_from_pairs(pairs: &[(Vec<u8>, Vec<u8>)]) -> LedgerFacts {
+    let mut f = LedgerFacts::default();
+    for (k, v) in pairs {
+        match text(k).as_str() {
+            "mid" => f.message_id = text(v),
+            "user" => f.user = text(v),
+            "from_addr" => f.from_addr = text(v),
+            "from_domain" => f.from_domain = text(v),
+            "reg" => f.from_reg = text(v),
+            "reply_to" => f.reply_to = text(v),
+            "auth" => f.auth = text(v),
+            "arrived" => f.arrived = number(v),
+            "links" => f.link_hosts = words(v),
+            "files" => f.attachment_sha256 = words(v),
+            _ => {}
         }
-        f
     }
+    f
 }
 
-impl LedgerVerdict {
-    fn from_pairs(pairs: &[(Vec<u8>, Vec<u8>)]) -> Self {
-        let mut d = Self::default();
-        for (k, v) in pairs {
-            match text(k).as_str() {
-                "rules" => d.rules = words(v),
-                "score" => d.score = number(v),
-                "version" => d.rules_version = text(v),
-                "at" => d.judged_at = number(v),
-                "holds" => d.holds = v.as_slice() == b"1",
-                "screening" => d.screening = words(v),
-                _ => {}
-            }
+fn verdict_from_pairs(pairs: &[(Vec<u8>, Vec<u8>)]) -> LedgerVerdict {
+    let mut d = LedgerVerdict::default();
+    for (k, v) in pairs {
+        match text(k).as_str() {
+            "rules" => d.rules = words(v),
+            "score" => d.score = number(v),
+            "version" => d.rules_version = text(v),
+            "at" => d.judged_at = number(v),
+            "holds" => d.holds = v.as_slice() == b"1",
+            "screening" => d.screening = words(v),
+            _ => {}
         }
-        d
     }
+    d
 }
 
 impl Relationship {
@@ -425,13 +384,13 @@ impl KevyMailboxStore {
     /// What `user`'s copy of a message was, as delivery recorded it.
     pub fn ledger_facts(&self, user: &str, mid: &str) -> io::Result<Option<LedgerFacts>> {
         let pairs = self.store().hgetall(msg_key(user, mid).as_bytes())?;
-        Ok((!pairs.is_empty()).then(|| LedgerFacts::from_pairs(&pairs)))
+        Ok((!pairs.is_empty()).then(|| facts_from_pairs(&pairs)))
     }
 
     /// The verdict on `user`'s copy of a message, when one was recorded.
     pub fn ledger_verdict(&self, user: &str, mid: &str) -> io::Result<Option<LedgerVerdict>> {
         let pairs = self.store().hgetall(verdict_key(user, mid).as_bytes())?;
-        Ok((!pairs.is_empty()).then(|| LedgerVerdict::from_pairs(&pairs)))
+        Ok((!pairs.is_empty()).then(|| verdict_from_pairs(&pairs)))
     }
 
     /// `user`'s relationship with `addr`, when they have had one.

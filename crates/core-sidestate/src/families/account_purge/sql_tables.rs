@@ -24,6 +24,10 @@ pub const SQL_TABLES: &[(&str, &str)] = &[
     ("spam_feedback", "user_address"),
     ("vacation_dedup", "recipient"),
     ("aliases", "target_address"),
+    ("ledger_links", "user_address"),
+    ("ledger_files", "user_address"),
+    ("ledger_verdicts", "user_address"),
+    ("ledger_messages", "user_address"),
     // last: its messages, their attachment text and analysis cascade
     ("mailboxes", "user_address"),
 ];

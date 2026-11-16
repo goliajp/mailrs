@@ -14,6 +14,8 @@ use mailrs_intake::spool::SpoolDirs;
 mod core;
 mod directory;
 mod ingest;
+mod ledger;
+pub(crate) use ledger::spawn_fill as spawn_ledger_fill;
 mod reports;
 mod rules;
 mod senders;
