@@ -98,15 +98,15 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         )
         .route(
             import_paths::PATH_IMPORT_MESSAGE,
-            post(crate::import::import_message).layer(axum::extract::DefaultBodyLimit::max(
-                import_paths::MAX_REQUEST_BYTES,
-            )),
+            post(mailrs_core_routes::intake::import_message::<FastcoreState>).layer(
+                axum::extract::DefaultBodyLimit::max(import_paths::MAX_REQUEST_BYTES),
+            ),
         )
         .route(
             sent::PATH_FILE_SENT,
-            post(crate::sent::file_sent).layer(axum::extract::DefaultBodyLimit::max(
-                sent::MAX_REQUEST_BYTES,
-            )),
+            post(mailrs_core_routes::intake::file_sent::<FastcoreState>).layer(
+                axum::extract::DefaultBodyLimit::max(sent::MAX_REQUEST_BYTES),
+            ),
         )
         .route(th::PATH_MARK_READ, post(shared::mark_read::<FastcoreState>))
         .route(th::PATH_MARK_ALL_READ, post(mark_all_read_route))
@@ -137,11 +137,26 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
             th::PATH_FRAUD_VERDICT,
             get(mailrs_core_routes::hold::fraud_verdict::<FastcoreState>),
         )
-        .route(rp::PATH_REPORT_MESSAGE, post(crate::report::report))
-        .route(rp::PATH_REPORT_OUTCOME, get(crate::report::outcome))
-        .route(rp::PATH_PENDING_REPORTS, get(crate::report::pending))
-        .route(rp::PATH_CONFIRM_REPORT, post(crate::report::confirm))
-        .route(rp::PATH_DISMISS_REPORT, post(crate::report::dismiss))
+        .route(
+            rp::PATH_REPORT_MESSAGE,
+            post(mailrs_core_routes::intake::report::<FastcoreState>),
+        )
+        .route(
+            rp::PATH_REPORT_OUTCOME,
+            get(mailrs_core_routes::intake::outcome::<FastcoreState>),
+        )
+        .route(
+            rp::PATH_PENDING_REPORTS,
+            get(mailrs_core_routes::intake::pending::<FastcoreState>),
+        )
+        .route(
+            rp::PATH_CONFIRM_REPORT,
+            post(mailrs_core_routes::intake::confirm::<FastcoreState>),
+        )
+        .route(
+            rp::PATH_DISMISS_REPORT,
+            post(mailrs_core_routes::intake::dismiss::<FastcoreState>),
+        )
         .route(th::PATH_ARCHIVE, post(shared::archive::<FastcoreState>))
         .route(th::PATH_UNARCHIVE, post(shared::unarchive::<FastcoreState>))
         .route(

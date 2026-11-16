@@ -115,15 +115,15 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         )
         .route(
             import_paths::PATH_IMPORT_MESSAGE,
-            post(handlers::import::import_message).layer(axum::extract::DefaultBodyLimit::max(
-                import_paths::MAX_REQUEST_BYTES,
-            )),
+            post(mailrs_core_routes::intake::import_message::<CoreRpcState>).layer(
+                axum::extract::DefaultBodyLimit::max(import_paths::MAX_REQUEST_BYTES),
+            ),
         )
         .route(
             sent_paths::PATH_FILE_SENT,
-            post(handlers::sent::file_sent).layer(axum::extract::DefaultBodyLimit::max(
-                sent_paths::MAX_REQUEST_BYTES,
-            )),
+            post(mailrs_core_routes::intake::file_sent::<CoreRpcState>).layer(
+                axum::extract::DefaultBodyLimit::max(sent_paths::MAX_REQUEST_BYTES),
+            ),
         )
         .route(
             th_paths::PATH_MARK_READ,
@@ -281,23 +281,23 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         )
         .route(
             mailrs_core_api::method::report::PATH_REPORT_MESSAGE,
-            post(handlers::reports::report),
+            post(mailrs_core_routes::intake::report::<CoreRpcState>),
         )
         .route(
             mailrs_core_api::method::report::PATH_REPORT_OUTCOME,
-            get(handlers::reports::outcome),
+            get(mailrs_core_routes::intake::outcome::<CoreRpcState>),
         )
         .route(
             mailrs_core_api::method::report::PATH_PENDING_REPORTS,
-            get(handlers::reports::pending),
+            get(mailrs_core_routes::intake::pending::<CoreRpcState>),
         )
         .route(
             mailrs_core_api::method::report::PATH_CONFIRM_REPORT,
-            post(handlers::reports::confirm),
+            post(mailrs_core_routes::intake::confirm::<CoreRpcState>),
         )
         .route(
             mailrs_core_api::method::report::PATH_DISMISS_REPORT,
-            post(handlers::reports::dismiss),
+            post(mailrs_core_routes::intake::dismiss::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_SET_MESSAGE_FLAGS,

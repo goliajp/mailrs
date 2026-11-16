@@ -10,11 +10,11 @@ use mailrs_mailbox::PgMailboxStore;
 use super::PgDirectory;
 use crate::event_bus::EventBus;
 
-pub(crate) struct PgCore {
-    pub dir: PgDirectory,
-    pub mailbox: Arc<PgMailboxStore>,
+pub struct PgCore {
+    pub(crate) dir: PgDirectory,
+    pub(crate) mailbox: Arc<PgMailboxStore>,
     /// the in-process bus IMAP IDLE and the cache listen on
-    pub event_bus: EventBus,
+    pub(crate) event_bus: EventBus,
 }
 
 impl Directory for PgCore {

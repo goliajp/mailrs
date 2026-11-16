@@ -6,6 +6,7 @@
 
 pub mod account;
 pub mod hold;
+pub mod intake;
 pub mod label;
 pub mod message;
 pub mod search;
