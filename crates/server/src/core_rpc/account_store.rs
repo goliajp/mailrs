@@ -33,9 +33,7 @@ impl AccountStore for CoreRpcState {
     }
 
     async fn exists(&self, address: &str) -> StoreResult<bool> {
-        super::handlers::admin::account_purge::is_account(self, address)
-            .await
-            .map_err(|code| StoreError(format!("reading the account answered {code}")))
+        super::purge_store::is_account(self, address).await
     }
 
     async fn account(&self, address: &str) -> StoreResult<Option<AccountWithHashWire>> {
@@ -92,15 +90,6 @@ impl AccountStore for CoreRpcState {
             .await
             .map(|_| ())
             .map_err(failed)
-    }
-
-    async fn purge_now(self: std::sync::Arc<Self>, address: String, now: i64) {
-        let purged =
-            super::handlers::admin::account_purge::run(&self, false, Some(address.clone()), now, 0)
-                .await;
-        if let Err(code) = purged {
-            tracing::error!(%code, %address, "purging at the delete failed; the retention task retries");
-        }
     }
 
     async fn patch_account(&self, address: &str, patch: AccountPatch<'_>) -> StoreResult<bool> {

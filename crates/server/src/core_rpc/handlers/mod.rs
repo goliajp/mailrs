@@ -15,7 +15,6 @@ pub mod holds;
 pub mod images;
 pub mod labels;
 pub mod mailbox;
-pub mod maintenance;
 pub mod message;
 pub mod rethread;
 pub mod sender_rules;
