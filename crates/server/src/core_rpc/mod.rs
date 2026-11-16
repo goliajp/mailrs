@@ -9,6 +9,7 @@
 mod account_store;
 pub(crate) mod handlers;
 mod hold_store;
+mod intake_store;
 mod label_store;
 mod message_store;
 mod operator_clear;
