@@ -83,7 +83,7 @@ fn read_and_judge(
     let started = std::time::Instant::now();
     let (mut walked, mut stopped_early) = (0u64, false);
     let targets = super::fraud_rescan::snapshot(state).map_err(|e| e.to_string())?;
-    let mut fraud = super::fraud_rescan::FraudJudge::new(state);
+    let mut fraud = super::fraud_rescan::fraud_judge(state);
     let mut users = std::collections::HashSet::new();
     let mut entries = Vec::new();
     for (user, tid) in &targets {
@@ -100,7 +100,7 @@ fn read_and_judge(
         };
         users.insert(user.clone());
         let facts = crate::ledger::facts_of(user, &mid, &raw, state.authserv_id.as_deref());
-        let verdict = match fraud.judge(state, user, &mid, &raw) {
+        let verdict = match fraud.judge(user, &raw, &super::fraud_rescan::extracted(state, &mid)) {
             Ok(j) => crate::ledger::judged_verdict(&j.findings, &j.version, Vec::new()),
             Err(_) => mailrs_mailbox_kevy::ledger::LedgerVerdict::default(),
         };

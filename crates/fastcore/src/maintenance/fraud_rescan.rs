@@ -56,76 +56,29 @@ pub(crate) fn snapshot(state: &FastcoreState) -> std::io::Result<Vec<(String, St
     Ok(targets)
 }
 
-/// Stored mail through the fraud rules exactly as the sweep reads it, for
-/// evaluation: nothing is held, moved or recorded.
-pub(crate) struct FraudJudge {
-    policy: mailrs_fraud::Policy,
-    our_stamp: Option<String>,
-    hist: Option<kevy_client::Connection>,
+pub(crate) use mailrs_intake::fraud_judge::{FraudJudge, FraudJudgement};
+
+/// The fraud rules as this process is configured: the policy, with the
+/// account rows' display names, and the shared store for the reader's
+/// history with a sender.
+pub(crate) fn fraud_judge(state: &Arc<FastcoreState>) -> FraudJudge {
+    FraudJudge::new(policy_from_env(state), our_authserv_id(), state.net_conn())
 }
 
-/// What the fraud rules make of one message.
-pub(crate) struct FraudJudgement {
-    pub(crate) findings: mailrs_fraud::Findings,
-    /// The rules would hold it.
-    pub(crate) holds: bool,
-    /// Not held, but scored into Junk.
-    pub(crate) junks: bool,
-    pub(crate) version: String,
-    /// The verdict stored beside the message when acting on this judgement.
-    pub(crate) verdict: mailrs_inbound::FraudVerdict,
-}
-
-impl FraudJudge {
-    pub(crate) fn new(state: &Arc<FastcoreState>) -> Self {
-        Self {
-            policy: policy_from_env(state),
-            our_stamp: our_authserv_id(),
-            hist: state.net_conn(),
-        }
-    }
-
-    /// Judge `raw` as `user`'s copy: the reader's history with the sender
-    /// (the BEC rules) and whether the sender's and links' domains were new
-    /// when the message arrived are part of what the rules see.
-    ///
-    /// The history is read as it stands now, with this message already
-    /// counted (`Counted::After`): "first contact" means "the only mail
-    /// from this sender so far", not "the first at the time", which a
-    /// stored message cannot know.
-    pub(crate) fn judge(
-        &mut self,
-        state: &Arc<FastcoreState>,
-        user: &str,
-        message_id: &str,
-        raw: &[u8],
-    ) -> Result<FraudJudgement, String> {
-        let texts = state
+/// What a message's attachments were read to say, for judging it.
+pub(crate) fn extracted(
+    state: &FastcoreState,
+    message_id: &str,
+) -> mailrs_intake::fraud_judge::Extracted {
+    mailrs_intake::fraud_judge::Extracted {
+        texts: state
             .mailbox
             .attachment_texts(message_id)
-            .unwrap_or_default();
-        let qr_urls = state
+            .unwrap_or_default(),
+        qr_urls: state
             .mailbox
             .attachment_qr_urls(message_id)
-            .unwrap_or_default();
-        let j = mailrs_fraud_lua::stored::judge_for(
-            raw,
-            Some((user, mailrs_fraud_lua::stored::relation::Counted::After)),
-            self.our_stamp.as_deref(),
-            mailrs_fraud_lua::stored::Extracted {
-                texts: &texts,
-                qr_urls: &qr_urls,
-            },
-            &self.policy,
-            &mut self.hist,
-        )?;
-        Ok(FraudJudgement {
-            junks: !j.holds && junks_on_its_own(&j.findings),
-            holds: j.holds,
-            version: j.verdict.rules_version.clone(),
-            verdict: j.verdict,
-            findings: j.findings,
-        })
+            .unwrap_or_default(),
     }
 }
 
