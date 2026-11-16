@@ -20,7 +20,6 @@ mod operator_clear;
 pub(crate) mod ownerless;
 mod permissions;
 mod reads;
-mod search;
 pub(crate) mod section_list;
 pub(crate) mod thread_actions;
 pub(crate) mod trash;
@@ -31,7 +30,6 @@ pub(crate) use message_index::message_index;
 pub(crate) use message_ops::*;
 pub(crate) use permissions::*;
 pub(crate) use reads::*;
-pub(crate) use search::*;
 pub(crate) use thread_actions::*;
 
 pub mod mail_admin;

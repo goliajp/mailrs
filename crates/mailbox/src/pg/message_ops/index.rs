@@ -89,13 +89,13 @@ impl PgMailboxStore {
         // (reconcile racing the live path, or a migration's delivery) finds
         // the row the first one wrote, as the check would have; the uid
         // reserved here is left unused, a gap RFC 9051 allows.
-        let inserted: Option<(i32,)> = sqlx::query_as(
+        let inserted: Option<(i64,)> = sqlx::query_as(
             "INSERT INTO messages (mailbox_id, uid, maildir_id, sender, recipients, subject,
                                    size, date_epoch, internal_date, message_id,
                                    in_reply_to, thread_id, modseq)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
              ON CONFLICT (mailbox_id, maildir_id) DO NOTHING
-             RETURNING uid",
+             RETURNING id",
         )
         .bind(mailbox_id)
         .bind(uid)
@@ -112,7 +112,9 @@ impl PgMailboxStore {
         .bind(new_modseq)
         .fetch_optional(&mut *conn)
         .await?;
-        if inserted.is_some() {
+        if let Some((id,)) = inserted {
+            drop(conn);
+            self.write_search_words(id).await?;
             return Ok(uid as u32);
         }
         let (existing_uid,): (i32,) =

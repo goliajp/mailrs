@@ -21,6 +21,7 @@ mod pg;
 mod pg_schema;
 mod protocols;
 mod reconcile_task;
+mod search_words_task;
 mod sieve_store;
 mod tls;
 mod webhook;
