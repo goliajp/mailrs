@@ -56,7 +56,7 @@ impl HoldStore for FastcoreState {
         )
         .map_err(StoreError)?;
         // re-judging takes it again only for a rule it was not put back despite
-        crate::rejudge::recall::note_released(self, user, thread_id);
+        mailrs_intake::rejudge::recall::note_released(self, user, thread_id);
         Ok(())
     }
 

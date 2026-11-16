@@ -4,50 +4,40 @@
 //! find nothing changed and pass it by. The mark makes a later, different
 //! observation offer it again; the round that left it never does.
 
-use crate::FastcoreState;
+use super::RejudgeStore;
 
 fn key(user: &str, mid: &str) -> String {
     format!("rejudge:unheld:{user}:{mid}")
 }
 
 /// Mark `mid` as left unheld by `observation`'s round.
-pub(crate) fn leave_unheld(
-    state: &FastcoreState,
+pub fn leave_unheld<S: RejudgeStore>(
+    store: &S,
     user: &str,
     mid: &str,
     observation: &str,
 ) -> Result<(), String> {
-    state
-        .mailbox
-        .store_ref()
-        .set(key(user, mid).as_bytes(), observation.as_bytes())
-        .map(|_| ())
+    store
+        .state_set(&key(user, mid), observation.as_bytes())
         .map_err(|e| e.to_string())
 }
 
 /// Whether a round other than `observation`'s left `mid` unheld, so that
 /// `observation` offers it again although its verdict did not change.
-pub(crate) fn unheld_by_another(
-    state: &FastcoreState,
+pub fn unheld_by_another<S: RejudgeStore>(
+    store: &S,
     user: &str,
     mid: &str,
     observation: &str,
 ) -> bool {
-    state
-        .mailbox
-        .store_ref()
-        .get(key(user, mid).as_bytes())
+    store
+        .state_get(&key(user, mid))
         .ok()
         .flatten()
         .is_some_and(|o| o != observation.as_bytes())
 }
 
 /// `mid` was held: nothing left it unheld any more.
-pub(super) fn taken(state: &FastcoreState, user: &str, mid: &str) -> Result<(), String> {
-    state
-        .mailbox
-        .store_ref()
-        .del(&[key(user, mid).as_bytes()])
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+pub(super) fn taken<S: RejudgeStore>(store: &S, user: &str, mid: &str) -> Result<(), String> {
+    store.state_del(&key(user, mid)).map_err(|e| e.to_string())
 }

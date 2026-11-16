@@ -17,8 +17,8 @@
 //! super administrator to confirm or discard.
 //!
 //! **Paged.** An observation that names more mail than one page is judged
-//! over several, the place kept in fastcore's store, so a restart goes on
-//! where it stopped.
+//! over several, the place kept in the store, so a restart goes on where it
+//! stopped.
 //!
 //! Event-driven, and it converges: the channel wakes it, and every 30
 //! seconds it reads one counter in case an announcement was lost. With no
@@ -28,26 +28,26 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use crate::FastcoreState;
+pub mod facts;
+pub mod holding;
+pub mod judge;
+pub mod recall;
+mod store;
+pub use store::{Conversation, RawReader, RejudgeStore};
 
-pub(crate) mod judge;
-pub(crate) mod recall;
-pub(crate) mod routes;
-
-/// Where the last observation this thread has dealt with is kept, in
-/// fastcore's own store.
-const DONE_KEY: &[u8] = b"rejudge:obs_seq";
+/// Where the last observation this thread has dealt with is kept.
+const DONE_KEY: &str = "rejudge:obs_seq";
 
 /// The observation being judged over several pages, and how far:
 /// `"<seq> <offset>"`. Absent between observations.
-pub(crate) const PENDING_KEY: &[u8] = b"rejudge:pending";
+pub const PENDING_KEY: &str = "rejudge:pending";
 
 /// How often the counter is read when no announcement came.
 const POLL: Duration = Duration::from_secs(30);
 
 /// What the re-judge has done since the process started.
 #[derive(Default)]
-pub(crate) struct Counts {
+pub struct Counts {
     pub observations: AtomicU64,
     pub skipped: AtomicU64,
     pub messages: AtomicU64,
@@ -62,15 +62,15 @@ pub(crate) struct Counts {
     pub acted: AtomicU64,
 }
 
-pub(crate) static COUNTS: std::sync::LazyLock<Counts> = std::sync::LazyLock::new(Counts::default);
+pub static COUNTS: std::sync::LazyLock<Counts> = std::sync::LazyLock::new(Counts::default);
 
 impl Counts {
-    pub(crate) fn add(field: &AtomicU64, n: u64) {
+    pub fn add(field: &AtomicU64, n: u64) {
         field.fetch_add(n, Ordering::Relaxed);
     }
 
     /// For the maintenance route: every counter by name.
-    pub(crate) fn snapshot(&self) -> serde_json::Value {
+    pub fn snapshot(&self) -> serde_json::Value {
         let get = |f: &AtomicU64| f.load(Ordering::Relaxed);
         serde_json::json!({
             "observations": get(&self.observations),
@@ -88,39 +88,10 @@ impl Counts {
     }
 }
 
-/// `GET /v1/admin/maintenance:rejudge-status`: what the re-judge has done
-/// since the process started, and what it would have done. Read-only.
-pub(crate) async fn status_route() -> axum::Json<serde_json::Value> {
-    axum::Json(COUNTS.snapshot())
-}
-
-/// `POST /v1/admin/maintenance:rejudge-now`: one round now rather than at
-/// the next announcement or poll, for an operator timing the path on a
-/// copy. It acts only when acting is switched on, like every round.
-pub(crate) async fn now_route(
-    axum::extract::State(state): axum::extract::State<Arc<FastcoreState>>,
-) -> axum::response::Response {
-    use axum::response::IntoResponse;
-    let round = tokio::task::spawn_blocking(move || {
-        let mut judge = judge::Judge::new(&state);
-        tick(&state, &mut judge)
-    })
-    .await;
-    match round {
-        Ok(Ok(judged)) => axum::Json(serde_json::json!({
-            "judged": judged,
-            "since_start": COUNTS.snapshot(),
-        }))
-        .into_response(),
-        Ok(Err(e)) => (axum::http::StatusCode::SERVICE_UNAVAILABLE, e.to_string()).into_response(),
-        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
-    }
-}
-
 /// Start the listener and the re-judge thread. Without a network kevy
 /// there are no observations, and nothing to start.
-pub(crate) fn spawn(state: Arc<FastcoreState>) {
-    let Some(url) = state.net_url.clone() else {
+pub fn spawn<S: RejudgeStore>(store: Arc<S>, net_url: Option<String>) {
+    let Some(url) = net_url else {
         return;
     };
     let (wake, woken) = std::sync::mpsc::channel::<()>();
@@ -131,11 +102,11 @@ pub(crate) fn spawn(state: Arc<FastcoreState>) {
         .name("rejudge".into())
         .spawn(move || {
             let _entered = runtime.as_ref().map(|h| h.enter());
-            let mut judge = judge::Judge::new(&state);
+            let mut judge = judge::Judge::new(&*store);
             loop {
                 // an announcement or the poll: either way, look
                 let _ = woken.recv_timeout(POLL);
-                if let Err(e) = tick(&state, &mut judge) {
+                if let Err(e) = tick(&*store, &mut judge) {
                     tracing::warn!(error = %e, "rejudge: this round failed; the next one retries");
                 }
             }
@@ -167,28 +138,20 @@ fn listen(url: String, wake: std::sync::mpsc::Sender<()>) {
         .expect("spawn rejudge-wake thread");
 }
 
-fn read_done(state: &FastcoreState) -> std::io::Result<Option<u64>> {
-    Ok(state
-        .mailbox
-        .store_ref()
-        .get(DONE_KEY)?
+fn read_done<S: RejudgeStore>(store: &S) -> std::io::Result<Option<u64>> {
+    Ok(store
+        .state_get(DONE_KEY)?
         .and_then(|v| String::from_utf8(v).ok())
         .and_then(|v| v.parse().ok()))
 }
 
-fn write_done(state: &FastcoreState, seq: u64) -> std::io::Result<()> {
-    state
-        .mailbox
-        .store_ref()
-        .set(DONE_KEY, seq.to_string().as_bytes())?;
-    Ok(())
+fn write_done<S: RejudgeStore>(store: &S, seq: u64) -> std::io::Result<()> {
+    store.state_set(DONE_KEY, seq.to_string().as_bytes())
 }
 
-fn read_pending(state: &FastcoreState, seq: u64) -> usize {
-    state
-        .mailbox
-        .store_ref()
-        .get(PENDING_KEY)
+fn read_pending<S: RejudgeStore>(store: &S, seq: u64) -> usize {
+    store
+        .state_get(PENDING_KEY)
         .ok()
         .flatten()
         .and_then(|v| String::from_utf8(v).ok())
@@ -202,12 +165,8 @@ fn read_pending(state: &FastcoreState, seq: u64) -> usize {
         .unwrap_or(0)
 }
 
-fn write_pending(state: &FastcoreState, seq: u64, offset: usize) -> std::io::Result<()> {
-    state
-        .mailbox
-        .store_ref()
-        .set(PENDING_KEY, format!("{seq} {offset}").as_bytes())?;
-    Ok(())
+fn write_pending<S: RejudgeStore>(store: &S, seq: u64, offset: usize) -> std::io::Result<()> {
+    store.state_set(PENDING_KEY, format!("{seq} {offset}").as_bytes())
 }
 
 /// One round: judge again for every observation added since the last.
@@ -218,14 +177,14 @@ fn write_pending(state: &FastcoreState, seq: u64, offset: usize) -> std::io::Res
 /// and one judged over several pages keeps its place after each, so a
 /// restart repeats at most one page. Returns how many messages were
 /// judged.
-pub(crate) fn tick(state: &Arc<FastcoreState>, judge: &mut judge::Judge) -> std::io::Result<u64> {
+pub fn tick<S: RejudgeStore>(store: &S, judge: &mut judge::Judge) -> std::io::Result<u64> {
     use mailrs_core_sidestate::families::screening;
-    let Some(mut conn) = state.net_conn() else {
+    let Some(mut conn) = store.net_conn() else {
         return Ok(0);
     };
     let seq = screening::observation_seq(&mut conn)?;
-    let Some(done) = read_done(state)? else {
-        write_done(state, seq)?;
+    let Some(done) = read_done(store)? else {
+        write_done(store, seq)?;
         return Ok(0);
     };
     if seq <= done {
@@ -236,11 +195,11 @@ pub(crate) fn tick(state: &Arc<FastcoreState>, judge: &mut judge::Judge) -> std:
     let mut judged = 0;
     for n in done + 1..=seq {
         if let Some(o) = screening::observation(&mut conn, &format!("r{n}"))? {
-            let from = read_pending(state, n);
+            let from = read_pending(store, n);
             if from == 0 {
                 Counts::add(&COUNTS.observations, 1);
             }
-            let targets = judge.targets(state, &o).unwrap_or_default();
+            let targets = judge.targets(store, &o).unwrap_or_default();
             if targets.len() > page && from == 0 {
                 tracing::info!(id = %o.id, found = targets.len(), page, "rejudge: judged over several pages");
                 Counts::add(&COUNTS.paged, 1);
@@ -248,21 +207,21 @@ pub(crate) fn tick(state: &Arc<FastcoreState>, judge: &mut judge::Judge) -> std:
             let mut at = from.min(targets.len());
             while at < targets.len() {
                 let end = (at + page).min(targets.len());
-                judged += judge.page(state, &targets[at..end], &o.id);
+                judged += judge.page(store, &targets[at..end], &o.id);
                 at = end;
                 if at < targets.len() {
-                    write_pending(state, n, at)?;
+                    write_pending(store, n, at)?;
                 }
             }
             if from > 0 || targets.len() > page {
-                state.mailbox.store_ref().del(&[PENDING_KEY])?;
+                store.state_del(PENDING_KEY)?;
             }
             // what the pages found to hold is held, or waits, only now
-            if let Err(e) = recall::settle(state, &o.id) {
+            if let Err(e) = recall::settle(store, &o.id) {
                 tracing::warn!(error = %e, id = %o.id, "rejudge: the round's holds were not settled");
             }
         }
-        write_done(state, n)?;
+        write_done(store, n)?;
     }
     Ok(judged)
 }
