@@ -67,7 +67,7 @@ pub(super) fn rules_of_all(cs: &[Candidate]) -> Vec<String> {
 }
 
 /// Decide `observation`'s round: hold what it gathered when that is no
-/// more than [`hold_cap`] conversations, or record it as a pending batch
+/// more than `MAILRS_REJUDGE_HOLD_CAP` (50) conversations, or record it as a pending batch
 /// that holds nothing. A round already recorded as pending stays so.
 pub fn settle<S: RejudgeStore>(store: &S, observation: &str) -> Result<(), String> {
     let gathered = candidates(store, observation);
