@@ -3,9 +3,11 @@
 
 mod account;
 mod check;
+mod check_search;
 mod hold;
 mod label;
 mod message;
+mod search;
 mod thread;
 
 pub use account::{AccountPatch, AccountStore, NewAccount};
@@ -13,9 +15,11 @@ pub use check::{
     check_account_store, check_hold_store, check_label_store, check_message_reads,
     check_thread_store,
 };
+pub use check_search::{check_search_store, search_fixtures};
 pub use hold::HoldStore;
 pub use label::{LabelFailure, LabelResult, LabelStore};
 pub use message::MessageReads;
+pub use search::SearchStore;
 pub use thread::{ReaderView, ThreadStore};
 
 /// A store that could not do what it was asked. The route logs it and

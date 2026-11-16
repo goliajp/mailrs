@@ -14,6 +14,7 @@ mod message_store;
 mod operator_clear;
 mod router;
 mod router_views;
+mod search_store;
 mod thread_events;
 mod thread_store;
 // Not re-exported wider than it is: `build_full_router` is `pub(super)` in

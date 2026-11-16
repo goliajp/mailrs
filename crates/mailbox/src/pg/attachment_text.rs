@@ -57,8 +57,7 @@ impl PgMailboxStore {
             .await
     }
 
-    /// Count one more attempt at a queued copy, committed before it
-    /// returns. Returns the attempts so far, this one included.
+    /// Count one more attempt at a queued copy, committed at once; the attempts so far.
     pub async fn begin_attachment_text(&self, user: &str, mid: &str) -> Result<u32, sqlx::Error> {
         let (n,): (i32,) = sqlx::query_as(
             "UPDATE attachment_text_queue SET attempts = attempts + 1
@@ -128,8 +127,7 @@ impl PgMailboxStore {
         Ok(usize::try_from(n).unwrap_or(0))
     }
 
-    /// The maildir file name of `user`'s copy of the message, its first if
-    /// there are several.
+    /// The maildir file name of `user`'s copy of the message, its first.
     pub async fn copy_file_of(&self, user: &str, mid: &str) -> Result<Option<String>, sqlx::Error> {
         let row: Option<(String,)> = sqlx::query_as(
             "SELECT m.maildir_id FROM messages m JOIN mailboxes mb ON mb.id = m.mailbox_id
@@ -172,8 +170,7 @@ impl PgMailboxStore {
         Ok(row.map(state_of))
     }
 
-    /// The stored text of each attachment of the message, in attachment
-    /// order.
+    /// The stored text of each attachment of the message, in their order.
     pub async fn attachment_texts(&self, mid: &str) -> Result<Vec<String>, sqlx::Error> {
         let Some(copy) = self.read_copy(mid).await? else {
             return Ok(Vec::new());
@@ -202,9 +199,9 @@ impl PgMailboxStore {
         Ok(lines)
     }
 
-    /// Store what reading the message came to on every copy of it,
-    /// replacing what was there: `texts` are `(position, text)`, already
-    /// trimmed, cut and without empty ones. Its QR addresses start empty.
+    /// Store what reading the message came to on every copy of it, replacing
+    /// what was there: `texts` are `(position, text)`, already trimmed, cut
+    /// and without empty ones; their words too. QR addresses start empty.
     pub async fn store_attachment_texts(
         &self,
         mid: &str,
@@ -243,11 +240,12 @@ impl PgMailboxStore {
             insert = insert.bind(int(v));
         }
         insert.execute(&mut *tx).await?;
+        Self::write_attachment_words(&mut tx, mid).await?;
         tx.commit().await
     }
 
-    /// Set the QR addresses (one per line) of every copy that has an
-    /// outcome, and its version when `version` is given.
+    /// Set the QR addresses (one per line) of every copy with an outcome,
+    /// and its version when `version` is given.
     pub async fn store_attachment_qr(
         &self,
         mid: &str,
@@ -270,9 +268,8 @@ impl PgMailboxStore {
         Ok(())
     }
 
-    /// Copy the outcome stored for the message, and its text, onto those
-    /// of `user`'s copies that have none: a copy delivered after the
-    /// message was read.
+    /// Copy the outcome stored for the message, and its text, onto those of
+    /// `user`'s copies that have none: one delivered after it was read.
     pub async fn share_attachment_text(&self, user: &str, mid: &str) -> Result<(), sqlx::Error> {
         let Some(from) = self.read_copy(mid).await? else {
             return Ok(());
@@ -317,6 +314,8 @@ impl PgMailboxStore {
             .execute(&mut *tx)
             .await?;
         }
+        // the words are cut again from the copied text, not copied
+        Self::write_attachment_words(&mut tx, mid).await?;
         tx.commit().await
     }
 }
