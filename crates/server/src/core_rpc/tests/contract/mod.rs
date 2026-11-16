@@ -51,6 +51,7 @@ mod reports;
 mod reports_dismiss;
 mod search;
 mod search_scope;
+mod search_store;
 mod sections;
 mod sender_rules;
 mod sent;

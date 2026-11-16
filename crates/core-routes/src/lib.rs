@@ -8,5 +8,6 @@ pub mod account;
 pub mod hold;
 pub mod label;
 pub mod message;
+pub mod search;
 pub mod store;
 pub mod thread;

@@ -32,6 +32,8 @@ pub mod rules;
 /// Which conversations a view shows: triage buckets and the scope a
 /// request's folder and category reconcile to, shared by every store.
 pub mod scope;
+/// Search words and how a query of several combines, for every store.
+pub mod search;
 pub mod section;
 /// Whether a message is the user's own send, decided one way everywhere.
 pub mod sent_copy;

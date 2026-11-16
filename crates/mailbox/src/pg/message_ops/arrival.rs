@@ -52,6 +52,7 @@ impl PgMailboxStore {
         .bind(inserted.id)
         .execute(&self.pool)
         .await?;
+        self.write_search_words(inserted.id).await?;
         sqlx::query(
             "INSERT INTO email_analysis (message_id, category) VALUES ($1, $2) \
              ON CONFLICT (message_id) DO UPDATE SET category = EXCLUDED.category",

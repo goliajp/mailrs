@@ -83,6 +83,7 @@ pub(crate) async fn build(
     // backstop for the notification-driven post-delivery path.
     if let Some(ref mb) = mailbox_store {
         reconcile_task::spawn_periodic_reconcile(mb.clone(), cfg.maildir_root.clone());
+        crate::search_words_task::spawn_fill(mb.clone());
     }
 
     Stores {

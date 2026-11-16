@@ -20,7 +20,7 @@ pub(super) fn view_routes(state: Arc<CoreRpcState>) -> Router {
     Router::new()
         .route(
             conv::PATH_SEARCH_CONVERSATIONS,
-            post(views::search_conversations),
+            post(mailrs_core_routes::search::search_conversations::<CoreRpcState>),
         )
         .route(th::PATH_LIST_SENT_MESSAGES, get(views::list_sent_messages))
         .route(th::PATH_MARK_ALL_READ, post(views::mark_all_read))

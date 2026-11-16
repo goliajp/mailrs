@@ -110,6 +110,10 @@ CREATE TABLE messages (
     is_bulk_sender BOOLEAN NOT NULL DEFAULT false,
     has_tracking_pixel BOOLEAN NOT NULL DEFAULT false,
     search_vector tsvector,
+    -- the words conversation search matches, cut by the application
+    -- (migrate-067): subject, sender and preview; the body
+    header_words tsvector,
+    body_words tsvector,
     bimi_logo_url TEXT,
     invite_payload JSONB,
     invite_method TEXT,
@@ -285,8 +289,11 @@ CREATE TABLE attachment_content (
     page_count SMALLINT,
     metadata JSONB NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- the text's words, cut by the application (migrate-067)
+    words tsvector,
     UNIQUE(message_id, attachment_index)
 );
+CREATE INDEX idx_attachment_content_words ON attachment_content USING GIN (words);
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE INDEX idx_attachment_content_extracted_trgm
     ON attachment_content USING gin(extracted_text gin_trgm_ops)
@@ -922,8 +929,14 @@ CREATE INDEX idx_messages_text_body_trgm ON messages USING gin (text_body gin_tr
     WHERE text_body IS NOT NULL AND text_body != '';
 CREATE INDEX idx_messages_clean_text_trgm ON messages USING gin (clean_text gin_trgm_ops)
     WHERE clean_text IS NOT NULL AND clean_text != '';
+-- conversation search (migrate-067)
+CREATE INDEX idx_messages_header_words ON messages USING GIN (header_words);
+CREATE INDEX idx_messages_body_words ON messages USING GIN (body_words);
+CREATE INDEX idx_messages_header_words_null ON messages (id) WHERE header_words IS NULL;
+CREATE INDEX idx_messages_snippet_trgm ON messages USING gin (snippet gin_trgm_ops)
+    WHERE snippet != '';
 
 -- The migration this schema is equal to; the core reads it at boot and
 -- applies whatever it carries beyond it.
 CREATE TABLE schema_version (version INTEGER NOT NULL);
-INSERT INTO schema_version (version) VALUES (66);
+INSERT INTO schema_version (version) VALUES (67);
