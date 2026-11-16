@@ -12115,7 +12115,7 @@
         "tags": [
           "Mail"
         ],
-        "description": "`name` is the hex sha256 of the image URL as the message wrote it (HTML entities decoded). Only the caller's own mail's images are found; 404 when the image was not fetched (refused, over budget, in Junk, or not yet).",
+        "description": "`name` is the hex sha256 of the image URL as the message wrote it (HTML entities decoded). Only the caller's own mail's images are found; 410 when the fetcher refused it; 404 when it was not fetched (over budget, in Junk, or not yet).",
         "parameters": [
           {
             "name": "name",
@@ -12137,6 +12137,9 @@
           },
           "404": {
             "description": "Not fetched"
+          },
+          "410": {
+            "description": "The fetcher refused it"
           }
         }
       }

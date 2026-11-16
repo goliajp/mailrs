@@ -28,6 +28,13 @@ pub fn path(root: &Path, user: &str, url: &str) -> PathBuf {
     user_dir(root, user).join(name(url))
 }
 
+/// The mark kept beside where `path`'s image would be when the fetcher
+/// refused it, so a client asking for it is told it will not come instead
+/// of being left to wait. Swept with the images, by age.
+pub fn refused(path: &Path) -> PathBuf {
+    path.with_extension("refused")
+}
+
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }

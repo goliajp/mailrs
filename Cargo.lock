@@ -4276,6 +4276,7 @@ name = "mailrs-fetch"
 version = "0.0.0"
 dependencies = [
  "axum",
+ "gif",
  "image",
  "mailrs-ops-report",
  "reqwest",

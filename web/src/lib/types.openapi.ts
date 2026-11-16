@@ -5726,7 +5726,7 @@ export interface paths {
         };
         /**
          * A remote image from the caller's mail, as the server prefetched it
-         * @description `name` is the hex sha256 of the image URL as the message wrote it (HTML entities decoded). Only the caller's own mail's images are found; 404 when the image was not fetched (refused, over budget, in Junk, or not yet).
+         * @description `name` is the hex sha256 of the image URL as the message wrote it (HTML entities decoded). Only the caller's own mail's images are found; 410 when the fetcher refused it; 404 when it was not fetched (over budget, in Junk, or not yet).
          */
         get: operations["getMailImage"];
         put?: never;
@@ -16485,6 +16485,13 @@ export interface operations {
             };
             /** @description Not fetched */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The fetcher refused it */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
