@@ -57,6 +57,27 @@ async fn an_image_is_its_recipients_and_no_url_is_fetched_on_request() {
             .status(),
         404
     );
+    // one the fetcher refused is gone, for its owner only
+    let refused = "https://shop.example/blocked.jpg";
+    let refused_path = mailrs_core_sidestate::image_cache::path(cache.path(), ALICE, refused);
+    std::fs::write(
+        mailrs_core_sidestate::image_cache::refused(&refused_path),
+        b"",
+    )
+    .unwrap();
+    let refused = mailrs_core_sidestate::image_cache::name(refused);
+    assert_eq!(
+        get(alice.clone(), format!("/api/mail/image/{refused}"))
+            .await
+            .status(),
+        410
+    );
+    assert_eq!(
+        get(bob.clone(), format!("/api/mail/image/{refused}"))
+            .await
+            .status(),
+        404
+    );
     assert_eq!(
         get(alice.clone(), "/api/mail/image/..%2F..%2Fetc".into())
             .await

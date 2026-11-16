@@ -4,6 +4,8 @@
  * that copy by the URL's hash.
  */
 
+import { http } from '@/lib/http'
+
 const REMOTE_SRC = 'data-remote-src'
 
 /** Take an image's remote address off it before it reaches the page. */
@@ -61,37 +63,68 @@ export function watchMissing(
  */
 export const RETRY_MS = [2_000, 4_000, 8_000, 15_000, 30_000, 30_000, 30_000]
 
+/** What the server says of an image the page could not load. */
+export type Probed = 'refused' | 'there' | 'waiting'
+
 /** What the reader is told about the images being fetched. */
 export type RetryState = 'loading' | 'missing' | 'none'
 
 /**
  * Ask again, on the `RETRY_MS` schedule, for the images that failed to
- * load once the server has been asked to fetch them. Only an image still
- * missing gets a new address: one that loaded keeps its own, and with it
- * the browser's copy. `onChange` hears 'loading' while some are missing,
- * 'none' once they have all come, and 'missing' when an image still fails
- * after the last attempt.
+ * load once the server has been asked to fetch them. Each attempt first
+ * asks the server whether the image is there yet: one that is gets a new
+ * address, one the server says it was refused (410) is waited for no
+ * more, and the rest wait for the next attempt. An image that loaded keeps
+ * its own address, and with it the browser's copy. `onChange` hears
+ * 'loading' while some are awaited, 'none' once they have all come, and
+ * 'missing' as soon as none is awaited and some will not come, or the
+ * schedule ran out with some still away.
  */
-export function retryMissing(onChange: (state: RetryState) => void) {
+export function retryMissing(
+  onChange: (state: RetryState) => void,
+  probe: (img: HTMLImageElement) => Promise<Probed> = probeImage
+) {
   const missing = new Set<HTMLImageElement>()
+  let refused = 0
   let attempt = 0
   let running = false
   let ended = false
+  let stopped = false
   let timer: ReturnType<typeof setTimeout> | undefined
 
+  const settle = () => {
+    if (!running) return
+    if (missing.size > 0 && !ended) {
+      onChange('loading')
+      return
+    }
+    if (missing.size > 0 || refused > 0) onChange('missing')
+    else onChange('none')
+  }
   const loaded = (img: HTMLImageElement) => {
     missing.delete(img)
-    if (running && missing.size === 0) onChange('none')
+    settle()
   }
   const next = () => {
     timer = setTimeout(() => {
       attempt += 1
-      for (const img of missing) reload(img, attempt)
-      if (attempt === RETRY_MS.length) {
-        ended = true
-        return
-      }
-      next()
+      const tried = attempt
+      void Promise.all(
+        [...missing].map(async (img) => {
+          const answer = await probe(img)
+          if (!missing.has(img)) return
+          if (answer === 'there') reload(img, tried)
+          if (answer === 'refused') {
+            missing.delete(img)
+            refused += 1
+          }
+        })
+      ).then(() => {
+        if (stopped) return
+        if (tried === RETRY_MS.length) ended = true
+        settle()
+        if (!ended && missing.size > 0) next()
+      })
     }, RETRY_MS[attempt])
   }
 
@@ -103,19 +136,32 @@ export function retryMissing(onChange: (state: RetryState) => void) {
         missing.add(img)
         img.addEventListener('load', () => loaded(img), { once: true })
       }
-      if (ended && missing.size > 0) onChange('missing')
-      else if (running && missing.size > 0) onChange('loading')
+      settle()
     },
     /** The server has the images queued: start asking again. */
     start() {
       if (running) return
       running = true
-      if (missing.size > 0) onChange('loading')
+      settle()
       next()
     },
     stop() {
+      stopped = true
       clearTimeout(timer)
     },
+  }
+}
+
+/** Ask the server, without the body, whether an image has come. */
+async function probeImage(img: HTMLImageElement): Promise<Probed> {
+  const base = img.src.split('?')[0]
+  try {
+    const res = await http(base, { cache: 'no-store', method: 'HEAD' })
+    if (res.ok) return 'there'
+    if (res.status === 410) return 'refused'
+    return 'waiting'
+  } catch {
+    return 'waiting'
   }
 }
 

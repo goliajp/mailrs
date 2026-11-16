@@ -32,7 +32,8 @@ function frame(html: string, mode: RemoteImages = 'auto') {
 /**
  * Stands in for `GET /api/mail/image/{hash}`, which jsdom never asks: each
  * time an image gets an address it fails, until the server has the copy
- * (`readyAt`, by the fake clock; `null` for never), and then it loads.
+ * (`readyAt`, by the fake clock; `null` for never), and then it loads. The
+ * page's `HEAD` asking whether an image has come gets the same answer.
  */
 function serveImages(root: ShadowRoot, readyAt: (alt: string) => null | number) {
   const last = new Map<string, Outcome>()
@@ -50,6 +51,17 @@ function serveImages(root: ShadowRoot, readyAt: (alt: string) => null | number) 
     }
   })
   observer.observe(root, { attributeFilter: ['src'], attributes: true, subtree: true })
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const url = String(input)
+    const path = new URL(url, location.href).pathname
+    const img = [...root.querySelectorAll('img')].find(
+      (i) => new URL(i.src, location.href).pathname === path
+    )
+    if (!img) throw new Error(`asked about no image: ${path}`)
+    const at = readyAt(img.alt)
+    const ready = at !== null && Date.now() >= at
+    return new Response(null, { status: ready ? 200 : 404 })
+  })
   return { last, srcs, stop: () => observer.disconnect() }
 }
 
@@ -77,6 +89,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  vi.restoreAllMocks()
   localStorage.clear()
 })
 
