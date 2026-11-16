@@ -83,6 +83,10 @@ pub trait RejudgeStore: NetKevy {
     fn state_hset(&self, key: &str, field: &str, value: &[u8]) -> io::Result<()>;
     /// Every field of hash `key`, in no order.
     fn state_hgetall(&self, key: &str) -> io::Result<Vec<(String, Vec<u8>)>>;
+    fn state_hdel(&self, key: &str, field: &str) -> io::Result<()>;
     fn state_sadd(&self, key: &str, member: &str) -> io::Result<()>;
     fn state_smembers(&self, key: &str) -> io::Result<Vec<String>>;
+    fn state_srem(&self, key: &str, member: &str) -> io::Result<()>;
+    /// Every key that starts with `prefix`, whatever its kind.
+    fn state_keys(&self, prefix: &str) -> io::Result<Vec<String>>;
 }

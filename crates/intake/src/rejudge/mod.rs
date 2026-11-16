@@ -29,10 +29,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 pub mod facts;
+mod forget;
 pub mod holding;
 pub mod judge;
 pub mod recall;
 mod store;
+pub use forget::forget_reader;
 pub use store::{Conversation, RawReader, RejudgeStore};
 
 /// Where the last observation this thread has dealt with is kept.
