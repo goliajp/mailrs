@@ -53,7 +53,10 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
     // single Router with all routes registered side-by-side resolves it.
     let business = Router::new()
         .route(conv::PATH_LIST_CONVERSATIONS, post(list_conversations))
-        .route(conv::PATH_SEARCH_CONVERSATIONS, post(search_conversations))
+        .route(
+            conv::PATH_SEARCH_CONVERSATIONS,
+            post(mailrs_core_routes::search::search_conversations::<FastcoreState>),
+        )
         .route(
             conv::PATH_CONVERSATIONS_BY_THREAD_IDS,
             post(conversations_by_thread_ids),

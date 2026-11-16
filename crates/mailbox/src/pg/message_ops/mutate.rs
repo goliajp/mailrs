@@ -214,8 +214,7 @@ impl PgMailboxStore {
         .bind(importance_score)
         .execute(&self.pool)
         .await?;
-
-        Ok(())
+        self.write_search_words(message_id).await
     }
 }
 

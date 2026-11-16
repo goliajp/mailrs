@@ -188,6 +188,9 @@ spg-embedded = "7.38.4"
 # notify-keyspace-events` is wired to the wire for the first time; this
 # project does not use keyspace notifications either.
 kevy-embedded = "6.4.0"
+# kevy-text — the tokenizer kevy indexes with, used directly so the SQL
+# store indexes and searches the same words; one generation with the line above
+kevy-text = "6.4.0"
 # kevy-client — synchronous RESP network client for a shared kevy-server.
 # Used when MAILRS_KEVY_URL is set: webapi's sessions and the fifteen
 # core-sidestate families, plus the anti subsystems (greylist / rate /

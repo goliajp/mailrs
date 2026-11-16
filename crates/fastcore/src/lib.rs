@@ -53,6 +53,7 @@ mod report;
 mod router;
 mod routes;
 mod rules;
+mod search_store;
 mod sections;
 mod senders;
 mod sent;
