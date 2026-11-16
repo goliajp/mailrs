@@ -88,6 +88,7 @@ describe('remote images in mail', () => {
   it('a missing image is fetched on request and loaded again', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     vi.mocked(wirePrefetchThreadImages).mockResolvedValue('queued')
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }))
     const html = '<img src="https://old.example/banner.png" alt="old">'
     const { container } = render(<HtmlFrame html={html} imagesOf="t-1" />)
     const root = container.querySelector<HTMLElement>('div')!.shadowRoot!
@@ -99,6 +100,33 @@ describe('remote images in mail', () => {
     await vi.advanceTimersByTimeAsync(4_000)
     expect(img().getAttribute('src')).toContain('?attempt=1')
     vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  // the server's fetcher was refused: the page says so at the first
+  // attempt, not after waiting out the whole schedule
+  it('an image the server was refused is given up on at once', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.mocked(wirePrefetchThreadImages).mockResolvedValue('queued')
+    const head = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 410 }))
+    const html = '<img src="https://blocked.example/item.jpg" alt="blocked">'
+    const { container } = render(<HtmlFrame html={html} imagesOf="t-2" />)
+    const root = container.querySelector<HTMLElement>('div:last-child')!.shadowRoot!
+    const img = () => root.querySelector<HTMLImageElement>('img[alt="blocked"]')!
+    await vi.waitFor(() => expect(img().getAttribute('src')).toContain('/api/mail/image/'))
+    const src = img().getAttribute('src')
+    img().dispatchEvent(new Event('error'))
+    expect(await screen.findByText('Loading images')).toBeDefined()
+    await vi.advanceTimersByTimeAsync(2_600)
+    expect(await screen.findByText('Some images could not be loaded')).toBeDefined()
+    expect(head).toHaveBeenCalledTimes(1)
+    expect(img().getAttribute('src'), 'a refused image is not asked for again').toBe(src)
+    await vi.advanceTimersByTimeAsync(130_000)
+    expect(head).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+    vi.restoreAllMocks()
   })
 
   it('says why the images of mail in Junk are not shown', async () => {

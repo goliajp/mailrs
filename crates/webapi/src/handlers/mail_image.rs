@@ -9,8 +9,9 @@ use crate::handlers::conversations::AuthedUser;
 
 /// GET /api/mail/image/{name} — `name` is the sha256 of the image's URL as
 /// the message wrote it. Looked up only in the caller's own directory, so
-/// a hash says nothing about anyone else's mail. 404 when it was not
-/// fetched (refused, over budget, Junk, or not yet).
+/// a hash says nothing about anyone else's mail. 410 when the fetcher
+/// refused it, so the page stops waiting for it; 404 when it was not
+/// fetched (over budget, Junk, or not yet).
 pub async fn get_image(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(name): Path<String>,
@@ -20,6 +21,9 @@ pub async fn get_image(
     }
     let path = image_cache::user_dir(&image_cache::root(), &user).join(name.to_ascii_lowercase());
     let Ok(bytes) = tokio::fs::read(&path).await else {
+        if image_cache::refused(&path).exists() {
+            return StatusCode::GONE.into_response();
+        }
         return StatusCode::NOT_FOUND.into_response();
     };
     // the cache keeps what was read lately; the read is its clock
