@@ -1,19 +1,24 @@
-//! `POST /v1/users/{user}/sent`: the sender's own copy of a message the
-//! web tier queued, filed by this core (`mailrs_intake::sent`).
+//! This core as the intake flows see it: filing a sent, imported or
+//! delivered copy (`mailrs_intake::sent`) and reporting a scam
+//! (`report::fingerprint`). The routes are `mailrs_core_routes::intake`.
 
 use std::io;
 use std::sync::Arc;
 
-use axum::Json;
-use axum::extract::{Path, State};
-use axum::http::StatusCode;
-use mailrs_core_api::method::sent::{FileSentRequest, FileSentResponse};
 use mailrs_intake::arrival::{Arrival, Threads};
 use mailrs_intake::sent::SentStore;
 
 use crate::FastcoreState;
 
-pub(crate) struct Store(pub(crate) Arc<FastcoreState>);
+pub struct Store(pub(crate) Arc<FastcoreState>);
+
+impl mailrs_core_routes::store::IntakeStore for FastcoreState {
+    type Core = Store;
+
+    fn intake_core(self: &Arc<Self>) -> Store {
+        Store(self.clone())
+    }
+}
 
 impl Threads for Store {
     fn thread_for_message_id(&self, user: &str, message_id: &str) -> Option<String> {
@@ -61,37 +66,4 @@ impl SentStore for Store {
         crate::ingest::store_arrival(&self.0, user, blob_ref, body, a, fraud_verdict);
         Ok(())
     }
-}
-
-pub(crate) async fn file_sent(
-    State(state): State<Arc<FastcoreState>>,
-    Path(user): Path<String>,
-    Json(req): Json<FileSentRequest>,
-) -> Result<Json<FileSentResponse>, StatusCode> {
-    let body = req.message().map_err(|_| StatusCode::BAD_REQUEST)?;
-    let store = Store(state);
-    let filed = tokio::task::spawn_blocking(move || {
-        match req.imported {
-            true => mailrs_intake::sent::file_imported(&store, &user, &body, &req.recipients),
-            false => mailrs_intake::sent::file(&store, &user, &body, &req.recipients),
-        }
-        .map_err(|e| {
-            tracing::error!(error = %e, %user, "filing the sent copy failed");
-            match e.kind() {
-                io::ErrorKind::InvalidInput => StatusCode::BAD_REQUEST,
-                io::ErrorKind::QuotaExceeded => StatusCode::INSUFFICIENT_STORAGE,
-                _ => StatusCode::INTERNAL_SERVER_ERROR,
-            }
-        })
-    })
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "filing the sent copy panicked");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })??;
-    Ok(Json(FileSentResponse {
-        thread_id: filed.thread_id,
-        message_id: filed.message_id,
-        blob_ref: filed.blob_ref,
-    }))
 }
