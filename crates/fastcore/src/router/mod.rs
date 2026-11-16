@@ -186,9 +186,12 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         .route(
             adm::PATH_UPDATE_ACCOUNT,
             put(mailrs_core_routes::account::update_account::<FastcoreState>)
-                .delete(remove_account_route),
+                .delete(mailrs_core_routes::account::remove_account::<FastcoreState>),
         )
-        .route(adm::PATH_RESTORE_ACCOUNT, post(restore_account_route))
+        .route(
+            adm::PATH_RESTORE_ACCOUNT,
+            post(mailrs_core_routes::account::restore_account::<FastcoreState>),
+        )
         .route(
             adm::PATH_SET_QUOTA,
             post(mailrs_core_routes::account::set_quota::<FastcoreState>),

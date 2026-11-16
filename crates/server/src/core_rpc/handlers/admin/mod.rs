@@ -19,10 +19,8 @@ use crate::core_rpc::CoreRpcState;
 // ── effective permissions ───────────────────────────────────────────
 
 pub(crate) mod account_purge;
-mod account_restore;
-pub(crate) mod group_purge;
-pub use account_restore::restore_account;
 mod aliases;
+pub(crate) mod group_purge;
 mod ownerless;
 mod quota;
 mod rejudge;
@@ -179,58 +177,6 @@ fn _import_tz() -> chrono::DateTime<chrono::Utc> {
 // The monolith did account CRUD in its web layer; in the split the PG
 // core must serve these so webapi (a separate process on one core
 // client) can create/update accounts regardless of backend.
-
-/// DELETE /v1/admin/accounts/{address} — as fastcore's: the maildir is
-/// parked where delivery cannot find it, the account row is marked deleted
-/// (it and what references it stay for a restore), and the
-/// address is marked for its purge, which removes the rest once the
-/// retention period has passed (at once under 0 days). The account is kept
-/// when the maildir cannot be moved.
-pub async fn remove_account(
-    State(state): State<Arc<CoreRpcState>>,
-    Path(address): Path<String>,
-    axum::extract::Query(by): axum::extract::Query<wire::ActorQuery>,
-) -> Result<StatusCode, StatusCode> {
-    let existed = account_purge::is_account(&state, &address).await?;
-    let now = chrono::Utc::now().timestamp();
-    let marked = match existed {
-        true => account_purge::mark(&state, &address, now).await?,
-        false => false,
-    };
-    if existed {
-        let root = std::path::Path::new(&state.maildir_root);
-        if let Err(e) =
-            mailrs_core_sidestate::families::account_purge::maildir::park(root, &address, now)
-        {
-            tracing::error!(error = %e, %address, "removing the account's maildir failed; account kept");
-            if marked {
-                account_purge::unmark(&state, &address).await?;
-            }
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    }
-    state
-        .domain
-        .remove_account(&address, now)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    mailrs_core_sidestate::families::audit::record_by_core(
-        &*state,
-        by.actor(),
-        mailrs_core_sidestate::families::audit::ACCOUNT_DELETE,
-        &address,
-        "",
-        now,
-    );
-    let days = mailrs_core_sidestate::families::account_purge::pending::retention_days();
-    if marked
-        && days == 0
-        && let Err(code) = account_purge::run(&state, false, Some(address.clone()), now, 0).await
-    {
-        tracing::error!(%code, %address, "purging at the delete failed; the retention task retries");
-    }
-    Ok(StatusCode::NO_CONTENT)
-}
 
 /// POST /v1/users/{user}/messages/{uid}/flags — set flags verbatim on
 /// the message in the user's INBOX (parity with fastcore's per-user

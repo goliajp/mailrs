@@ -7,7 +7,8 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use mailrs_core_api::method::admin as adm;
-use mailrs_core_sidestate::families::{account_purge::pending, audit, quota_limits};
+use mailrs_core_sidestate::families::account_purge::{maildir, pending};
+use mailrs_core_sidestate::families::{audit, quota_limits};
 
 use crate::store::{AccountPatch, AccountStore, NewAccount, StoreError};
 
@@ -86,9 +87,9 @@ pub async fn add_account<S: AccountStore>(
     let Some(initial) = req.initial_password() else {
         return StatusCode::BAD_REQUEST.into_response();
     };
-    match state.account(&req.address).await {
-        Ok(None) => {}
-        Ok(Some(_)) => return StatusCode::CONFLICT.into_response(),
+    match state.exists(&req.address).await {
+        Ok(false) => {}
+        Ok(true) => return StatusCode::CONFLICT.into_response(),
         Err(e) => return failed(e, &req.address),
     }
     match on_net(&*state, |c| pending::deleted_at(c, &req.address)) {
@@ -213,4 +214,114 @@ pub async fn clear_password<S: AccountStore>(
         at: now(),
     };
     patch(&*state, &address, p).await
+}
+
+/// DELETE /v1/admin/accounts/{address} — the address stops being a
+/// mailbox. Delivery takes any maildir it finds, so the maildir is moved
+/// aside first; the account is kept when that fails. The rest of what the
+/// account owns stays until the retention period has passed: the address
+/// is marked pending purge, and the purge removes it all then, or at once
+/// under a retention of 0 days.
+pub async fn remove_account<S: AccountStore>(
+    State(state): State<Arc<S>>,
+    Path(address): Path<String>,
+    Query(by): Query<adm::ActorQuery>,
+) -> Response {
+    let existed = match state.exists(&address).await {
+        Ok(e) => e,
+        Err(e) => return failed(e, &address),
+    };
+    let at = now();
+    if !existed {
+        if let Err(e) = state.drop_account(&address, at).await {
+            return failed(e, &address);
+        }
+        return StatusCode::NO_CONTENT.into_response();
+    }
+    let record = match state.record_for_restore(&address).await {
+        Ok(r) => r,
+        Err(e) => return failed(e, &address),
+    };
+    let marked = on_net(&*state, |c| {
+        pending::mark(c, &address, at)?;
+        match &record {
+            Some(r) => pending::keep_record(c, &address, r),
+            None => Ok(()),
+        }
+    });
+    let marked = match marked {
+        Ok(m) => m.is_some(),
+        Err(code) => {
+            tracing::error!(%address, "marking the account for its purge failed; account kept");
+            return code.into_response();
+        }
+    };
+    if let Err(e) = maildir::park(state.maildir_root(), &address, at) {
+        tracing::error!(error = %e, %address, "removing the account's maildir failed; account kept");
+        if marked && let Err(code) = on_net(&*state, |c| pending::clear(c, &address)) {
+            tracing::error!(%code, %address, "the purge mark of a kept account stays; the purge skips it while it is an account");
+        }
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    if let Err(e) = state.drop_account(&address, at).await {
+        return failed(e, &address);
+    }
+    audit::record_by_core(&*state, by.actor(), audit::ACCOUNT_DELETE, &address, "", at);
+    if marked && pending::retention_days() == 0 {
+        state.clone().purge_now(address, at).await;
+    }
+    StatusCode::NO_CONTENT.into_response()
+}
+
+fn refused(r: adm::RestoreRefused) -> Response {
+    (StatusCode::CONFLICT, Json(r)).into_response()
+}
+
+/// POST /v1/admin/accounts/{address}/restore — before its purge: the
+/// account goes back, then its parked maildir, then the purge mark, with an
+/// audit row. Everything else the account owned never left.
+pub async fn restore_account<S: AccountStore>(
+    State(state): State<Arc<S>>,
+    Path(address): Path<String>,
+    Json(req): Json<adm::RestoreAccountRequest>,
+) -> Response {
+    use mailrs_core_sidestate::families::account_purge::restore;
+    let Some(mut net) = state.net_conn() else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let live = match state.exists(&address).await {
+        Ok(e) => e,
+        Err(e) => return failed(e, &address),
+    };
+    let io_failed = |e: std::io::Error, what: &str| {
+        tracing::error!(error = %e, %address, "restoring the account: {what} failed");
+        StatusCode::INTERNAL_SERVER_ERROR.into_response()
+    };
+    let root = state.maildir_root();
+    let dir = match restore::check(&mut net, root, &address, live, req.parked.as_deref()) {
+        Ok(Ok(dir)) => dir,
+        Ok(Err(r)) => return refused(r),
+        Err(e) => return io_failed(e, "checking"),
+    };
+    let kept = match pending::record(&mut net, &address) {
+        Ok(k) => k,
+        Err(e) => return io_failed(e, "reading the kept record"),
+    };
+    match state.bring_back(&address, kept).await {
+        Ok(true) => {}
+        Ok(false) => {
+            return refused(adm::RestoreRefused {
+                refused: adm::RestoreRefusal::NoRecord,
+                parked: Vec::new(),
+            });
+        }
+        Err(e) => return failed(e, &address),
+    }
+    let back = match restore::finish(&mut net, root, &address, dir.as_deref(), &req.by, now()) {
+        Ok(back) => back,
+        Err(e) => return io_failed(e, "moving the maildir back"),
+    };
+    tracing::info!(%address, by = %req.by, rescheduled = back.rescheduled,
+        drafts = back.returned_as_drafts, "deleted account restored");
+    Json(back).into_response()
 }

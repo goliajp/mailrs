@@ -11,8 +11,6 @@
 //! list issues), `reads` (lists, search, counts, contents).
 
 mod account;
-mod account_delete;
-mod account_restore;
 pub(crate) mod images;
 pub(crate) mod labels;
 pub(crate) mod mark_read;
@@ -28,8 +26,6 @@ pub(crate) mod thread_actions;
 pub(crate) mod trash;
 
 pub(crate) use account::*;
-pub(crate) use account_delete::*;
-pub(crate) use account_restore::*;
 pub(crate) use mark_read::*;
 pub(crate) use message_index::message_index;
 pub(crate) use message_ops::*;

@@ -238,28 +238,6 @@ pub async fn account_purge_route(
         .map(Json)
 }
 
-/// Mark `address` deleted at `now`, for its purge. `Ok(false)` when no
-/// network kevy is configured (tests); one configured and unreachable is
-/// a 503, since a delete that cannot mark would never be purged.
-pub(crate) async fn mark(
-    state: &Arc<CoreRpcState>,
-    address: &str,
-    now: i64,
-) -> Result<bool, StatusCode> {
-    if state.net_url.is_none() {
-        return Ok(false);
-    }
-    let a = address.to_string();
-    net(state, move |c| pending::mark(c, &a, now)).await?;
-    Ok(true)
-}
-
-/// Undo [`mark`] for a delete that did not happen.
-pub(crate) async fn unmark(state: &Arc<CoreRpcState>, address: &str) -> Result<(), StatusCode> {
-    let a = address.to_string();
-    net(state, move |c| pending::clear(c, &a)).await
-}
-
 const BASE: Duration = Duration::from_secs(3600);
 const MAX: Duration = Duration::from_secs(24 * 3600);
 

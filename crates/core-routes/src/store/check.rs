@@ -262,7 +262,15 @@ pub async fn check_account_store<S: super::AccountStore>(store: &S, address: &st
         created_at: 1_700_000_000,
         quota_bytes: 1024,
     };
+    assert!(
+        !store.exists(address).await.unwrap(),
+        "exists before it is made"
+    );
     store.insert_account(&new).await.unwrap();
+    assert!(
+        store.exists(address).await.unwrap(),
+        "the new account does not exist"
+    );
     let made = store
         .account(address)
         .await
