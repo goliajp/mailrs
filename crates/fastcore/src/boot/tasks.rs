@@ -50,7 +50,7 @@ pub(super) fn spawn_workers(state: &Arc<FastcoreState>, kevy_dir: &str) {
     mailrs_core_routes::purge::spawn(state.clone());
     crate::senders::spawn_retention(state.clone());
     crate::ledger::spawn_link_prune(state.clone());
-    crate::rejudge::spawn(state.clone());
+    mailrs_intake::rejudge::spawn(state.clone(), state.net_url.clone());
     // Say now whether push is on, rather than at the first delivery.
     push::warm();
     aof_compact::spawn(state.clone(), kevy_dir.to_string());

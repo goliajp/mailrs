@@ -56,12 +56,12 @@ pub(crate) fn snapshot(state: &FastcoreState) -> std::io::Result<Vec<(String, St
     Ok(targets)
 }
 
-pub(crate) use mailrs_intake::fraud_judge::{FraudJudge, FraudJudgement};
+pub(crate) use mailrs_intake::fraud_judge::FraudJudge;
 
 /// The fraud rules as this process is configured: the policy, with the
 /// account rows' display names, and the shared store for the reader's
 /// history with a sender.
-pub(crate) fn fraud_judge(state: &Arc<FastcoreState>) -> FraudJudge {
+pub(crate) fn fraud_judge(state: &FastcoreState) -> FraudJudge {
     FraudJudge::new(policy_from_env(state), our_authserv_id(), state.net_conn())
 }
 

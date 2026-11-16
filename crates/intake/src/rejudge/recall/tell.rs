@@ -64,13 +64,13 @@ pub(super) fn reader(
     if let Err(e) = recall_notices::push(conn, user, &notice) {
         tracing::warn!(error = %e, %user, %observation, "rejudge: the reader's notice was not written");
     }
-    let pushed: Vec<mailrs_intake::push::RecalledConversation<'_>> = taken
+    let pushed: Vec<crate::push::RecalledConversation<'_>> = taken
         .iter()
-        .map(|c| mailrs_intake::push::RecalledConversation {
+        .map(|c| crate::push::RecalledConversation {
             thread_id: &c.tid,
             sender: &c.from,
             subject: &c.subject,
         })
         .collect();
-    mailrs_intake::push::notify_recalled(Some(conn), user, &pushed);
+    crate::push::notify_recalled(Some(conn), user, &pushed);
 }

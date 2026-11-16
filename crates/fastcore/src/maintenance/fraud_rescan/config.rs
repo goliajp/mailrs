@@ -15,7 +15,7 @@ use super::super::prelude::*;
 /// Read here rather than configured, because the store is the
 /// authority on who has an account and a variable is a second copy
 /// that can drift from it.
-pub(crate) fn account_display_names(state: &Arc<FastcoreState>) -> Vec<String> {
+pub(crate) fn account_display_names(state: &FastcoreState) -> Vec<String> {
     let Ok(addrs) = state.mailbox.list_account_addresses() else {
         return Vec::new();
     };
@@ -38,7 +38,7 @@ pub(crate) fn account_display_names(state: &Arc<FastcoreState>) -> Vec<String> {
 ///
 /// A sweep with no org names cannot fire the impersonation rule, and
 /// its `found` count comes back looking like an answer. Say so.
-pub(super) fn policy_from_env(state: &Arc<FastcoreState>) -> mailrs_fraud::Policy {
+pub(super) fn policy_from_env(state: &FastcoreState) -> mailrs_fraud::Policy {
     let policy = mailrs_fraud::Policy {
         org_names: csv_env("MAILRS_ORG_NAMES"),
         our_domains: csv_env("MAILRS_LOCAL_DOMAINS"),

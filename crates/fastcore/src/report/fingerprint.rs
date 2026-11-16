@@ -43,8 +43,10 @@ impl ReportStore for crate::sent::Store {
     }
 
     fn conversation_of(&self, user: &str, mid: &str) -> io::Result<Option<(String, bool)>> {
-        Ok(crate::rejudge::judge::thread_of(&self.0, user, mid)
-            .map(|(tid, row)| (tid, row.quarantined)))
+        Ok(
+            mailrs_intake::rejudge::RejudgeStore::thread_of(&*self.0, user, mid)
+                .map(|(tid, row)| (tid, row.held)),
+        )
     }
 
     fn raw_of(&self, user: &str, mid: &str) -> Option<Vec<u8>> {
@@ -109,6 +111,6 @@ impl ReportStore for crate::sent::Store {
             .template_of(mid)
             .map_err(|e| e.to_string())?
             .map(|t| t.at);
-        crate::rejudge::recall::hold_reported(&self.0, user, tid, arrived, batch)
+        mailrs_intake::rejudge::recall::hold_reported(&*self.0, user, tid, arrived, batch)
     }
 }

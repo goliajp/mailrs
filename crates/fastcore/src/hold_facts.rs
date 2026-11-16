@@ -20,15 +20,7 @@ use mailrs_core_api::method::thread::ReleaseFact;
 
 use crate::FastcoreState;
 
-/// A reader or an administrator released it from the review list.
-pub(crate) const PERSON: &str = "person";
-/// An administrator put back a whole re-judge batch.
-pub(crate) const BATCH: &str = "batch";
-/// A rule change: the active pack no longer holds it.
-pub(crate) const REJUDGE: &str = "rejudge";
-
-/// The actor of a release no person made.
-pub(crate) const SYSTEM: &str = "system";
+pub(crate) use mailrs_intake::rejudge::facts::{PERSON, REJUDGE, REPORT, SYSTEM, verdict_rules};
 
 fn key(user: &str, tid: &str) -> String {
     format!("release:facts:{user}:{tid}")
@@ -51,16 +43,11 @@ pub(crate) struct HoldFact {
     pub(crate) unread_mids: Vec<String>,
 }
 
-/// The source of a hold a report made.
-pub(crate) const REPORT: &str = "report";
-
 fn now() -> i64 {
     chrono::Utc::now().timestamp()
 }
 
-/// Append one release and its audit line. `scope` says what the release
-/// was part of (`batch=<id>` for a batch put back), empty when it stands
-/// alone; it goes into the audit line.
+/// Append one release and its audit line (`mailrs_intake::rejudge::facts`).
 pub(crate) fn record_release(
     state: &FastcoreState,
     user: &str,
@@ -70,29 +57,48 @@ pub(crate) fn record_release(
     rules_version: &str,
     scope: &str,
 ) -> Result<(), String> {
-    let fact = ReleaseFact {
-        at: now(),
-        source: source.to_string(),
-        actor: actor.to_string(),
-        rules_version: rules_version.to_string(),
-    };
-    let json = serde_json::to_vec(&fact).map_err(|e| e.to_string())?;
+    mailrs_intake::rejudge::facts::record_release(
+        state,
+        user,
+        tid,
+        source,
+        actor,
+        rules_version,
+        scope,
+    )
+}
+
+/// Append one release; never rewritten.
+pub(crate) fn append_release(
+    state: &FastcoreState,
+    user: &str,
+    tid: &str,
+    fact: &ReleaseFact,
+) -> Result<(), String> {
+    let json = serde_json::to_vec(fact).map_err(|e| e.to_string())?;
     state
         .mailbox
         .store_ref()
         .rpush(key(user, tid).as_bytes(), &[json.as_slice()])
         .map_err(|e| e.to_string())?;
-    let detail =
-        format!("user={user} source={source} actor={actor} rules_version={rules_version} {scope}");
-    mailrs_core_sidestate::families::audit::record_by_core(
-        state,
-        actor,
-        "quarantine.release",
-        tid,
-        detail.trim_end(),
-        fact.at,
-    );
     Ok(())
+}
+
+/// Whether a re-judge may hold `tid` on a message that arrived at
+/// `arrived` (`mailrs_intake::rejudge::facts::may_hold_again`).
+pub(crate) fn may_hold_again(
+    state: &FastcoreState,
+    user: &str,
+    tid: &str,
+    arrived: Option<i64>,
+) -> Result<bool, String> {
+    mailrs_intake::rejudge::facts::may_hold_again(state, user, tid, arrived)
+}
+
+/// Whether a person's report holds `tid` now
+/// (`mailrs_intake::rejudge::facts::held_by_report`).
+pub(crate) fn held_by_report(state: &FastcoreState, user: &str, tid: &str) -> Result<bool, String> {
+    mailrs_intake::rejudge::facts::held_by_report(state, user, tid)
 }
 
 /// Every release of `tid` for `user`, oldest first.
@@ -109,37 +115,6 @@ pub(crate) fn releases(
     rows.iter()
         .map(|r| serde_json::from_slice(r).map_err(|e| e.to_string()))
         .collect()
-}
-
-/// When a person last released `tid` for `user`: a reader, or an
-/// administrator putting back a batch. A release by a rule change does
-/// not count: the rules may take back what the rules let go.
-pub(crate) fn person_released_at(
-    state: &FastcoreState,
-    user: &str,
-    tid: &str,
-) -> Result<Option<i64>, String> {
-    Ok(releases(state, user, tid)?
-        .iter()
-        .filter(|f| f.source == PERSON || f.source == BATCH)
-        .map(|f| f.at)
-        .max())
-}
-
-/// Whether a re-judge may hold `tid` on a message that arrived at
-/// `arrived`: not when a person released the conversation after it came.
-/// A message with no arrival time is treated as old, which leaves the
-/// conversation where the person put it.
-pub(crate) fn may_hold_again(
-    state: &FastcoreState,
-    user: &str,
-    tid: &str,
-    arrived: Option<i64>,
-) -> Result<bool, String> {
-    let Some(released) = person_released_at(state, user, tid)? else {
-        return Ok(true);
-    };
-    Ok(arrived.is_some_and(|a| a > released))
 }
 
 /// The audit line and the hold fact for a conversation that was not held
@@ -207,16 +182,6 @@ pub(crate) fn record_hold_fact(
     Ok(())
 }
 
-/// Whether a person's report holds `tid` now: its newest hold came from a
-/// report. The rules did not hold it, so a rule change may not release
-/// it; a person releasing it, or an administrator putting back the
-/// report's batch, does.
-pub(crate) fn held_by_report(state: &FastcoreState, user: &str, tid: &str) -> Result<bool, String> {
-    Ok(holds(state, user, tid)?
-        .last()
-        .is_some_and(|h| h.source == REPORT))
-}
-
 /// Every hold of `tid` for `user`, oldest first.
 pub(crate) fn holds(state: &FastcoreState, user: &str, tid: &str) -> Result<Vec<HoldFact>, String> {
     let rows = state
@@ -237,14 +202,6 @@ pub(crate) fn forget_holds(state: &FastcoreState, user: &str, tid: &str) -> Resu
         .del(&[hold_key(user, tid).as_bytes()])
         .map(|_| ())
         .map_err(|e| e.to_string())
-}
-
-/// The rule ids a stored verdict names.
-pub(crate) fn verdict_rules(v: &mailrs_inbound::FraudVerdict) -> Vec<String> {
-    v.layers
-        .iter()
-        .flat_map(|l| l.reasons.iter().map(|r| r.code.clone()))
-        .collect()
 }
 
 #[cfg(test)]

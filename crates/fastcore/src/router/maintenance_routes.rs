@@ -141,12 +141,12 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
         // Read-only: what the shadow re-judge has done and would have done.
         .route(
             "/v1/admin/maintenance:rejudge-status",
-            get(crate::rejudge::status_route),
+            get(mailrs_core_routes::rejudge::status),
         )
         // One shadow re-judge round now: records verdicts, moves nothing.
         .route(
             "/v1/admin/maintenance:rejudge-now",
-            post(crate::rejudge::now_route),
+            post(mailrs_core_routes::rejudge::now::<FastcoreState>),
         )
         .route(
             "/v1/admin/maintenance:ledger-estimate",
