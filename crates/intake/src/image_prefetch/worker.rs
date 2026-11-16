@@ -223,18 +223,40 @@ async fn fetch_one(client: &reqwest::Client, fetch_url: &str, root: &Path, user:
         .json(&serde_json::json!({ "url": url }))
         .send()
         .await;
-    let bytes = match resp {
-        Ok(r) if r.status().is_success() => match r.bytes().await {
-            Ok(b) => b,
-            Err(_) => return,
-        },
-        // refused or failed: no image, and nothing to retry
-        _ => return,
+    let resp = match resp {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!(error = %e, "image fetcher unreachable");
+            return;
+        }
+    };
+    let status = resp.status();
+    if status == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
+        // the fetcher's answer about this image: it will not come
+        let why = resp.text().await.unwrap_or_default();
+        tracing::info!(host = %host_of(url), %why, "image refused");
+        write(root, &image_cache::refused(&path), b"");
+        return;
+    }
+    if !status.is_success() {
+        tracing::warn!(%status, "image fetcher failed");
+        return;
+    }
+    let Ok(bytes) = resp.bytes().await else {
+        return;
     };
     let tmp = path.with_extension("partial");
+    write(root, &tmp, &bytes);
+    if let Err(e) = std::fs::rename(&tmp, &path) {
+        tracing::warn!(error = %e, "image cache write failed");
+        return;
+    }
+    let _ = std::fs::remove_file(image_cache::refused(&path));
+}
+
+fn write(root: &Path, path: &Path, bytes: &[u8]) {
     let written = std::fs::create_dir_all(path.parent().unwrap_or(root))
-        .and_then(|()| std::fs::write(&tmp, &bytes))
-        .and_then(|()| std::fs::rename(&tmp, &path));
+        .and_then(|()| std::fs::write(path, bytes));
     if let Err(e) = written {
         tracing::warn!(error = %e, "image cache write failed");
     }
@@ -292,6 +314,50 @@ pub fn sweep(root: &Path, cap: u64, now: std::time::SystemTime) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A stand-in fetcher that gives each request the next of `answers`.
+    async fn fetcher_answering(answers: Vec<&'static [u8]>) -> String {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            for answer in answers {
+                let (mut conn, _) = listener.accept().await.unwrap();
+                let mut request = [0u8; 4096];
+                let _ = conn.read(&mut request).await;
+                conn.write_all(answer).await.unwrap();
+            }
+        });
+        format!("http://{addr}/fetch")
+    }
+
+    const REFUSED: &[u8] = b"HTTP/1.1 422 Unprocessable Entity\r\ncontent-length: 24\r\n\
+connection: close\r\n\r\n{\"error\":\"answered 403\"}";
+    const IMAGE: &[u8] =
+        b"HTTP/1.1 200 OK\r\ncontent-length: 4\r\nconnection: close\r\n\r\n\x89PNG";
+
+    /// A refused image leaves a mark that says so, and a later fetch that
+    /// succeeds replaces it with the image. A fetcher that cannot be
+    /// reached says nothing about the image, so it leaves no mark.
+    #[tokio::test]
+    async fn a_refusal_is_kept_until_the_image_comes() {
+        let root = tempfile::tempdir().unwrap();
+        let (user, url) = ("a@x.jp", "https://shop.example/a.jpg");
+        let path = image_cache::path(root.path(), user, url);
+        let client = reqwest::Client::new();
+
+        fetch_one(&client, "http://127.0.0.1:1/fetch", root.path(), user, url).await;
+        assert!(!image_cache::refused(&path).exists(), "unreachable fetcher");
+
+        let fetcher = fetcher_answering(vec![REFUSED, IMAGE]).await;
+        fetch_one(&client, &fetcher, root.path(), user, url).await;
+        assert!(image_cache::refused(&path).exists());
+        assert!(!path.exists());
+
+        fetch_one(&client, &fetcher, root.path(), user, url).await;
+        assert_eq!(std::fs::read(&path).unwrap(), b"\x89PNG");
+        assert!(!image_cache::refused(&path).exists());
+    }
 
     #[test]
     fn each_user_has_a_directory_of_their_own() {
