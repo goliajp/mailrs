@@ -27,22 +27,6 @@ fn now() -> i64 {
     chrono::Utc::now().timestamp()
 }
 
-/// The network kevy for the delete's mark: `None` only when none is
-/// configured (tests); one that is configured and unreachable is a 503,
-/// since a delete that cannot mark would never be purged.
-pub(crate) fn mark_conn(state: &FastcoreState) -> Result<Option<Connection>, StatusCode> {
-    if state.net_url.is_none() {
-        return Ok(None);
-    }
-    match state.net_conn() {
-        Some(c) => Ok(Some(c)),
-        None => {
-            tracing::error!("account purge: the network kevy is unreachable");
-            Err(StatusCode::SERVICE_UNAVAILABLE)
-        }
-    }
-}
-
 /// One pass: every pending address whose `retention_days` have passed (or
 /// only `only`), counted, and removed unless `dry_run`.
 pub(crate) fn run(

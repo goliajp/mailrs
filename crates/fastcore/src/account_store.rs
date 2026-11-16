@@ -7,6 +7,15 @@ use serde_json::{Map, Value};
 
 use crate::FastcoreState;
 
+/// What the delete keeps beside the purge mark and a restore puts back: the
+/// account blob, with the password hash and settings in it, and the
+/// permissions blob.
+#[derive(serde::Deserialize)]
+struct Record {
+    account: String,
+    perms: Option<String>,
+}
+
 fn parsed(address: &str, blob: &str) -> StoreResult<AccountWithHashWire> {
     serde_json::from_str(blob).map_err(|e| StoreError(format!("account {address}: {e}")))
 }
@@ -14,6 +23,10 @@ fn parsed(address: &str, blob: &str) -> StoreResult<AccountWithHashWire> {
 impl AccountStore for FastcoreState {
     fn net_configured(&self) -> bool {
         self.net_url.is_some()
+    }
+
+    async fn exists(&self, address: &str) -> StoreResult<bool> {
+        Ok(self.mailbox.get_account_blob(address)?.is_some())
     }
 
     async fn account(&self, address: &str) -> StoreResult<Option<AccountWithHashWire>> {
@@ -73,6 +86,29 @@ impl AccountStore for FastcoreState {
         Ok(())
     }
 
+    fn maildir_root(&self) -> &std::path::Path {
+        std::path::Path::new(&self.maildir_root)
+    }
+
+    /// The account blob, with the password hash and settings in it, and the
+    /// permissions blob: what the delete drops and a restore puts back.
+    async fn record_for_restore(&self, address: &str) -> StoreResult<Option<String>> {
+        let account = self.mailbox.get_account_blob(address)?;
+        let perms = self.mailbox.get_permissions_blob(address)?;
+        Ok(Some(
+            serde_json::json!({ "account": account, "perms": perms }).to_string(),
+        ))
+    }
+
+    async fn drop_account(&self, address: &str, _now: i64) -> StoreResult<()> {
+        self.mailbox.delete_account(address)?;
+        Ok(())
+    }
+
+    async fn purge_now(self: std::sync::Arc<Self>, address: String, _now: i64) {
+        crate::account_purge::purge_now(self, address).await;
+    }
+
     async fn patch_account(&self, address: &str, patch: AccountPatch<'_>) -> StoreResult<bool> {
         let Some(blob) = self.mailbox.get_account_blob(address)? else {
             return Ok(false);
@@ -84,6 +120,20 @@ impl AccountStore for FastcoreState {
         };
         apply(obj, patch);
         self.mailbox.upsert_account(address, &val.to_string())?;
+        Ok(true)
+    }
+
+    async fn bring_back(&self, address: &str, kept: Option<String>) -> StoreResult<bool> {
+        let Some(record) = kept
+            .as_deref()
+            .and_then(|k| serde_json::from_str::<Record>(k).ok())
+        else {
+            return Ok(false);
+        };
+        self.mailbox.upsert_account(address, &record.account)?;
+        if let Some(perms) = &record.perms {
+            self.mailbox.upsert_permissions(address, perms)?;
+        }
         Ok(true)
     }
 }
