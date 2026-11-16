@@ -48,6 +48,7 @@ mod purge_fixture;
 mod quota;
 mod quota_limits;
 mod rejudge;
+mod rejudge_batches;
 mod rejudge_rounds;
 mod reports;
 mod reports_dismiss;
@@ -107,6 +108,8 @@ async fn the_two_cores_answer_every_client_call_alike() {
     sections::fixtures(&cores, &mut d).await;
     // after every list and search: it adds a conversation to Alice's mail
     invites::run(&cores, &mut d).await;
+    // after the invites too: it adds five conversations to Alice's mail
+    rejudge_rounds::run(&cores, &mut d).await;
     accounts::teardown(&cores, &mut d).await;
     d.both(
         "healthz",
