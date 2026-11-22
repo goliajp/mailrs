@@ -128,9 +128,9 @@ async fn a_password_change_keeps_quota_and_recovery_email() {
 
 // the caller hashes; fastcore stores what it is given
 fn hash_of(password: &str) -> String {
-    use argon2::password_hash::{PasswordHasher, SaltString, rand_core::OsRng};
+    use argon2::password_hash::PasswordHasher;
     argon2::Argon2::default()
-        .hash_password(password.as_bytes(), &SaltString::generate(&mut OsRng))
+        .hash_password(password.as_bytes())
         .expect("hash")
         .to_string()
 }

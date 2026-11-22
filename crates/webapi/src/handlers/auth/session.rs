@@ -11,7 +11,7 @@ use axum::{
     http::{StatusCode, header::SET_COOKIE},
     response::{IntoResponse, Response},
 };
-use rand_core::RngCore;
+use rand_core::Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::WebState;
@@ -233,7 +233,7 @@ pub(crate) async fn issue_session(
 
     // Generate token + write to kevy in the same shape as the monolith.
     let mut bytes = [0u8; 32];
-    rand_core::OsRng.fill_bytes(&mut bytes);
+    rand_core::UnwrapErr(getrandom::SysRng).fill_bytes(&mut bytes);
     let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
     if let Some(e) = signed_in {
         crate::login_guard::GUARD

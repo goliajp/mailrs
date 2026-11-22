@@ -96,8 +96,8 @@ pub async fn reclassify(
 }
 
 fn rand_suffix() -> u32 {
-    use rand_core::RngCore;
-    rand_core::OsRng.next_u32()
+    use rand_core::Rng;
+    rand_core::UnwrapErr(getrandom::SysRng).next_u32()
 }
 
 #[derive(Debug, serde::Serialize)]

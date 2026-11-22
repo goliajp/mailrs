@@ -127,7 +127,7 @@ pub fn request(
     now: i64,
 ) -> std::io::Result<String> {
     let mut bytes = [0u8; 4];
-    rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut bytes);
+    rand_core::Rng::fill_bytes(&mut rand_core::UnwrapErr(getrandom::SysRng), &mut bytes);
     let code = format!("{:06}", u32::from_le_bytes(bytes) % 1_000_000);
     let mut f = get(conn, user)?;
     f.pending_address = address.trim().to_lowercase();

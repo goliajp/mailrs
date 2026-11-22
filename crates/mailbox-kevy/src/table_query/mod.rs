@@ -23,6 +23,18 @@ mod orderpath;
 mod section;
 mod sender;
 
+/// The equalities and optional `(column, lo, hi)` range one ORDERPATH walk
+/// is bounded by.
+fn where_clause(
+    eqs: Vec<(Vec<u8>, Vec<u8>)>,
+    range: Option<(Vec<u8>, Vec<u8>, Vec<u8>)>,
+) -> kevy_index::WhereClause {
+    let mut clause = kevy_index::WhereClause::default();
+    clause.eqs = eqs;
+    clause.range = range;
+    clause
+}
+
 /// Whether a read over an ORDERPATH includes archived threads.
 ///
 /// Archived is a list of its own — cross-folder, reached by keying on
@@ -139,7 +151,7 @@ impl KevyMailboxStore {
             (second_col.to_vec(), second_val.as_bytes().to_vec()),
         ];
         scope.push_to(&mut eqs);
-        kevy_index::WhereClause { eqs, range: None }
+        where_clause(eqs, None)
     }
 
     /// Resolve the composite columns for `index` from the declared
@@ -159,15 +171,11 @@ impl KevyMailboxStore {
         let cols: Vec<CompositeCol> = path
             .on
             .iter()
-            .map(|(col, desc)| {
+            .map(|(col, order)| {
                 let ty = spec
                     .column_type(col)
                     .ok_or_else(|| io::Error::other("orderpath names an undeclared column"))?;
-                Ok(CompositeCol {
-                    name: col.clone(),
-                    ty,
-                    desc: *desc,
-                })
+                Ok(CompositeCol::new(col.clone(), ty).with_order(*order))
             })
             .collect::<io::Result<_>>()?;
         // `now` is new in kevy-index 5.1 and is consulted only when a bound
@@ -222,16 +230,12 @@ impl KevyMailboxStore {
                         &hi,
                         None,
                         limit,
-                        kevy_embedded::ScalarQueryOpts {
-                            filters: &[kevy_embedded::ValueFilter::Eq {
+                        kevy_embedded::ScalarQueryOpts::default().with_filters(&[
+                            kevy_embedded::ValueFilter::Eq {
                                 field: b"account_id",
                                 value: id.as_bytes(),
-                            }],
-                            sort: None,
-                            distinct: None,
-                            facets: &[],
-                            offset: 0,
-                        },
+                            },
+                        ]),
                     )?
                     .rows
             }

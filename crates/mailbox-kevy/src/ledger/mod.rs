@@ -31,26 +31,19 @@ fn col(name: &str, t: ValType) -> (Vec<u8>, ValType) {
 }
 
 fn table(name: &str, prefix: &[u8], columns: Vec<(Vec<u8>, ValType)>, keyed: &[&str]) -> TableSpec {
-    let bytes = |n: &str| n.as_bytes().to_vec();
-    TableSpec {
-        name: bytes(name),
-        prefix: prefix.to_vec(),
-        pk: bytes("id"),
-        window: None,
-        autodeclare: 0,
-        auto_added: Vec::new(),
-        columns,
-        indexes: keyed
-            .iter()
-            .map(|k| TableIndex {
-                column: bytes(k),
-                kind: IndexKind::Range,
-                // nothing beside the key: a lookup reads the row anyway
-                values: Vec::new(),
-            })
-            .collect(),
-        orderpaths: Vec::new(),
-    }
+    let mut spec = TableSpec::default();
+    spec.name = name.as_bytes().to_vec();
+    spec.prefix = prefix.to_vec();
+    spec.pk = b"id".to_vec();
+    spec.window = None;
+    spec.autodeclare = 0;
+    spec.columns = columns;
+    // nothing beside the key: a lookup reads the row anyway
+    spec.indexes = keyed
+        .iter()
+        .map(|k| TableIndex::new(k.as_bytes(), IndexKind::Range))
+        .collect();
+    spec
 }
 
 /// The three ledger tables, as declared. A link or file row holds only its
@@ -118,7 +111,9 @@ impl KevyMailboxStore {
             match current.iter().find(|t| t.name == spec.name) {
                 Some(existing) if existing.sans_auto() == spec => continue,
                 Some(_) => {
-                    self.store().table_drop(&spec.name);
+                    self.store()
+                        .table_drop(&spec.name)
+                        .map_err(io::Error::other)?;
                 }
                 None => {}
             }

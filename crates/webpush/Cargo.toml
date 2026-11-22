@@ -11,9 +11,9 @@ workspace = true
 
 [dependencies]
 aws-lc-rs = "1"
-base64 = "0.22"
-hkdf = "0.12"
-sha2 = "0.10"
+base64 = "0.23"
+hkdf = "0.13"
+sha2 = "0.11"
 serde_json = { workspace = true }
 url = "2"
 reqwest = { version = "0.13", default-features = false, features = ["rustls"] }

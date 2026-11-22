@@ -13,9 +13,10 @@ workspace = true
 
 [dependencies]
 mailrs-fraud = { path = "../fraud", version = "0" }
-luna-jit = "=3.0.0"
+luna-jit = "=4.0.2"
 tracing = "0.1"
-sha2 = "0.10"
+sha2 = "0.11"
+hex = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 mailrs-inbound = { path = "../inbound", version = "2" }

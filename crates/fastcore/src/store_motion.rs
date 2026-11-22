@@ -27,7 +27,7 @@ use crate::FastcoreState;
 
 /// The feed cursor a sweep started from, or `None` when the store has no
 /// feed and the question cannot be asked.
-pub(crate) struct Motion(Option<(u64, u64)>);
+pub(crate) struct Motion(Option<kevy_embedded::FeedPosition>);
 
 /// Read the cursor a sweep is starting at.
 pub(crate) fn begin(state: &Arc<FastcoreState>) -> Motion {
@@ -43,16 +43,16 @@ impl Motion {
     /// as "not still" rather than as a number that would be arithmetic on
     /// two different origins.
     pub(crate) fn finish(self, state: &Arc<FastcoreState>) -> serde_json::Value {
-        let Some((gen0, off0)) = self.0 else {
+        let Some(start) = self.0 else {
             return serde_json::json!({ "writes_during": null, "still": null });
         };
-        let Ok((gen1, off1)) = state.mailbox.store_ref().changes_tail() else {
+        let Ok(end) = state.mailbox.store_ref().changes_tail() else {
             return serde_json::json!({ "writes_during": null, "still": null });
         };
-        if gen1 != gen0 {
+        if end.generation != start.generation {
             return serde_json::json!({ "writes_during": null, "still": false });
         }
-        let moved = off1.saturating_sub(off0);
+        let moved = end.offset.saturating_sub(start.offset);
         serde_json::json!({ "writes_during": moved, "still": moved == 0 })
     }
 }

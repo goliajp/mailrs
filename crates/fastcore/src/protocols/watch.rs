@@ -18,14 +18,14 @@ pub struct FeedWatch(Option<Feed>);
 struct Feed {
     state: Arc<FastcoreState>,
     prefix: String,
-    at: (u64, u64),
+    at: kevy_embedded::FeedPosition,
     tick: Interval,
 }
 
 impl FeedWatch {
     /// Changes under the user's keys.
     pub(crate) fn new(state: Arc<FastcoreState>, user: &str) -> Self {
-        let at = state.mailbox.store_ref().changes_tail().unwrap_or((0, 0));
+        let at = state.mailbox.store_ref().changes_tail().unwrap_or_default();
         let mut tick = tokio::time::interval(Duration::from_millis(500));
         tick.set_missed_tick_behavior(MissedTickBehavior::Skip);
         Self(Some(Feed {
@@ -50,8 +50,7 @@ impl Watch for FeedWatch {
         loop {
             feed.tick.tick().await;
             let batch = feed.state.mailbox.store_ref().changes_since(
-                feed.at.0,
-                feed.at.1,
+                feed.at,
                 100,
                 &[feed.prefix.as_bytes()],
             );

@@ -138,7 +138,7 @@ fn next_range(
 }
 
 fn version(source: &str) -> String {
-    format!("lua:{:x}", Sha256::digest(source.as_bytes()))
+    format!("lua:{}", hex::encode(Sha256::digest(source.as_bytes())))
 }
 
 fn validate(source: &str) -> Result<(), String> {

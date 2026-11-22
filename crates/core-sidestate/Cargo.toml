@@ -34,8 +34,9 @@ mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 mailrs-mime = { path = "../mime", version = "2" }
 mailrs-parse-worker = { path = "../parse-worker" }
 mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
-base64 = "0.22"
+base64 = "0.23"
 rand_core = { workspace = true }
+getrandom = { workspace = true }
 sha2 = "0.11"
 mailrs-reputation = { path = "../reputation", version = "0.1" }
 mailrs-attachment-scan = { path = "../attachment-scan", version = "0.1" }

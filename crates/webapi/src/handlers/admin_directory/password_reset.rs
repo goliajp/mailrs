@@ -101,10 +101,7 @@ pub(crate) async fn reset_password(
     compromised: Option<&[i64]>,
     via: &str,
 ) -> Result<ResetDone, ResetRefused> {
-    use argon2::{
-        Argon2,
-        password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArgonRng},
-    };
+    use argon2::{Argon2, password_hash::PasswordHasher};
     crate::handlers::grants::require_may_touch(state, actor, address).await?;
     if let Err(weak) = mailrs_auth_guard::password::check_new(password, address) {
         return Err(ResetRefused::Weak(
@@ -121,9 +118,8 @@ pub(crate) async fn reset_password(
             return Err(ResetRefused::KeyListChanged(rows));
         }
     }
-    let salt = SaltString::generate(&mut ArgonRng);
     let password_hash = Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
+        .hash_password(password.as_bytes())
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .to_string();
     let req = mailrs_core_api::method::admin::SetPasswordRequest { password_hash };

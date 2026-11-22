@@ -46,8 +46,11 @@ pub fn payload(thread_id: &str, sender: &str, subject: &str, hide_content: bool)
 }
 
 fn notification_id() -> String {
-    use rand_core::RngCore;
-    format!("{:016x}", rand_core::OsRng.next_u64())
+    use rand_core::Rng;
+    format!(
+        "{:016x}",
+        rand_core::UnwrapErr(getrandom::SysRng).next_u64()
+    )
 }
 
 /// A stored subscription in the form the sender takes; `None` when its

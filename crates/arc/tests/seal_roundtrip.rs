@@ -11,9 +11,9 @@
 use base64::Engine as _;
 use mailrs_dkim::RsaSigningKey;
 use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey};
-use rsa::{RsaPrivateKey, RsaPublicKey};
+use rsa::{PrivateKey, PublicKey};
 
-fn into_signer(priv_key: &RsaPrivateKey) -> RsaSigningKey {
+fn into_signer(priv_key: &PrivateKey) -> RsaSigningKey {
     let der = priv_key.to_pkcs8_der().unwrap();
     RsaSigningKey::from_pkcs8_der(der.as_bytes()).unwrap()
 }
@@ -27,7 +27,7 @@ fn b64(b: &[u8]) -> String {
     base64::engine::general_purpose::STANDARD.encode(b)
 }
 
-fn pubkey_txt(public_key: &RsaPublicKey) -> String {
+fn pubkey_txt(public_key: &PublicKey) -> String {
     let der = public_key.to_public_key_der().unwrap();
     format!("v=DKIM1; k=rsa; p={}", b64(der.as_bytes()))
 }
@@ -45,9 +45,9 @@ impl mailrs_dkim::DkimResolver for OneShotResolver {
 
 #[tokio::test]
 async fn seal_first_hop_and_verify_passes() {
-    let mut rng = rand::thread_rng();
-    let priv_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-    let pub_key = RsaPublicKey::from(&priv_key);
+    let mut rng = rand::rng();
+    let priv_key = PrivateKey::new(&mut rng, 2048).unwrap();
+    let pub_key = PublicKey::from(&priv_key);
     let signer = into_signer(&priv_key);
     let key = ArcSigningKey::Rsa(&signer);
 
@@ -97,14 +97,14 @@ async fn seal_second_hop_on_existing_chain_verifies() {
     // with key_b. verify_chain_with_crypto needs to look up BOTH
     // keys, so the resolver maps each `<selector>._domainkey.<domain>`
     // to the right TXT.
-    let mut rng = rand::thread_rng();
-    let priv_a = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-    let pub_a = RsaPublicKey::from(&priv_a);
+    let mut rng = rand::rng();
+    let priv_a = PrivateKey::new(&mut rng, 2048).unwrap();
+    let pub_a = PublicKey::from(&priv_a);
     let signer_a = into_signer(&priv_a);
     let key_a = ArcSigningKey::Rsa(&signer_a);
 
-    let priv_b = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-    let pub_b = RsaPublicKey::from(&priv_b);
+    let priv_b = PrivateKey::new(&mut rng, 2048).unwrap();
+    let pub_b = PublicKey::from(&priv_b);
     let signer_b = into_signer(&priv_b);
     let key_b = ArcSigningKey::Rsa(&signer_b);
 
@@ -185,8 +185,8 @@ async fn seal_second_hop_on_existing_chain_verifies() {
 
 #[tokio::test]
 async fn seal_rejects_first_hop_with_non_none_cv() {
-    let mut rng = rand::thread_rng();
-    let priv_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
+    let mut rng = rand::rng();
+    let priv_key = PrivateKey::new(&mut rng, 2048).unwrap();
     let signer = into_signer(&priv_key);
     let key = ArcSigningKey::Rsa(&signer);
     let raw_msg = b"From: a@b\r\n\r\nbody\r\n".to_vec();
@@ -207,8 +207,8 @@ async fn seal_rejects_first_hop_with_non_none_cv() {
 
 #[tokio::test]
 async fn seal_rejects_later_hop_with_cv_none() {
-    let mut rng = rand::thread_rng();
-    let priv_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
+    let mut rng = rand::rng();
+    let priv_key = PrivateKey::new(&mut rng, 2048).unwrap();
     let signer = into_signer(&priv_key);
     let key = ArcSigningKey::Rsa(&signer);
 

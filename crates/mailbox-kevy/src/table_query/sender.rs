@@ -10,7 +10,7 @@ impl KevyMailboxStore {
     /// The ids of `user`'s conversations whose newest message from someone
     /// else came from `sender` (compared lowercased), newest first.
     pub fn sender_thread_ids(&self, user: &str, sender: &str) -> io::Result<Vec<String>> {
-        use kevy_embedded::{IndexValue, ScalarQueryOpts, ValueFilter};
+        use kevy_embedded::{IndexValue, ScalarQueryOpts, SortOrder, ValueFilter};
         let filters = [ValueFilter::Eq {
             field: b"user",
             value: user.as_bytes(),
@@ -26,13 +26,10 @@ impl KevyMailboxStore {
                 &key,
                 None,
                 1000,
-                ScalarQueryOpts {
-                    filters: &filters,
-                    sort: Some((b"activity", true)),
-                    distinct: None,
-                    facets: &[],
-                    offset,
-                },
+                ScalarQueryOpts::default()
+                    .with_filters(&filters)
+                    .with_sort(b"activity", SortOrder::Desc)
+                    .with_offset(offset),
             )?;
             let n = page.rows.len();
             out.extend(page.rows.into_iter().filter_map(|(key, _)| {

@@ -6,7 +6,7 @@ use testcontainers::runners::AsyncRunner;
 use testcontainers::{ContainerAsync, GenericImage, ImageExt};
 
 /// The tag production runs, as in `deploy/docker-compose.prod.yml`.
-pub const TAG: &str = "6.4.0";
+pub const TAG: &str = "7.0.0";
 
 /// Which server stands in for the network kevy: `MAILRS_TEST_NETWORK_STORE`
 /// set to `redis` (7.4) or `valkey` (9.0) runs the same tests against the

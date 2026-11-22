@@ -7,7 +7,7 @@
 
 use std::io;
 
-use super::ArchiveScope;
+use super::{ArchiveScope, where_clause};
 use crate::KevyMailboxStore;
 
 impl KevyMailboxStore {
@@ -127,21 +127,20 @@ impl KevyMailboxStore {
         max_activity: i64,
         limit: usize,
     ) -> io::Result<Vec<String>> {
-        use kevy_index::WhereClause;
         scope.require_pinned("list_thread_ids_by_bucket_before_via_table")?;
         let mut eqs = vec![
             (b"user".to_vec(), user.as_bytes().to_vec()),
             (b"bucket".to_vec(), bucket.as_bytes().to_vec()),
         ];
         scope.push_to(&mut eqs);
-        let clause = WhereClause {
+        let clause = where_clause(
             eqs,
-            range: Some((
+            Some((
                 b"activity".to_vec(),
                 i64::MIN.to_string().into_bytes(),
                 max_activity.to_string().into_bytes(),
             )),
-        };
+        );
         self.run_orderpath(b"threaduser.by_user_bucket", user, &clause, limit)
     }
 
@@ -213,16 +212,16 @@ impl KevyMailboxStore {
             (b"sent_only".to_vec(), b"0".to_vec()),
         ];
         scope.push_to(&mut eqs);
-        kevy_index::WhereClause {
+        where_clause(
             eqs,
-            range: max_activity.map(|ts| {
+            max_activity.map(|ts| {
                 (
                     b"activity".to_vec(),
                     i64::MIN.to_string().into_bytes(),
                     ts.to_string().into_bytes(),
                 )
             }),
-        }
+        )
     }
 
     /// How many threads currently carry this category.
@@ -264,14 +263,14 @@ impl KevyMailboxStore {
             (b"category".to_vec(), cat.as_bytes().to_vec()),
         ];
         scope.push_to(&mut eqs);
-        let clause = kevy_index::WhereClause {
+        let clause = where_clause(
             eqs,
-            range: Some((
+            Some((
                 b"activity".to_vec(),
                 i64::MIN.to_string().into_bytes(),
                 max_activity.to_string().into_bytes(),
             )),
-        };
+        );
         self.run_orderpath(b"threaduser.by_user_category", user, &clause, limit)
     }
 
@@ -289,16 +288,16 @@ impl KevyMailboxStore {
         }
         let mut eqs = vec![(b"user".to_vec(), user.as_bytes().to_vec())];
         scope.push_to(&mut eqs);
-        let clause = kevy_index::WhereClause {
+        let clause = where_clause(
             eqs,
-            range: before_ts.map(|ts| {
+            before_ts.map(|ts| {
                 (
                     b"activity".to_vec(),
                     i64::MIN.to_string().into_bytes(),
                     ts.to_string().into_bytes(),
                 )
             }),
-        };
+        );
         self.run_orderpath(b"threaduser.by_user_activity", user, &clause, limit)
     }
 
@@ -310,7 +309,7 @@ impl KevyMailboxStore {
     ) -> io::Result<usize> {
         let mut eqs = vec![(b"user".to_vec(), user.as_bytes().to_vec())];
         scope.push_to(&mut eqs);
-        let clause = kevy_index::WhereClause { eqs, range: None };
+        let clause = where_clause(eqs, None);
         let (lo, hi) = self.composite_bounds_for(b"threaduser.by_user_activity", &clause)?;
         self.store
             .idx_count(

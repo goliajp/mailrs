@@ -580,6 +580,14 @@ services:
 
   kevy-server:
     container_name: mailrs-kevy
+    # 7.0.0, from 6.4.0. A 6.4 directory opens as it is. Going back to
+    # 6.4 after 7.0 has run: stop 7.0 with `SHUTDOWN SAVE` first, because
+    # 6.4 restores a snapshot followed by an AOF rewrite with every list
+    # element pushed before the rewrite twice. 6.4 skips the new frames 7.0
+    # wrote. `used_memory` reads about 1.5 times higher for the same data;
+    # kevy.toml sets no maxmemory, and the container limit is what bounds
+    # it.
+    #
     # 6.2.2 since 2026-09-01. It fixes what this project reported: a
     # second engine on one persist directory used to interleave —
     # appending its own `KEVYAOF2` magic into the live AOF, which the
@@ -611,7 +619,7 @@ services:
     # After a rewrite the only rollback is restoring the directory —
     # `/apps/mailrs/kevy-backup-20260831-1422` is the copy taken
     # before this swap.
-    image: ghcr.io/goliajp/kevy:6.4.0
+    image: ghcr.io/goliajp/kevy:7.0.0
     pull_policy: always
     mem_limit: *kevy-server-memory-limit
     volumes:

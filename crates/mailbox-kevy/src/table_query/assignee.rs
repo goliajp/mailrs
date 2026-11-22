@@ -3,7 +3,7 @@
 
 use std::io;
 
-use super::ArchiveScope;
+use super::{ArchiveScope, where_clause};
 use crate::KevyMailboxStore;
 
 impl KevyMailboxStore {
@@ -31,14 +31,14 @@ impl KevyMailboxStore {
             (b"assignee".to_vec(), assignee.as_bytes().to_vec()),
         ];
         ArchiveScope::Live.push_to(&mut eqs);
-        let clause = kevy_index::WhereClause {
+        let clause = where_clause(
             eqs,
-            range: Some((
+            Some((
                 b"activity".to_vec(),
                 i64::MIN.to_string().into_bytes(),
                 max.to_string().into_bytes(),
             )),
-        };
+        );
         self.run_orderpath(b"threaduser.by_user_assignee", user, &clause, limit)
     }
 }

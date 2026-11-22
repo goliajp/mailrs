@@ -13,11 +13,11 @@ workspace = true
 
 [dependencies]
 rqrr = { version = "0.11", default-features = false }
-hayro = "0.8"
+hayro = "0.9"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "tiff", "bmp"] }
-rten = "0.27"
-rten-tensor = "0.27"
+rten = "0.28"
+rten-tensor = "0.28"
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
-qrcode = { version = "0.14", default-features = false }
+qrcode = { version = "0.15", default-features = false }

@@ -28,7 +28,7 @@ client = ["dep:reqwest", "dep:percent-encoding"]
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = "2"
-base64 = "0.22"
+base64 = "0.23"
 tracing = "0.1"
 
 # Re-exported types from mailrs-mailbox — Message, Mailbox, QueryFilter, ...
@@ -39,7 +39,7 @@ mailrs-ops-report = { path = "../ops-report" }
 
 # Server-only deps (gated by `server` feature)
 axum = { version = "0.8", optional = true }
-tower-http = { version = "0.6", optional = true, features = ["trace"] }
+tower-http = { version = "0.7", optional = true, features = ["trace"] }
 sha2 = { version = "0.11", optional = true }
 hex = { version = "0.4", optional = true }
 

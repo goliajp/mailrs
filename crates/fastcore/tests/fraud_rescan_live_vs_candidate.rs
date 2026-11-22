@@ -174,10 +174,10 @@ async fn a_conversation_an_older_binary_left_unheld_counts_as_a_new_hold() {
     // the active pack with one comment more: a pack change that changes no rule
     let baseline = mailrs_fraud_lua::DEFAULT_SOURCE;
     let pack = format!("{baseline}\n-- reviewed\n");
-    let hash = format!("{:x}", Sha256::digest(pack.as_bytes()));
+    let hash = hex::encode(Sha256::digest(pack.as_bytes()));
     std::fs::write(rules_dir.join(format!("candidate-{hash}.lua")), &pack).expect("candidate");
     // a file whose name is not its content
-    let wrong = format!("{:x}", Sha256::digest(b"another pack"));
+    let wrong = hex::encode(Sha256::digest(b"another pack"));
     std::fs::write(rules_dir.join(format!("candidate-{wrong}.lua")), &pack).expect("wrong");
     unsafe {
         std::env::set_var("MAILRS_MAILDIR", &root);

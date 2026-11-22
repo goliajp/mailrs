@@ -17,7 +17,7 @@ readme = "README.md"
 # ES256 for the provider token — already the workspace's signing backend
 # (dkim uses it for RSA); no new crypto stack.
 aws-lc-rs = "1"
-base64 = "0.22"
+base64 = "0.23"
 serde_json = { workspace = true }
 thiserror = "2"
 # Matches crates/intelligence's reqwest line. `http2` is required, not an

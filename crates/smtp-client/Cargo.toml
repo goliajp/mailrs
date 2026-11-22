@@ -16,17 +16,17 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-base64 = "0.22"
+base64 = "0.23"
 tokio = { version = "1", features = ["net", "io-util", "time"] }
 tokio-rustls = "0.26"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 webpki-roots = "1"
 rustls-native-certs = "0.8"
 hickory-resolver = "0.26"
-sha2 = "0.11.0"
+sha2 = "0.11.1"
 # Inline-short-string for SmtpResponse.lines — EHLO extensions and
 # typical reply text both fit the 24-byte inline buffer.
-compact_str = "0.9"
+compact_str = "0.10"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "io-util", "net", "time"] }

@@ -25,24 +25,18 @@ const SEG_COLUMNS: [&str; 4] = ["s0", "s1", "s2", "s3"];
 
 pub(crate) fn specs() -> [TableSpec; 2] {
     let bytes = |n: &str| n.as_bytes().to_vec();
-    let range = |c: &str| TableIndex {
-        column: bytes(c),
-        kind: IndexKind::Range,
-        values: Vec::new(),
-    };
+    let range = |c: &str| TableIndex::new(bytes(c), IndexKind::Range);
     let base =
         |name: &str, prefix: &[u8], columns: Vec<(Vec<u8>, ValType)>, idx: Vec<TableIndex>| {
-            TableSpec {
-                name: bytes(name),
-                prefix: prefix.to_vec(),
-                pk: bytes("id"),
-                window: None,
-                autodeclare: 0,
-                auto_added: Vec::new(),
-                columns,
-                indexes: idx,
-                orderpaths: Vec::new(),
-            }
+            let mut spec = TableSpec::default();
+            spec.name = bytes(name);
+            spec.prefix = prefix.to_vec();
+            spec.pk = bytes("id");
+            spec.window = None;
+            spec.autodeclare = 0;
+            spec.columns = columns;
+            spec.indexes = idx;
+            spec
         };
     let mut seg_cols = vec![(bytes("id"), ValType::Str), (bytes("at"), ValType::I64)];
     seg_cols.extend(SEG_COLUMNS.iter().map(|c| (bytes(c), ValType::I64)));

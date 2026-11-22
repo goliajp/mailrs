@@ -158,7 +158,7 @@ impl Pkce {
     /// A fresh verifier and its challenge.
     pub fn generate() -> Self {
         let mut bytes = [0u8; 32];
-        rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut bytes);
+        rand_core::Rng::fill_bytes(&mut rand_core::UnwrapErr(getrandom::SysRng), &mut bytes);
         use base64::Engine as _;
         Self::from_verifier(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes))
     }

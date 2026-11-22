@@ -10,7 +10,7 @@ use base64::Engine as _;
 use rsa::pkcs1v15::SigningKey;
 use rsa::pkcs8::EncodePublicKey;
 use rsa::signature::{SignatureEncoding, Signer};
-use rsa::{RsaPrivateKey, RsaPublicKey};
+use rsa::{PrivateKey, PublicKey};
 use sha2::Sha256;
 
 use mailrs_dkim::canon::{canonicalize_body, canonicalize_header};
@@ -24,7 +24,7 @@ fn b64(b: &[u8]) -> String {
     base64::engine::general_purpose::STANDARD.encode(b)
 }
 
-fn pubkey_txt(public_key: &RsaPublicKey) -> String {
+fn pubkey_txt(public_key: &PublicKey) -> String {
     let der = public_key.to_public_key_der().unwrap();
     format!("v=DKIM1; k=rsa; p={}", b64(der.as_bytes()))
 }
@@ -94,13 +94,13 @@ fn sign_dkim(
 
 #[tokio::test]
 async fn verify_all_two_signatures_both_pass() {
-    let mut rng = rand::thread_rng();
-    let key_a = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-    let pub_a = RsaPublicKey::from(&key_a);
+    let mut rng = rand::rng();
+    let key_a = PrivateKey::new(&mut rng, 2048).unwrap();
+    let pub_a = PublicKey::from(&key_a);
     let sign_a = SigningKey::<Sha256>::new(key_a);
 
-    let key_b = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-    let pub_b = RsaPublicKey::from(&key_b);
+    let key_b = PrivateKey::new(&mut rng, 2048).unwrap();
+    let pub_b = PublicKey::from(&key_b);
     let sign_b = SigningKey::<Sha256>::new(key_b);
 
     let body = b"Multi-sig test.\r\n";
@@ -160,9 +160,9 @@ async fn verify_all_returns_empty_when_no_dkim_signature() {
 async fn verify_all_one_pass_one_fail() {
     // Two signatures: first one signed correctly, second one tampered
     // (we mutate its b=). verify_all must return both, with Pass + Fail.
-    let mut rng = rand::thread_rng();
-    let key_a = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-    let pub_a = RsaPublicKey::from(&key_a);
+    let mut rng = rand::rng();
+    let key_a = PrivateKey::new(&mut rng, 2048).unwrap();
+    let pub_a = PublicKey::from(&key_a);
     let sign_a = SigningKey::<Sha256>::new(key_a);
 
     let body = b"One pass one fail.\r\n";

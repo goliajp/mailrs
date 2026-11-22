@@ -27,8 +27,9 @@ tokio = { version = "1", features = ["sync", "time", "macros", "rt"] }
 tracing = "0.1"
 serde = { workspace = true }
 serde_json = { workspace = true }
-base64 = "0.22"
+base64 = "0.23"
 rand_core = { workspace = true }
+getrandom = { workspace = true }
 mailrs-apns = { path = "../apns", version = "1" }
 mailrs-webpush = { path = "../webpush" }
 mailrs-bayes = { path = "../bayes" }
@@ -54,7 +55,7 @@ mailrs-sieve = { path = "../sieve" }
 mailrs-tls-rpt = { path = "../tls-rpt", version = "1" }
 # the TXT lookup of a domain's TLS-RPT endpoint
 mailrs-smtp-client = { path = "../smtp-client" }
-psl = "2.1.222"
+psl = "2.1.261"
 mailrs-report = { path = "../report", version = "0.1" }
 mailrs-fraud = { path = "../fraud", version = "0" }
 mailrs-fraud-lua = { path = "../fraud-lua", version = "0" }
@@ -66,9 +67,9 @@ reqwest = { version = "0.13", default-features = false, features = ["rustls", "j
 [dev-dependencies]
 tempfile = "3"
 # builds the Office file an extraction test reads
-zip = { version = "9.0.4", default-features = false, features = ["deflate"] }
+zip = { version = "9.8.1", default-features = false, features = ["deflate"] }
 mailrs-test-docker = { path = "../test-docker" }
-testcontainers = "0.27"
+testcontainers = "0.28"
 tokio = { version = "1", features = ["sync", "time", "macros", "rt", "net", "io-util"] }
 # a phone's key pair and a VAPID key for the UnifiedPush round trip
 aws-lc-rs = "1"

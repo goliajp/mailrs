@@ -13,7 +13,7 @@ use base64::Engine as _;
 use rsa::pkcs1v15::SigningKey;
 use rsa::pkcs8::EncodePublicKey;
 use rsa::signature::{SignatureEncoding, Signer};
-use rsa::{RsaPrivateKey, RsaPublicKey};
+use rsa::{PrivateKey, PublicKey};
 use sha2::Sha256;
 
 use mailrs_arc::{ArcChain, ChainOutcome, verify_chain_with_crypto};
@@ -31,7 +31,7 @@ fn b64(b: &[u8]) -> String {
 }
 
 /// Build the public-key TXT a DkimResolver would return.
-fn public_key_txt(public_key: &RsaPublicKey) -> String {
+fn public_key_txt(public_key: &PublicKey) -> String {
     // The `p=` payload is the PKCS8 SubjectPublicKeyInfo DER in base64.
     let der = public_key.to_public_key_der().unwrap();
     let p_b64 = b64(der.as_bytes());
@@ -52,9 +52,9 @@ impl mailrs_dkim::DkimResolver for DummyResolver {
 #[tokio::test]
 async fn one_hop_chain_rsa_sha256_roundtrip_passes() {
     // 1. Keypair.
-    let mut rng = rand::thread_rng();
-    let priv_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-    let pub_key = RsaPublicKey::from(&priv_key);
+    let mut rng = rand::rng();
+    let priv_key = PrivateKey::new(&mut rng, 2048).unwrap();
+    let pub_key = PublicKey::from(&priv_key);
     let signing_key = SigningKey::<Sha256>::new(priv_key.clone());
 
     // 2. Body.
@@ -188,9 +188,9 @@ async fn one_hop_chain_rsa_sha256_roundtrip_passes() {
 #[tokio::test]
 async fn tampered_body_makes_body_hash_mismatch_fail() {
     // Generate, sign, then mutate the body — verify must fail.
-    let mut rng = rand::thread_rng();
-    let priv_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-    let pub_key = RsaPublicKey::from(&priv_key);
+    let mut rng = rand::rng();
+    let priv_key = PrivateKey::new(&mut rng, 2048).unwrap();
+    let pub_key = PublicKey::from(&priv_key);
     let signing_key = SigningKey::<Sha256>::new(priv_key.clone());
 
     let body = b"Original body.\r\n";

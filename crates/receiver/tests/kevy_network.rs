@@ -45,7 +45,7 @@ use mailrs_receiver::kevy_notify::{KevyEventPublisher, NOTIFY_CHANNEL, spawn_kev
 /// `MAILRS_TEST_KEVY_TAG` overrides it, so the same suite can be pointed at the
 /// version prod runs and the version prod is going to.
 fn kevy_tag() -> String {
-    std::env::var("MAILRS_TEST_KEVY_TAG").unwrap_or_else(|_| "6.4.0".to_string())
+    std::env::var("MAILRS_TEST_KEVY_TAG").unwrap_or_else(|_| "7.0.0".to_string())
 }
 
 /// Start a kevy-server container and return its `kevy://host:port` URL.
@@ -264,7 +264,7 @@ async fn the_change_feed_answers_on_this_server() {
 
     // Where the consumer starts, exactly as `events.rs` does it: the shard's
     // tail, then read forward from there.
-    let (generation, offset) = conn
+    let tail = conn
         .feed_tail(0)
         .unwrap_or_else(|e| panic!("FEED.TAIL rejected by this server: {e}"));
 
@@ -272,7 +272,7 @@ async fn the_change_feed_answers_on_this_server() {
     // asked is whether the server implements the command, not whether anything
     // has happened yet.
     let batch = conn
-        .feed_read(0, generation, offset, Some(16), &[b"mailrs:" as &[u8]])
+        .feed_read(0, tail, Some(16), &[b"mailrs:" as &[u8]])
         .unwrap_or_else(|e| {
             panic!(
                 "FEED.READ rejected by this server: {e}\n\
@@ -282,9 +282,9 @@ async fn the_change_feed_answers_on_this_server() {
             )
         });
     assert!(
-        batch.frames.len() <= 16,
+        batch.changes.len() <= 16,
         "a bounded read must respect its bound; got {}",
-        batch.frames.len()
+        batch.changes.len()
     );
 }
 

@@ -44,7 +44,7 @@ fn now_secs() -> i64 {
 pub fn new_signing_secret() -> String {
     use base64::Engine as _;
     let mut bytes = [0u8; 32];
-    rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut bytes);
+    rand_core::Rng::fill_bytes(&mut rand_core::UnwrapErr(getrandom::SysRng), &mut bytes);
     base64::engine::general_purpose::STANDARD.encode(bytes)
 }
 

@@ -80,11 +80,12 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
-sha2 = "0.10"
+sha2 = "0.11"
+hex = "0.4"
 argon2 = { workspace = true }
 password-hash = { workspace = true }
 rand_core = { workspace = true }
-base64 = "0.22"
+base64 = "0.23"
 reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
 html2text = "0.17"
 mailrs-fraud = { path = "../fraud", version = "0" }
@@ -120,7 +121,7 @@ mailrs-dmarc = { version = "3", path = "../dmarc" }
 mailrs-arf = { version = "1.0.0", path = "../arf" }
 mailrs-arc = { version = "3.0.0", path = "../arc" }
 mailrs-dkim = { version = "3.0.0", path = "../dkim" }
-psl = "2.1.222"
+psl = "2.1.261"
 
 # Calendar feed parsing — the same stone the monolith's feed worker uses,
 # including the VEVENT splitter.
@@ -129,7 +130,7 @@ mailrs-ical = { path = "../ical", version = "2", features = ["mime"] }
 mailrs-webhook-signature = { path = "../webhook-signature", version = "1" }
 
 [dev-dependencies]
-zip = { version = "9.0.4", default-features = false, features = ["deflate"] }
+zip = { version = "9.8.1", default-features = false, features = ["deflate"] }
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 tempfile = "3"
@@ -138,10 +139,10 @@ aws-lc-rs = "1"
 mailrs-receiver = { path = "../receiver" }
 mailrs-parse-worker = { path = "../parse-worker", features = ["testing"] }
 mailrs-test-docker = { path = "../test-docker" }
-testcontainers = "0.27"
+testcontainers = "0.28"
 # builds the PDF attachments the extraction tests deliver
-lopdf = { version = "0.45", default-features = false }
+lopdf = { version = "0.47", default-features = false }
 # encodes the images the OCR test delivers
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp"] }
 # draws the QR code the OCR test delivers
-qrcode = { version = "0.14", default-features = false }
+qrcode = { version = "0.15", default-features = false }

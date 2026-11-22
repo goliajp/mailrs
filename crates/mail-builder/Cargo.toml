@@ -21,7 +21,7 @@ workspace = true
 # encoded-word encoding (B/Q selection) comes from mailrs-rfc2047; no
 # other runtime dependencies beyond base64, chrono and memchr
 mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
-base64 = "0.22"
+base64 = "0.23"
 chrono = { workspace = true }
 # SIMD byte scanner — replaces the windows()-style search loops in
 # strict.rs (header-terminator scan) and multipart.rs (boundary
@@ -37,7 +37,7 @@ proptest = "1"
 criterion = { workspace = true }
 # cross-MTA interop: SMTP-submit to a real Mailpit
 # container and verify the stored bytes match what we sent.
-testcontainers = "0.27"
+testcontainers = "0.28"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "time"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 serde = { workspace = true }

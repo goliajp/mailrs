@@ -90,7 +90,7 @@ fn default_sync_interval() -> i64 {
 
 fn random_id() -> String {
     let mut b = [0u8; 8];
-    rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut b);
+    rand_core::Rng::fill_bytes(&mut rand_core::UnwrapErr(getrandom::SysRng), &mut b);
     b.iter().map(|x| format!("{x:02x}")).collect()
 }
 

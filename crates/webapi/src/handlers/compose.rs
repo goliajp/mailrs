@@ -146,7 +146,7 @@ pub(crate) struct SendResponse {
 
 pub(crate) fn random_hex(bytes: usize) -> String {
     let mut b = vec![0u8; bytes];
-    rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut b);
+    rand_core::Rng::fill_bytes(&mut rand_core::UnwrapErr(getrandom::SysRng), &mut b);
     b.iter().map(|x| format!("{x:02x}")).collect()
 }
 

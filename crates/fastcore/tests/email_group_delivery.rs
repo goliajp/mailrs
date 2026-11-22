@@ -211,7 +211,7 @@ async fn an_outside_member_is_forwarded_through_the_outbound_queue() {
     use testcontainers::{GenericImage, ImageExt};
 
     let startup = mailrs_test_docker::startup_lock().await;
-    let container = GenericImage::new("ghcr.io/goliajp/kevy", "6.4.0")
+    let container = GenericImage::new("ghcr.io/goliajp/kevy", "7.0.0")
         .with_wait_for(WaitFor::message_on_stderr("starting:"))
         .with_exposed_port(6379.tcp())
         .with_startup_timeout(mailrs_test_docker::STARTUP_TIMEOUT)

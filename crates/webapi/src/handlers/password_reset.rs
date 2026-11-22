@@ -122,9 +122,8 @@ pub async fn reset(
         return crate::handlers::auth::password::refused(weak);
     }
     let hash = {
-        use argon2::password_hash::{PasswordHasher, SaltString, rand_core::OsRng};
-        let salt = SaltString::generate(&mut OsRng);
-        match argon2::Argon2::default().hash_password(req.new_password.as_bytes(), &salt) {
+        use argon2::password_hash::PasswordHasher;
+        match argon2::Argon2::default().hash_password(req.new_password.as_bytes()) {
             Ok(h) => h.to_string(),
             Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }

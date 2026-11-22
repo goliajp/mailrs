@@ -3,32 +3,29 @@
 //! Same algorithm (SHA1, 6 digits, 30 s period).
 
 use axum::http::StatusCode;
-use rand_core::{OsRng, RngCore};
-use totp_rs::{Algorithm, Secret, TOTP};
+use rand_core::Rng;
+use totp_rs::{Algorithm, Builder, Secret, Totp};
 
 /// Generate a random base32-encoded TOTP secret (160 bits / 20 bytes).
 pub fn generate_secret() -> String {
     let mut raw = [0u8; 20];
-    OsRng.fill_bytes(&mut raw);
-    let secret = Secret::Raw(raw.to_vec());
-    secret.to_encoded().to_string()
+    rand_core::UnwrapErr(getrandom::SysRng).fill_bytes(&mut raw);
+    Secret::from(raw).to_base32()
 }
 
 /// Build a TOTP instance from a base32-encoded secret + account label.
-pub fn build_totp(secret_base32: &str, account: &str) -> Result<TOTP, String> {
-    let bytes = Secret::Encoded(secret_base32.to_string())
-        .to_bytes()
-        .map_err(|e| e.to_string())?;
-    TOTP::new(
-        Algorithm::SHA1,
-        6,
-        1,
-        30,
-        bytes,
-        Some("mailrs".to_string()),
-        account.to_string(),
-    )
-    .map_err(|e| e.to_string())
+pub fn build_totp(secret_base32: &str, account: &str) -> Result<Totp, String> {
+    let secret = Secret::try_from_base32(secret_base32).map_err(|e| e.to_string())?;
+    Builder::new()
+        .with_algorithm(Algorithm::SHA1)
+        .with_digits(6)
+        .with_skew(1)
+        .with_step_duration(30)
+        .with_secret(secret)
+        .with_issuer(Some("mailrs"))
+        .with_account_name(account)
+        .build()
+        .map_err(|e| e.to_string())
 }
 
 /// Verify a 6-digit code against a base32-encoded secret.
@@ -36,7 +33,7 @@ pub fn verify_code(secret_base32: &str, code: &str) -> bool {
     let Ok(totp) = build_totp(secret_base32, "") else {
         return false;
     };
-    totp.check_current(code).unwrap_or(false)
+    totp.check_current(code).is_some()
 }
 
 /// otpauth URL for QR-code enrollment.
@@ -51,7 +48,7 @@ pub fn generate_recovery_codes() -> Vec<String> {
     (0..8)
         .map(|_| {
             let mut bytes = [0u8; 4];
-            OsRng.fill_bytes(&mut bytes);
+            rand_core::UnwrapErr(getrandom::SysRng).fill_bytes(&mut bytes);
             hex::encode(bytes)
         })
         .collect()
@@ -64,15 +61,14 @@ pub const RECOVERY_HASHES: &[u8] = b"recovery_hashes";
 const RECOVERY_PLAIN: &[u8] = b"recovery_codes";
 
 fn hash(code: &str) -> Result<String, password_hash::Error> {
-    use argon2::password_hash::{PasswordHasher, SaltString};
-    let salt = SaltString::generate(&mut OsRng);
+    use argon2::password_hash::PasswordHasher;
     Ok(argon2::Argon2::default()
-        .hash_password(code.as_bytes(), &salt)?
+        .hash_password(code.as_bytes())?
         .to_string())
 }
 
 fn matches(code: &str, stored: &str) -> bool {
-    use password_hash::{PasswordHash, PasswordVerifier};
+    use password_hash::{PasswordVerifier, phc::PasswordHash};
     PasswordHash::new(stored).is_ok_and(|h| {
         argon2::Argon2::default()
             .verify_password(code.as_bytes(), &h)

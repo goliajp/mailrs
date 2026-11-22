@@ -278,7 +278,7 @@ pub async fn change_password(
     Extension(AuthedUser(address)): Extension<AuthedUser>,
     Json(req): Json<ChangePasswordRequest>,
 ) -> Response {
-    use argon2::password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArgonRng};
+    use argon2::password_hash::PasswordHasher;
     if req.current_password.is_empty() || req.new_password.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
@@ -329,8 +329,7 @@ pub async fn change_password(
     }
 
     // Hash new password.
-    let salt = SaltString::generate(&mut ArgonRng);
-    let new_hash = match Argon2::default().hash_password(req.new_password.as_bytes(), &salt) {
+    let new_hash = match Argon2::default().hash_password(req.new_password.as_bytes()) {
         Ok(h) => h.to_string(),
         Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     };

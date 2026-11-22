@@ -32,7 +32,7 @@ use crate::handlers::conversations::AuthedUser;
 
 fn random_id() -> String {
     let mut bytes = [0u8; 16];
-    rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut bytes);
+    rand_core::Rng::fill_bytes(&mut rand_core::UnwrapErr(getrandom::SysRng), &mut bytes);
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 

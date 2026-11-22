@@ -183,7 +183,7 @@ impl Rules {
             lua,
             run,
             count: count as usize,
-            version: format!("lua:{:x}", Sha256::digest(source)),
+            version: format!("lua:{}", hex::encode(Sha256::digest(source))),
             shadow,
             enforced,
         })

@@ -70,7 +70,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 argon2 = { workspace = true }
 password-hash = { workspace = true }
 rand_core = { workspace = true }
-base64 = "0.22"
+base64 = "0.23"
 reqwest = { version = "0.13", default-features = false, features = ["json", "form", "rustls"] }
 html2text = "0.17"
 tempfile = "3"
@@ -83,7 +83,7 @@ mailrs-reputation = { path = "../reputation", version = "0.1" }
 # a real pgvector container — same image + version the mailbox crate's
 # fixtures use. Pre-pulled in CI's test.yml. tokio / sqlx / tempfile /
 # mailrs-maildir come from [dependencies] (available to integration tests).
-testcontainers = "0.27"
+testcontainers = "0.28"
 mailrs-core-api = { path = "../core-api", features = ["client", "server"] }
 # cross-backend sync test (core_rpc pg_core_tests): spawn a kevy fastcore
 # alongside the spg pg-core and run mailrs-core-sync between them.
@@ -95,7 +95,7 @@ kevy-embedded = { workspace = true }
 mailrs-fraud-lua = { path = "../fraud-lua" }
 mailrs-fraud = { path = "../fraud" }
 # builds the PDF attachments the attachment-text contract test delivers
-lopdf = { version = "0.45", default-features = false }
+lopdf = { version = "0.47", default-features = false }
 # signs the Web Push key the held-mail push test pushes with
 aws-lc-rs = "1"
 

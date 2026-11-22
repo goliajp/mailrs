@@ -194,10 +194,7 @@ pub async fn reset_password(
     State(state): State<Arc<WebState>>,
     Json(req): Json<ResetPasswordRequest>,
 ) -> Result<axum::response::Response, StatusCode> {
-    use argon2::{
-        Argon2,
-        password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArgonRng},
-    };
+    use argon2::{Argon2, password_hash::PasswordHasher};
     use axum::response::IntoResponse;
     let token = req.token.clone();
     let addr_bytes = with_kevy(move |c| {
@@ -220,9 +217,8 @@ pub async fn reset_password(
     if let Err(weak) = mailrs_auth_guard::password::check_new(&req.new_password, &address) {
         return Ok(crate::handlers::auth::password::refused(weak));
     }
-    let salt = SaltString::generate(&mut ArgonRng);
     let hash = Argon2::default()
-        .hash_password(req.new_password.as_bytes(), &salt)
+        .hash_password(req.new_password.as_bytes())
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .to_string();
     let set_req = mailrs_core_api::method::admin::SetPasswordRequest {

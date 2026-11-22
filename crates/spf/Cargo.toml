@@ -26,7 +26,7 @@ memchr = "2"
 async-trait = "0.1"
 hickory-resolver = { version = "0.26", optional = true }
 # Inline-short-string for Mechanism::{A,Mx,Include,Exists}.domain — see mailrs-dkim 2.0.
-compact_str = "0.9"
+compact_str = "0.10"
 
 [dev-dependencies]
 criterion = { workspace = true }

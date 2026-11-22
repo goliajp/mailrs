@@ -351,7 +351,7 @@ async fn a_recent_confirmation_guards_what_a_stolen_session_could_abuse() {
     let code = mailrs_webapi::handlers::totp_util::build_totp(&secret, TOTP_USER)
         .unwrap()
         .generate_current()
-        .unwrap();
+        .to_string();
     let totp_session = {
         let (status, body) = live
             .http

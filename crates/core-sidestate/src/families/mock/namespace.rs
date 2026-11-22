@@ -233,7 +233,7 @@ fn hash_token(token: &str) -> String {
 pub fn rotate_smtp_token(conn: &mut Connection, usable: &Usable) -> MockResult<String> {
     let name = usable.name();
     let mut bytes = [0u8; 32];
-    rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut bytes);
+    rand_core::Rng::fill_bytes(&mut rand_core::UnwrapErr(getrandom::SysRng), &mut bytes);
     let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
     set_smtp_token_hash(conn, name, &hash_token(&token))?;
     Ok(token)

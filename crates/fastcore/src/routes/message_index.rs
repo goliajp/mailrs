@@ -23,7 +23,7 @@ use crate::FastcoreState;
 const MAX_READS: usize = 64;
 
 struct Kept {
-    at: (u64, u64),
+    at: kevy_embedded::FeedPosition,
     body: Arc<Vec<u8>>,
 }
 
@@ -53,11 +53,15 @@ fn touches(argv: &[Vec<u8>], prefixes: &[&[u8]]) -> bool {
 
 /// The cursor now, when nothing under the user's keys was written since
 /// `at`; `None` when something was, or the feed cannot say.
-fn unchanged(store: &kevy_embedded::Store, user: &str, mut at: (u64, u64)) -> Option<(u64, u64)> {
+fn unchanged(
+    store: &kevy_embedded::Store,
+    user: &str,
+    mut at: kevy_embedded::FeedPosition,
+) -> Option<kevy_embedded::FeedPosition> {
     let owned = prefixes(user);
     let refs: Vec<&[u8]> = owned.iter().map(|p| p.as_bytes()).collect();
     for _ in 0..MAX_READS {
-        let batch = store.changes_since(at.0, at.1, 4096, &refs).ok()?;
+        let batch = store.changes_since(at, 4096, &refs).ok()?;
         if batch.changes.iter().any(|c| touches(&c.argv, &refs)) {
             return None;
         }
@@ -387,7 +391,7 @@ mod tests {
         let at = kept().lock().unwrap().get(W).map(|k| k.at).expect("kept");
         assert!(
             matches!(
-                store.changes_since(at.0, at.1, 1, &[]),
+                store.changes_since(at, 1, &[]),
                 Err(kevy_embedded::FeedError::Resync { .. })
             ),
             "the writes did not push the cursor out of the feed"

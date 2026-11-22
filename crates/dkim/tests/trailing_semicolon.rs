@@ -6,7 +6,7 @@ use base64::Engine as _;
 use rsa::pkcs1v15::SigningKey;
 use rsa::pkcs8::EncodePublicKey;
 use rsa::signature::{SignatureEncoding, Signer};
-use rsa::{RsaPrivateKey, RsaPublicKey};
+use rsa::{PrivateKey, PublicKey};
 use sha2::{Digest, Sha256};
 
 use mailrs_dkim::{Canon, DkimResolver, DkimResult, canon, verify_all};
@@ -26,7 +26,7 @@ fn b64(b: &[u8]) -> String {
 
 /// A message signed over From and Subject, its DKIM-Signature ending in
 /// `b=<sig>;` and folded across lines the way large senders fold it.
-fn signed(key: &RsaPrivateKey, c: &str, header_canon: Canon) -> Vec<u8> {
+fn signed(key: &PrivateKey, c: &str, header_canon: Canon) -> Vec<u8> {
     let from = " Alice <alice@example.com>";
     let subject = " a trailing semicolon";
     let body = b"Hello.\r\n";
@@ -57,8 +57,8 @@ fn signed(key: &RsaPrivateKey, c: &str, header_canon: Canon) -> Vec<u8> {
 
 #[tokio::test]
 async fn a_semicolon_after_b_still_verifies() {
-    let key = RsaPrivateKey::new(&mut rand::thread_rng(), 2048).unwrap();
-    let der = RsaPublicKey::from(&key).to_public_key_der().unwrap();
+    let key = PrivateKey::new(&mut rand::rng(), 2048).unwrap();
+    let der = PublicKey::from(&key).to_public_key_der().unwrap();
     let resolver = OneKey(format!("v=DKIM1; k=rsa; p={}", b64(der.as_bytes())));
     for (c, header_canon) in [
         ("relaxed/relaxed", Canon::Relaxed),
