@@ -1,6 +1,7 @@
 [package]
 name = "mailrs-reputation"
 version = "0.1.0"
+publish = false
 edition = "2024"
 description = "Says what a server has observed about where a message comes from and where it points — sending address, sender domains, link hosts — as facts naming each observation, its source and its age."
 license = "Apache-2.0 OR MIT"

@@ -1,6 +1,7 @@
 [package]
 name = "mailrs-report"
 version = "0.1.0"
+publish = false
 edition = "2024"
 description = "Finds the other copies of a reported scam: a 64-bit SimHash of the normalised body, a same-template test that also needs a shared link domain, attachment or sender domain, and the rules for when one person's report may take mail out of other people's inboxes."
 license = "Apache-2.0 OR MIT"
