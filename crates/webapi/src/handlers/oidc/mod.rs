@@ -18,7 +18,7 @@
 //! opaque bearer.
 
 use axum::Json;
-use rand_core::RngCore;
+use rand_core::Rng;
 use std::sync::Arc;
 
 use crate::WebState;
@@ -48,7 +48,7 @@ fn now_secs() -> i64 {
 
 fn random_hex(bytes: usize) -> String {
     let mut b = vec![0u8; bytes];
-    rand_core::OsRng.fill_bytes(&mut b);
+    rand_core::UnwrapErr(getrandom::SysRng).fill_bytes(&mut b);
     b.iter().map(|x| format!("{x:02x}")).collect()
 }
 

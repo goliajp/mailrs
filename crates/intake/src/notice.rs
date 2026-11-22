@@ -21,7 +21,7 @@ pub fn enqueue_notice(
     message: &[u8],
 ) -> std::io::Result<()> {
     let mut nonce = [0u8; 6];
-    rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut nonce);
+    rand_core::Rng::fill_bytes(&mut rand_core::UnwrapErr(getrandom::SysRng), &mut nonce);
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())

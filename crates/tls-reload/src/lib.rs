@@ -219,7 +219,7 @@ mod tests {
         let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])
             .expect("rcgen self-signed");
         let cert_pem = cert.cert.pem();
-        let key_pem = cert.key_pair.serialize_pem();
+        let key_pem = cert.signing_key.serialize_pem();
         let cert_path = dir.join(format!("{nonce}-cert.pem"));
         let key_path = dir.join(format!("{nonce}-key.pem"));
         std::fs::write(&cert_path, cert_pem).unwrap();
@@ -229,7 +229,7 @@ mod tests {
 
     fn fresh_pem() -> (String, String) {
         let c = rcgen::generate_simple_self_signed(vec!["localhost".into()]).expect("rcgen");
-        (c.cert.pem(), c.key_pair.serialize_pem())
+        (c.cert.pem(), c.signing_key.serialize_pem())
     }
 
     #[test]

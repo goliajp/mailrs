@@ -28,10 +28,7 @@ impl KevyMailboxStore {
             crate::keys::IDX_THREAD_USER_SEARCH,
             query.as_bytes(),
             limit,
-            kevy_embedded::MatchOpts {
-                filters: &filters,
-                ..Default::default()
-            },
+            kevy_embedded::MatchOpts::default().with_filters(&filters),
         )?;
         let prefix = crate::keys::thread_user(user, "");
         Ok(page

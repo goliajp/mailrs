@@ -21,7 +21,7 @@ dashmap = "6"
 # Fast monotonic clock — returns raw u64 nanos without going through
 # `Duration` (saves ~3-5 ns per check vs `std::time::Instant`). MIT-
 # licensed, same crate `governor` uses for the same reason.
-quanta = "0.12"
+quanta = "0.13"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }

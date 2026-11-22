@@ -15,7 +15,7 @@
 use std::io;
 
 use kevy_client::Connection;
-use rand_core::RngCore;
+use rand_core::Rng;
 
 /// Most passwords one account may hold: a sign-in may compare each.
 pub const MAX_PER_ACCOUNT: usize = 20;
@@ -110,7 +110,7 @@ pub struct Info {
 /// A new password.
 fn generate() -> String {
     let mut bytes = [0u8; LEN];
-    rand_core::OsRng.fill_bytes(&mut bytes);
+    rand_core::UnwrapErr(getrandom::SysRng).fill_bytes(&mut bytes);
     // 256 % 24 == 16: reject the top values so every letter is as likely
     let mut out = String::with_capacity(LEN);
     let mut pool = bytes.to_vec();
@@ -122,7 +122,7 @@ fn generate() -> String {
             Some(_) => {}
             None => {
                 let mut more = [0u8; LEN];
-                rand_core::OsRng.fill_bytes(&mut more);
+                rand_core::UnwrapErr(getrandom::SysRng).fill_bytes(&mut more);
                 pool.extend_from_slice(&more);
             }
         }
@@ -172,7 +172,7 @@ pub fn create(
     let secret = generate();
     let hash = crate::password::hash(&secret).map_err(|e| io::Error::other(e.to_string()))?;
     let mut idb = [0u8; 6];
-    rand_core::OsRng.fill_bytes(&mut idb);
+    rand_core::UnwrapErr(getrandom::SysRng).fill_bytes(&mut idb);
     let id: String = idb.iter().map(|b| format!("{b:02x}")).collect();
     let stored = Stored {
         name: name.to_string(),

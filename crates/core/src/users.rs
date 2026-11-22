@@ -3,8 +3,7 @@ use std::io;
 use std::path::Path;
 
 use argon2::Argon2;
-use password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
-use rand_core::OsRng;
+use password_hash::{PasswordHasher, PasswordVerifier, phc::PasswordHash};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -86,9 +85,8 @@ impl UserStore {
 
     /// hash a password with argon2id
     pub fn hash_password(password: &str) -> Result<String, password_hash::Error> {
-        let salt = SaltString::generate(&mut OsRng);
         let argon2 = Argon2::default();
-        let hash = argon2.hash_password(password.as_bytes(), &salt)?;
+        let hash = argon2.hash_password(password.as_bytes())?;
         Ok(hash.to_string())
     }
 }

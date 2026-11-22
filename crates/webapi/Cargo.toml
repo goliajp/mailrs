@@ -58,7 +58,7 @@ mailrs-intelligence = { path = "../intelligence", version = "4" }
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.8", features = ["ws", "multipart"] }
 futures-util = "0.3"
-tower-http = { version = "0.6", features = ["cors", "fs", "set-header", "trace"] }
+tower-http = { version = "0.7", features = ["cors", "fs", "set-header", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde = { workspace = true }
@@ -67,12 +67,13 @@ thiserror = "2"
 # Phase 3.9 — session resolution from kevy-server. Sync client wrapped
 # via tokio::task::spawn_blocking on the auth hot path.
 kevy-client = { workspace = true }
-base64 = "0.22"
+base64 = "0.23"
 # the /metrics bearer token is compared in constant time
 subtle = "2.6"
 argon2 = { workspace = true }
 password-hash = { workspace = true }
 rand_core = { workspace = true }
+getrandom = { workspace = true }
 # Phase 12b — fastcore-native message body extraction: read raw
 # from maildir + parse MIME.
 mailrs-message-store = { path = "../message-store" }
@@ -83,10 +84,10 @@ mailrs-rfc2231 = { path = "../rfc2231", version = "1" }
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 # registrable domain, so a sender subdomain with no icon falls back to its
 # organisation's
-psl = "2.1.222"
+psl = "2.1.261"
 # sender icons as PNG for the mobile clients, which decode neither SVG nor
 # ICO. No text, fonts or embedded images: the SVG comes from a sender's DNS.
-resvg = { version = "0.49.0", default-features = false }
+resvg = { version = "0.50.0", default-features = false }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "ico", "gif", "webp"] }
 html2text = "0.17"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "json"] }
@@ -95,15 +96,15 @@ mailrs-jmap = { path = "../jmap" }
 mailrs-ical = { path = "../ical", features = ["mime"] }
 async-trait = "0.1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
-rmcp = { version = "3.9", features = ["server", "macros", "transport-streamable-http-server", "schemars"] }
+rmcp = { version = "3.11", features = ["server", "macros", "transport-streamable-http-server", "schemars"] }
 schemars = "1"
-totp-rs = { version = "5.7.1", features = ["otpauth"] }
+totp-rs = { version = "6.0.0", features = ["otpauth"] }
 hex = "0.4"
 # free space of the JMAP upload volume, for /api/health
 libc = "0.2"
-jsonwebtoken = { version = "10", default-features = false, features = ["aws_lc_rs", "use_pem"] }
-sha2 = "0.10"
-hmac = "0.12"
+jsonwebtoken = { version = "12", default-features = false, features = ["aws_lc_rs", "use_pem"] }
+sha2 = "0.11"
+hmac = "0.13"
 uuid = { version = "1", features = ["v4"] }
 url = "2"
 quick-xml = { version = "0.42", features = ["serialize"] }
@@ -113,7 +114,7 @@ metrics = "0.24"
 [dev-dependencies]
 # a JMAP client someone else wrote, against the real router
 jmap-client = { version = "0.4.3", default-features = false, features = ["async", "aws_lc_rs"] }
-zip = { version = "9.0.4", default-features = false, features = ["deflate"] }
+zip = { version = "9.8.1", default-features = false, features = ["deflate"] }
 aws-lc-rs = "1"
 tempfile = "3"
 # Router exercising: `oneshot` on the built router, so the assist routes
@@ -127,7 +128,7 @@ mailrs-core = { path = "../core" }
 mailrs-mailbox-kevy = { path = "../mailbox-kevy" }
 kevy-embedded = { workspace = true }
 # a WebSocket client for /api/events
-tokio-tungstenite = "0.28"
+tokio-tungstenite = "0.30"
 # a real kevy-server where the outbound queue's pipelined writes run
 mailrs-test-docker = { path = "../test-docker" }
 # a real ops daemon behind the admin page's routes

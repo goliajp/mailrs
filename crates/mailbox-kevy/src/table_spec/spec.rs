@@ -9,7 +9,9 @@
 
 use super::keys;
 use crate::thread_row::MARKED;
-use kevy_embedded::{IndexKind, IndexValType as ValType, OrderPath, TableIndex, TableSpec};
+use kevy_embedded::{
+    IndexKind, IndexValType as ValType, OrderPath, SortOrder, TableIndex, TableSpec,
+};
 
 /// The `threaduser` table declaration.
 ///
@@ -18,65 +20,64 @@ use kevy_embedded::{IndexKind, IndexValType as ValType, OrderPath, TableIndex, T
 /// returning an error when an ORDERPATH names a column the table
 /// never declared, and that panic happens at boot.
 pub(crate) fn thread_user_spec() -> kevy_embedded::TableSpec {
-    TableSpec {
-        name: b"threaduser".to_vec(),
-        prefix: keys::THREAD_USER_PREFIX.to_vec(),
-        pk: b"tid".to_vec(),
-        // New in kevy-index 5.1, all three declared explicitly rather than
-        // defaulted, because two of them change what this table is.
-        //
-        // `window`: no sliding hot window. Conversations do not age out of
-        // relevance on a timer — a five-year-old thread is a legitimate
-        // search hit — and a windowed table moves rows below the boundary
-        // into cold segments, which 5.0 spent a release making correct.
-        //
-        // `autodeclare: 0`: the engine may not declare paths for us. The
-        // whole point of this table is that a query axis is declared and
-        // therefore reviewable; a path that
-        // appeared because a query was refused once is a path nobody chose.
-        // Off is also the upstream default.
-        window: None,
-        autodeclare: 0,
-        // Runtime provenance, empty by construction here. It must never be
-        // part of a "same declaration?" comparison — see `ensure_thread_table`.
-        auto_added: Vec::new(),
-        columns: columns(),
-        // The boolean predicates, each keyed on its own flag with
-        // `user` and `activity` stored alongside. Unlike the bucket
-        // axes these are not a sort prefix: the query keys on the flag
-        // and then filters to one user and sorts by activity through
-        // the stored values, which is what keeps this to five small
-        // indexes instead of five more composites.
-        indexes: indexes(),
-        // `ord` is the tie-breaker, not a queryable dimension.
-        // `activity` is a whole-second timestamp, so threads that
-        // arrive in the same second collide — 929 collisions over
-        // 30k rows on prod. Without a total order the position of a
-        // colliding row is undefined between calls, which is how a
-        // paged reader silently skips or repeats one at a page
-        // boundary.
-        // `archived` sits in every prefix for the same reason
-        // `sent_only` sits in one: Archived is a list of its own, so
-        // every other list excludes it, and an exclusion belongs in the
-        // declared query shape rather than in a filter applied to the
-        // page after it was counted. Without it the server answered
-        // "Inbox" with archived threads in it and the client deleted
-        // them from the page it had already been told the size of.
-        orderpaths: orderpaths(),
-    }
+    let mut spec = TableSpec::default();
+    spec.name = b"threaduser".to_vec();
+    spec.prefix = keys::THREAD_USER_PREFIX.to_vec();
+    spec.pk = b"tid".to_vec();
+    // New in kevy-index 5.1, all three declared explicitly rather than
+    // defaulted, because two of them change what this table is.
+    //
+    // `window`: no sliding hot window. Conversations do not age out of
+    // relevance on a timer — a five-year-old thread is a legitimate
+    // search hit — and a windowed table moves rows below the boundary
+    // into cold segments, which 5.0 spent a release making correct.
+    //
+    // `autodeclare: 0`: the engine may not declare paths for us. The
+    // whole point of this table is that a query axis is declared and
+    // therefore reviewable; a path that
+    // appeared because a query was refused once is a path nobody chose.
+    // Off is also the upstream default.
+    spec.window = None;
+    spec.autodeclare = 0;
+    // Runtime provenance, empty by construction here. It must never be
+    // part of a "same declaration?" comparison — see `ensure_thread_table`.
+    spec.auto_added = Vec::new();
+    spec.columns = columns();
+    // The boolean predicates, each keyed on its own flag with
+    // `user` and `activity` stored alongside. Unlike the bucket
+    // axes these are not a sort prefix: the query keys on the flag
+    // and then filters to one user and sorts by activity through
+    // the stored values, which is what keeps this to five small
+    // indexes instead of five more composites.
+    spec.indexes = indexes();
+    // `ord` is the tie-breaker, not a queryable dimension.
+    // `activity` is a whole-second timestamp, so threads that
+    // arrive in the same second collide — 929 collisions over
+    // 30k rows on prod. Without a total order the position of a
+    // colliding row is undefined between calls, which is how a
+    // paged reader silently skips or repeats one at a page
+    // boundary.
+    // `archived` sits in every prefix for the same reason
+    // `sent_only` sits in one: Archived is a list of its own, so
+    // every other list excludes it, and an exclusion belongs in the
+    // declared query shape rather than in a filter applied to the
+    // page after it was counted. Without it the server answered
+    // "Inbox" with archived threads in it and the client deleted
+    // them from the page it had already been told the size of.
+    spec.orderpaths = orderpaths();
+    spec
 }
 
 fn col(name: &str, t: ValType) -> (Vec<u8>, ValType) {
     (name.as_bytes().to_vec(), t)
 }
-fn path(name: &str, on: &[(&str, bool)]) -> OrderPath {
-    OrderPath {
-        name: name.as_bytes().to_vec(),
-        on: on
-            .iter()
-            .map(|(c, desc)| (c.as_bytes().to_vec(), *desc))
+fn path(name: &str, on: &[(&str, SortOrder)]) -> OrderPath {
+    OrderPath::new(
+        name.as_bytes(),
+        on.iter()
+            .map(|(c, order)| (c.as_bytes().to_vec(), *order))
             .collect(),
-    }
+    )
 }
 
 // Stored alongside every flag index: `user` and `activity` scope
@@ -248,26 +249,27 @@ fn indexes() -> Vec<TableIndex> {
     ]);
     keyed
         .iter()
-        .map(|c| TableIndex {
-            column: c.as_bytes().to_vec(),
-            kind: IndexKind::Range,
-            values: values.clone(),
+        .map(|c| {
+            let mut index = TableIndex::new(c.as_bytes(), IndexKind::Range);
+            index.values = values.clone();
+            index
         })
         .collect()
 }
 
 fn orderpaths() -> Vec<OrderPath> {
+    use SortOrder::{Asc, Desc};
     vec![
         path(
             "by_user_bucket",
             &[
-                ("user", false),
-                ("bucket", false),
-                ("archived", false),
-                ("quarantined", false),
-                ("trashed", false),
-                ("activity", true),
-                ("ord", false),
+                ("user", Asc),
+                ("bucket", Asc),
+                ("archived", Asc),
+                ("quarantined", Asc),
+                ("trashed", Asc),
+                ("activity", Desc),
+                ("ord", Asc),
             ],
         ),
         // Inbox is not simply `bucket = inbox`: a thread the user
@@ -280,27 +282,27 @@ fn orderpaths() -> Vec<OrderPath> {
         path(
             "by_user_bucket_sent",
             &[
-                ("user", false),
-                ("bucket", false),
-                ("sent_only", false),
-                ("archived", false),
-                ("quarantined", false),
-                ("trashed", false),
-                ("activity", true),
-                ("ord", false),
+                ("user", Asc),
+                ("bucket", Asc),
+                ("sent_only", Asc),
+                ("archived", Asc),
+                ("quarantined", Asc),
+                ("trashed", Asc),
+                ("activity", Desc),
+                ("ord", Asc),
             ],
         ),
         // The sectioned inbox: one section of the live list, newest first.
         path(
             "by_user_section",
             &[
-                ("user", false),
-                ("section", false),
-                ("archived", false),
-                ("quarantined", false),
-                ("trashed", false),
-                ("activity", true),
-                ("ord", false),
+                ("user", Asc),
+                ("section", Asc),
+                ("archived", Asc),
+                ("quarantined", Asc),
+                ("trashed", Asc),
+                ("activity", Desc),
+                ("ord", Asc),
             ],
         ),
         // "Assigned to me": the reader's team conversations one member
@@ -308,13 +310,13 @@ fn orderpaths() -> Vec<OrderPath> {
         path(
             "by_user_assignee",
             &[
-                ("user", false),
-                ("assignee", false),
-                ("archived", false),
-                ("quarantined", false),
-                ("trashed", false),
-                ("activity", true),
-                ("ord", false),
+                ("user", Asc),
+                ("assignee", Asc),
+                ("archived", Asc),
+                ("quarantined", Asc),
+                ("trashed", Asc),
+                ("activity", Desc),
+                ("ord", Asc),
             ],
         ),
         // The default axis — no predicate but the archive
@@ -322,12 +324,12 @@ fn orderpaths() -> Vec<OrderPath> {
         path(
             "by_user_activity",
             &[
-                ("user", false),
-                ("archived", false),
-                ("quarantined", false),
-                ("trashed", false),
-                ("activity", true),
-                ("ord", false),
+                ("user", Asc),
+                ("archived", Asc),
+                ("quarantined", Asc),
+                ("trashed", Asc),
+                ("activity", Desc),
+                ("ord", Asc),
             ],
         ),
         // The review screen's own axis: what was held, newest
@@ -338,23 +340,23 @@ fn orderpaths() -> Vec<OrderPath> {
         path(
             "by_user_quarantined",
             &[
-                ("user", false),
-                ("quarantined", false),
-                ("trashed", false),
-                ("activity", true),
-                ("ord", false),
+                ("user", Asc),
+                ("quarantined", Asc),
+                ("trashed", Asc),
+                ("activity", Desc),
+                ("ord", Asc),
             ],
         ),
         path(
             "by_user_category",
             &[
-                ("user", false),
-                ("category", false),
-                ("archived", false),
-                ("quarantined", false),
-                ("trashed", false),
-                ("activity", true),
-                ("ord", false),
+                ("user", Asc),
+                ("category", Asc),
+                ("archived", Asc),
+                ("quarantined", Asc),
+                ("trashed", Asc),
+                ("activity", Desc),
+                ("ord", Asc),
             ],
         ),
     ]

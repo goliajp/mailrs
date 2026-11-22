@@ -61,7 +61,7 @@ fn kevy_config(kevy_dir: &str) -> Config {
         // single-command parse all agree, and skipped ranges are still
         // reported with the corrupt flag raised — so this recovers data
         // without hiding that anything happened.
-        .with_replay_resync(true);
+        .with_replay_mode(kevy_embedded::ReplayMode::Resync);
     // Transparent tiering. Off by default: the whole dataset fits in
     // RAM today, and a budget below the working set trades latency for
     // memory in a way that has to be measured before it is imposed.

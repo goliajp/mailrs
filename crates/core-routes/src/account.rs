@@ -59,19 +59,13 @@ pub async fn list_accounts<S: AccountStore>(State(state): State<Arc<S>>) -> Resp
 }
 
 fn hash_of(initial: adm::InitialPassword<'_>) -> Option<String> {
-    use argon2::{
-        Argon2, PasswordHasher,
-        password_hash::{SaltString, rand_core::OsRng},
-    };
+    use argon2::{Argon2, PasswordHasher};
     match initial {
         adm::InitialPassword::Hash(h) => Some(h.to_string()),
-        adm::InitialPassword::Plain(plain) => {
-            let salt = SaltString::generate(&mut OsRng);
-            Argon2::default()
-                .hash_password(plain.as_bytes(), &salt)
-                .ok()
-                .map(|h| h.to_string())
-        }
+        adm::InitialPassword::Plain(plain) => Argon2::default()
+            .hash_password(plain.as_bytes())
+            .ok()
+            .map(|h| h.to_string()),
     }
 }
 

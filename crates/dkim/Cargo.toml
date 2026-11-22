@@ -23,8 +23,8 @@ hickory = ["dep:hickory-resolver"]
 
 [dependencies]
 async-trait = "0.1"
-sha2 = { version = "0.10", features = ["oid"] }  # pinned + oid for AssociatedOid
-base64 = "0.22"
+sha2 = { version = "0.11", features = ["oid"] }  # pinned + oid for AssociatedOid
+base64 = "0.23"
 # SIMD byte scanner — used in headers.rs hot scans (collect_signed_headers,
 # find_header_value_*). Per outbound DKIM-sign + per inbound verify.
 memchr = "2"
@@ -37,11 +37,11 @@ aws-lc-rs = "1"
 # this gives us PEM → DER. workspace already has it via rustls.
 rustls-pki-types = { version = "1", features = ["alloc"] }
 thiserror = "2"
-ed25519-dalek = "2"
+ed25519-dalek = "3"
 hickory-resolver = { version = "0.26", optional = true }
 # Inline-short-string for d= / s= / i= / q= tags. Domain + selector
 # almost always fit in 24 bytes inline → zero alloc on the hot path.
-compact_str = "0.9"
+compact_str = "0.10"
 
 [dev-dependencies]
 criterion = { workspace = true }
@@ -51,13 +51,13 @@ tokio = { workspace = true }
 # never touch.
 mail-auth = { version = "0.13", default-features = false, features = ["aws-lc-rs"] }
 # Multi-signature integration test signs two real RSA-2048 messages
-# and round-trips them through verify_all. rand 0.8 to match rsa's
-# rand_core 0.6 expectation (rand 0.9 ships rand_core 0.10).
-rand = "0.8"
+# and round-trips them through verify_all. One rand_core generation
+# with rsa.
+rand = "0.10"
 # Integration tests still need the pure-Rust `rsa` crate for ad-hoc
 # RSA-2048 key generation + PKCS#8 export — aws-lc-rs's key gen API
 # is more awkward for test fixtures, and this is dev-only weight.
-rsa = "0.9"
+rsa = { version = "0.10", features = ["pkcs1v15"] }
 
 [[bench]]
 name = "dkim"

@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use std::sync::LazyLock;
 
 use argon2::Argon2;
-use password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
+use password_hash::{PasswordHasher, PasswordVerifier, phc::PasswordHash};
 
 /// Whether `password` is the one `hash` was made from: the check every way
 /// of signing in makes. Only an argon2 hash can match. An empty one is an
@@ -31,9 +31,8 @@ pub fn matches(password: &str, hash: &str) -> bool {
 /// # Errors
 /// The hasher refused the input.
 pub fn hash(secret: &str) -> Result<String, password_hash::Error> {
-    let salt = SaltString::generate(&mut rand_core::OsRng);
     Ok(Argon2::default()
-        .hash_password(secret.as_bytes(), &salt)?
+        .hash_password(secret.as_bytes())?
         .to_string())
 }
 
@@ -175,10 +174,10 @@ mod tests {
     use super::*;
 
     fn hashed(password: &str) -> String {
-        use password_hash::{PasswordHasher, SaltString};
-        let salt = SaltString::from_b64("c29tZXNhbHRzb21lc2FsdA").expect("salt");
+        use password_hash::PasswordHasher;
+        let salt = b"somesaltsomesalt";
         Argon2::default()
-            .hash_password(password.as_bytes(), &salt)
+            .hash_password_with_salt(password.as_bytes(), salt)
             .expect("hash")
             .to_string()
     }

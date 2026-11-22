@@ -32,10 +32,10 @@ async fn a_hash_sent_with_a_new_account_is_ignored() {
     live.confirm(&admin, "pw").await;
 
     let known = {
-        use argon2::password_hash::{PasswordHasher, SaltString};
-        let salt = SaltString::from_b64("c29tZXNhbHRzb21lc2FsdA").expect("salt");
+        use argon2::password_hash::PasswordHasher;
+        let salt = b"somesaltsomesalt";
         argon2::Argon2::default()
-            .hash_password(b"a-value-the-admin-knows", &salt)
+            .hash_password_with_salt(b"a-value-the-admin-knows", salt)
             .expect("hash")
             .to_string()
     };

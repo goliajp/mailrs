@@ -18,7 +18,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::{Digest, Sha256};
 
 use crate::WebState;
@@ -36,7 +36,7 @@ const DEFAULT_TTL_HOURS: u64 = 24;
 /// A new code.
 fn new_code() -> String {
     let mut bytes = [0u8; LENGTH];
-    rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut bytes);
+    rand_core::Rng::fill_bytes(&mut rand_core::UnwrapErr(getrandom::SysRng), &mut bytes);
     bytes
         .iter()
         .map(|b| ALPHABET[(*b as usize) % ALPHABET.len()] as char)
@@ -67,7 +67,7 @@ pub(crate) fn key_id(key: &[u8]) -> String {
 /// The code's MAC, bound to the account, so one account's code cannot be
 /// used on another.
 fn hmac_of(key: &[u8], address: &str, code: &str) -> Hmac<Sha256> {
-    let mut m = <Hmac<Sha256> as Mac>::new_from_slice(key).expect("hmac takes any key length");
+    let mut m = <Hmac<Sha256> as KeyInit>::new_from_slice(key).expect("hmac takes any key length");
     m.update(address.to_ascii_lowercase().as_bytes());
     m.update(b"\n");
     m.update(normalized(code).as_bytes());

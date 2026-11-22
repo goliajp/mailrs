@@ -17,7 +17,7 @@ workspace = true
 
 [dependencies]
 async-trait = "0.1"
-base64 = "0.22"
+base64 = "0.23"
 chrono = "0.4"
 flate2 = "1"
 thiserror = "2"
@@ -27,14 +27,14 @@ thiserror = "2"
 # semantics consistent with the rest of mailrs's outbound stack.
 mailrs-mail-builder = { path = "../mail-builder", version = "1" }
 # Inline-short-string for domain fields that flow in from dkim 2.0 / spf 2.0.
-compact_str = "0.9"
+compact_str = "0.10"
 # Public Suffix List for organizational-domain extraction (DMARC relaxed
 # alignment, RFC 7489 §3.2). Compile-time PSL, no runtime download.
 psl = "2"
 
 serde = { workspace = true, features = ["derive"] }
 quick-xml = { version = "0.42", features = ["serialize"] }
-zip = { version = "9.0.4", default-features = false, features = ["deflate"] }
+zip = { version = "9.8.1", default-features = false, features = ["deflate"] }
 mailrs-mime = { version = "2.0.1", path = "../mime" }
 
 [dev-dependencies]

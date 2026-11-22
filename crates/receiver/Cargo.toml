@@ -75,7 +75,7 @@ hickory-resolver = "0.26"
 # Versions and features match what the tree already builds.
 x509-parser = { version = "0.18", default-features = false }
 rustls-pki-types = { version = "1", features = ["alloc"] }
-sha2 = "0.10"
+sha2 = "0.11"
 ipnet = { workspace = true }
 metrics = "0.24"
 reqwest = { version = "0.13", default-features = false, features = ["json", "form", "rustls"] }
@@ -83,14 +83,14 @@ tracing = "0.1"
 bytes = "1"
 memchr = "2"
 chrono = { version = "0.4", features = ["serde"] }
-base64 = "0.22"
+base64 = "0.23"
 argon2 = { workspace = true }
 
 [dev-dependencies]
 # tests/kevy_network.rs runs the network anti backends and the notify bridge
 # against a real kevy-server container.
-testcontainers = "0.27"
+testcontainers = "0.28"
 mailrs-test-docker = { path = "../test-docker" }
-rcgen = "0.13"
+rcgen = "0.14"
 tempfile = "3"
 mailrs-parse-worker = { path = "../parse-worker", features = ["testing"] }

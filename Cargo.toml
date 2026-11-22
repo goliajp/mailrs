@@ -187,10 +187,19 @@ spg-embedded = "7.38.4"
 # `HRANDFIELD .. WITHVALUES` appear in no mailrs code path. `CONFIG SET
 # notify-keyspace-events` is wired to the wire for the first time; this
 # project does not use keyspace notifications either.
-kevy-embedded = "6.4.0"
+#
+# 7.0.0 moves every public Rust API to the Rust API Guidelines: struct
+# literals become builders or `Default` plus assignment, `bool` arguments
+# become enums (`SortOrder`, `TokenPositions`), the change feed takes a
+# `FeedPosition`, and `idx_drop` / `table_drop` return a `Result`. A 6.4
+# data directory opens unchanged and its index catalog moves into the
+# log. Going back to 6.4 loses that catalog, which fastcore declares
+# again at boot; after a kill under 7.0, open and close the directory
+# once with 7.0 first, or 6.4 misses the writes left in the staging ring.
+kevy-embedded = "7.0.0"
 # kevy-text — the tokenizer kevy indexes with, used directly so the SQL
 # store indexes and searches the same words; one generation with the line above
-kevy-text = "6.4.0"
+kevy-text = "7.0.0"
 # kevy-client — synchronous RESP network client for a shared kevy-server.
 # Used when MAILRS_KEVY_URL is set: webapi's sessions and the fifteen
 # core-sidestate families, plus the anti subsystems (greylist / rate /
@@ -207,20 +216,21 @@ kevy-text = "6.4.0"
 # `cargo info` can report a stale latest from the local cache — check the
 # sparse index (`curl -s https://index.crates.io/ke/vy/kevy-client`), not
 # the cache.
-kevy-client = "6.4.0"
+kevy-client = "7.0.0"
 
 # Serialization.
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 # Password hashing — shared by the server (web/imap/pop3/mcp auth) and
-# mailrs-core (the UserStore credential file). password-hash + rand_core
-# pinned to older majors — argon2 0.5.x (latest) hard-deps password-hash
-# 0.5, and rsa 0.9.x (latest) hard-deps rand_core 0.6. Unpin when argon2
-# 0.6 / rsa 0.10 publish.
-argon2 = "0.5"
-password-hash = "0.5"
-rand_core = { version = "0.6", features = ["std"] }
+# mailrs-core (the UserStore credential file). argon2 draws its salt from
+# the OS generator itself.
+argon2 = "0.6"
+password-hash = "0.6"
+# Random tokens, ids and secrets come from the OS generator: rand_core has
+# no OsRng since 0.10, so it is getrandom's SysRng behind `UnwrapErr`.
+rand_core = "0.10"
+getrandom = { version = "0.4", features = ["sys_rng"] }
 
 # Time + DNS — used in 5+ crates each, pin centrally so a future bump
 # rolls through the workspace in one commit.

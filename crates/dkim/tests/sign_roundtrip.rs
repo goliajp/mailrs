@@ -9,7 +9,7 @@
 use base64::Engine as _;
 use mailrs_dkim::RsaSigningKey;
 use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey};
-use rsa::{RsaPrivateKey, RsaPublicKey};
+use rsa::{PrivateKey, PublicKey};
 
 use mailrs_dkim::{Canon, DkimResolver, DkimResult, DkimSigningKey, SignOpts, sign, verify_all};
 
@@ -17,7 +17,7 @@ fn b64(b: &[u8]) -> String {
     base64::engine::general_purpose::STANDARD.encode(b)
 }
 
-fn rsa_pubkey_txt(public_key: &RsaPublicKey) -> String {
+fn rsa_pubkey_txt(public_key: &PublicKey) -> String {
     let der = public_key.to_public_key_der().unwrap();
     format!("v=DKIM1; k=rsa; p={}", b64(der.as_bytes()))
 }
@@ -41,9 +41,9 @@ impl DkimResolver for OneShotResolver {
 
 #[tokio::test]
 async fn sign_and_verify_rsa_sha256_roundtrip() {
-    let mut rng = rand::thread_rng();
-    let priv_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-    let pub_key = RsaPublicKey::from(&priv_key);
+    let mut rng = rand::rng();
+    let priv_key = PrivateKey::new(&mut rng, 2048).unwrap();
+    let pub_key = PublicKey::from(&priv_key);
     let pkcs8_der = priv_key.to_pkcs8_der().unwrap();
     let signer = RsaSigningKey::from_pkcs8_der(pkcs8_der.as_bytes()).unwrap();
     let key = DkimSigningKey::Rsa(signer);
@@ -88,8 +88,8 @@ async fn sign_and_verify_rsa_sha256_roundtrip() {
 
 #[tokio::test]
 async fn sign_and_verify_ed25519_sha256_roundtrip() {
-    let mut rng = rand::thread_rng();
-    use rand::RngCore as _;
+    let mut rng = rand::rng();
+    use rand::Rng as _;
     let mut secret = [0u8; 32];
     rng.fill_bytes(&mut secret);
     let signing_key = ed25519_dalek::SigningKey::from_bytes(&secret);
@@ -127,9 +127,9 @@ async fn sign_and_verify_ed25519_sha256_roundtrip() {
 
 #[tokio::test]
 async fn sign_with_optional_tags_round_trips() {
-    let mut rng = rand::thread_rng();
-    let priv_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-    let pub_key = RsaPublicKey::from(&priv_key);
+    let mut rng = rand::rng();
+    let priv_key = PrivateKey::new(&mut rng, 2048).unwrap();
+    let pub_key = PublicKey::from(&priv_key);
     let pkcs8_der = priv_key.to_pkcs8_der().unwrap();
     let signer = RsaSigningKey::from_pkcs8_der(pkcs8_der.as_bytes()).unwrap();
     let key = DkimSigningKey::Rsa(signer);
@@ -163,9 +163,9 @@ async fn sign_with_optional_tags_round_trips() {
 
 #[tokio::test]
 async fn sign_simple_canon_round_trips() {
-    let mut rng = rand::thread_rng();
-    let priv_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-    let pub_key = RsaPublicKey::from(&priv_key);
+    let mut rng = rand::rng();
+    let priv_key = PrivateKey::new(&mut rng, 2048).unwrap();
+    let pub_key = PublicKey::from(&priv_key);
     let pkcs8_der = priv_key.to_pkcs8_der().unwrap();
     let signer = RsaSigningKey::from_pkcs8_der(pkcs8_der.as_bytes()).unwrap();
     let key = DkimSigningKey::Rsa(signer);

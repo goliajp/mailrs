@@ -20,7 +20,7 @@ async-trait = "0.1"
 # `sync` only — for `RwLock` in the InMemoryCache. No `rt` or `net`.
 tokio = { version = "1", default-features = false, features = ["sync"] }
 # Inline-short-string for Policy.mx + StsRecord.id (hostnames + IDs fit inline).
-compact_str = "0.9"
+compact_str = "0.10"
 
 [dev-dependencies]
 criterion = { workspace = true }

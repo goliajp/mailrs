@@ -142,7 +142,7 @@ pub fn pending_to_wire(
 /// A fresh random id, `rp` and 16 hex digits.
 pub fn new_id() -> String {
     let mut bytes = [0u8; 8];
-    rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut bytes);
+    rand_core::Rng::fill_bytes(&mut rand_core::UnwrapErr(getrandom::SysRng), &mut bytes);
     let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
     format!("rp{hex}")
 }

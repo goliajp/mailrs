@@ -240,7 +240,7 @@ pub async fn round(state: &Arc<FastcoreState>) -> (u64, serde_json::Value) {
 
 /// Where the store's change feed stands: equal before and after means
 /// nothing was written in between.
-pub fn tail(state: &FastcoreState) -> (u64, u64) {
+pub fn tail(state: &FastcoreState) -> kevy_embedded::FeedPosition {
     state.mailbox.store_ref().changes_tail().unwrap()
 }
 

@@ -26,7 +26,7 @@ impl KevyMailboxStore {
             keys::IDX_THREAD_USER_SEARCH,
             keys::THREAD_USER_PREFIX,
             &fields,
-            false,
+            kevy_embedded::TokenPositions::Omit,
             &[(b"user", IndexValType::Str)],
         );
         // Message bodies, indexed separately from the thread rows so a

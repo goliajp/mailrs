@@ -14,7 +14,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration;
 
-use kevy_embedded::{FeedError, Store};
+use kevy_embedded::{FeedError, FeedPosition, Store};
 use mailrs_mailbox_kevy::keys::THREAD_USER_PREFIX;
 use tokio::time::MissedTickBehavior;
 
@@ -49,15 +49,15 @@ async fn run(state: Arc<FastcoreState>) {
                 at = next;
                 users
             }
-            Ok(Err(FeedError::Resync { generation, tail })) => {
+            Ok(Err(FeedError::Resync { tail })) => {
                 // the changes behind the gap are lost; open clients catch
                 // up when they next refetch
                 tracing::info!(
-                    generation,
-                    tail,
+                    generation = tail.generation,
+                    tail = tail.offset,
                     "mailbox watch: feed resync, resuming at the tail"
                 );
-                at = (generation, tail);
+                at = tail;
                 continue;
             }
             Ok(Err(e)) => {
@@ -93,11 +93,11 @@ async fn run(state: Arc<FastcoreState>) {
 /// past what was read.
 pub(crate) fn changed_users(
     store: &Store,
-    mut at: (u64, u64),
-) -> Result<(BTreeSet<String>, (u64, u64)), FeedError> {
+    mut at: FeedPosition,
+) -> Result<(BTreeSet<String>, FeedPosition), FeedError> {
     let mut users = BTreeSet::new();
     loop {
-        let batch = store.changes_since(at.0, at.1, BATCH, &[THREAD_USER_PREFIX])?;
+        let batch = store.changes_since(at, BATCH, &[THREAD_USER_PREFIX])?;
         // the prefix filter lets multi-key verbs through, so each key is asked
         for change in &batch.changes {
             for arg in change.argv.iter().skip(1) {

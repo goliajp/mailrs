@@ -6,7 +6,7 @@ use std::io;
 use kevy_embedded::IndexValue;
 use mailrs_mailbox::section::Section;
 
-use super::ArchiveScope;
+use super::{ArchiveScope, where_clause};
 use crate::KevyMailboxStore;
 
 impl KevyMailboxStore {
@@ -44,14 +44,14 @@ impl KevyMailboxStore {
             (b"section".to_vec(), section.name().as_bytes().to_vec()),
         ];
         scope.push_to(&mut eqs);
-        let clause = kevy_index::WhereClause {
+        let clause = where_clause(
             eqs,
-            range: Some((
+            Some((
                 b"activity".to_vec(),
                 i64::MIN.to_string().into_bytes(),
                 max_activity.to_string().into_bytes(),
             )),
-        };
+        );
         self.run_orderpath(b"threaduser.by_user_section", user, &clause, limit)
     }
 

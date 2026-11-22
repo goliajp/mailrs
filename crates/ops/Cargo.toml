@@ -20,7 +20,7 @@ path = "src/main.rs"
 
 [dependencies]
 axum = "0.8"
-base64 = "0.22"
+base64 = "0.23"
 chrono = { workspace = true }
 hex = "0.4"
 mailrs-core-api = { path = "../core-api", features = ["client"] }
@@ -49,4 +49,4 @@ mailrs-core-sidestate = { path = "../core-sidestate" }
 kevy-embedded = { workspace = true }
 kevy-client = { workspace = true }
 mailrs-test-docker = { path = "../test-docker" }
-testcontainers = "0.27"
+testcontainers = "0.28"

@@ -204,7 +204,7 @@ pub fn candidate(domain: &str, mut pick: impl FnMut(usize) -> usize) -> String {
 /// A uniform number below `n` from the OS.
 pub fn os_pick(n: usize) -> usize {
     let mut b = [0u8; 8];
-    rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut b);
+    rand_core::Rng::fill_bytes(&mut rand_core::UnwrapErr(getrandom::SysRng), &mut b);
     (u64::from_le_bytes(b) % n as u64) as usize
 }
 

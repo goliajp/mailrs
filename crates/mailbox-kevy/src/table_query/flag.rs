@@ -65,7 +65,7 @@ impl KevyMailboxStore {
         offset: usize,
         before_ts: Option<i64>,
     ) -> io::Result<Vec<String>> {
-        use kevy_embedded::{IndexValue, ScalarQueryOpts, ValueFilter};
+        use kevy_embedded::{IndexValue, ScalarQueryOpts, SortOrder, ValueFilter};
         let (lo, hi);
         let mut filters = vec![ValueFilter::Eq {
             field: b"user",
@@ -94,13 +94,10 @@ impl KevyMailboxStore {
             &IndexValue::I64(1),
             None,
             limit,
-            ScalarQueryOpts {
-                filters: &filters,
-                sort: Some((b"activity", true)),
-                distinct: None,
-                facets: &[],
-                offset,
-            },
+            ScalarQueryOpts::default()
+                .with_filters(&filters)
+                .with_sort(b"activity", SortOrder::Desc)
+                .with_offset(offset),
         )?;
         let prefix_len = keys::thread_user(user, "").len();
         Ok(page

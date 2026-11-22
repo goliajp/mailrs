@@ -21,7 +21,12 @@ fn cert(key: &rcgen::KeyPair) -> String {
 #[test]
 fn a_certificate_and_its_public_key_give_the_same_record() {
     let key = rcgen::KeyPair::generate().unwrap();
-    let want = format!("3 1 1 {}", hex(&Sha256::digest(key.public_key_der())));
+    let want = format!(
+        "3 1 1 {}",
+        hex(&Sha256::digest(
+            rcgen::PublicKeyData::subject_public_key_info(&key),
+        ))
+    );
     assert_eq!(
         record_for_cert_pem(cert(&key).as_bytes()),
         Some(want.clone())

@@ -164,17 +164,17 @@ fn set_if_unchanged(
 ) -> io::Result<bool> {
     let text = value.to_string();
     match conn {
-        Connection::Remote(_) => {
-            let mut txn = conn.multi()?;
-            txn.set(key.as_bytes(), text.as_bytes())?;
-            Ok(txn.exec_watched()?.is_some())
-        }
         Connection::Embedded(_) => {
             if read_counter(conn, key)? != before {
                 return Ok(false);
             }
             conn.set(key.as_bytes(), text.as_bytes())?;
             Ok(true)
+        }
+        _ => {
+            let mut txn = conn.multi()?;
+            txn.set(key.as_bytes(), text.as_bytes())?;
+            Ok(txn.exec_watched()?.is_some())
         }
     }
 }
@@ -215,17 +215,17 @@ fn settle(conn: &mut Connection, s: &Step<'_>) -> io::Result<UsageDriftAction> {
 /// Delete `key` only if it still holds `before`. True when it deleted.
 fn delete_if_unchanged(conn: &mut Connection, key: &str, before: Option<i64>) -> io::Result<bool> {
     match conn {
-        Connection::Remote(_) => {
-            let mut txn = conn.multi()?;
-            txn.queue(&[b"DEL", key.as_bytes()])?;
-            Ok(txn.exec_watched()?.is_some())
-        }
         Connection::Embedded(_) => {
             if read_counter(conn, key)? != before {
                 return Ok(false);
             }
             conn.del(&[key.as_bytes()])?;
             Ok(true)
+        }
+        _ => {
+            let mut txn = conn.multi()?;
+            txn.queue(&[b"DEL", key.as_bytes()])?;
+            Ok(txn.exec_watched()?.is_some())
         }
     }
 }

@@ -32,7 +32,7 @@
 
 use std::time::{Duration, Instant};
 
-use kevy_embedded::{Config, PubsubFrame, Store, Subscription};
+use kevy_embedded::{Config, PubsubEvent, Store, Subscription};
 use mailrs_shield::greylist::{GreylistConfig, GreylistDb, GreylistDecision, triplet_key};
 
 fn mem_store() -> Store {
@@ -47,7 +47,7 @@ fn recv_message(sub: &Subscription, chan: &[u8]) -> Vec<u8> {
     let deadline = Instant::now() + Duration::from_secs(2);
     while Instant::now() < deadline {
         match sub.recv_timeout(Duration::from_millis(100)) {
-            Ok(PubsubFrame::Message { channel, payload }) if channel == chan => return payload,
+            Ok(PubsubEvent::Message { channel, payload }) if channel == chan => return payload,
             Ok(_) | Err(_) => continue,
         }
     }
@@ -59,7 +59,7 @@ fn got_message(sub: &Subscription, chan: &[u8]) -> bool {
     let deadline = Instant::now() + Duration::from_millis(300);
     while Instant::now() < deadline {
         match sub.recv_timeout(Duration::from_millis(50)) {
-            Ok(PubsubFrame::Message { channel, .. }) if channel == chan => return true,
+            Ok(PubsubEvent::Message { channel, .. }) if channel == chan => return true,
             Ok(_) | Err(_) => continue,
         }
     }

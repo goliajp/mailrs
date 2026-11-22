@@ -73,7 +73,9 @@ impl KevyMailboxStore {
             }
             Some(_) => {
                 tracing::info!("threaduser table spec changed — rebuilding indexes");
-                self.store.table_drop(&spec.name);
+                if let Err(e) = self.store.table_drop(&spec.name) {
+                    tracing::error!(error = %e, "threaduser table drop failed");
+                }
             }
             None => {}
         }

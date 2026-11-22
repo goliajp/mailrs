@@ -44,7 +44,7 @@ fn envelope(to: &str, folder: &str) -> SpoolEnvelope {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn forwarding_and_the_vacation_reply_act_on_arriving_mail() {
     let _startup = mailrs_test_docker::startup_lock().await;
-    let container = GenericImage::new("ghcr.io/goliajp/kevy", "6.4.0")
+    let container = GenericImage::new("ghcr.io/goliajp/kevy", "7.0.0")
         .with_wait_for(WaitFor::message_on_stderr("starting:"))
         .with_exposed_port(6379.tcp())
         .with_startup_timeout(mailrs_test_docker::STARTUP_TIMEOUT)

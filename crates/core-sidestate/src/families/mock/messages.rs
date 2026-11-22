@@ -58,7 +58,7 @@ pub fn spool_message_id(spool_file: &str, rcpt_index: usize) -> String {
 /// A message id for mail that did not come through the spool.
 pub fn fresh_message_id() -> String {
     let mut bytes = [0u8; 8];
-    rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut bytes);
+    rand_core::Rng::fill_bytes(&mut rand_core::UnwrapErr(getrandom::SysRng), &mut bytes);
     format!("m{:x}{}", now_ms(), hex(&bytes))
 }
 

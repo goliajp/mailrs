@@ -268,7 +268,7 @@ pub fn approved(version: &str) -> bool {
 
 /// `lua:<sha256>` of a bundle's source.
 pub fn version_of(source: &str) -> String {
-    format!("lua:{:x}", Sha256::digest(source))
+    format!("lua:{}", hex::encode(Sha256::digest(source)))
 }
 
 fn hit(v: &[Value]) -> Result<Hit, String> {
