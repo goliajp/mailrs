@@ -7,6 +7,9 @@ export const adminOpsEn = {
   'admin.clear.confirmation': 'Confirmation',
   'admin.clear.done': 'Cleared {accounts} accounts; {sessions} sessions ended.',
   'admin.clear.linked': 'Linked sign-ins',
+  'admin.clear.next':
+    'Each owner now needs a reset code to set a new password. Issue one here and hand it over in person.',
+  'admin.clear.nextAsk': 'Each owner now needs a reset code from someone who may issue them.',
   'admin.clear.noAccount': 'no such account',
   'admin.clear.noIssuers':
     'Nobody can hand out reset codes: MAILRS_RESET_ISSUERS is empty. A cleared account would have no way back in.',

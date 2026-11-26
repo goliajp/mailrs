@@ -115,8 +115,17 @@ pub enum Weak {
     TooLong,
     /// One of the 10,000 most common passwords.
     Common,
-    /// Contains the account's name or its domain's.
-    ContainsName,
+}
+
+impl Weak {
+    /// The name a client shows its own words for.
+    pub fn code(self) -> &'static str {
+        match self {
+            Weak::TooShort => "password_too_short",
+            Weak::TooLong => "password_too_long",
+            Weak::Common => "password_common",
+        }
+    }
 }
 
 impl std::fmt::Display for Weak {
@@ -128,16 +137,13 @@ impl std::fmt::Display for Weak {
                 f,
                 "This password is one of the most common ones; choose another"
             ),
-            Weak::ContainsName => write!(
-                f,
-                "Leave the account name and the domain out of the password"
-            ),
         }
     }
 }
 
-/// Whether `password` may become `account`'s password.
-pub fn check_new(password: &str, account: &str) -> Result<(), Weak> {
+/// Whether `password` may become an account's password. The account's own
+/// name and its domain are allowed in it.
+pub fn check_new(password: &str) -> Result<(), Weak> {
     let len = password.chars().count();
     if len < MIN_LEN {
         return Err(Weak::TooShort);
@@ -149,24 +155,7 @@ pub fn check_new(password: &str, account: &str) -> Result<(), Weak> {
     if COMMON.contains(lower.as_str()) {
         return Err(Weak::Common);
     }
-    if names(account).iter().any(|n| lower.contains(n.as_str())) {
-        return Err(Weak::ContainsName);
-    }
     Ok(())
-}
-
-/// The parts of `account` a password should not contain: the local part
-/// and each domain label but the last, three characters or longer.
-fn names(account: &str) -> Vec<String> {
-    let account = account.trim().to_lowercase();
-    let (local, domain) = account.split_once('@').unwrap_or((account.as_str(), ""));
-    let labels: Vec<&str> = domain.split('.').collect();
-    let keep = labels.len().saturating_sub(1);
-    std::iter::once(local)
-        .chain(labels.into_iter().take(keep))
-        .filter(|n| n.chars().count() >= 3)
-        .map(str::to_string)
-        .collect()
 }
 
 #[cfg(test)]
@@ -225,38 +214,27 @@ mod tests {
 
     #[test]
     fn what_a_new_password_must_not_be() {
-        let a = "lihao@golia.jp";
-        assert_eq!(check_new("short-one", a), Err(Weak::TooShort));
-        assert_eq!(check_new(&"x".repeat(MAX_LEN + 1), a), Err(Weak::TooLong));
-        assert_eq!(check_new("unbelievable", a), Err(Weak::Common));
+        assert_eq!(check_new("short-one"), Err(Weak::TooShort));
+        assert_eq!(check_new(&"x".repeat(MAX_LEN + 1)), Err(Weak::TooLong));
+        assert_eq!(check_new("unbelievable"), Err(Weak::Common));
         assert_eq!(
-            check_new("UnBelievable", a),
+            check_new("UnBelievable"),
             Err(Weak::Common),
             "case does not hide it"
         );
-        assert_eq!(check_new("my-LiHao-pass-2026", a), Err(Weak::ContainsName));
-        assert_eq!(check_new("ilovegolia-forever", a), Err(Weak::ContainsName));
-        assert_eq!(check_new("plenty of words that are fine", a), Ok(()));
+        assert_eq!(check_new("plenty of words that are fine"), Ok(()));
         assert_eq!(
-            check_new("パスワードは十二文字以上必要です", a),
+            check_new("パスワードは十二文字以上必要です"),
             Ok(()),
             "counts characters, not bytes"
         );
-        // a two-letter TLD or a short name is not a name worth refusing
-        assert_eq!(check_new("jp-and-a-long-tail-here", "ab@cd.jp"), Ok(()));
     }
 
-    /// The passwords the organisation's people reach for first: digits and
-    /// the company name, in any case.
     #[test]
-    fn the_company_name_is_refused_in_any_case() {
-        let a = "lihao@golia.jp";
-        assert_eq!(check_new("123456789@Golia", a), Err(Weak::ContainsName));
-        assert_eq!(check_new("123456789@GOLIA", a), Err(Weak::ContainsName));
-        assert!(check_new("GOLIA2026", a).is_err(), "GOLIA2026 was accepted");
-        assert_eq!(
-            check_new("GOLIA2026-and-then-some", a),
-            Err(Weak::ContainsName)
-        );
+    fn the_account_and_company_name_are_allowed() {
+        assert_eq!(check_new("GoliaXiaxi@123456789"), Ok(()));
+        assert_eq!(check_new("my-LiHao-pass-2026"), Ok(()));
+        assert_eq!(check_new("123456789@Golia"), Ok(()));
+        assert_eq!(check_new("GOLIA2026"), Err(Weak::TooShort));
     }
 }

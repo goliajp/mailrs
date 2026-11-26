@@ -51,7 +51,7 @@ impl MailrsMcpService {
         crate::handlers::kevy_util::require_permission(&self.state, &user, "admin.accounts")
             .await
             .map_err(|_| McpError::invalid_request("admin.accounts permission required", None))?;
-        mailrs_auth_guard::password::check_new(&params.password, &params.address)
+        mailrs_auth_guard::password::check_new(&params.password)
             .map_err(|weak| McpError::invalid_params(weak.to_string(), None))?;
         crate::handlers::masked_email::refuse_if_masked(&params.address).map_err(|_| {
             McpError::invalid_params("that address is or was a masked address", None)

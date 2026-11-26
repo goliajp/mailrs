@@ -21,6 +21,7 @@ export const adminJa: Record<AdminKey, string> = {
   'admin.accounts.noGroups':
     'どの権限グループにも属していません。「権限グループ」ページで追加できます',
   'admin.accounts.noMatch': '「{filter}」に一致するアカウントはありません',
+  'admin.accounts.passwordCleared': 'パスワード消去済み',
   'admin.accounts.passwordUpdated': '「{address}」のパスワードを更新しました',
   'admin.accounts.sieve': 'Sieve',
   'admin.accounts.title': 'アカウント',
@@ -273,6 +274,7 @@ export const adminJa: Record<AdminKey, string> = {
   'admin.removeFromTitle': '{member} を {group} から削除しますか？',
   'admin.removeMember': 'メンバーを削除',
   'admin.removing': '削除しています…',
+  'admin.resetCode.title': '{address} のリセットコード',
   'admin.save': '保存',
   'admin.saving': '保存しています…',
   'admin.selectDomain': 'ドメインを選択…',

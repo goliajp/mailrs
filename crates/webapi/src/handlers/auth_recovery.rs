@@ -214,7 +214,7 @@ pub async fn reset_password(
     }
     // reading the token's address does not use it up: a refused password
     // leaves the link working
-    if let Err(weak) = mailrs_auth_guard::password::check_new(&req.new_password, &address) {
+    if let Err(weak) = mailrs_auth_guard::password::check_new(&req.new_password) {
         return Ok(crate::handlers::auth::password::refused(weak));
     }
     let hash = Argon2::default()

@@ -155,21 +155,23 @@ async fn groups_store_what_they_are_given_and_deletes_leave_nothing() {
     );
 
     // a weak password is refused before the core is asked
-    let (status, _) = call(
+    let (status, got) = call(
         Method::POST,
         "/api/admin/accounts/qa%40example.test/password".into(),
         Some(serde_json::json!({ "password": "" })),
     )
     .await;
     assert_eq!(status, 400);
-    let (status, _) = call(
+    assert_eq!(got["code"], "password_too_short");
+    let (status, got) = call(
         Method::POST,
         "/api/admin/accounts".into(),
         Some(serde_json::json!({
             "address": "qa@example.test", "display_name": "QA",
-            "password": "an-example-passphrase",
+            "password": "unbelievable",
         })),
     )
     .await;
-    assert_eq!(status, 400, "contains the account name");
+    assert_eq!(status, 400, "one of the most common passwords");
+    assert_eq!(got["code"], "password_common");
 }

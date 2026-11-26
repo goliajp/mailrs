@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { getDefaultStore } from 'jotai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { confirmPhrase, parseAddresses } from '@/lib/password-clear'
+import { authAtom } from '@/store/auth'
 
 import { AdminPasswordClear } from '../admin-password-clear'
 
@@ -85,6 +87,15 @@ describe('AdminPasswordClear', () => {
       )
     })
     vi.stubGlobal('fetch', fetchMock)
+    getDefaultStore().set(authAtom, {
+      accessible_domains: [],
+      address: 'lihao@golia.jp',
+      display_name: 'Li Hao',
+      is_admin: true,
+      is_reset_issuer: true,
+      is_super: true,
+      permissions: ['*'],
+    })
     renderPage()
     fireEvent.change(screen.getByLabelText('Accounts'), {
       target: { value: 'ws@golia.jp\nsentori@golia.jp\nnobody@golia.jp' },
@@ -110,6 +121,8 @@ describe('AdminPasswordClear', () => {
     fireEvent.click(clear)
 
     await waitFor(() => expect(screen.getByText(/Cleared 2 accounts/)).toBeTruthy())
+    // the next step is on the same page: a code for each cleared account
+    expect(screen.getAllByRole('button', { name: 'Issue a code' })).toHaveLength(2)
     const calls = fetchMock.mock.calls as unknown as [string, RequestInit][]
     const sent = calls.find(([u]) => u.endsWith('/admin/password-clear'))
     expect(JSON.parse(String(sent?.[1].body))).toEqual({

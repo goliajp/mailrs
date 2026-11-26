@@ -208,7 +208,7 @@
     <string name="reset_code">Reset code</string>
     <string name="reset_code_hint">10 characters, given to you in person</string>
     <string name="reset_new_password">New password</string>
-    <string name="reset_password_hint">At least 12 characters. Leave out your name and the company name</string>
+    <string name="reset_password_hint">At least 12 characters</string>
     <string name="reset_new_password_again">New password again</string>
     <string name="reset_set">Set new password</string>
     <string name="reset_back_to_sign_in">Back to sign in</string>

@@ -203,7 +203,7 @@
     <string name="reset_code">リセットコード</string>
     <string name="reset_code_hint">10 文字。直接受け取ったもの</string>
     <string name="reset_new_password">新しいパスワード</string>
-    <string name="reset_password_hint">12 文字以上。名前と会社名は含めないでください</string>
+    <string name="reset_password_hint">12 文字以上</string>
     <string name="reset_new_password_again">新しいパスワード（確認）</string>
     <string name="reset_set">新しいパスワードを設定</string>
     <string name="reset_back_to_sign_in">サインインに戻る</string>

@@ -209,6 +209,9 @@ export const appEn = {
   'status.realtimeOffline': 'Realtime updates: offline',
   'storage.near': 'Storage is {pct}% full. Once it is full, imports will fail',
   'storage.over': 'Storage is full. New imports are refused; sending is not affected',
+  'wire.passwordCommon': 'This password is one of the most common ones; choose another',
+  'wire.passwordTooLong': 'Use at most 1024 characters',
+  'wire.passwordTooShort': 'Use at least 12 characters',
   'wire.restarting': 'The server is restarting. Try again in a moment',
 } as const
 

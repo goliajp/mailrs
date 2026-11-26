@@ -57,7 +57,7 @@ struct ResetCodeSheet: View {
                     Toggle("Show password", isOn: $showsPassword)
                         .accessibilityIdentifier("toggle.resetShowPassword")
                 } footer: {
-                    Text("At least 12 characters. Leave out your name and the company name.")
+                    Text("At least 12 characters.")
                 }
                 if let failure {
                     Text(failure)

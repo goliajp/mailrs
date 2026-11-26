@@ -44,7 +44,7 @@ pub async fn add_account(
 ) -> Result<axum::response::Response, StatusCode> {
     require_permission(&state, &actor, "admin.accounts").await?;
     use axum::response::IntoResponse;
-    if let Err(weak) = mailrs_auth_guard::password::check_new(&req.password, &req.address) {
+    if let Err(weak) = mailrs_auth_guard::password::check_new(&req.password) {
         return Ok(crate::handlers::auth::password::refused(weak));
     }
     crate::handlers::masked_email::refuse_if_masked(&req.address)?;

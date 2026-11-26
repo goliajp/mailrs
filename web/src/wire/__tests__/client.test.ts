@@ -1,5 +1,7 @@
+import { getDefaultStore } from 'jotai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { chosenLangAtom } from '@/i18n'
 import { z } from '@/lib/zod'
 
 import { wireFetch } from '../client'
@@ -151,6 +153,31 @@ describe('wireFetch', () => {
         expect(err.detail.status).toBe(422)
         expect(err.detail.message).toBe('bad input')
       }
+    }
+  })
+
+  it("says why a new password was refused in the reader's language", async () => {
+    const refusedWith = async (body: unknown) => {
+      vi.stubGlobal('fetch', respond(body, { status: 400 }))
+      return wireFetch(SCHEMA, { body: {}, method: 'POST', path: '/x' }).catch((e: unknown) =>
+        isWireError(e) ? e.message : 'not a wire error'
+      )
+    }
+    const store = getDefaultStore()
+    store.set(chosenLangAtom, 'zh')
+    try {
+      expect(
+        await refusedWith({ code: 'password_too_short', error: 'Use at least 12 characters' })
+      ).toBe('密码至少 12 位')
+      expect(await refusedWith({ code: 'password_common', error: 'common' })).toBe(
+        '这个密码太常见，请换一个'
+      )
+      // a code this client does not know keeps the server's words
+      expect(await refusedWith({ code: 'something_new', error: 'server words' })).toBe(
+        'server words'
+      )
+    } finally {
+      store.set(chosenLangAtom, null)
     }
   })
 

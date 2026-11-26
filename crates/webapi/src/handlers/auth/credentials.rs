@@ -286,7 +286,7 @@ pub async fn change_password(
         )
             .into_response();
     }
-    if let Err(weak) = mailrs_auth_guard::password::check_new(&req.new_password, &address) {
+    if let Err(weak) = mailrs_auth_guard::password::check_new(&req.new_password) {
         return super::password::refused(weak);
     }
 

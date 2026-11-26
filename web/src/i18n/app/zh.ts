@@ -208,5 +208,8 @@ export const appZh: Record<AppKey, string> = {
   'status.realtimeOffline': '实时更新：离线',
   'storage.near': '存储空间已用 {pct}%，用满后导入会失败',
   'storage.over': '存储空间已满，新的导入会被拒绝，发信不受影响',
+  'wire.passwordCommon': '这个密码太常见，请换一个',
+  'wire.passwordTooLong': '密码最多 1024 位',
+  'wire.passwordTooShort': '密码至少 12 位',
   'wire.restarting': '服务器正在重启，请稍后再试',
 }

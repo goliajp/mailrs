@@ -214,5 +214,8 @@ export const appJa: Record<AppKey, string> = {
   'storage.near': 'ストレージを {pct}% 使用しています。いっぱいになるとインポートは失敗します',
   'storage.over':
     'ストレージがいっぱいです。新しいインポートは拒否されますが、送信には影響しません',
+  'wire.passwordCommon': 'よく使われるパスワードです。別のものにしてください',
+  'wire.passwordTooLong': 'パスワードは 1024 文字以内にしてください',
+  'wire.passwordTooShort': 'パスワードは 12 文字以上にしてください',
   'wire.restarting': 'サーバーを再起動しています。しばらくしてからもう一度お試しください',
 }

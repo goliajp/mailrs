@@ -2,12 +2,15 @@ import type { WirePasswordClearPreview } from '@/wire/schemas/admin'
 
 import { Alert, Button } from '@goliapkg/gds'
 import { useMutation } from '@tanstack/react-query'
+import { useAtomValue } from 'jotai'
 import { useState } from 'react'
 
+import { ResetCodeButton } from '@/components/admin-accounts/reset-code-dialog'
 import { AdminPageShell, AdminTable, type Column } from '@/components/admin-page'
 import { inputClass } from '@/components/settings/_shared'
 import { type Key, useT } from '@/i18n'
 import { confirmPhrase, parseAddresses } from '@/lib/password-clear'
+import { authAtom } from '@/store/auth'
 import { wirePasswordClear, wirePasswordClearPreview } from '@/wire/endpoints/admin'
 
 type Row = WirePasswordClearPreview['items'][number]
@@ -43,7 +46,12 @@ const columns = (t: ReturnType<typeof useT>): Column<Row>[] => [
   {
     header: t('admin.col.status'),
     key: 'state',
-    cell: (r) => <span className={stateClass(r)}>{t(stateLabel(r))}</span>,
+    cell: (r) => (
+      <span className="flex items-center gap-2">
+        <span className={stateClass(r)}>{t(stateLabel(r))}</span>
+        {r.cleared_at !== null && <ResetCodeButton address={r.address} />}
+      </span>
+    ),
   },
   { align: 'end', header: t('admin.clear.sessions'), key: 'sessions', cell: (r) => r.sessions },
   {
@@ -193,7 +201,33 @@ export function AdminPasswordClear() {
             })}
           </Alert>
         )}
+        {clear.data && <NextCodes addresses={clearedIn(clear.data.items)} />}
       </div>
     </AdminPageShell>
+  )
+}
+
+function clearedIn(items: { address: string; result: string }[]): string[] {
+  return items.filter((i) => i.result === 'cleared').map((i) => i.address)
+}
+
+/** After a clearing: each owner needs a code, and this is where to get one. */
+function NextCodes({ addresses }: { addresses: string[] }) {
+  const t = useT()
+  const issuer = useAtomValue(authAtom)?.is_reset_issuer === true
+  if (addresses.length === 0) return null
+  if (!issuer) return <p className="text-fg-secondary text-sm">{t('admin.clear.nextAsk')}</p>
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-fg-secondary text-sm">{t('admin.clear.next')}</p>
+      <ul className="flex flex-col gap-1">
+        {addresses.map((a) => (
+          <li className="flex items-center gap-3 text-sm" key={a}>
+            <span className="font-medium break-all">{a}</span>
+            <ResetCodeButton address={a} />
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }

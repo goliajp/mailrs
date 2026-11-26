@@ -368,7 +368,7 @@ export const en = {
   'reset.mismatch': 'The two passwords are not the same',
   'reset.newPassword': 'New password',
   'reset.newPasswordAgain': 'New password again',
-  'reset.passwordHelp': 'At least 12 characters. Leave out your name and the company name',
+  'reset.passwordHelp': 'At least 12 characters',
   'reset.resetting': 'Resetting…',
   'reset.setNew': 'Set a new password',
   'reset.setNewButton': 'Set new password',
