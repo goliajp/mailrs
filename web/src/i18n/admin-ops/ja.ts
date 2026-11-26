@@ -9,6 +9,10 @@ export const adminOpsJa: Record<AdminOpsKey, string> = {
   'admin.clear.done':
     '{accounts} 件のアカウントを消去し、{sessions} 件のセッションを終了しました。',
   'admin.clear.linked': '連携サインイン',
+  'admin.clear.next':
+    '各アカウントの本人は、新しいパスワードを設定するためにリセットコードが必要です。ここで発行して、本人に直接渡してください。',
+  'admin.clear.nextAsk':
+    '各アカウントの本人は、発行できる人からリセットコードを受け取る必要があります。',
   'admin.clear.noAccount': '該当アカウントなし',
   'admin.clear.noIssuers':
     '再設定コードを発行できる人がいません。MAILRS_RESET_ISSUERS が空です。消去したアカウントは二度とサインインできなくなります。',

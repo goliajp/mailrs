@@ -8,6 +8,7 @@ import { adminKeys } from '@/lib/query-keys'
 import { adminPost } from '@/wire/endpoints/admin'
 
 import { CompromiseResetDialog } from './compromise-reset-dialog'
+import { ResetCodeButton } from './reset-code-dialog'
 
 export function PasswordCell({ account }: { account: AccountInfo }) {
   const t = useT()
@@ -38,7 +39,15 @@ export function PasswordCell({ account }: { account: AccountInfo }) {
 
   if (!editing) {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {account.password_cleared_at !== undefined && (
+          <>
+            <span className="text-warning text-xs whitespace-nowrap">
+              {t('admin.accounts.passwordCleared')}
+            </span>
+            <ResetCodeButton address={account.address} />
+          </>
+        )}
         <button className="text-accent text-xs hover:opacity-80" onClick={() => setEditing(true)}>
           {t('admin.change')}
         </button>

@@ -311,6 +311,16 @@ pub async fn check_account_store<S: super::AccountStore>(store: &S, address: &st
     );
     assert_eq!(a.public.password_cleared_at, Some(1_700_000_100));
     assert_eq!(a.public.password_cleared_by.as_deref(), Some("op"));
+    // the administrator's account list shows the clearing on the row
+    let listed_cleared_at = |rows: Vec<mailrs_core_api::method::admin::AccountWire>| {
+        rows.into_iter()
+            .find(|a| a.address == address)
+            .and_then(|a| a.password_cleared_at)
+    };
+    assert_eq!(
+        listed_cleared_at(store.accounts().await.unwrap()),
+        Some(1_700_000_100)
+    );
     assert!(
         store
             .patch_account(address, AccountPatch::PasswordHash("hash-2"))
@@ -324,4 +334,5 @@ pub async fn check_account_store<S: super::AccountStore>(store: &S, address: &st
         "a password set still reads as cleared"
     );
     assert_eq!(a.public.password_cleared_by, None);
+    assert_eq!(listed_cleared_at(store.accounts().await.unwrap()), None);
 }

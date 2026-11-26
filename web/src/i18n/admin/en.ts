@@ -20,6 +20,7 @@ export const adminEn = {
   'admin.accounts.noGroups':
     'Not in any permission group. Add it to one on the Permission groups page',
   'admin.accounts.noMatch': 'No accounts match "{filter}"',
+  'admin.accounts.passwordCleared': 'Password cleared',
   'admin.accounts.passwordUpdated': 'Password updated for "{address}"',
   'admin.accounts.sieve': 'Sieve',
   'admin.accounts.title': 'Accounts',
@@ -270,6 +271,7 @@ export const adminEn = {
   'admin.removeFromTitle': 'Remove {member} from {group}?',
   'admin.removeMember': 'Remove member',
   'admin.removing': 'Removing...',
+  'admin.resetCode.title': 'Reset code for {address}',
   'admin.save': 'Save',
   'admin.saving': 'Saving...',
   'admin.selectDomain': 'Select domain...',

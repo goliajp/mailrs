@@ -7,6 +7,8 @@ export type AccountInfo = {
   created_at: number
   display_name: string
   domain: string
+  /** Epoch seconds; present while an administrator's clearing stands. */
+  password_cleared_at?: number
   quota_bytes: number
   recovery_email: string
 }

@@ -8,6 +8,8 @@ export const adminOpsZh: Record<AdminOpsKey, string> = {
   'admin.clear.confirmation': '确认',
   'admin.clear.done': '已清除 {accounts} 个账号；结束了 {sessions} 个会话。',
   'admin.clear.linked': '关联登录',
+  'admin.clear.next': '这些账号的本人要用重置码设新密码。在这里生成，当面交给本人。',
+  'admin.clear.nextAsk': '这些账号的本人要向可以发放重置码的人领取重置码。',
   'admin.clear.noAccount': '没有这个账号',
   'admin.clear.noIssuers':
     '没有人能发放重置码：MAILRS_RESET_ISSUERS 是空的。被清除的账号将无法再登录。',

@@ -18,6 +18,13 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### A reset code from the account list
+
+- The administrator's account list marks an account whose password was
+  cleared, and an issuer can issue its reset code from that row. The
+  password-clearing page offers the same for accounts already cleared and
+  for each account it has just cleared. The section in Settings stays.
+
 ### A password may contain the account name
 
 - A new password is no longer refused for containing the account name or

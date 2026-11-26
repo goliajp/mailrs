@@ -2,7 +2,10 @@ import type { ReactNode } from 'react'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
+import { getDefaultStore } from 'jotai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { authAtom } from '@/store/auth'
 
 import { GroupsPanel } from '../groups-panel'
 import { PasswordCell } from '../password-cell'
@@ -17,6 +20,15 @@ const ACCOUNT = {
   domain: 'golia.jp',
   quota_bytes: 10737418240,
   recovery_email: '',
+}
+
+const PROFILE = {
+  accessible_domains: [],
+  address: 'lihao@golia.jp',
+  display_name: 'Li Hao',
+  is_admin: true,
+  is_super: true,
+  permissions: ['*'],
 }
 
 function renderIn(ui: ReactNode) {
@@ -66,6 +78,35 @@ describe('admin account cells', () => {
       method: 'POST',
       path: '/api/admin/accounts/qa%40golia.jp/password',
     })
+  })
+
+  it('offers an issuer a reset code on the row of a cleared account', async () => {
+    getDefaultStore().set(authAtom, { ...PROFILE, is_reset_issuer: true })
+    const calls = stub({
+      'GET /api/reset-codes/qa%40golia.jp': { issued: false },
+      'POST /api/reset-codes/qa%40golia.jp': { code: 'ABCDE23456', expires_at: 1790000000 },
+    })
+    renderIn(<PasswordCell account={{ ...ACCOUNT, password_cleared_at: 1780000000 }} />)
+    expect(screen.getByText('Password cleared')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Issue a code' }))
+    const inDialog = await screen.findAllByRole('button', { name: 'Issue a code' })
+    fireEvent.click(inDialog[inDialog.length - 1])
+    expect(await screen.findByTestId('reset-code')).toHaveTextContent('ABCDE-23456')
+    expect(calls.some((c) => c.method === 'POST')).toBe(true)
+  })
+
+  it('shows the clearing without the button to someone who cannot issue', () => {
+    getDefaultStore().set(authAtom, { ...PROFILE, is_reset_issuer: false })
+    renderIn(<PasswordCell account={{ ...ACCOUNT, password_cleared_at: 1780000000 }} />)
+    expect(screen.getByText('Password cleared')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Issue a code' })).toBeNull()
+  })
+
+  it('says nothing about clearing on an account that has its password', () => {
+    getDefaultStore().set(authAtom, { ...PROFILE, is_reset_issuer: true })
+    renderIn(<PasswordCell account={ACCOUNT} />)
+    expect(screen.queryByText('Password cleared')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Issue a code' })).toBeNull()
   })
 
   it('shows a stored quota and a dash for an unknown one', async () => {
