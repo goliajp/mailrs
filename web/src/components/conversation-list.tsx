@@ -162,7 +162,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
   // The wire call, separated from the decision to make it: the delete
   // path has to run this *after* an answer, and it was one closure.
   const runBatch = useCallback(
-    async (action: BatchAction, ids: string[]) => {
+    async (action: BatchAction, ids: string[], undoing = false) => {
       setBatchLoading(true)
       try {
         const result = await wireBatchMutation(action, ids)
@@ -170,12 +170,16 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
         // not do, and a message that cannot count is one the reader
         // has to go and check for themselves.
         const refused = result.failed_thread_ids.length || result.failed
-        const msg =
-          result.message ?? (result.success ? 'Done' : `${refused} of ${ids.length} failed`)
-        if (result.success) {
-          toast.success(msg)
+        const undo = BATCH_UNDO[action]
+        if (!result.success) {
+          toast.error(t('batch.partFailed', { failed: refused, total: ids.length }))
+        } else if (undo && !undoing) {
+          toast.success(t('batch.done', { count: ids.length }), {
+            action: { label: t('common.undo'), onClick: () => void runBatch(undo, ids, true) },
+            duration: 8000,
+          })
         } else {
-          toast.error(msg)
+          toast.success(t('batch.done', { count: ids.length }))
         }
         exitBatchMode()
         // the moved rows leave this list and arrive in another: every
@@ -380,6 +384,16 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
 }
 // shared with the Sent / Drafts list views so every list groups rows
 // under the same Today / Yesterday / weekday pills.
+
+/** What takes a batch back, offered in its toast. */
+const BATCH_UNDO: Partial<Record<BatchAction, BatchAction>> = {
+  archive: 'unarchive',
+  delete: 'untrash',
+  read: 'unread',
+  star: 'unstar',
+  unread: 'read',
+  untrash: 'delete',
+}
 
 /** The action table's view of the list on screen. */
 function batchToggleLabel(on: boolean): Key {

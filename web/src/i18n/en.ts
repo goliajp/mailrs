@@ -112,6 +112,8 @@ export const en = {
   'badge.action': 'Action',
   'badge.claimMismatch':
     "This message was sent from {domain}, which is not the domain its sender's name claims",
+  'batch.done': '{count} conversations done',
+  'batch.partFailed': '{failed} of {total} failed',
   'batch.selected': '{count} selected',
   'common.cancel': 'Cancel',
   'common.close': 'Close',

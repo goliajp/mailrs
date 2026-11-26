@@ -109,6 +109,8 @@ export const ja: Record<Key, string> = {
   'badge.action': '要対応',
   'badge.claimMismatch':
     'このメッセージは {domain} から送信されています。差出人名が名乗るドメインではありません',
+  'batch.done': '{count} 件を処理しました',
+  'batch.partFailed': '{total} 件中 {failed} 件が失敗しました',
   'batch.selected': '{count} 件選択中',
   'common.cancel': 'キャンセル',
   'common.close': '閉じる',
