@@ -1281,18 +1281,18 @@
         }
       }
     },
-    "At least 12 characters. Leave out your name and the company name.": {
+    "At least 12 characters.": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "12 文字以上で、名前と会社名は含めないでください。"
+            "value": "12 文字以上。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "至少 12 个字符，不要包含你的名字和公司名。"
+            "value": "至少 12 个字符。"
           }
         }
       }

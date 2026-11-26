@@ -32,12 +32,13 @@ pub(crate) async fn verify(
     }
 }
 
-/// A new password refused, as the answer to give: `400` with the reason.
+/// A new password refused, as the answer to give: `400` with the reason in
+/// English (`error`) and as a name a client translates (`code`).
 pub(crate) fn refused(weak: mailrs_auth_guard::password::Weak) -> axum::response::Response {
     use axum::response::IntoResponse;
     (
         StatusCode::BAD_REQUEST,
-        axum::Json(serde_json::json!({ "error": weak.to_string() })),
+        axum::Json(serde_json::json!({ "error": weak.to_string(), "code": weak.code() })),
     )
         .into_response()
 }

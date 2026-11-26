@@ -355,7 +355,7 @@ export const zh: Record<Key, string> = {
   'reset.mismatch': '两次输入的密码不一样',
   'reset.newPassword': '新密码',
   'reset.newPasswordAgain': '再输一次新密码',
-  'reset.passwordHelp': '至少 12 位，不要包含你的名字和公司名',
+  'reset.passwordHelp': '至少 12 位',
   'reset.resetting': '正在重置…',
   'reset.setNew': '设置新密码',
   'reset.setNewButton': '设置新密码',

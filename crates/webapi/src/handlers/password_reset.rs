@@ -118,7 +118,7 @@ pub async fn reset(
         return invalid();
     }
     // a refused password leaves the code as it was, for another try
-    if let Err(weak) = mailrs_auth_guard::password::check_new(&req.new_password, &address) {
+    if let Err(weak) = mailrs_auth_guard::password::check_new(&req.new_password) {
         return crate::handlers::auth::password::refused(weak);
     }
     let hash = {

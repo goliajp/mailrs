@@ -203,7 +203,7 @@
     <string name="reset_code">重置码</string>
     <string name="reset_code_hint">10 个字符，当面交给你</string>
     <string name="reset_new_password">新密码</string>
-    <string name="reset_password_hint">至少 12 个字符，不要包含你的名字和公司名</string>
+    <string name="reset_password_hint">至少 12 个字符</string>
     <string name="reset_new_password_again">再输一次新密码</string>
     <string name="reset_set">设置新密码</string>
     <string name="reset_back_to_sign_in">返回登录</string>

@@ -18,6 +18,14 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### A password may contain the account name
+
+- A new password is no longer refused for containing the account name or
+  a label of its domain; the length limits and the common-password list
+  still apply. A refusal now also carries a `code`
+  (`password_too_short`, `password_too_long`, `password_common`), and the
+  web client shows it in the reader's language.
+
 ### A reported conversation stays held through a rule change
 
 - A conversation held because its reader reported it as a scam was

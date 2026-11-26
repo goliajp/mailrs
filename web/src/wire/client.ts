@@ -143,7 +143,9 @@ async function handleResponse<T>(
         const asRecord = body as Record<string, unknown>
         const replied = alreadyReplied(res.status, asRecord)
         if (replied) throw new WireErrorException(replied)
-        if (typeof asRecord.error === 'string') message = asRecord.error
+        const weak = weakPassword(asRecord.code)
+        if (weak) message = weak
+        else if (typeof asRecord.error === 'string') message = asRecord.error
         else if (typeof asRecord.message === 'string') message = asRecord.message
       }
     } catch (e) {
@@ -177,4 +179,18 @@ async function handleResponse<T>(
     })
   }
   return parsed.data
+}
+
+/** A refused new password, in the reader's language. */
+function weakPassword(code: unknown): string | undefined {
+  switch (code) {
+    case 'password_common':
+      return tNow('wire.passwordCommon')
+    case 'password_too_long':
+      return tNow('wire.passwordTooLong')
+    case 'password_too_short':
+      return tNow('wire.passwordTooShort')
+    default:
+      return undefined
+  }
 }

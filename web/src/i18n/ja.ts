@@ -367,7 +367,7 @@ export const ja: Record<Key, string> = {
   'reset.mismatch': '2 つのパスワードが一致しません',
   'reset.newPassword': '新しいパスワード',
   'reset.newPasswordAgain': '新しいパスワード（確認）',
-  'reset.passwordHelp': '12 文字以上。名前と会社名は含めないでください',
+  'reset.passwordHelp': '12 文字以上',
   'reset.resetting': '再設定しています…',
   'reset.setNew': '新しいパスワードを設定',
   'reset.setNewButton': '新しいパスワードを設定',
