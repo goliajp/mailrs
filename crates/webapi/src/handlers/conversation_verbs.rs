@@ -27,6 +27,9 @@ pub struct BatchRequest {
 #[derive(Debug, serde::Serialize)]
 pub struct BatchResponse {
     pub failed: u32,
+    /// Left out when there is none: a `null` here failed the web client's
+    /// reading of an answer to a batch that had gone through.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
     pub processed: u32,
     pub success: bool,
@@ -430,4 +433,24 @@ pub async fn unsnooze_thread(
         .await
         .map(|_| StatusCode::NO_CONTENT)
         .map_err(map_err)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_batch_answer_carries_no_null() {
+        let done = BatchResponse {
+            failed: 0,
+            failed_thread_ids: Vec::new(),
+            message: None,
+            processed: 41,
+            success: true,
+        };
+        assert_eq!(
+            serde_json::to_value(&done).unwrap(),
+            serde_json::json!({ "failed": 0, "processed": 41, "success": true })
+        );
+    }
 }

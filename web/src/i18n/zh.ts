@@ -104,6 +104,8 @@ export const zh: Record<Key, string> = {
   'autosave.title': '草稿没有保存。',
   'badge.action': '待处理',
   'badge.claimMismatch': '这封信实际从 {domain} 发出，不是发件人名字所声称的那个域名',
+  'batch.done': '已处理 {count} 个会话',
+  'batch.partFailed': '{total} 个里有 {failed} 个没有成功',
   'batch.selected': '已选 {count} 个',
   'common.cancel': '取消',
   'common.close': '关闭',

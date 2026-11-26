@@ -44,7 +44,7 @@ export type BatchAction =
 
 type BatchResult = {
   failed: number
-  message?: string
+  message?: null | string
   processed: number
   success: boolean
 }

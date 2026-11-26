@@ -39,7 +39,9 @@ export const batchMutationResponseSchema = z.object({
    * from the JSON when empty, hence the default.
    */
   failed_thread_ids: z.array(z.string()).default([]),
-  message: z.string().optional(),
+  // the server sent `"message": null` until it stopped; a client that
+  // refuses that reports a batch that went through as failed
+  message: z.string().nullish(),
   processed: z.number().int().min(0),
   success: z.boolean(),
 })

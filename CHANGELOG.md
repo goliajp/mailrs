@@ -18,6 +18,17 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Batch actions in the conversation list
+
+- A batch action (mark read or unread, star, archive, move to Trash)
+  showed a failure although it had gone through: the answer carried
+  `"message": null`, which the web client refused to read. The server
+  now leaves the field out and the client accepts either.
+- The batch bar wraps instead of scrolling sideways, so its last action,
+  moving the selection to the Trash, is no longer cut off in a narrow
+  list. A finished batch says how many conversations it did and offers
+  to undo it.
+
 ### A reset code from the account list
 
 - The administrator's account list marks an account whose password was

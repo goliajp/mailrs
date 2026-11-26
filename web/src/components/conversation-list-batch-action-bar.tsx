@@ -28,7 +28,8 @@ export function BatchActionBar({
         <span className="text-fg-secondary shrink-0 text-xs font-medium">
           {t('batch.selected', { count: selectedCount })}
         </span>
-        <div className="flex flex-1 items-center gap-1.5 overflow-x-auto">
+        {/* wraps: in a narrow list a scrolling row hid the last actions */}
+        <div className="flex flex-1 flex-wrap items-center gap-1.5">
           {batchActions(view).map((id) => (
             <button
               className={buttonClass(ACTIONS[id].danger)}

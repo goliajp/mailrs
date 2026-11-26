@@ -105,13 +105,20 @@ vi.mock('@/hooks/use-mail-mutations', () => ({
   useUnstarMutation: stubMutation,
 }))
 
-// mock sonner toast
-vi.mock('sonner', () => ({
-  toast: {
-    error: vi.fn(),
-    success: vi.fn(),
-  },
-}))
+type ToastOptions = { action?: { label: string; onClick: () => void } }
+const toasts: Array<{ msg: string; opts?: ToastOptions }> = []
+vi.mock('@goliapkg/gds', async () => {
+  const real = await vi.importActual<Record<string, unknown>>('@goliapkg/gds')
+  return {
+    ...real,
+    toast: {
+      error: vi.fn(),
+      success: (msg: string, opts?: ToastOptions) => {
+        toasts.push({ msg, opts })
+      },
+    },
+  }
+})
 
 // mock virtualizer — jsdom has zero-height elements so virtualizer won't render
 vi.mock('@tanstack/react-virtual', () => ({
@@ -340,6 +347,29 @@ describe('BatchActionBar', () => {
     await waitFor(() => expect(batchCalls).toHaveLength(1))
     expect(batchCalls[0]).toEqual({ action: 'delete', ids: ['t1', 't2'] })
     expect(screen.queryByText('Delete 2 conversations forever?')).toBeNull()
+  })
+
+  it('offers to take a batch back, and the undo restores the same conversations', async () => {
+    batchCalls.length = 0
+    toasts.length = 0
+    flatStub.conversations = [makeConversation()]
+    store.set(batchModeAtom, true)
+    store.set(selectedThreadIdsAtom, new Set(['t1', 't2']))
+    render(
+      <Wrapper store={store}>
+        <ConversationList />
+      </Wrapper>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Move to Trash' }))
+    await waitFor(() => expect(toasts).toHaveLength(1))
+    expect(toasts[0].msg).toBe('2 conversations done')
+    expect(toasts[0].opts?.action?.label).toBe('Undo')
+    toasts[0].opts?.action?.onClick()
+    await waitFor(() => expect(batchCalls).toHaveLength(2))
+    expect(batchCalls[1]).toEqual({ action: 'untrash', ids: ['t1', 't2'] })
+    // the undo itself is not offered an undo
+    await waitFor(() => expect(toasts).toHaveLength(2))
+    expect(toasts[1].opts).toBeUndefined()
   })
 
   // A batch moves rows out of this list and into others. The refresh
