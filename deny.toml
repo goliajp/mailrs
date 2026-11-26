@@ -32,6 +32,13 @@ ignore = [
     # them or an actual vulnerability is reported.
     { id = "RUSTSEC-2026-0374", reason = "basic-toml: unmaintained; build-time only, under age's translation macros" },
     { id = "RUSTSEC-2026-0173", reason = "proc-macro-error2: unmaintained; build-time only, under age's translation macros" },
+    # Unmaintained notices, not vulnerabilities: every version is affected
+    # and there is nothing to upgrade to. Dates, time zones and recurrence
+    # (mailrs-ical, rrule) are built on both; moving to another date
+    # library is its own piece of work. Re-evaluate when that is decided or
+    # an actual vulnerability is reported.
+    { id = "RUSTSEC-2026-0543", reason = "chrono: unmaintained notice only, no vulnerability; migration tracked" },
+    { id = "RUSTSEC-2026-0555", reason = "chrono-tz: unmaintained notice only, no vulnerability; migration tracked" },
     # Bundled SQLite before 3.54 can return uninitialized memory when it
     # opens a database with a crafted `-wal` file. Only mailrs-ops links
     # it, and it opens only its own database in its own volume. The fix

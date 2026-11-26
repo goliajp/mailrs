@@ -36,3 +36,13 @@ reason = "bundled SQLite before 3.54 can return uninitialized memory when it ope
 id = "GHSA-72w2-rjgg-q729"
 ignoreUntil = 2027-01-31T00:00:00Z
 reason = "the GitHub id of RUSTSEC-2026-0459 above"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0543"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "chrono is unmaintained, not vulnerable; every version is affected and no replacement release exists; dates, time zones and recurrence are built on it, and moving to another date library is its own piece of work; matches deny.toml"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0555"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "chrono-tz is unmaintained, not vulnerable; same announcement as RUSTSEC-2026-0543 above; matches deny.toml"
