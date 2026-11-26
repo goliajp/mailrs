@@ -217,7 +217,7 @@ export function VirtualConversationList({
     return (
       <div
         aria-busy="true"
-        className={`flex flex-1 items-center justify-center overflow-y-auto ${hasBatchBar ? 'pb-24' : ''}`}
+        className={`flex flex-1 items-center justify-center overflow-y-auto ${hasBatchBar ? 'pb-12' : ''}`}
         ref={scrollContainerRef}
         role="list"
       >
@@ -235,7 +235,7 @@ export function VirtualConversationList({
   if (isError && conversations.length === 0) {
     return (
       <div
-        className={`flex-1 overflow-y-auto ${hasBatchBar ? 'pb-24' : ''}`}
+        className={`flex-1 overflow-y-auto ${hasBatchBar ? 'pb-12' : ''}`}
         ref={scrollContainerRef}
       >
         <div className="flex flex-col items-center justify-center p-8 text-center" role="alert">
@@ -260,7 +260,7 @@ export function VirtualConversationList({
     const hint = emptyHint(isSearching)
     return (
       <div
-        className={`flex-1 overflow-y-auto ${hasBatchBar ? 'pb-24' : ''}`}
+        className={`flex-1 overflow-y-auto ${hasBatchBar ? 'pb-12' : ''}`}
         ref={scrollContainerRef}
         role="list"
       >
@@ -278,7 +278,7 @@ export function VirtualConversationList({
   return (
     <div
       aria-label={t('list.conversations')}
-      className={`flex-1 overflow-y-auto ${hasBatchBar ? 'pb-24' : ''}`}
+      className={`flex-1 overflow-y-auto ${hasBatchBar ? 'pb-12' : ''}`}
       onTouchEnd={handlePullEnd}
       onTouchMove={handlePullMove}
       onTouchStart={handlePullStart}

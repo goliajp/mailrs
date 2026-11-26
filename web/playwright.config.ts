@@ -81,6 +81,12 @@ export default defineConfig({
       testMatch: /reading-header-narrow\.spec\.ts/,
       use: { baseURL: 'http://localhost:6038' },
     },
+    // the batch toolbar's one row, at a phone's width and in the desktop pane
+    {
+      name: 'batch-bar',
+      testMatch: /batch-bar\.spec\.ts/,
+      use: { baseURL: 'http://localhost:6038' },
+    },
     // the desktop shell's rail and panes, light and dark
     {
       name: 'shell',

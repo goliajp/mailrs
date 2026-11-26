@@ -16,6 +16,7 @@ import {
 import { SHORTCUT_GROUPS } from '@/lib/shortcuts'
 
 const ALL = Object.keys(ACTIONS) as ActionId[]
+const NONE = { allArchived: false, allStarred: false, anyRead: false, anyUnread: false }
 
 function* states(): Generator<RowState> {
   for (const archived of [false, true])
@@ -81,13 +82,13 @@ describe('the action table', () => {
       expect(inTrash).not.toContain('trash')
       expect(actionForKey('#', { ...s, view: 'trash' })).toBe('delete-forever')
     }
-    expect(batchActions('trash')).toContain('untrash')
-    expect(batchActions('trash')).not.toContain('trash')
+    expect(batchActions('trash', NONE)).toContain('untrash')
+    expect(batchActions('trash', NONE)).not.toContain('trash')
   })
 
   it('lets the batch bar offer only what works in a batch', () => {
     for (const view of ['junk', 'np', 'other', 'trash'] as const)
-      for (const id of batchActions(view)) expect(ACTIONS[id].batch, id).toBe(true)
+      for (const id of batchActions(view, NONE)) expect(ACTIONS[id].batch, id).toBe(true)
   })
 
   it('advertises in the shortcuts sheet every key the table has', () => {
