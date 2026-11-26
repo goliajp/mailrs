@@ -6,6 +6,8 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -74,6 +76,41 @@ abstract class ScreenShots(private val tag: String, private val theme: String) :
         compose.onNodeWithTag("button.threadMore").performClick()
         waitForTag("action.Pin", "the thread menu did not open")
         shot("4-thread-menu")
+    }
+
+    /** The sign-in screen's server line, the saved list, and the add and edit forms. */
+    @Test
+    fun the_server_picker_screens() {
+        assumeTrue(InstrumentationRegistry.getArguments().getString("shots") == "true")
+        compose.activityRule.scenario.onActivity { it.resetServersForTest() }
+        compose.waitForIdle()
+        shot("s1-sign-in")
+        compose.onNodeWithTag("field.server").performClick()
+        waitForTag("sheet.servers", "the server list never opened")
+        for ((name, address) in listOf("Office" to "mail.example.com", "Home lab" to "http://192.168.1.20:8080")) {
+            compose.onNodeWithTag("server.add").performClick()
+            waitForTag("server.field.address", "the add form never opened")
+            compose.onNodeWithTag("server.field.name").performTextInput(name)
+            compose.onNodeWithTag("server.field.address").performTextInput(address)
+            if (name == "Home lab") {
+                compose.mainClock.advanceTimeBy(600)
+                shot("s3-add-server")
+            }
+            compose.onNodeWithTag("server.save").performClick()
+            waitForTag("server.row.$name", "the list never showed $name")
+        }
+        compose.mainClock.advanceTimeBy(600)
+        shot("s2-servers")
+        compose.onNodeWithTag("server.edit.Office").performClick()
+        waitForTag("server.delete", "the edit form never opened")
+        compose.onNodeWithTag("server.field.address").performTextReplacement("mail.golia.ai")
+        compose.mainClock.advanceTimeBy(600)
+        shot("s4-edit-server-refused")
+        compose.onNodeWithTag("server.cancel").performClick()
+        compose.onNodeWithTag("server.hideBuiltIn").performClick()
+        waitForTag("server.restore", "nothing offers the hidden server back")
+        compose.mainClock.advanceTimeBy(600)
+        shot("s5-built-in-hidden")
     }
 
     private fun verdictSwitch(on: String) {

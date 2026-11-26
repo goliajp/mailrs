@@ -1,6 +1,11 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.MailViewModel
 import jp.golia.mailrs.R
+import jp.golia.mailrs.UiState
+import jp.golia.mailrs.openReset
+import jp.golia.mailrs.wire.ServerList
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import jp.golia.mailrs.wire.Texts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -53,10 +58,27 @@ import androidx.compose.ui.unit.sp
  * keyboard does not cover the thing the reader came to type into.
  */
 @Composable
+fun SignInScreen(state: UiState, vm: MailViewModel) {
+    val servers by vm.servers.list.collectAsStateWithLifecycle()
+    SignInScreen(
+        state.busy,
+        state.error,
+        state.needsTotp,
+        servers = servers,
+        onServers = { vm.servers.change(it) },
+        onSignIn = { s, u, p, c -> vm.signIn(s, u, p, c) },
+        notice = state.notice,
+        onHaveCode = { s, a -> vm.openReset(s, a) },
+    )
+}
+
+@Composable
 fun SignInScreen(
     busy: Boolean,
     error: String?,
     needsCode: Boolean,
+    servers: ServerList,
+    onServers: ((ServerList) -> ServerList) -> Unit,
     onSignIn: (server: String, address: String, password: String, totpCode: String?) -> Unit,
     /** Said once a reset code set a new password. */
     notice: String? = null,
@@ -65,8 +87,13 @@ fun SignInScreen(
     val theme = LocalTheme.current
     // **Saveable, so a rotation does not empty the form** — typing an
     // address and turning the phone should not start it again.
-    // the host the server's certificate is issued for, as on iOS
-    var server by rememberSaveable { mutableStateOf("mail.golia.ai") }
+    // The entry, by id: the list can change under it while the picker
+    // is open, and an id that left the list falls back to the list's
+    // own choice — the server that last signed in.
+    var serverId by rememberSaveable { mutableStateOf(servers.preselected.id) }
+    val chosen = servers.visible.firstOrNull { it.id == serverId } ?: servers.preselected
+    val server = chosen.address
+    var picking by rememberSaveable { mutableStateOf(false) }
     var username by rememberSaveable { mutableStateOf("") }
     // **Except the password.** Saved state is a Bundle, and a Bundle
     // goes to disk in the saved instance state; a password that
@@ -115,14 +142,7 @@ fun SignInScreen(
             modifier = Modifier.padding(top = 4.dp, bottom = 28.dp),
         )
 
-        OutlinedTextField(
-            value = server,
-            onValueChange = { server = it },
-            label = { Text(Texts.get(R.string.common_server)) },
-            singleLine = true,
-            keyboardOptions = addressKeyboard(keyboardType = KeyboardType.Uri),
-            modifier = Modifier.fillMaxWidth().testTag("field.server"),
-        )
+        ServerField(chosen, onClick = { picking = true })
         OutlinedTextField(
             value = username,
             onValueChange = { username = it },
@@ -141,7 +161,7 @@ fun SignInScreen(
             // address into a phone keyboard.
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 10.dp)
+                .padding(top = 6.dp)
                 .semantics { contentType = ContentType.EmailAddress }
                 .testTag("field.address"),
         )
@@ -224,5 +244,14 @@ fun SignInScreen(
         ) {
             Text(Texts.get(R.string.signin_have_reset_code), color = theme.accent)
         }
+    }
+    if (picking) {
+        ServerPickerSheet(
+            servers = servers,
+            chosen = chosen,
+            onChoose = { serverId = it.id },
+            onServers = onServers,
+            onDismiss = { picking = false },
+        )
     }
 }

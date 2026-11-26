@@ -64,6 +64,7 @@ class MailViewModel(
 ) : AndroidViewModel(app) {
 
     internal val client = MailrsClient(TokenStore(app))
+    val servers = jp.golia.mailrs.wire.ServerStore(app) { client.session?.server }
 
     /** The answer the open password prompt is waiting to give; see `confirmed`. */
     internal var confirmation: kotlinx.coroutines.CompletableDeferred<Boolean>? = null
@@ -173,6 +174,7 @@ class MailViewModel(
                 is MailrsClient.Outcome.Ok if r.value == MailrsClient.LoginStep.NeedsCode ->
                     _state.update { it.copy(busy = false, needsTotp = true) }
                 is MailrsClient.Outcome.Ok -> {
+                    servers.change { it.recordSuccess(server) }
                     _state.update { it.copy(
                         signedIn = true,
                         busy = false,
@@ -382,11 +384,6 @@ class MailViewModel(
         testFolder = MailList.named(folder)
         _state.update { it.copy(conversations = emptyList(), endOfList = false) }
         refresh()
-    }
-
-    fun forgetLoadedMail() {
-        if (!BuildConfig.ALLOW_SERVER_OVERRIDE) return
-        _state.update { it.copy(conversations = emptyList(), messages = emptyList()) }
     }
 
     /** Every keystroke, straight into the one copy of the draft. */

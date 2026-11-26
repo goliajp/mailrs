@@ -106,3 +106,9 @@ fun MailViewModel.reportFailure(message: String) {
 fun MailViewModel.dismissError() {
     _state.update { it.copy(error = null) }
 }
+
+/** Debug only: drop the loaded rows, so a test watches the cache paint. */
+fun MailViewModel.forgetLoadedMail() {
+    if (!BuildConfig.ALLOW_SERVER_OVERRIDE) return
+    _state.update { it.copy(conversations = emptyList(), messages = emptyList()) }
+}

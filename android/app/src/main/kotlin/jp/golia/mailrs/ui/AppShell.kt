@@ -7,7 +7,6 @@ import androidx.compose.material3.SnackbarHostState
 import jp.golia.mailrs.closeCalendar
 import jp.golia.mailrs.closeSent
 import jp.golia.mailrs.closeReset
-import jp.golia.mailrs.openReset
 import jp.golia.mailrs.submitReset
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -250,14 +249,7 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
                                 onCancel = { vm.closeReset() },
                             )
                         } else {
-                            SignInScreen(
-                                state.busy,
-                                state.error,
-                                state.needsTotp,
-                                onSignIn = { s, u, p, c -> vm.signIn(s, u, p, c) },
-                                notice = state.notice,
-                                onHaveCode = { s, a -> vm.openReset(s, a) },
-                            )
+                            SignInScreen(state, vm)
                         }
                     }
                     Screen.Compose -> Box(peeled) { ComposeScreen(state, vm) }

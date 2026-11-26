@@ -769,6 +769,22 @@
         }
       }
     },
+    "Add server": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーを追加"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加服务器"
+          }
+        }
+      }
+    },
     "Add somebody to send this to": {
       "localizations": {
         "ja": {
@@ -2514,6 +2530,22 @@
         }
       }
     },
+    "Delete server": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーを削除"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除服务器"
+          }
+        }
+      }
+    },
     "Deleting is not supported for this account yet": {
       "localizations": {
         "ja": {
@@ -2754,6 +2786,22 @@
         }
       }
     },
+    "Edit %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ を編集"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑 %@"
+          }
+        }
+      }
+    },
     "Edit and send again": {
       "localizations": {
         "ja": {
@@ -2766,6 +2814,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "编辑后重新发送"
+          }
+        }
+      }
+    },
+    "Edit server": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーを編集"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑服务器"
           }
         }
       }
@@ -2798,6 +2862,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "结束"
+          }
+        }
+      }
+    },
+    "Enter a server address, like mail.example.com": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "mail.example.com のようなサーバーアドレスを入力してください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入服务器地址，例如 mail.example.com"
           }
         }
       }
@@ -3310,6 +3390,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已扣下：疑似诈骗"
+          }
+        }
+      }
+    },
+    "Hide %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ を非表示"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏 %@"
           }
         }
       }
@@ -5756,6 +5852,22 @@
         }
       }
     },
+    "Optional": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任意"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可不填"
+          }
+        }
+      }
+    },
     "Organizer: %@": {
       "localizations": {
         "ja": {
@@ -6540,6 +6652,22 @@
         }
       }
     },
+    "Save": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存"
+          }
+        }
+      }
+    },
     "Saved searches": {
       "localizations": {
         "ja": {
@@ -6956,6 +7084,22 @@
         }
       }
     },
+    "Servers": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバー"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器"
+          }
+        }
+      }
+    },
     "Set": {
       "localizations": {
         "ja": {
@@ -7016,6 +7160,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "分享"
+          }
+        }
+      }
+    },
+    "Show %@ again": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ を再表示"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新显示 %@"
           }
         }
       }
@@ -7660,6 +7820,22 @@
         }
       }
     },
+    "The address your mail administrator gave you. Leave the name empty to use the address.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メール管理者から伝えられたアドレスを入力します。名前を空欄にすると、アドレスが名前になります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "填邮件管理员给你的地址。名称留空时，用地址作名称。"
+          }
+        }
+      }
+    },
     "The app password was not revoked": {
       "localizations": {
         "ja": {
@@ -8140,6 +8316,22 @@
         }
       }
     },
+    "The server you last signed in to is chosen for you next time.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "次回は、前回サインインしたサーバーが選択されます"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下次会自动选中上次登录成功的服务器"
+          }
+        }
+      }
+    },
     "The signed-in devices could not be loaded": {
       "localizations": {
         "ja": {
@@ -8440,6 +8632,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "这封邮件的内容就是附件本身。"
+          }
+        }
+      }
+    },
+    "This server is already in the list": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このサーバーはすでにリストにあります"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个服务器已经在列表里"
           }
         }
       }
