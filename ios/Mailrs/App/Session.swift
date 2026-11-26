@@ -7,18 +7,6 @@ import SwiftUI
 /// `@Observable` rather than `ObservableObject`: the app targets iOS 18,
 /// where Observation is the supported shape and a view only re-renders
 /// for the properties it actually reads.
-/// Reads a `-flag value` pair off the launch arguments.
-///
-/// Free function rather than a static member so stored-property
-/// initialisers in `Session` can call it.
-private func launchValue(_ flag: String) -> String? {
-    let arguments = ProcessInfo.processInfo.arguments
-    guard let index = arguments.firstIndex(of: flag), index + 1 < arguments.count else {
-        return nil
-    }
-    return arguments[index + 1]
-}
-
 @Observable
 @MainActor
 final class Session {
@@ -55,12 +43,10 @@ final class Session {
         return axes
     }
 
-    /// A launch argument overrides it, which is how the UI tests point
-    /// the app at a stub instead of a live server. Inert in normal use —
-    /// nothing passes this flag but a test runner.
-    var baseURL: URL = launchValue("-mailrsBaseURL").flatMap(URL.init(string:))
-
-        ?? URL(string: "https://mail.golia.ai")!
+    /// The server chosen on the sign-in screen: at launch the one that
+    /// last signed in, unless a UI test names a stub.
+    let servers = ServerStore.shared
+    var baseURL: URL = ServerStore.shared.launchURL()
     var state: State = .signedOut
 
     // `private(set)` would make the *setter* file-private, and these
@@ -295,6 +281,7 @@ final class Session {
             // login by alias stores itself under the account it reached.
             CredentialStore.lastAddress = login.address
             CredentialStore.save(password: password, address: login.address)
+            servers.update { $0.recordSuccess(address: baseURL.absoluteString) }
             state = .signedIn(address: login.address, displayName: login.displayName)
             await loadConversations()
             await loadMyAliases()

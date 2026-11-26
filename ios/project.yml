@@ -215,6 +215,8 @@ targets:
       - path: Mailrs/Features/SenderBadges.swift
       - path: Mailrs/Features/SenderIcons.swift
       - path: Mailrs/Features/SignInView.swift
+      - path: Mailrs/Features/ServerPickerSheet.swift
+      - path: Mailrs/Features/ServerEditSheet.swift
       - path: Mailrs/Features/SendListSection.swift
       - path: Mailrs/Features/RowDateText.swift
       - path: Mailrs/Features/ValueOrPlaceholder.swift

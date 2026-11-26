@@ -378,3 +378,4 @@ wire/MailrsClientDraftFiles.kt	Authorization
 wire/MailrsClientDraftFiles.kt	Bearer ${s.token}
 wire/MailrsClientDraftFiles.kt	?name=
 wire/MailrsClientDraftFiles.kt	&type=
+wire/ServerList.kt	GoliaMail

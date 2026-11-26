@@ -9,6 +9,7 @@ struct SignInView: View {
     @State private var showsPassword = true
     /// Said once a reset code has set a new password.
     @State private var resetDone = false
+    @State private var showsServers = false
 
     /// Sign in with the stored credential.
     ///
@@ -119,17 +120,19 @@ struct SignInView: View {
                 }
 
                 Section("Server") {
-                    // Shown, not hidden in a settings screen: the address
+                    // Shown, not hidden in a settings screen: the server
                     // decides which mailbox this is, and getting it wrong
                     // is the difference between "wrong password" and
                     // "wrong server".
-                    TextField("https://mail.example.com", text: Binding(
-                        get: { session.baseURL.absoluteString },
-                        set: { if let url = URL(string: $0) { session.baseURL = url } }
-                    ))
-                    .neverCapitalised()
-                    .autocorrectionDisabled()
-                    .urlKeyboard()
+                    Button {
+                        showsServers = true
+                    } label: {
+                        ServerChoiceRow()
+                    }
+                    .accessibilityIdentifier("sign-in-server")
+                    .sheet(isPresented: $showsServers) {
+                        ServerPickerSheet()
+                    }
                 }
 
                 if case let .failed(message) = session.state {

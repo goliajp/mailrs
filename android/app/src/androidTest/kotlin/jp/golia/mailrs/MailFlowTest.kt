@@ -99,17 +99,6 @@ class MailFlowTest : MailrsUiTest() {
     }
 
     /**
-     * The server field is prefilled but editable — someone else's
-     * deployment is the ordinary case for a self-hosted mail server.
-     */
-    @Test
-    fun the_server_field_can_be_changed() {
-        compose.onNodeWithTag("field.server").performTextClearance()
-        compose.onNodeWithTag("field.server").performTextInput("mail.example.test")
-        compose.onNodeWithTag("field.server").assertIsDisplayed()
-    }
-
-    /**
      * Search, and in the order the server ranked it.
      *
      * Both fixtures carry "ref 2026" and the stub returns the **older**

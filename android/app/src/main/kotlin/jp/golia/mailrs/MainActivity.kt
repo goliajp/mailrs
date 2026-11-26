@@ -111,6 +111,12 @@ class MainActivity : ComponentActivity() {
         model?.useFolderForTest(folder)
     }
 
+    /** Back to the list a fresh install has, for a test about the saved servers. */
+    fun resetServersForTest() {
+        if (!BuildConfig.ALLOW_SERVER_OVERRIDE) return
+        model?.servers?.change { jp.golia.mailrs.wire.ServerList() }
+    }
+
     /** A cold launch without the launch — see `forgetLoadedMail`. */
     fun forgetLoadedMailForTest() {
         model?.forgetLoadedMail()
