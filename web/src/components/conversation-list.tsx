@@ -1,14 +1,11 @@
 import { type Key, useT } from '@/i18n'
-import { errorText } from '@/lib/error-text'
 import { openNewMessageAtom } from '@/store/composer-windows'
 export { DateDivider } from '@/components/conversation-list-virtual'
-
-import type { BatchAction } from '@/components/conversation-actions'
 
 import { toast } from '@goliapkg/gds'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { CheckCircle, MailCheck, SquarePen } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { BatchActionBar } from '@/components/conversation-list-batch-action-bar'
 import { FilterBar } from '@/components/conversation-list-filter-bar'
@@ -21,6 +18,7 @@ import { RecalledNote } from '@/components/recalled-note'
 import { CreateRuleButton, SavedSearchBar, SaveSearchButton } from '@/components/saved-search-bar'
 import { StorageBanner } from '@/components/storage-banner'
 import { TrashBanner } from '@/components/trash-banner'
+import { useBatchSelection } from '@/hooks/use-batch-selection'
 import { useConversationActions } from '@/hooks/use-conversation-actions'
 import { useConversationRows, useCurrentSelection } from '@/hooks/use-current-list'
 import { useCurrentMailFilters } from '@/hooks/use-current-mail-filters'
@@ -29,23 +27,20 @@ import { type RowState, viewOf } from '@/lib/actions'
 import { dateGroupLabel } from '@/lib/format'
 import { listIdentity } from '@/lib/list-identity'
 import { persistScroll, readSavedScroll } from '@/lib/list-scroll'
-import { invalidateBucketMove } from '@/lib/mail-cache'
 import { queryClient } from '@/lib/query-client'
 import { authAtom } from '@/store/auth'
 import { conversationKeys } from '@/store/query-keys-v21'
 import { activeListAtom, labelPickerAtom } from '@/store/ui'
 import {
-  batchModeAtom,
   composingNewAtom,
   folderAtom,
   pickInListAtom,
   quickFilterAtom,
   searchQueryAtom,
-  selectedThreadIdsAtom,
   sortOrderAtom,
   stickyUnreadIdsAtom,
 } from '@/store/ui'
-import { wireBatchMutation, wireMarkAllRead } from '@/wire/endpoints/mutations'
+import { wireMarkAllRead } from '@/wire/endpoints/mutations'
 
 export function ConversationList({ onSelectConversation }: { onSelectConversation?: () => void }) {
   const t = useT()
@@ -72,10 +67,8 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
   const openNewMessage = useSetAtom(openNewMessageAtom)
   const searchQuery = useAtomValue(searchQueryAtom)
 
-  // batch mode state
-  const [batchMode, setBatchMode] = useAtom(batchModeAtom)
-  const [selectedThreadIds, setSelectedThreadIds] = useAtom(selectedThreadIdsAtom)
-  const [batchLoading, setBatchLoading] = useState(false)
+  const batch = useBatchSelection()
+  const { batchMode, picked: selectedThreadIds } = batch
 
   // refs so the paging callback stays stable across renders
   const onLoadMoreRef = useRef(loadMore)
@@ -135,75 +128,6 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
   const loadNextPage = useCallback(() => {
     if (!loadingRef.current) void onLoadMoreRef.current()
   }, [])
-
-  // exit batch mode and clear selection
-  const exitBatchMode = useCallback(() => {
-    setBatchMode(false)
-    setSelectedThreadIds(new Set())
-  }, [setBatchMode, setSelectedThreadIds])
-
-  // toggle individual thread in selection set
-  const toggleThreadCheck = useCallback(
-    (threadId: string) => {
-      setSelectedThreadIds((prev) => {
-        const next = new Set(prev)
-        if (next.has(threadId)) {
-          next.delete(threadId)
-        } else {
-          next.add(threadId)
-        }
-        return next
-      })
-    },
-    [setSelectedThreadIds]
-  )
-
-  // execute batch action against API then refresh
-  // The wire call, separated from the decision to make it: the delete
-  // path has to run this *after* an answer, and it was one closure.
-  const runBatch = useCallback(
-    async (action: BatchAction, ids: string[], undoing = false) => {
-      setBatchLoading(true)
-      try {
-        const result = await wireBatchMutation(action, ids)
-        // How many, not "some": the route reports which ids it could
-        // not do, and a message that cannot count is one the reader
-        // has to go and check for themselves.
-        const refused = result.failed_thread_ids.length || result.failed
-        const undo = BATCH_UNDO[action]
-        if (!result.success) {
-          toast.error(t('batch.partFailed', { failed: refused, total: ids.length }))
-        } else if (undo && !undoing) {
-          toast.success(t('batch.done', { count: ids.length }), {
-            action: { label: t('common.undo'), onClick: () => void runBatch(undo, ids, true) },
-            duration: 8000,
-          })
-        } else {
-          toast.success(t('batch.done', { count: ids.length }))
-        }
-        exitBatchMode()
-        // the moved rows leave this list and arrive in another: every
-        // list is fetched again, not the next page of this one
-        invalidateBucketMove()
-      } catch (err) {
-        toast.error(errorText(err, t('list.batchFailed')))
-      } finally {
-        setBatchLoading(false)
-      }
-    },
-    [exitBatchMode, t]
-  )
-
-  const handleBatchAction = useCallback(
-    async (action: BatchAction) => {
-      const ids = Array.from(selectedThreadIds)
-      if (ids.length === 0) return
-      // `delete` moves them to the Trash, which keeps them 30 days, so
-      // it is not asked
-      await runBatch(action, ids)
-    },
-    [selectedThreadIds, runBatch]
-  )
 
   const actions = useConversationActions()
   const openLabels = useSetAtom(labelPickerAtom)
@@ -280,9 +204,9 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
             }`}
             onClick={() => {
               if (batchMode) {
-                exitBatchMode()
+                batch.exit()
               } else {
-                setBatchMode(true)
+                batch.setBatchMode(true)
               }
             }}
             title={t('list.batchSelect')}
@@ -362,7 +286,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
         onNearEnd={loadNextPage}
         onRefresh={refresh}
         onSelect={handleSelect}
-        onToggleCheck={toggleThreadCheck}
+        onToggleCheck={batch.toggle}
         scrollContainerRef={scrollContainerRef}
         selectedId={selectedId}
         selectedThreadIds={selectedThreadIds}
@@ -371,11 +295,13 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
       {/* floating batch action bar */}
       {hasBatchBar && (
         <BatchActionBar
-          loading={batchLoading}
-          onAction={handleBatchAction}
-          onCancel={exitBatchMode}
+          loading={batch.loading}
+          onAction={batch.run}
+          onCancel={batch.exit}
           onLabel={() => openLabels({ threadIds: Array.from(selectedThreadIds) })}
-          selectedCount={selectedThreadIds.size}
+          onToggleAll={() => batch.toggleAll(sortedConversations.map((c) => c.thread_id))}
+          picked={selectedThreadIds}
+          rows={sortedConversations}
           view={listView(activeList === 'trash', folder)}
         />
       )}
@@ -384,16 +310,6 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
 }
 // shared with the Sent / Drafts list views so every list groups rows
 // under the same Today / Yesterday / weekday pills.
-
-/** What takes a batch back, offered in its toast. */
-const BATCH_UNDO: Partial<Record<BatchAction, BatchAction>> = {
-  archive: 'unarchive',
-  delete: 'untrash',
-  read: 'unread',
-  star: 'unstar',
-  unread: 'read',
-  untrash: 'delete',
-}
 
 /** The action table's view of the list on screen. */
 function batchToggleLabel(on: boolean): Key {

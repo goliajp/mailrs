@@ -20,6 +20,15 @@ it landed in where that is known.
 
 ### Batch actions in the conversation list
 
+- The batch bar is a toolbar of one row at every list width. A box on
+  the left picks every loaded conversation or none, beside the count;
+  archive, move to Trash, mark read or unread, star and label are icon
+  buttons with tooltips, and the ones that do not fit go into a "More"
+  menu. Of read and unread it offers the one that applies to the
+  selection (both, when read and unread conversations are picked
+  together), and likewise takes a star or the archive back when every
+  picked conversation has it. `e`, `#`, `s`, `l`, `Shift+I` and `u` act
+  on the selection while one exists, and Escape puts it away.
 - A batch action (mark read or unread, star, archive, move to Trash)
   showed a failure although it had gone through: the answer carried
   `"message": null`, which the web client refused to read. The server

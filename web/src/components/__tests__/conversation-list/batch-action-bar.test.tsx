@@ -2,7 +2,7 @@ import type { ConversationSummary } from '@/lib/types'
 import type { ReactNode } from 'react'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { createStore, Provider } from 'jotai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -274,13 +274,14 @@ describe('BatchActionBar', () => {
       </Wrapper>
     )
 
-    expect(screen.getByText('1 selected')).toBeDefined()
-    expect(screen.getByText('Mark as read')).toBeDefined()
-    expect(screen.getByText('Mark as unread')).toBeDefined()
-    expect(screen.getByText('Star')).toBeDefined()
-    expect(screen.getByText('Archive')).toBeDefined()
-    expect(screen.getByText('Move to Trash')).toBeDefined()
-    expect(screen.getByText('Cancel')).toBeDefined()
+    const bar = within(screen.getByRole('toolbar'))
+    expect(bar.getByText('1 selected')).toBeDefined()
+    for (const name of ['Archive', 'Move to Trash', 'Mark as unread', 'Star', 'Labels']) {
+      expect(bar.getByRole('button', { name })).toBeDefined()
+    }
+    expect(bar.getByRole('button', { name: 'Exit batch select mode' })).toBeDefined()
+    // nothing left over, so no menu
+    expect(bar.queryByRole('button', { name: 'More' })).toBeNull()
   })
 
   it('toggles batch mode via batch select button', () => {
@@ -310,8 +311,10 @@ describe('BatchActionBar', () => {
       </Wrapper>
     )
 
-    fireEvent.click(screen.getByText('Cancel'))
+    const bar = within(screen.getByRole('toolbar'))
+    fireEvent.click(bar.getByRole('button', { name: 'Exit batch select mode' }))
     expect(screen.queryByText(/selected$/)).toBeNull()
+    expect(store.get(batchModeAtom)).toBe(false)
   })
 
   it('shows correct count when multiple items selected', () => {

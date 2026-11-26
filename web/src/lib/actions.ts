@@ -139,6 +139,14 @@ export const ACTIONS = Object.fromEntries(WEB_ENTRIES.map((e) => [e.id, webSpec(
   ActionSpec
 >
 
+/** What the picked conversations have in common, for the batch bar's pairs. */
+export type BatchSelection = {
+  allArchived: boolean
+  allStarred: boolean
+  anyRead: boolean
+  anyUnread: boolean
+}
+
 /** What a conversation is now, as far as which actions apply. */
 export type RowState = {
   archived: boolean
@@ -159,11 +167,41 @@ export function actionForKey(key: string, s: RowState): ActionId | null {
   return applicable.find((id) => ACTIONS[id].keys.includes(key)) ?? null
 }
 
-/** The batch bar's actions, in order. */
-export function batchActions(view: RowState['view']): ActionId[] {
-  let ids: ActionId[] = ['read', 'unread', 'star', 'archive', 'label', 'trash']
-  if (view === 'trash') ids = ['read', 'unread', 'untrash']
+/**
+ * The batch bar's actions, most used first. Of each pair, the one that
+ * applies to the selection: "read" while anything picked is unread.
+ */
+export function batchActions(view: RowState['view'], s: BatchSelection): ActionId[] {
+  const mark = toggle(s.anyUnread, 'read', 'unread')
+  let ids: ActionId[] = [
+    toggle(s.allArchived, 'unarchive', 'archive'),
+    'trash',
+    mark,
+    toggle(s.allStarred, 'unstar', 'star'),
+    'label',
+  ]
+  if (view === 'trash') ids = ['untrash', mark]
   return ids.filter((id) => ACTIONS[id].batch)
+}
+
+/** Kept in the bar's menu at any width: "unread" beside "read" when both kinds are picked. */
+export function batchExtras(s: BatchSelection): ActionId[] {
+  if (s.anyRead && s.anyUnread) return ['unread']
+  return []
+}
+
+/** The selection as the batch bar reads it; a picked id with no loaded row counts for nothing. */
+export function batchSelectionOf(
+  rows: { archived: boolean; flagged: boolean; thread_id: string; unread_count: number }[],
+  picked: ReadonlySet<string>
+): BatchSelection {
+  const known = rows.filter((r) => picked.has(r.thread_id))
+  return {
+    allArchived: known.length > 0 && known.every((r) => r.archived),
+    allStarred: known.length > 0 && known.every((r) => r.flagged),
+    anyRead: known.some((r) => r.unread_count === 0),
+    anyUnread: known.some((r) => r.unread_count > 0),
+  }
 }
 
 /** A key event as the table names keys: `e`, `#`, `Shift+I`. */
